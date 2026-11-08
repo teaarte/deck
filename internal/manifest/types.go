@@ -105,6 +105,9 @@ type Parent struct {
 	Key        string `json:"key"`
 }
 
+// FreeProvider as the provider of a command puts the free models of the workspace first.
+const FreeProvider = "free"
+
 type Command struct {
 	Name           string          `json:"name"`
 	Title          string          `json:"title"`

@@ -1,6 +1,6 @@
 ---
 name: memory
-description: Keeps the memory of deck — short facts the owner said that should hold in later sessions, and lessons deck's agents drew from their own runs — as an index and fact documents, and cleans it up. Use when the owner states a preference, a rule, a refusal or a fact about a project that should outlive this session, when a run taught something the next run should know, when a fact turns out wrong, and in the weekly cleanup.
+description: Keeps the memory of deck — short facts the owner said that should hold in later sessions, and lessons deck's agents drew from their own runs — as an index and fact documents, and cleans it up. Use when the owner states a preference, a rule, a refusal or a fact about a project that should outlive this session, when a run taught something the next run should know, when a fact turns out wrong, and in the nightly sleep.
 ---
 
 # Memory
@@ -36,7 +36,7 @@ The owner wants replies in Russian, two or three sentences, without greetings.
 
 - `type`: `user` (who the owner is), `feedback` (how to work: a correction or a confirmed way), `project`
   (a goal, a constraint, a decision not visible in deck's data), `reference` (where something lives outside).
-- `expires` (a date) only for a fact that stops being true by itself; the cleanup removes it after that day.
+- `expires` (a date) only for a fact that stops being true by itself; the sleep removes it after that day.
 - The body is the fact; for `feedback` and `project` add **Why** and **How to apply**.
 
 Then one line in the index: `- [Title](replies-in-russian.md) — the hook that tells when it matters`. The
@@ -84,8 +84,12 @@ Before 09:00 the site answers 503; one try after a wait of a minute got the page
 A lesson that turns out wrong is edited or deleted, not answered by another. Index lines of lessons go under the
 heading `## Lessons` of the index, below the owner's facts; only the first 40 of them reach a prompt.
 
-## Cleanup
+## Sleep
 
-Once a week (and when an index passes 150 lines): read the index and the facts; merge duplicates; delete
-facts whose `expires` passed and facts the owner contradicted (`document_delete`, the owner can bring them
-back; a deleted name is not saved again, so a fact that comes back later takes another slug); shorten lines that grew; put the lines that matter most at the top. Say in one line what changed.
+Once a night the master's command `sleep` goes over what happened since the last one (`episodes_list`: runs,
+failures, incidents, the owner's messages, summaries of topics) and keeps memory true and short: it corrects a fact
+an episode shows wrong, writes lessons where an episode would change the next run (each with its `source`), merges
+duplicates, deletes what expired or the owner contradicted (`document_delete`; the owner can bring it back, and a
+deleted name is not saved again, so a fact that comes back takes another slug) and keeps each index under 150 lines,
+the owner's words first. The owner's words stay facts of the four types; what deck concluded is a lesson. A fact out
+of the index is not lost: `memory_search` finds it.

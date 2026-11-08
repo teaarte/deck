@@ -159,8 +159,8 @@ func (s *Service) atFolder(ctx context.Context, p db.Project, cmd *manifest.Comm
 	return out, nil
 }
 
-// choices are the providers that run and have what a command requires, at least one: those of its assignment names
-// in order, else all with the suggestion of the manifest first; assigned says they come from an assignment.
+// choices are the providers that run and have what a command requires, at least one: those of its assignment in
+// order, else all with the suggestion of the manifest (free models for "free") first; assigned: from an assignment.
 func (s *Service) choices(ctx context.Context, p db.Project, cmd *manifest.Command, names []string) ([]provider.Provider, bool, error) {
 	place, requires := p.Name+"."+cmd.Name, cmd.Requires
 	var fits []provider.Provider
@@ -191,7 +191,17 @@ func (s *Service) choices(ctx context.Context, p db.Project, cmd *manifest.Comma
 	if err != nil {
 		return nil, false, err
 	}
-	if i := slices.IndexFunc(all, func(pv provider.Provider) bool { return pv.Name() == cmd.Provider }); i > 0 {
+	if cmd.Provider == manifest.FreeProvider {
+		var free, rest []provider.Provider
+		for _, pv := range all {
+			if s.Free(ctx, p.WorkspaceID, pv.Name()) {
+				free = append(free, pv)
+			} else {
+				rest = append(rest, pv)
+			}
+		}
+		all = append(free, rest...)
+	} else if i := slices.IndexFunc(all, func(pv provider.Provider) bool { return pv.Name() == cmd.Provider }); i > 0 {
 		suggested := all[i]
 		all = append([]provider.Provider{suggested}, slices.Delete(all, i, i+1)...)
 	}

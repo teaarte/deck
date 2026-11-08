@@ -446,6 +446,56 @@ func (q *Queries) NextRevision(ctx context.Context, documentID int64) (int64, er
 	return column_1, err
 }
 
+const repeatFailures = `-- name: RepeatFailures :many
+SELECT pr.name AS project, p.command, p.error_type, COUNT(*) AS failures, CAST(MAX(p.started_at) AS TEXT) AS last_at
+FROM process p JOIN project pr ON pr.id = p.project_id
+WHERE pr.workspace_id = ?1 AND p.state = 'error' AND p.started_at >= ?2
+GROUP BY p.project_id, p.command, p.error_type HAVING COUNT(*) >= 2
+ORDER BY failures DESC, last_at DESC
+`
+
+type RepeatFailuresParams struct {
+	WorkspaceID int64
+	Since       string
+}
+
+type RepeatFailuresRow struct {
+	Project   string
+	Command   string
+	ErrorType string
+	Failures  int64
+	LastAt    string
+}
+
+func (q *Queries) RepeatFailures(ctx context.Context, arg RepeatFailuresParams) ([]RepeatFailuresRow, error) {
+	rows, err := q.db.QueryContext(ctx, repeatFailures, arg.WorkspaceID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RepeatFailuresRow
+	for rows.Next() {
+		var i RepeatFailuresRow
+		if err := rows.Scan(
+			&i.Project,
+			&i.Command,
+			&i.ErrorType,
+			&i.Failures,
+			&i.LastAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const restoreDocument = `-- name: RestoreDocument :execrows
 UPDATE document SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL
 `

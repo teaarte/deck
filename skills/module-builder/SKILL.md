@@ -587,7 +587,8 @@ skills it needs in `executor.skills`; a skill may not grant tools (`allowed-tool
 from deck.
 
 The owner picks the models of each agent command in settings (`assignment_set`); the manifest only says
-what the command needs and suggests one. Every provider has deck's tools, a shell and file writes in its auto
+what the command needs and suggests one (`provider`; `"free"` puts the models the owner marked free first, for
+routine work, and the rest after them). Every provider has deck's tools, a shell and file writes in its auto
 mode and a project folder; `requires` lists only what some lack: `no_cloud` for personal data (finance,
 health) that must stay on the owner's hardware, and `images` for a model that reads pictures. A local model in an
 ACP agent has a shell and stays on the owner's hardware. Every agent searches with deck's `web_search` (the search

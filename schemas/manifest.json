@@ -75,7 +75,7 @@
         "callers": {"type": "array", "items": {"enum": ["owner", "master", "agent", "trigger"]}, "uniqueItems": true, "minItems": 1},
         "requires": {"type": "array", "uniqueItems": true, "items": {"enum": ["images", "no_cloud"]},
           "description": "Provider capabilities beyond what every provider has: images is a model that reads pictures; no_cloud is a model on the owner's hardware."},
-        "provider": {"type": "string", "description": "Suggested provider; the owner picks the real one in settings."},
+        "provider": {"type": "string", "description": "Suggested provider; \"free\" puts the models of the workspace marked free first. The owner picks the real one in settings."},
         "timeout_minutes": {"type": "integer", "minimum": 1, "maximum": 240},
         "runs": {"enum": ["one", "many"], "default": "one", "description": "one, the default: one run at a time; a call while a run goes on waits as a run of its own and starts once the runs before it have ended, so runs that write the same records, files of $DECK_DATA, a clone, an install or a browser never break each other. many: runs go side by side — only for a command whose runs share nothing they write (each its own record and files), or that calls itself, or that must answer at once while another of its runs goes on."},
         "executor": {"$ref": "#/$defs/executor"}

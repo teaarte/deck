@@ -74,3 +74,10 @@ SELECT d.name, r.text, r.created_at FROM document d JOIN document_revision r ON 
 WHERE d.workspace_id = sqlc.arg(workspace_id) AND d.project_id = sqlc.arg(project_id) AND d.record_id IS NULL
   AND d.kind = 'memory' AND d.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC;
+
+-- name: RepeatFailures :many
+SELECT pr.name AS project, p.command, p.error_type, COUNT(*) AS failures, CAST(MAX(p.started_at) AS TEXT) AS last_at
+FROM process p JOIN project pr ON pr.id = p.project_id
+WHERE pr.workspace_id = sqlc.arg(workspace_id) AND p.state = 'error' AND p.started_at >= sqlc.arg(since)
+GROUP BY p.project_id, p.command, p.error_type HAVING COUNT(*) >= 2
+ORDER BY failures DESC, last_at DESC;

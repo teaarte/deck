@@ -585,6 +585,7 @@
   "Manifest format": "Формат манифеста",
   "Mark a failing check read": "Отметить сбой проверки прочитанным",
   "Mark read": "Отметить прочитанным",
+  "Memory overview": "Обзор памяти",
   "Menu": "Меню",
   "Notify the owner": "Уведомить владельца",
   "Optional: while a process of this command with the same key is still going, the call returns it instead of starting another": "Необязательно: пока идёт процесс этой команды с тем же ключом, вызов вернёт его, а не запустит новый",

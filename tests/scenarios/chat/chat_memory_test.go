@@ -211,8 +211,8 @@ func TestOwnerEditsTheMemory(t *testing.T) {
 		Project, Command, Spec string
 	}
 	e.Must("deck.triggers_list", map[string]any{"project": "master"}, &ts)
-	if len(ts) != 2 || ts[0].Command != "memory" || ts[0].Spec != "0 10 * * 1" {
-		t.Fatalf("the master cleans the memory on Monday at ten: %+v", ts)
+	if len(ts) != 2 || ts[0].Command != "sleep" || ts[0].Spec != "30 3 * * *" {
+		t.Fatalf("the master sleeps over the memory at half past three every night: %+v", ts)
 	}
 }
 
@@ -263,10 +263,10 @@ func TestMemoryStaysWithItsOwnersAndDeletesHold(t *testing.T) {
 	if pr := fake.Calls()[3].Prompt; strings.Contains(pr, "NEWFACT") {
 		t.Fatal("memory it already has does not come again")
 	}
-	e.Must("deck.document_delete", map[string]any{"project": "master", "name": "prompts/memory.md"}, nil)
+	e.Must("deck.document_delete", map[string]any{"project": "master", "name": "prompts/sleep.md"}, nil)
 	_ = e.App.Close()
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{Script: script}))
-	e2.Refused("deck.document_get", map[string]any{"project": "master", "name": "prompts/memory.md"}, 404, "no document")
+	e2.Refused("deck.document_get", map[string]any{"project": "master", "name": "prompts/sleep.md"}, 404, "no document")
 }
 
 // TestTheMasterWritesItsDeletedMemoryIndexAgain: a memory document of its own project that was deleted the master

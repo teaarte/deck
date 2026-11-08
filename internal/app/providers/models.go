@@ -323,6 +323,15 @@ func (s *Service) modelDelete(ctx context.Context, act registry.Actor, in modelD
 }
 
 // Exists reports whether a name is a built-in provider or a model of the workspace, on a node of it too.
+// Free says a model of the workspace is marked free, on a node too; deck's own agents are not.
+func (s *Service) Free(ctx context.Context, workspace int64, name string) bool {
+	if base, _, ok := provider.AtNode(name); ok {
+		name = base
+	}
+	m, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
+	return err == nil && m.Model.Free == 1
+}
+
 func (s *Service) Exists(ctx context.Context, workspace int64, name string) bool {
 	if s.builtinNamed(name) != nil {
 		return true

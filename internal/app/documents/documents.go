@@ -460,7 +460,7 @@ func (s *Service) documentRestore(ctx context.Context, act registry.Actor, in do
 
 // Commands are the commands of documents.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.documentsCommands(), s.revisionsCommands(), s.programsCommands())
+	return slices.Concat(s.documentsCommands(), s.revisionsCommands(), s.programsCommands(), s.overviewCommands())
 }
 
 func (s *Service) documentsCommands() []*registry.Command {

@@ -19,8 +19,8 @@
       "Does a long task of the owner the master handed over from a chat topic, such as rebuilding a module with its renders and self-checks.": "Делает долгую задачу владельца, которую мастер передал из темы чата, например пересборку модуля с отрисовкой и самопроверками.",
       "What to do, with everything the owner said that it needs": "Что сделать, со всем, что для этого сказал владелец",
       "The chat topic the task came from": "Тема чата, из которой пришла задача",
-      "Clean up memory": "Прибрать память",
-      "Merges, shortens and deletes facts of the memory of the owner and of each project by the memory skill.": "Сливает, сокращает и удаляет факты памяти владельца и каждого модуля по скиллу памяти.",
+      "Sleep": "Сон",
+      "Once a night goes over what happened since the last sleep: corrects facts of memory by it, writes lessons with their source, tidies the indexes and proposes changes of skills that keep failing the same way.": "Раз в ночь разбирает, что случилось с прошлого сна: исправляет факты памяти, пишет уроки со ссылкой на источник, прибирает индексы и предлагает правки навыков, на которых повторяются одни и те же сбои.",
       "Daily review": "Ежедневный обзор",
       "Looks over the projects of deck and tells the owner in the feed what is worth doing.": "Просматривает модули deck и пишет владельцу в ленту, что стоит сделать.",
       "Look into an error": "Разобрать ошибку",
@@ -115,18 +115,18 @@
       }
     },
     {
-      "name": "memory",
-      "title": "Clean up memory",
-      "description": "Merges, shortens and deletes facts of the memory of the owner and of each project by the memory skill.",
+      "name": "sleep",
+      "title": "Sleep",
+      "description": "Once a night goes over what happened since the last sleep: corrects facts of memory by it, writes lessons with their source, tidies the indexes and proposes changes of skills that keep failing the same way.",
       "class": "internal",
       "callers": [
         "owner",
         "trigger"
       ],
-      "provider": "claude-code",
+      "provider": "free",
       "executor": {
         "type": "agent",
-        "prompt_file": "prompts/memory.md",
+        "prompt_file": "prompts/sleep.md",
         "skills": [
           "memory"
         ],
@@ -135,7 +135,12 @@
           "deck.documents_list",
           "deck.document_get",
           "deck.document_save",
-          "deck.document_delete"
+          "deck.document_delete",
+          "deck.episodes_list",
+          "deck.memory_search",
+          "deck.memory_overview",
+          "deck.skill_propose",
+          "deck.owner_notify"
         ]
       }
     },
@@ -294,8 +299,8 @@
       "on": "incident"
     },
     {
-      "command": "memory",
-      "cron": "0 10 * * 1"
+      "command": "sleep",
+      "cron": "30 3 * * *"
     },
     {
       "command": "review",

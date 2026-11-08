@@ -10,10 +10,12 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"deck2/internal/manifest"
 	"deck2/tests/harness"
 )
 
@@ -287,6 +289,45 @@ func (b *bare) codex(user, folder string) {
 	b.write(folder+"/config.toml", fmt.Sprintf(serverCodex, ip[0]), user)
 }
 
+// imagePrograms are the programs deck's image carries for modules: those the skill of modules lists, those the
+// manifests of deck's own modules and starters name, their interpreters, and the CLIs of the agents deck checks.
+func imagePrograms(t *testing.T) []string {
+	t.Helper()
+	skill, err := os.ReadFile(filepath.Join(harness.Root, "skills", "module-builder", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := regexp.MustCompile("deck's image carries the programs([^;]*);").FindSubmatch(skill)
+	if line == nil {
+		t.Fatal("the skill of modules lists the programs of deck's image")
+	}
+	progs := []string{"claude", "codex", "goose"}
+	for _, m := range regexp.MustCompile("`([^`]+)`").FindAllSubmatch(line[1], -1) {
+		progs = append(progs, string(m[1]))
+	}
+	manifests, _ := filepath.Glob(filepath.Join(harness.Root, "starters", "*", "manifest.json"))
+	for _, path := range append(manifests, filepath.Join(harness.Root, "master", "manifest.json")) {
+		raw, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var m struct{ Scripts []manifest.Script }
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		for _, s := range m.Scripts {
+			if p := map[string]string{"python": "python3", "node": "node", "bash": "bash"}[s.Runtime]; p != "" {
+				progs = append(progs, p)
+			}
+			for _, p := range s.Programs {
+				progs = append(progs, p.Name)
+			}
+		}
+	}
+	slices.Sort(progs)
+	return slices.Compact(progs)
+}
+
 // TestServerFromScratch is deck from compose.yaml with its three lines: a link of deck pair, no token in the log, HTTPS
 // by Caddy, sign-in links, Codex passing its self-check, a script in its box that sees no other process nor deck's base.
 func TestServerFromScratch(t *testing.T) {
@@ -308,6 +349,19 @@ func TestServerFromScratch(t *testing.T) {
 		t.Fatalf("the second origin of custom blocks over HTTPS: %.300s", sb)
 	}
 	b.health(token, "sandbox", "ok")
+	progs := imagePrograms(t)
+	var has, missing []string
+	for _, p := range progs {
+		if strings.TrimSpace(b.sh("deck", "command -v "+p+" || true")) == "" {
+			missing = append(missing, p)
+		} else {
+			has = append(has, p)
+		}
+	}
+	t.Logf("deck's image has: %s", strings.Join(has, " "))
+	if len(missing) > 0 {
+		t.Fatalf("deck's image lacks programs modules name: %s", strings.Join(missing, " "))
+	}
 	b.health(token, "provider:claude-code", "needs_login")
 	b.health(token, "provider:codex", "needs_login")
 	for _, agent := range []string{"claude-code", "codex"} {

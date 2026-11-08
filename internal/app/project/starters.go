@@ -14,7 +14,6 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
-	"deck2/internal/script"
 	"deck2/internal/store/db"
 	"deck2/internal/words"
 	"deck2/starters"
@@ -152,7 +151,7 @@ func (s *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest,
 	for _, str := range m.Secrets() {
 		out = append(out, needView{Kind: "secret", What: str, Done: s.Secret(p.WorkspaceID, p.Name, str)})
 	}
-	missing := script.Check(m)
+	missing := s.Scripts.Check(m)
 	for _, name := range slices.Sorted(maps.Keys(missing)) {
 		out = append(out, needView{Kind: "program", What: name, Detail: missing[name].Error()})
 	}

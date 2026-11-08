@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/app"
 	deckhome "deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/tests/harness"
@@ -535,11 +536,15 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 		`"runtime": "python"`, `"runtime": "python", "programs": [""]`, 1)}); code != 200 {
 		t.Fatalf("an empty program, which manifests took before, still loads: %d %s", code, out)
 	}
-	h := e.WaitHealth("command:progs.use", "error")
-	if !strings.Contains(h.Error, "deck-later-tool") || !strings.Contains(h.Error, "brew install deck-later-tool") {
-		t.Fatalf("the health names the missing program and how to install it: %+v", h)
+	install := "brew install deck-later-tool"
+	if runtime.GOOS == "linux" {
+		install = "sudo apt-get install deck-later-tool"
 	}
-	if p := e.WaitState(e.Start("progs", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, "brew install deck-later-tool") {
+	h := e.WaitHealth("command:progs.use", "error")
+	if !strings.Contains(h.Error, "deck-later-tool") || !strings.Contains(h.Error, install) {
+		t.Fatalf("the health names the missing program and how to install it on this system: %+v", h)
+	}
+	if p := e.WaitState(e.Start("progs", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, install) {
 		t.Fatalf("a run without its program is refused at once with the same line: %+v", p)
 	}
 	if err := harness.WriteProgram(filepath.Join(bin, "deck-later-tool"), []byte("#!/bin/sh\necho here\n")); err != nil {
@@ -553,6 +558,28 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 	}
 	if p := e.WaitState(e.Start("progs", "use", nil), "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "here") {
 		t.Fatalf("the script runs with its program: %+v %s", p, p.Result)
+	}
+}
+
+// TestAProgramMissingFromDecksImageAsksForANewerImage: deck that runs from its image names no package manager for a
+// program its image lacks; the owner gets it with a newer image.
+func TestAProgramMissingFromDecksImageAsksForANewerImage(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithConfig(func(c *app.Config) { c.Image = "deck:local" }))
+	e.Project("progs", strings.Replace(harness.ScriptManifest("use", "", ""), `"runtime": "python"`,
+		`"runtime": "python", "programs": [{"name": "deck-image-tool", "install": "brew install deck-image-tool"}]`, 1))
+	h := e.WaitHealth("command:progs.use", "error")
+	if !strings.Contains(h.Error, `"deck-image-tool"`) || !strings.Contains(h.Error, "image of deck deck:local") || strings.Contains(h.Error, "brew") {
+		t.Fatalf("the health of deck in its image asks for a newer image, not brew: %+v", h)
+	}
+	var needs []struct{ Kind, What, Detail string }
+	e.Must("deck.project_readiness_get", map[string]any{"project": "progs"}, &needs)
+	found := false
+	for _, n := range needs {
+		found = found || n.Kind == "program" && strings.Contains(n.Detail, "image of deck") && !strings.Contains(n.Detail, "brew")
+	}
+	if !found {
+		t.Fatalf("what the module needs says the same: %+v", needs)
 	}
 }
 

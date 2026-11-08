@@ -29,6 +29,8 @@ const maxStdout = 32 << 20
 type Exec struct {
 	Sandbox *sandbox.Sandbox
 	Home    home.Layout
+	// Image is the container image deck runs from: a program not in it comes only with a newer image.
+	Image string
 }
 
 func New(sb *sandbox.Sandbox, h home.Layout) *Exec { return &Exec{Sandbox: sb, Home: h} }
@@ -55,7 +57,7 @@ func (j Job) Results() string { return filepath.Join(j.Dir, "results") }
 
 // Run runs the script in its box and returns its stdout; a non-zero exit is an error with the end of stderr.
 func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
-	if err := check(*j.Script); err != nil {
+	if err := x.check(*j.Script); err != nil {
 		return nil, err
 	}
 	src := filepath.Join(j.Dir, "script")

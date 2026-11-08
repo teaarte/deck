@@ -504,9 +504,11 @@ runs in its box (section 4):
   manager goes through the proxy, its cache lives in `$DECK_DATA/.cache` (uv, npm, Hugging Face) and stays between
   runs, the install counts in `timeout_minutes`; a project without the registries in `domains.read` has no packages.
   Programs it needs from the machine go into `scripts[].programs`: a name (`"uv"`) or a name with how the owner
-  installs it (`{"name": "ffmpeg", "install": "brew install ffmpeg"}`). A missing program refuses the run at once and
-  is a red health row of the command with that text; ask the owner to install it, never work around it — the
-  check button of the row, or the next run, finds it.
+  installs it on a Mac (`{"name": "typst", "install": "brew install typst"}`). deck's image carries the programs
+  `python3`, `node`, `uv`, `bash`, `git`, `curl`, `ffmpeg`, `unzip` and `chromium`; a script names them all the same,
+  for a deck or a node outside the image. A missing program refuses the run at once and is a red health row of the
+  command with how to get it on that machine (a newer image of deck, else its package manager); ask the owner for it,
+  never work around it — the check button of the row, or the next run, finds it.
   Every script runs on the one python3 of 3.10 or newer deck picks at start, first on its `PATH` (health names it and
   the node of scripts); a script that needs a newer one says so in `requires-python` of its PEP 723 block, and uv
   finds or fetches it. Node installs into `$DECK_DATA` and loads the package with `createRequire`:

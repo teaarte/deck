@@ -11,7 +11,6 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
-	"deck2/internal/script"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -65,7 +64,7 @@ func (s *Service) Programs(ctx context.Context, projectID int64) error {
 	if err != nil {
 		return err
 	}
-	problems := script.Check(m)
+	problems := s.Missing(m)
 	sbErr := s.Sandbox.Check()
 	known, err := s.St.Q.ListHealth(ctx, store.ID(p.WorkspaceID))
 	if err != nil {

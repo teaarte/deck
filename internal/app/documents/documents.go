@@ -13,6 +13,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/store"
@@ -24,6 +25,8 @@ type Service struct {
 	St      *store.Store
 	Now     func() time.Time
 	Sandbox *sandbox.Sandbox
+	// Missing reports the scripts of a manifest whose programs are not on this machine, by script name.
+	Missing func(*manifest.Manifest) map[string]error
 	// Noted lists a change made without the owner.
 	Noted func(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, what, reason string) error
 	// SaveManifest saves a manifest through its checks; a change that widens rights waits for the owner.

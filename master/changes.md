@@ -108,3 +108,8 @@ and bring the modules in line.
 - 2026-11-08: `version_get` of a deck built from source says `dev+<commit>` and `commit`; a release says its tag.
 - 2026-11-08: a `file` field takes the name a call answered with as it is (`tts-….mp3` from `deck.model_call`, a
   tool, a screen shot), the same file as `results/<name>` of the calling process.
+  over it.
+- 2026-11-08: deck's image carries `ffmpeg` and `unzip` beside `python3`, `node`, `uv`, `bash`, `git`, `curl`,
+  `chromium` and Goose (the list is in the skill of modules); a script names them in `programs` all the same. A program
+  missing from the image says so in health — the owner updates the image — and elsewhere the install names the package
+  manager of that machine (apt on Linux, brew on a Mac), not a `brew` of the manifest on Linux.

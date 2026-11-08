@@ -404,6 +404,11 @@ func TestServerOnOneComputer(t *testing.T) {
 		!strings.Contains(ports, "127.0.0.1:7700") {
 		t.Fatalf("deck takes 7700 and 7701 on loopback, nothing 80 or 443: %s", ports)
 	}
+	// Again with no DECK_DIR and no terminal, as an agent runs it: the deck that runs stays as it was.
+	if out, err := exec.Command("docker", "exec", b.name, "env", "HOME=/srv", "DECK_SOURCE=/srv/src", "sh", "/srv/src/install.sh").CombinedOutput(); err == nil ||
+		!strings.Contains(string(out), "no terminal to ask") {
+		t.Fatalf("install.sh with no DECK_DIR leaves a running deck to a yes: %v\n%s", err, out)
+	}
 	token := b.signIn()
 	harness.Until(t, "the first screen by deck.localhost on the published port", func() bool {
 		out, err := exec.Command("docker", "exec", b.name, "wget", "-qO-", "--header", "Host: deck.localhost:7700", "http://127.0.0.1:7700/").CombinedOutput()

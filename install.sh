@@ -1,6 +1,6 @@
 #!/bin/sh
 # Installs deck in Docker, or updates it: curl -fsSL https://raw.githubusercontent.com/teaarte/deck/master/install.sh | sh
-# DECK_DIR is its folder (~/deck); DECK_SOURCE a folder of deck's files instead of GitHub. Run from a checkout of deck
+# DECK_DIR is its folder (~/deck); DECK_SOURCE a folder of deck's files instead of GitHub; DECK_YES=1 updates a running deck. Run from a checkout of deck
 # (sh install.sh in it), it takes its master and runs the image deck:local built from it.
 set -eu
 dir=${DECK_DIR:-$HOME/deck}
@@ -14,6 +14,17 @@ command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 || {
 }
 mkdir -p "$dir"
 cd "$dir"
+# A deck that runs here is replaced only by a yes in a terminal, by DECK_YES=1, or when DECK_DIR names this folder.
+if [ -z "${DECK_DIR:-}" ] && [ -z "${DECK_YES:-}" ] && [ -f compose.yaml ] && [ -n "$(docker compose ps -q deck 2>/dev/null)" ]; then
+  if (: </dev/tty) 2>/dev/null; then
+    printf 'deck: a deck runs in %s; update and restart it? [y/N] ' "$dir" >/dev/tty
+    read -r answer </dev/tty || answer=
+    case $answer in y | Y | yes | да | Да) ;; *) say "left as it was" && exit 1 ;; esac
+  else
+    say "a deck runs in $dir and there is no terminal to ask; run with DECK_YES=1 to update it, or DECK_DIR=<folder> for another"
+    exit 1
+  fi
+fi
 for f in compose.yaml seccomp.json deck-box.apparmor move-to-docker.sh; do
   case $src in
   http*) curl -fsSL -o "$f" "$src/$f" ;;

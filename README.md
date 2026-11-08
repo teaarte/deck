@@ -168,7 +168,9 @@ Codex shows a link and a code, Claude Code a link whose page gives the code to e
 itself (Ollama, whisper and other local servers) and its folders reach deck in the container through a [node](#node).
 To update: `docker compose pull && docker compose up -d`; when a release is out, Settings → Advanced and the feed say
 so. From a checkout of deck, `sh install.sh` in it takes its master, builds the image `deck:local` and runs it in
-`~/deck` (its `compose.override.yaml` names that image; remove the line to go back to the published one).
+`~/deck` (its `compose.override.yaml` names that image; remove the line to go back to the published one). When a deck already
+runs there, it asks before replacing it; with no terminal (a script or an agent) it refuses unless `DECK_YES=1` or
+`DECK_DIR` names the folder.
 
 **Open deck.**
 

@@ -13,7 +13,13 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -tags tailnet -trimpath \
+# A build from a checkout without COMMIT takes the commit of its HEAD (.dockerignore lets in HEAD and the refs only).
+RUN if [ -z "$COMMIT" ] && [ -f .git/HEAD ]; then \
+      ref=$(sed -n 's/^ref: //p' .git/HEAD); \
+      COMMIT=$(if [ -z "$ref" ]; then cat .git/HEAD; elif [ -f ".git/$ref" ]; then cat ".git/$ref"; \
+        else sed -n "s| $ref\$||p" .git/packed-refs 2>/dev/null; fi | cut -c1-12); \
+    fi; \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -tags tailnet -trimpath -buildvcs=false \
       -ldflags "-s -w -X deck2/internal/release.Version=$VERSION -X deck2/internal/release.Commit=$COMMIT" \
       -o /out/deck ./cmd/deck
 

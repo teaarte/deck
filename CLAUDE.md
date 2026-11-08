@@ -149,6 +149,9 @@ hold; look inside a package for the rest.
 - A new restriction of the manifest is a warning on read and an error only on save: `manifest.Parse` runs on every
   read, so a plain new check turns off saved modules. A new format comes with a migration that rewrites every stored
   manifest to it; deck reads only the current one.
+- A change modules see — a command, a field of an input or result, a right, a format, a program of deck's image — comes
+  with a line in `master/changes.md` in the same commit (the master reads it after an update); a new format without
+  its line fails `tests/lint`.
 - New behaviour is a registry command (`deck.<name>` builtin or `<project>.<name>` from a manifest), not a
   new HTTP endpoint.
 - Web client (stage 1+): React + Vite + Mantine v9. Mantine v9 is new — check https://mantine.dev before

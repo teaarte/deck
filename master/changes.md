@@ -96,5 +96,15 @@ and bring the modules in line.
   `commands_list` gives `document`, the file of a command's script or prompt, by its fields. The theme token
   `widget-card` colors a card that shows its module's view without a cover; with a cover the view stands on a veil
   over it.
+- 2026-11-07 (written 2026-11-08, missed before): deck runs in Docker on the owner's Mac as on a server — its programs
+  are those of deck's image (Claude Code, Codex, Goose, uv, python3, node, git, chromium); a program a module names
+  that is not in the image is a failure of its command in health, not something to install with brew. A text model of
+  an API runs agent commands only in an ACP agent, Goose in deck's image: `model_set` with `agent: goose`
+  (`check_minutes` gives a slow one more time for its self-check, `context` and `tpm` are the limits past which a
+  request goes to the next model). `assignment_set` takes `model`, one model that goes first: the models in force there
+  before stay after it as fallbacks; `models` still sets the whole list. `deck.model_replace` (the owner's only) puts a
+  model in place of another in every work of a kind it does first. A row of a model in `health_list` gives `places`,
+  the work it does. `command_try` in an enabled project runs only with `live`; else try the change in a draft copy.
+- 2026-11-08: `version_get` of a deck built from source says `dev+<commit>` and `commit`; a release says its tag.
 - 2026-11-08: a `file` field takes the name a call answered with as it is (`tts-….mp3` from `deck.model_call`, a
   tool, a screen shot), the same file as `results/<name>` of the calling process.

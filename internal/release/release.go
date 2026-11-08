@@ -11,15 +11,52 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 )
 
-// Version and Commit are those of the release this build is, set by -ldflags -X; a build from source is dev.
+// Version and Commit are those of the release this build is, set by -ldflags -X; a build from source is dev, its
+// commit the one go build stamps when -ldflags leaves it empty.
 var (
 	Version = "dev"
 	Commit  = ""
 )
+
+func init() {
+	if Commit == "" {
+		Commit = stamped()
+	}
+}
+
+// stamped is the commit go build stamped from the repository, -dirty with changes not committed; empty without one.
+func stamped() string {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	rev, dirty := "", ""
+	for _, s := range info.Settings {
+		switch {
+		case s.Key == "vcs.revision":
+			rev = s.Value
+		case s.Key == "vcs.modified" && s.Value == "true":
+			dirty = "-dirty"
+		}
+	}
+	if rev == "" {
+		return ""
+	}
+	return rev[:min(len(rev), 12)] + dirty
+}
+
+// Named is the version a person reads: a build from source is dev+<commit> when its commit is known.
+func Named(version, commit string) string {
+	if version == "dev" && commit != "" {
+		return version + "+" + commit
+	}
+	return version
+}
 
 // The files of a release that are not a binary of a variant.
 const (

@@ -210,3 +210,25 @@ func TestOnlyTheOwnerUpdatesDeck(t *testing.T) {
 		t.Fatalf("deck stays as it was: %q", got)
 	}
 }
+
+// A deck built from source says its commit in version_get and in the row of the update the Settings show; without a
+// known commit it says dev and no more.
+func TestABuildFromSourceSaysItsCommit(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct{ commit, version, row string }{
+		{"4a671c8e1234", "dev+4a671c8e1234", "dev+4a671c8e1234 deck-test"},
+		{"", "dev", "dev deck-test"},
+	} {
+		e := harness.New(t, harness.WithConfig(func(cfg *app.Config) {
+			cfg.Version, cfg.Commit, cfg.Variant = "dev", c.commit, "deck-test"
+		}))
+		var v struct{ Version, Commit string }
+		e.Must("deck.version_get", nil, &v)
+		if v.Version != c.version || v.Commit != c.commit {
+			t.Fatalf("version_get of a build from source at %q: %+v", c.commit, v)
+		}
+		if h := e.WaitHealth(updates.Subject, "ok"); h.Version != c.row || !strings.Contains(h.Error, "built from source") {
+			t.Fatalf("the row of the update names the build: %+v", h)
+		}
+	}
+}

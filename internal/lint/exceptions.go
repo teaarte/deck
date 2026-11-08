@@ -4,7 +4,7 @@ package lint
 var exceptions = map[string][]string{
 	"now": {
 		"internal/app/asks/process_asks.go:80", "internal/app/asks/process_asks.go:84",
-		"internal/app/asks/process_asks.go:86", "internal/app/config.go:60", "internal/app/files/thumbs.go:31",
+		"internal/app/asks/process_asks.go:86", "internal/app/config.go:61", "internal/app/files/thumbs.go:31",
 		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:301",
 		"internal/app/processes/processes.go:305", "internal/app/processes/processes.go:298",
 		"internal/models/hops.go:149", "internal/models/hops.go:159",
@@ -18,7 +18,7 @@ var exceptions = map[string][]string{
 	},
 	"write": {
 		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:60", "cmd/deck/main.go:277",
-		"internal/app/snapshots/snapshot.go:101", "internal/app/updates/updates.go:278", "internal/process/settle.go:123",
+		"internal/app/snapshots/snapshot.go:101", "internal/app/updates/updates.go:277", "internal/process/settle.go:123",
 		"internal/provider/codex/gen/main.go:93", "internal/provider/codex/gen/main.go:104",
 		"internal/provider/shellcheck.go:79", "internal/provider/shellcheck.go:80", "internal/script/run.go:70",
 	},

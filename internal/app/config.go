@@ -42,10 +42,11 @@ type Config struct {
 	SnapshotBudget int64
 	// Commands are more builtin commands, such as the probes of tests.
 	Commands []*registry.Command
-	// Releases is where deck finds its updates; Version and Variant are this build's, and Restart ends deck to take
-	// an update.
+	// Releases is where deck finds its updates; Version, Commit and Variant are this build's, and Restart ends deck
+	// to take an update.
 	Releases updates.Source
 	Version  string
+	Commit   string
 	Variant  string
 	// Image is the container image deck runs from (DECK_IMAGE), which updates by a newer image.
 	Image   string
@@ -96,7 +97,7 @@ func (c *Config) defaults() {
 		c.Releases.Key = release.Key()
 	}
 	if c.Version == "" {
-		c.Version = release.Version
+		c.Version, c.Commit = release.Version, release.Commit
 	}
 	if c.Variant == "" {
 		c.Variant = release.Variant(false)

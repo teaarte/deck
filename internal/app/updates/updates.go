@@ -50,6 +50,8 @@ type Service struct {
 	Now     func() time.Time
 	Source  Source
 	Version string
+	// Commit is the commit of this build, empty when not known.
+	Commit string
 	// Variant is the binary of this build in a release.
 	Variant string
 	// Image is the image of a deck that runs in a container: a newer one comes as a newer image, never in place.
@@ -82,10 +84,7 @@ func (s *Service) Mark(ctx context.Context) error {
 		} else if err != nil {
 			return err
 		}
-		version := s.Version + " " + s.Variant
-		if s.Version == "dev" {
-			version = s.Variant
-		}
+		version := release.Named(s.Version, s.Commit) + " " + s.Variant
 		return q.SetHealthVersion(ctx, db.SetHealthVersionParams{Version: version, Subject: Subject})
 	})
 }
@@ -192,8 +191,8 @@ type versionOut struct {
 func (s *Service) out() versionOut {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return versionOut{Version: s.Version, Commit: release.Commit, Variant: s.Variant, Latest: s.latest.Version,
-		Newer: release.Newer(s.latest.Version, s.Version), Error: s.failed}
+	return versionOut{Version: release.Named(s.Version, s.Commit), Commit: s.Commit, Variant: s.Variant,
+		Latest: s.latest.Version, Newer: release.Newer(s.latest.Version, s.Version), Error: s.failed}
 }
 
 func (s *Service) version(context.Context, registry.Actor, struct{}) (versionOut, error) {

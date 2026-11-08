@@ -46,6 +46,6 @@ func TestRealBrowserProjectSettings(t *testing.T) {
 	b.eval(`(` + card + `.querySelector('[data-verb="model"]').click(), '')`)
 	b.until("the picker of the model", `document.querySelector('[data-options]')`)
 	b.eval(`(document.querySelector('[data-options]').click(), '')`)
-	b.until("the models it may run on", `[...document.querySelectorAll('[role=option]')].some((o) => o.textContent === 'fake')`)
+	b.until("the models it may run on", `[...document.querySelectorAll('[role=option]')].some((o) => o.querySelector('[data-option="fake"]'))`)
 	b.shot("project-settings-pick")
 }

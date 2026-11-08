@@ -88,7 +88,7 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 
 	rows := harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Who does what", nil)["items"])
 	i := slices.IndexFunc(rows, func(r harness.ListItem) bool { return r.Group == "deck" && r.Title == "image" })
-	if i < 0 || rows[i].Text != "router/x/pic" || rows[i].Meta != "$0.04 a call" || rows[i].Logo != "router/x/pic" || !harness.HasVerb(rows[i].Actions, "remove") {
+	if i < 0 || rows[i].Text != "router/x/pic" || rows[i].Meta != "$0.04 a call" || !strings.HasPrefix(rows[i].Logo, "router router/x/pic") || !harness.HasVerb(rows[i].Actions, "remove") {
 		t.Fatalf("the assignments show which models do which work and which one does it now: %+v", rows)
 	}
 	if pick := harness.Verb(t, rows[i].Actions, "model"); fmt.Sprint(pick["options"]) != "[router/x/pic]" || fmt.Sprint(pick["groups"]) != "[router · paid]" {

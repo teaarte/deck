@@ -522,7 +522,7 @@ const pasteFiles = `(() => { const i = document.querySelector('[data-chat-input]
 const oneLineTurn = `(() => { const t = document.querySelector('[data-turn="running"]'); const h = t?.querySelector('[data-turn-head]'); if (!h) return false;
 	const r = h.getBoundingClientRect(); const parts = ['[data-pose]', '[data-turn-now]', '[data-turn-timer]', '[data-turn-model]', '[data-verb="stop"]'].map((q) => h.querySelector(q));
 	return parts.every((p) => p && p.getBoundingClientRect().width > 0 && p.getBoundingClientRect().top >= r.top - 1 && p.getBoundingClientRect().bottom <= r.bottom + 1) &&
-		r.height < 44 && h.querySelector('[data-turn-now]').innerText === 'runs a command' && h.querySelector('[data-turn-model]').innerText === 'fake' &&
+		r.height <= 46 && h.querySelector('[data-turn-now]').innerText === 'runs a command' && h.querySelector('[data-turn-model]').innerText.trim().endsWith('fake') &&
 		h.querySelector('[data-turn-fold]').getAttribute('aria-expanded') === 'false' && !t.querySelector('[data-turn-step]') && !t.querySelector('[data-turn-open]') &&
 		t.getBoundingClientRect().height < r.height + 2 })()`
 

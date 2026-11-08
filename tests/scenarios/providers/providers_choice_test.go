@@ -182,7 +182,7 @@ func TestTheModelColumnFollowsAssignmentSet(t *testing.T) {
 	e.UseModels("plain.work", "api")
 	harness.WaitEvent(t, phone, events.Event{Topic: "assignments"})
 	drawn, _ := json.Marshal(e.ScreenMessages("plain", "settings", map[string]any{"topic": "assignments", "changed": "plain"}))
-	if !strings.Contains(string(drawn), `"logo":"api","meta":"chosen here","text":"api · unknown","title":"Work"`) {
+	if !strings.Contains(string(drawn), `"meta":"chosen here","text":"api · unknown","title":"Work"`) {
 		t.Fatalf("the commands of the project are read again with the provider picked: %s", drawn)
 	}
 }

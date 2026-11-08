@@ -103,7 +103,7 @@ func (s *Service) memorySearch(ctx context.Context, act registry.Actor, in memor
 			f.out[i].Reads, f.out[i].LastRead = r.Reads, r.LastReadAt
 		}
 	}
-	if act.Kind != registry.Owner {
+	if act.Kind == registry.Agent || act.Kind == registry.Master {
 		docs.Reached(ctx, s.St, s.Now(), memory...)
 	}
 	return f.out, nil

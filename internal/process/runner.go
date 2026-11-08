@@ -193,8 +193,8 @@ type Deps struct {
 	// ScriptsAt is where the scripts of a project run: on the node that holds its folders, else on deck.
 	ScriptsAt func(ctx context.Context, projectID int64) (Place, error)
 	// Memory is the memory a fresh session of the process gets, as data: the indexes and the lessons of its command
-	// in the memory of its project; empty when there are none.
-	Memory func(ctx context.Context, p db.Process) (memory, lessons string, err error)
+	// in the memory of its project; empty when there are none. again is the same turn asking anew, its reads counted.
+	Memory func(ctx context.Context, p db.Process, again bool) (memory, lessons string, err error)
 	// Programs looks for the programs of the scripts of a project again and writes the health of its commands.
 	Programs func(ctx context.Context, projectID int64) error
 }

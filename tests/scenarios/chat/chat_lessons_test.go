@@ -288,4 +288,12 @@ func TestTheMostConfirmedLessonsComeFirst(t *testing.T) {
 	if !strings.Contains(got.Warning, "whole number from 1") {
 		t.Fatalf("a stored lesson with a bad count reads with a warning: %+v", got)
 	}
+	// The same with a day that is not one.
+	e.SQL(`UPDATE document_revision SET text = replace(text, 'last_confirmed: 2026-01-01', 'last_confirmed: 1 week ago')
+		WHERE document_id = (SELECT id FROM document WHERE name = 'memory/two-old.md')`)
+	e.WaitState(e.Run(p, "collect"), "done")
+	prompt = e.Fake.Calls()[1].Prompt
+	if !(at("LESSON-TWO-OLD") < at("LESSON-TWO-NEW") && at("LESSON-TWO-NEW") < at("LESSON-FIVE")) {
+		t.Fatalf("a count that is not one counts once, a day that is not one is the day of the revision:\n%s", prompt)
+	}
 }

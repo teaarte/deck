@@ -210,7 +210,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		t.input, _, err = r.inputFiles(ctx, t.cmd, t.project, processID, t.input, true)
 	}
 	if err == nil && !t.resume {
-		a.req.Prompt, err = r.firstPrompt(ctx, proj, *t, a.tools, a.data)
+		a.req.Prompt, err = r.firstPrompt(ctx, proj, *t, a.tools, a.data, false)
 		// Messages that came before the first turn, such as another call for its record, go with it.
 		if u, uerr := r.untold(ctx, processID); err == nil && uerr == nil {
 			if ids := u.except(t.asks, "").ids().Remarks; len(ids) > 0 {
@@ -256,7 +256,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			// The owner's messages go with the fresh session; the asks stay undelivered, so it parks for them.
 			asks = told{Remarks: asks.Remarks}
 			req.Resume = false
-			if req.Prompt, err = r.firstPrompt(bg, a.proj, *t, a.tools, a.data); err != nil {
+			if req.Prompt, err = r.firstPrompt(bg, a.proj, *t, a.tools, a.data, true); err != nil {
 				fail(fault.Of(err))
 				return
 			}

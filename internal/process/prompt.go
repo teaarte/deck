@@ -57,7 +57,8 @@ func commandPrompt(process int64, project, instructions, body string, m *manifes
 	return v
 }
 
-func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools []string, data string) (string, error) {
+// firstPrompt is the prompt of a fresh session; again when the same turn builds it anew for a lost session.
+func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools []string, data string, again bool) (string, error) {
 	body, err := r.commandBody(ctx, t.project, t.cmd)
 	if err != nil {
 		return "", err
@@ -74,7 +75,7 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	v.Writable = proj.Builtin == 0 && slices.Contains(tools, "document_save")
 	v.Learns = slices.Contains(tools, "document_save")
 	v.Writes, v.Data, v.Folder, v.StartNote = strings.Join(t.m.Writes, ", "), data, t.folder, proc.StartNote
-	if v.Memory, v.Lessons, err = r.deps.Memory(ctx, proc); err != nil {
+	if v.Memory, v.Lessons, err = r.deps.Memory(ctx, proc, again); err != nil {
 		return "", err
 	}
 	v.Thread = r.thread(ctx, proc)

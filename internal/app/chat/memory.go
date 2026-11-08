@@ -21,7 +21,7 @@ import (
 
 // Memory is what a fresh session of a process gets of the memory, as data within docs.MemoryBudget: the owner's index
 // for an agent of the master, the index of its project (or of a topic's), then the lessons of its command.
-func (s *Service) Memory(ctx context.Context, p db.Process) (memory, lessons string, err error) {
+func (s *Service) Memory(ctx context.Context, p db.Process, again bool) (memory, lessons string, err error) {
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil {
 		return "", "", err
@@ -33,14 +33,14 @@ func (s *Service) Memory(ctx context.Context, p db.Process) (memory, lessons str
 	if proj.Builtin == 1 {
 		var in struct{ Topic int64 }
 		_ = json.Unmarshal([]byte(p.Input), &in)
-		memory, lessons, _, err = s.masterMemory(ctx, proj, in.Topic, less)
+		memory, lessons, _, err = s.masterMemory(ctx, proj, in.Topic, less, !again)
 		return memory, lessons, err
 	}
 	own, _, err := s.memoryIndex(ctx, proj, "Memory index of project "+proj.Name)
 	if err != nil {
 		return "", "", err
 	}
-	out := s.fit(ctx, own, less)
+	out := s.fit(ctx, !again, own, less)
 	if out[0] != "" {
 		memory = master.Text("project_memory", struct{ Project, Index string }{proj.Name, out[0]})
 	}
@@ -52,7 +52,7 @@ var languages = map[string]string{"en": "English", "ru": "Russian"}
 
 // masterMemory is the memory an agent of the master gets with the lessons of its command, and a sign that changes
 // when the memory does.
-func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64, less *part) (memory, lessons, sign string, err error) {
+func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64, less *part, count bool) (memory, lessons, sign string, err error) {
 	own, rev, err := s.memoryIndex(ctx, mp, "Memory index of the owner")
 	if err != nil {
 		return "", "", "", err
@@ -68,7 +68,7 @@ func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64, 
 		}
 		sign += fmt.Sprintf("/%d:%d", cp.ID, crev)
 	}
-	out := s.fit(ctx, own, idx, less)
+	out := s.fit(ctx, count, own, idx, less)
 	v.Own, v.Project = out[0], out[1]
 	return master.Text("owner_memory", v), out[2], sign, nil
 }
@@ -112,8 +112,8 @@ func (p *part) size() int {
 }
 
 // fit gives each part as a block of data within docs.MemoryBudget, in order of importance, with what was cut said
-// after it; the lessons that reach the turn count as read.
-func (s *Service) fit(ctx context.Context, parts ...*part) []string {
+// after it; with count the lessons that reach the turn count as read.
+func (s *Service) fit(ctx context.Context, count bool, parts ...*part) []string {
 	sizes := make([]int, len(parts))
 	for i, p := range parts {
 		sizes[i] = p.size()
@@ -158,7 +158,9 @@ func (s *Service) fit(ctx context.Context, parts ...*part) []string {
 			out[i] += "\n" + strings.Join(notes, " ")
 		}
 	}
-	docs.Reached(ctx, s.St, s.Now(), reached...)
+	if count {
+		docs.Reached(ctx, s.St, s.Now(), reached...)
+	}
 	return out
 }
 
@@ -197,7 +199,7 @@ func (s *Service) lessons(ctx context.Context, proj db.Project, command string) 
 		if r.Name == docs.MemoryIndex || err != nil || f.Type != docs.Lesson || f.Command != command || f.Expired(s.Now()) {
 			continue
 		}
-		all = append(all, lesson{r.ID, strings.TrimSpace(r.Text), cmp.Or(f.LastConfirmed, r.CreatedAt[:min(len(r.CreatedAt), len(time.DateOnly))]), f.Times()})
+		all = append(all, lesson{r.ID, strings.TrimSpace(r.Text), lessonDay(f, r.CreatedAt), f.Times()})
 	}
 	if len(all) == 0 {
 		return nil, nil
@@ -212,4 +214,12 @@ func (s *Service) lessons(ctx context.Context, proj db.Project, command string) 
 		p.lessons, p.ids = append(p.lessons, l.text), append(p.ids, l.id)
 	}
 	return p, nil
+}
+
+// lessonDay is the day a lesson was last confirmed, or the day of its revision without a valid one.
+func lessonDay(f docs.Fact, created string) string {
+	if _, err := time.Parse(time.DateOnly, f.LastConfirmed); err == nil {
+		return f.LastConfirmed
+	}
+	return created[:min(len(created), len(time.DateOnly))]
 }

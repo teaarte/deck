@@ -242,7 +242,7 @@ func (s *Service) documentGet(ctx context.Context, act registry.Actor, in docume
 	if in.History {
 		v.Revisions, err = s.revisions(ctx, d)
 	}
-	if err == nil && act.Kind != registry.Owner && d.Kind == docs.KindMemory && d.Name != docs.MemoryIndex {
+	if err == nil && (act.Kind == registry.Agent || act.Kind == registry.Master) && r.N == d.Current && d.Kind == docs.KindMemory && d.Name != docs.MemoryIndex {
 		docs.Reached(ctx, s.St, s.Now(), d.ID)
 	}
 	return v, err

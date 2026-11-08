@@ -187,7 +187,7 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 		o.Message = strings.TrimSpace(next.note + "\n\n" + o.Message)
 	case errors.Is(err, sql.ErrNoRows):
 		// A new session is told everything before the first waiting message, and the memory of now.
-		if _, _, sign, err = s.masterMemory(ctx, p, topicID, nil); err != nil {
+		if _, _, sign, err = s.masterMemory(ctx, p, topicID, nil, false); err != nil {
 			return err
 		}
 		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -273,7 +273,7 @@ func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.C
 			if err != nil {
 				return "", "", err
 			}
-			mem, _, now, err := s.masterMemory(ctx, mp, t.ID, nil)
+			mem, _, now, err := s.masterMemory(ctx, mp, t.ID, nil, false)
 			if err != nil {
 				return "", "", err
 			}

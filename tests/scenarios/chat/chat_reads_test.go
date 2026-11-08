@@ -18,17 +18,24 @@ type memoryReads struct {
 }
 
 // TestTheReadsOfMemoryAreCounted: a lesson that reaches a turn, a fact an agent reads or finds count as reads, which
-// documents_list and memory_search give; what the owner reads does not count.
+// documents_list and memory_search give; the owner's reads, a token's and an old revision do not count.
 func TestTheReadsOfMemoryAreCounted(t *testing.T) {
 	t.Parallel()
 	var found atomic.Value
+	var lost atomic.Bool
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if lost.CompareAndSwap(false, true) {
+			return provider.Result{SessionMissing: true}
+		}
+		c.Tool(ctx, "document_get", map[string]any{"name": "memory/tone.md", "revision": 1})
 		c.Tool(ctx, "document_get", map[string]any{"name": "memory/tone.md"})
 		out, _ := c.Tool(ctx, "memory_search", map[string]any{"query": "TONEWORD"})
 		found.Store(out)
 		return harness.Ok(ctx, c)
 	}))
 	p := e.Project("shop", harness.TestManifest([]string{harness.AgentCommand("collect", "")}, nil))
+	e.Must("deck.document_save", map[string]any{"project": "shop", "name": "memory/tone.md", "kind": "memory",
+		"text": harness.Fact("tone", "feedback", "Reports are plain")}, nil)
 	e.Must("deck.document_save", map[string]any{"project": "shop", "name": "memory/tone.md", "kind": "memory",
 		"text": harness.Fact("tone", "feedback", "TONEWORD reports are plain")}, nil)
 	e.Must("deck.document_save", map[string]any{"project": "shop", "name": "memory/waits.md", "kind": "memory",
@@ -54,13 +61,15 @@ func TestTheReadsOfMemoryAreCounted(t *testing.T) {
 	got := reads()
 	if got["memory/tone.md"].Reads != 2 || got["memory/waits.md"].Reads != 1 || got["memory/MEMORY.md"].Reads != 0 ||
 		!strings.HasPrefix(got["memory/waits.md"].LastRead, "20") {
-		t.Fatalf("a fact read and found counts twice, a lesson the turn got once, the index never: %+v", got)
+		t.Fatalf("a fact read and found counts twice, an old revision not, a lesson the turn got once though its session was lost, the index never: %+v", got)
 	}
 
 	e.Must("deck.document_get", map[string]any{"project": "shop", "name": "memory/tone.md"}, nil)
 	e.Must("deck.memory_search", map[string]any{"query": "TONEWORD"}, &hits)
+	_, tok := e.Token("terminal", "deck.*")
+	e.As(tok).Must("deck.document_get", map[string]any{"project": "shop", "name": "memory/tone.md"}, nil)
 	if len(hits) != 1 || hits[0].Reads != 2 || reads()["memory/tone.md"].Reads != 2 {
-		t.Fatalf("what the owner reads or finds does not count: %+v", hits)
+		t.Fatalf("what the owner or a token reads or finds does not count: %+v", hits)
 	}
 	e.WaitState(e.Run(p, "collect"), "done")
 	if got := reads(); got["memory/tone.md"].Reads != 4 || got["memory/waits.md"].Reads != 2 {

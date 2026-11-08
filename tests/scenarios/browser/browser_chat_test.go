@@ -593,7 +593,7 @@ func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
 	b.until("the module filter", `document.querySelector('[data-topic-project]')`)
 	topics := func() string {
 		return `(() => { document.querySelector('[data-topics]').click(); const id = document.querySelector('[data-topics]').getAttribute('aria-controls');
-			const box = id && document.getElementById(id); return [...(box || document).querySelectorAll('[role=option]')].map((o) => o.innerText.trim()).sort().join('|') })()`
+			const box = id && document.getElementById(id); return [...(box || document).querySelectorAll('[role=option]')].map((o) => (o.querySelector('[data-topic-title]') || o).innerText.trim()).sort().join('|') })()`
 	}
 	b.until("all topics", topics()+` === 'about master|about nothing|about web'`)
 	b.eval(`(document.body.click(), '')`)
@@ -612,9 +612,9 @@ func TestRealBrowserChatTopicsFollowTheModuleFilter(t *testing.T) {
 	b.until("the modules opened last on top", `[...document.querySelectorAll('[data-topic-projects] [role=menuitem]')].map((x) => x.innerText.trim()).slice(1, 3).join('|') === 'Without a module|web'`)
 	b.eval(`([...document.querySelectorAll('[data-topic-projects] [role=menuitem]')].find((x) => x.innerText.trim() === 'All modules').click(), '')`)
 	options := `(() => { document.querySelector('[data-topics]').click(); const id = document.querySelector('[data-topics]').getAttribute('aria-controls');
-		const box = id && document.getElementById(id); return [...(box || document).querySelectorAll('[role=option]')].map((o) => o.innerText.trim()).join('|') })()`
+		const box = id && document.getElementById(id); return [...(box || document).querySelectorAll('[role=option]')].map((o) => (o.querySelector('[data-topic-title]') || o).innerText.trim()).join('|') })()`
 	b.until("the topics newest first", options+` === 'about nothing|about master|about web'`)
-	b.eval(`([...document.querySelectorAll('[role=option]')].find((o) => o.innerText.trim() === 'about web').click(), '')`)
+	b.eval(`([...document.querySelectorAll('[role=option]')].find((o) => (o.querySelector('[data-topic-title]') || o).innerText.trim() === 'about web').click(), '')`)
 	b.until("the topic picked", `document.querySelector('[data-topics]').value === 'about web'`)
 	b.until("the open topic first", options+` === 'about web|about nothing|about master'`)
 	b.eval(`(document.body.click(), '')`)

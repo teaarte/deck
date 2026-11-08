@@ -372,7 +372,13 @@ SELECT t.id, t.title, t.archived, t.updated_at, t.model,
             (SELECT json_extract(m.context, '$.project') FROM chat_message m
                 WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
                 ORDER BY m.id LIMIT 1)),
-        '') AS TEXT) AS project
+        '') AS TEXT) AS project,
+    CAST(COALESCE((SELECT SUM(c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tokens) FROM llm_call c
+        WHERE c.process_id IN (SELECT m.process_id FROM chat_message m WHERE m.topic_id = t.id AND m.process_id != 0)
+            OR c.process_id IN (SELECT p.id FROM process p WHERE p.parent_id IN
+                (SELECT m.process_id FROM chat_message m WHERE m.topic_id = t.id AND m.process_id != 0))), 0) AS INTEGER) AS tokens,
+    CAST(COALESCE((SELECT p.provider FROM process p WHERE p.id =
+        (SELECT MAX(m.process_id) FROM chat_message m WHERE m.topic_id = t.id AND m.process_id != 0 AND m.role != 'deck')), '') AS TEXT) AS replied_on
 FROM chat_topic t
 LEFT JOIN process op ON op.id = (SELECT p.id FROM process p
     WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = t.id AND process_id != 0 AND role != 'deck') AND p.finished_at IS NULL
@@ -402,6 +408,8 @@ type ListTopicSummariesRow struct {
 	OpenProvider string
 	OpenError    string
 	Project      string
+	Tokens       int64
+	RepliedOn    string
 }
 
 func (q *Queries) ListTopicSummaries(ctx context.Context, arg ListTopicSummariesParams) ([]ListTopicSummariesRow, error) {
@@ -430,6 +438,8 @@ func (q *Queries) ListTopicSummaries(ctx context.Context, arg ListTopicSummaries
 			&i.OpenProvider,
 			&i.OpenError,
 			&i.Project,
+			&i.Tokens,
+			&i.RepliedOn,
 		); err != nil {
 			return nil, err
 		}

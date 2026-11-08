@@ -250,6 +250,18 @@ export interface Topic {
    * the model its replies go on, when the owner picked one
    */
   model?: string;
+  /**
+   * the tokens its replies and the work they started spent
+   */
+  tokens?: number;
+  /**
+   * the model of its last reply
+   */
+  replied_on?: string;
+  /**
+   * words naming the provider and model of its last reply, whose mark the client draws
+   */
+  logo?: string;
   reply?: Reply;
 }
 /**

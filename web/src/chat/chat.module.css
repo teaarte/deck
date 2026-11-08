@@ -392,3 +392,16 @@
   min-height: 16px;
   margin-top: 0;
 }
+
+/* The icon of a topic's module in the history, on a soft square of the accent. */
+.topicIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--mantine-radius-md);
+  background: var(--mantine-primary-color-light);
+  color: var(--mantine-primary-color-light-color);
+}

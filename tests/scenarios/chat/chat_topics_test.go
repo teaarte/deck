@@ -808,3 +808,42 @@ func TestATopicKeepsTheModelTheOwnerPicked(t *testing.T) {
 		t.Fatalf("a model picked for a topic takes its next reply: %+v", said)
 	}
 }
+
+// TestTheHistorySaysTheModuleModelAndTokensOfEachTopic: each topic of the history says its module, the model of its
+// last reply with the words of its mark, and the tokens its replies and the work they started spent.
+func TestTheHistorySaysTheModuleModelAndTokensOfEachTopic(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "ok"} }))
+	e.Project("web", harness.WebNotes)
+	web := e.Say(0, "about web", map[string]any{"screen": `{"project":"web","screen":"main"}`})
+	e.MasterSaid(web, 1)
+	none := e.Say(0, "about nothing")
+	e.MasterSaid(none, 1)
+	reply := e.ChatMessages(web)[0].Process
+	// A work the reply started, which a fake agent does not start.
+	e.SQL(fmt.Sprintf(`INSERT INTO process (project_id, command, kind, state, started_at, parent_id)
+		SELECT project_id, 'work', 'agent', 'done', started_at, id FROM process WHERE id = %d`, reply))
+	// The model calls of the reply and of its work, which a fake agent does not make.
+	e.SQL(fmt.Sprintf(`INSERT INTO llm_call (workspace_id, process_id, gen_ai_provider_name, gen_ai_usage_input_tokens, gen_ai_usage_output_tokens, created_at)
+		VALUES (1, %d, 'fake', 1200, 300, '2026-11-08T10:00:00Z'), (1, (SELECT MAX(id) FROM process), 'fake', 400, 100, '2026-11-08T10:01:00Z')`, reply))
+
+	var ts []struct {
+		ID        int64  `json:"id"`
+		Project   string `json:"project"`
+		Tokens    int64  `json:"tokens"`
+		RepliedOn string `json:"replied_on"`
+		Logo      string `json:"logo"`
+	}
+	e.ChatTopics(false, &ts)
+	got := map[int64]int{}
+	for i, x := range ts {
+		got[x.ID] = i
+	}
+	w, n := ts[got[web]], ts[got[none]]
+	if len(ts) != 2 || ts[0].ID != none || w.Project != "web" || w.Tokens != 2000 || w.RepliedOn != "fake" || !strings.Contains(w.Logo, "fake") {
+		t.Fatalf("a topic says its module, the model of its last reply and the tokens of its replies and their work, newest first: %+v", ts)
+	}
+	if n.Project != "" || n.Tokens != 0 || n.RepliedOn != "fake" {
+		t.Fatalf("a topic without a module or model calls says so: %+v", n)
+	}
+}

@@ -392,7 +392,7 @@
     },
     "topic": {"type": "object", "additionalProperties": false, "required": ["id", "title", "archived", "updated_at"], "properties": {
       "id": {"type": "integer"}, "title": {"type": "string"}, "project": {"type": "string", "description": "the project of the screen of its first message"}, "archived": {"type": "boolean"}, "updated_at": {"type": "string"},
-      "last": {"type": "string", "description": "the last message, cut short"}, "model": {"type": "string", "description": "the model its replies go on, when the owner picked one"}, "reply": {"$ref": "#/$defs/reply"}}},
+      "last": {"type": "string", "description": "the last message, cut short"}, "model": {"type": "string", "description": "the model its replies go on, when the owner picked one"}, "tokens": {"type": "integer", "description": "the tokens its replies and the work they started spent"}, "replied_on": {"type": "string", "description": "the model of its last reply"}, "logo": {"type": "string", "description": "words naming the provider and model of its last reply, whose mark the client draws"}, "reply": {"$ref": "#/$defs/reply"}}},
     "question": {"type": "object", "required": ["question"], "description": "a question of an agent to the owner", "properties": {
       "question": {"type": "string"}, "header": {"type": "string", "description": "a short name of the question"}, "multiSelect": {"type": "boolean", "description": "the options do not rule each other out"},
       "options": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "description": {"type": "string"}}}}}},

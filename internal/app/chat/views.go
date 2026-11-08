@@ -44,6 +44,11 @@ type topicView struct {
 	Last      string     `json:"last,omitempty"`
 	Model     string     `json:"model,omitempty"`
 	Reply     *replyView `json:"reply,omitempty"`
+	// Tokens are those its replies and the work they started spent; RepliedOn the model of its last reply, Logo the
+	// words of the mark of that model, else of its own or the master's.
+	Tokens    int64  `json:"tokens"`
+	RepliedOn string `json:"replied_on,omitempty"`
+	Logo      string `json:"logo,omitempty"`
 }
 
 // replyView is the process that answers a message, with its state and a button that opens it.
@@ -177,7 +182,7 @@ func viewMessage(m db.ChatMessage) messageView {
 
 func viewTopic(t db.ListTopicSummariesRow, tr func(string) string) topicView {
 	v := topicView{ID: t.ID, Title: t.Title, Project: t.Project, Archived: t.Archived == 1,
-		UpdatedAt: t.UpdatedAt, Last: untrusted.Cut(t.LastText, 200), Model: t.Model}
+		UpdatedAt: t.UpdatedAt, Last: untrusted.Cut(t.LastText, 200), Model: t.Model, Tokens: t.Tokens, RepliedOn: t.RepliedOn}
 	if t.OpenID != 0 {
 		v.Reply = viewReply(db.Process{ID: t.OpenID, Kind: process.KindAgent, State: t.OpenState, Provider: t.OpenProvider, Error: t.OpenError}, tr)
 	}
@@ -323,6 +328,11 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 	}
 	v.Models, v.Model = s.models(ctx, act.Workspace)
 	facts := s.Facts(ctx, act.Workspace, registry.Lang(ctx))
+	for _, ts := range [][]topicView{v.Topics, v.Archived} {
+		for i := range ts {
+			_, ts[i].Logo = facts(cmp.Or(ts[i].RepliedOn, ts[i].Model, v.Model))
+		}
+	}
 	v.Notes, v.Logos = map[string]string{}, map[string]string{}
 	for _, m := range append([]string{v.Model}, v.Models...) {
 		if m == "" {

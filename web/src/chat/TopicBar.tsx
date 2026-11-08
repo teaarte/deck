@@ -1,5 +1,6 @@
-import { ActionIcon, Button, Group, Menu, Select, Text, Tooltip } from '@mantine/core';
-import { IconActivity, IconCheck, IconCpu, IconPlus, IconStack2 } from '@tabler/icons-react';
+import { useState } from 'react';
+import { ActionIcon, Button, Group, Menu, Select, Stack, Text, Tooltip } from '@mantine/core';
+import { IconActivity, IconCheck, IconCpu, IconMessage, IconPlus, IconStack2 } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatData } from './chatData';
 import { notifyError } from '../lib/notify';
@@ -7,9 +8,35 @@ import { ActionsMenu } from '../ui/actions/ActionsMenu';
 import { Logo } from '../ui/logo/Logo';
 import { NamedIcon } from '../ui/NamedIcon';
 import { press, useBlockContext } from '../screen/press';
-import type { useTopics } from './useTopics';
+import { MORE, type useTopics } from './useTopics';
+import type { Topic } from '../lib/catalog.gen';
+import { formatted, relative, when } from '../lib/format';
+import s from './chat.module.css';
 
 const check = (on: boolean) => (on ? <IconCheck size={14} /> : <span style={{ width: 14 }} />);
+
+// TopicLine is a topic in the history: its module's icon and title, and below how long ago, the mark of the model of
+// its last reply and the tokens it spent.
+function TopicLine({ topic, label, checked, icon }: { topic?: Topic; label: string; checked: boolean; icon?: string }) {
+  const { t } = useTranslation();
+  const at = topic ? when(topic.updated_at) : undefined;
+  return (
+    <Group gap={10} wrap="nowrap" w="100%" data-topic-line={topic?.id}>
+      <span className={s.topicIcon}>{icon ? <NamedIcon name={icon} fallback={topic?.project ?? ''} size={16} /> : <IconMessage size={16} />}</span>
+      <Stack gap={0} miw={0} className="deck-grow">
+        <Text size="sm" fw={checked ? 650 : 500} truncate data-topic-title>{label}</Text>
+        {topic && (
+          <Group gap={6} wrap="nowrap" c="dimmed" fz="xs">
+            {at && <span>{relative(at, Date.now())}</span>}
+            {topic.logo && <><span>·</span><Logo names={topic.logo} size={12} /></>}
+            {(topic.tokens ?? 0) > 0 && <><span>·</span><span data-topic-tokens={topic.tokens}>{t("{{n}} tokens", { n: formatted(topic.tokens, { format: "compact" }) })}</span></>}
+          </Group>
+        )}
+      </Stack>
+      {checked && <IconCheck size={14} />}
+    </Group>
+  );
+}
 
 // TopicBar picks the topic of the chat and the model it answers on, narrows the topics to a module, starts a new one,
 // and holds its buttons; it shrinks to the width it has. A pulsing dot marks the modules whose own work goes on.
@@ -17,6 +44,7 @@ export function TopicBar({ value, topics, model, setModel }: {
   value: ChatData; topics: ReturnType<typeof useTopics>; model: string; setModel: (m: string) => void;
 }) {
   const { t } = useTranslation();
+  const [opened, setOpened] = useState(false);
   const topic = value.topic;
   const narrowed = topics.scopes.find((x) => x.value === topics.scope && topics.scope !== topics.scopes[0]?.value);
   const own = topic ? topic.model ?? '' : model;
@@ -32,9 +60,14 @@ export function TopicBar({ value, topics, model, setModel }: {
   return (
     <Group gap={4} wrap="nowrap" miw={0}>
       <Select size="xs" className="deck-fill" placeholder={t('New topic')} data={topics.options} value={topic ? String(topic.id) : null}
-        onChange={(v) => topics.pick(v ?? 'new')} data-topics
-        renderOption={({ option, checked }) => <Group gap={8} wrap="nowrap">{check(!!checked)}{option.label}</Group>}
-        searchable nothingFoundMessage={t('No topics')} comboboxProps={{ width: 'max-content', position: 'bottom-start', styles: { dropdown: { maxWidth: 'calc(100vw - 16px)' } } }} />
+        onChange={(v) => { topics.pick(v ?? 'new'); if (v === MORE) setTimeout(() => setOpened(true)); }} data-topics
+        dropdownOpened={opened} onDropdownOpen={() => setOpened(true)} onDropdownClose={() => setOpened(false)}
+        leftSection={topic?.project ? <NamedIcon name={topics.iconOf(topic.project)} fallback={topic.project} size={14} /> : undefined}
+        renderOption={({ option, checked }) => option.value === MORE
+          ? <Text size="sm" c="var(--mantine-primary-color-filled)" fw={600} data-topics-more>{option.label}</Text>
+          : <TopicLine topic={topics.topicOf(option.value)} label={option.label} checked={!!checked} icon={topics.iconOf(topics.topicOf(option.value)?.project)} />}
+        searchable nothingFoundMessage={t('No topics')} maxDropdownHeight={420}
+        comboboxProps={{ width: 340, position: 'bottom-start', styles: { dropdown: { maxWidth: 'calc(100vw - 16px)' } } }} />
       {(value.models?.length ?? 0) > 0 && (
         <Menu position="bottom-end" shadow="md" withinPortal>
           <Tooltip label={t('Model of this topic')}>

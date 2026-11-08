@@ -1199,5 +1199,7 @@
   "its node %s is offline": "его узел %s не в сети",
   "node %s does not run the agent %s: on its machine allow it with deck -join %s --install --allow %s": "узел %s не запускает агента %s: на его машине разрешите его командой deck -join %s --install --allow %s",
   "%.0f tok/s": "%.0f ток/с",
-  "context %s": "контекст %s"
+  "context %s": "контекст %s",
+  "Show all ({{n}})": "Показать все ({{n}})",
+  "{{n}} tokens": "{{n}} токенов"
 }

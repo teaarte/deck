@@ -168,10 +168,12 @@ and bring the modules in line.
   assignment, the agent models marked free and then the rest are its chain, as an assignment is. `deck.memory_overview` (owner and master) counts the memory of each project — facts, lessons, index
   lines of 150, its last change — and the commands that failed the same way more than once in the last 30 days
   (trials and runs handed on to the next model aside).
-- 2026-11-08: `deck.skill_propose` (master, owner) proposes the whole new text of a skill file (`skill` as
-  `document_get` names it, `project` for a module's own skill or `master`, `reason` with the names of the lessons
-  it comes from); the owner sees the reason and a diff and changes the skill with one button, without a yes it stays.
-  `if_revision` is the revision the text was written from. A text that fails the skill checks, a skill that is not
-  there, a skill changed since `if_revision` or a diff longer than an ask shows (4000 bytes: propose a smaller change)
-  is refused at once; a text the skill has already is done without asking; a yes to a skill changed since does not
-  apply. A button's `allows` does not stand for it, as for calls that spend money.
+- 2026-11-08: `deck.document_propose` (master, owner) proposes the whole new `text` of a skill file (`name` as
+  `document_get` names it) or of a memory fact that is not a lesson (`memory/<fact>.md`; without `project` the owner's),
+  or with `delete: true` deleting such a fact; `reason` names the lessons it comes from or quotes the episode with its
+  source; `if_revision` is the revision it was written from. The owner sees the reason and the whole diff and makes
+  the change with one button; without a yes nothing changes. Refused at once: a document that is not there, a lesson
+  (save it with `document_save`), the index, a text that fails the checks of its kind, a document changed since
+  `if_revision`, a diff past 2000 bytes (propose a smaller change). A text in force already is done without asking; a
+  yes to a document changed since does not apply; a button's `allows` does not stand for it, as for calls that spend
+  money.

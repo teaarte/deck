@@ -21,7 +21,7 @@ func TestASkillChangesOnlyByTheOwnersYes(t *testing.T) {
 	var propose, said sync.Map
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, `deck project "alpha"`) {
-			out, bad := c.Tool(ctx, "skill_propose", map[string]any{"skill": "skills/memory/SKILL.md", "text": "x", "reason": "lesson a"})
+			out, bad := c.Tool(ctx, "document_propose", map[string]any{"name": "skills/memory/SKILL.md", "text": "x", "reason": "lesson a"})
 			said.Store("alpha", fmt.Sprint(bad, " ", out))
 			return provider.Result{Text: "ok"}
 		}
@@ -29,7 +29,7 @@ func TestASkillChangesOnlyByTheOwnersYes(t *testing.T) {
 		if !ok {
 			return provider.Result{Text: "nothing to propose"}
 		}
-		out, bad := c.Tool(ctx, "skill_propose", in)
+		out, bad := c.Tool(ctx, "document_propose", in)
 		said.Store("master", fmt.Sprint(bad, " ", out))
 		return provider.Result{Text: "proposed"}
 	}))
@@ -76,23 +76,23 @@ func TestASkillChangesOnlyByTheOwnersYes(t *testing.T) {
 		return 0
 	}
 
-	if got := ask(map[string]any{"skill": "skills/memory/SKILL.md", "text": "no frontmatter", "reason": reason}); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "frontmatter") {
+	if got := ask(map[string]any{"name": "skills/memory/SKILL.md", "text": "no frontmatter", "reason": reason}); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "frontmatter") {
 		t.Fatalf("a text that fails the checks of a skill is refused at the call: %s", got)
 	}
-	if got := ask(map[string]any{"skill": "skills/nope/SKILL.md", "text": next, "reason": reason}); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "no skill file") {
+	if got := ask(map[string]any{"name": "skills/nope/SKILL.md", "text": next, "reason": reason}); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "no such document") {
 		t.Fatalf("a skill that is not there is refused: %s", got)
 	}
-	if got := ask(map[string]any{"skill": "skills/memory/SKILL.md", "text": next, "reason": reason, "if_revision": before.Revision - 1}); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "read it again") {
+	if got := ask(map[string]any{"name": "skills/memory/SKILL.md", "text": next, "reason": reason, "if_revision": before.Revision - 1}); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "read it again") {
 		t.Fatalf("a text written from an older revision is refused: %s", got)
 	}
-	if got := ask(map[string]any{"skill": "skills/memory/SKILL.md", "text": before.Text + strings.Repeat("- a long new line of the skill\n", 200), "reason": reason}); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "smaller change") {
+	if got := ask(map[string]any{"name": "skills/memory/SKILL.md", "text": before.Text + strings.Repeat("- a long new line of the skill\n", 200), "reason": reason}); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "smaller change") {
 		t.Fatalf("a change longer than an ask shows is refused, not cut: %s", got)
 	}
 	if as := waiting(); len(as) != 0 {
 		t.Fatalf("a refused proposal waits for no one: %+v", as)
 	}
 
-	good := map[string]any{"skill": "skills/memory/SKILL.md", "text": next, "reason": reason}
+	good := map[string]any{"name": "skills/memory/SKILL.md", "text": next, "reason": reason}
 	if got := ask(good); !strings.HasPrefix(got, "false ") || !strings.Contains(got, "waiting") {
 		t.Fatalf("the master's proposal waits for the owner: %s", got)
 	}
@@ -121,7 +121,7 @@ func TestASkillChangesOnlyByTheOwnersYes(t *testing.T) {
 		t.Fatalf("a proposal of the text the skill has is done without asking: %s", got)
 	}
 
-	later := map[string]any{"skill": "skills/memory/SKILL.md", "text": next + "- One more.\n", "reason": reason}
+	later := map[string]any{"name": "skills/memory/SKILL.md", "text": next + "- One more.\n", "reason": reason}
 	ask(later)
 	id := e.Asks()[len(e.Asks())-1].ID
 	if of("One more") != id {
@@ -150,7 +150,7 @@ func TestASkillChangesOnlyByTheOwnersYes(t *testing.T) {
 	}
 	e.Must("deck.document_get", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md"}, &dispatch)
 	var done struct{ Changed bool }
-	e.Must("deck.skill_propose", map[string]any{"project": "master", "skill": "skills/dispatch/SKILL.md", "text": dispatch.Text + "\n- More.\n", "reason": "lesson b", "if_revision": dispatch.Revision}, &done)
+	e.Must("deck.document_propose", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md", "text": dispatch.Text + "\n- More.\n", "reason": "lesson b", "if_revision": dispatch.Revision}, &done)
 	e.Must("deck.document_get", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md"}, &dispatch)
 	if !done.Changed || !strings.HasSuffix(dispatch.Text, "- More.\n") {
 		t.Fatalf("the owner's own proposal of a skill of the master changes it at once: %+v", done)
@@ -167,7 +167,7 @@ func TestAPressDoesNotStandForTheYesOfASkillChange(t *testing.T) {
 		if c.Command() != "memory" {
 			return provider.Result{Text: "ok"}
 		}
-		out, bad := c.Tool(ctx, "skill_propose", call.Load())
+		out, bad := c.Tool(ctx, "document_propose", call.Load())
 		said.Store("memory", fmt.Sprint(bad, " ", out))
 		return provider.Result{Text: "proposed"}
 	}))
@@ -176,7 +176,7 @@ func TestAPressDoesNotStandForTheYesOfASkillChange(t *testing.T) {
 		Revision int64
 	}
 	e.Must("deck.document_get", map[string]any{"name": "skills/memory/SKILL.md"}, &skill)
-	in := map[string]any{"skill": "skills/memory/SKILL.md", "text": skill.Text + "\n- Pressed.\n", "reason": "lesson c", "if_revision": skill.Revision}
+	in := map[string]any{"name": "skills/memory/SKILL.md", "text": skill.Text + "\n- Pressed.\n", "reason": "lesson c", "if_revision": skill.Revision}
 	call.Store(in)
 	allowed := maps.Clone(in)
 	allowed["if_revision"] = fmt.Sprint("=", skill.Revision)
@@ -189,12 +189,12 @@ func TestAPressDoesNotStandForTheYesOfASkillChange(t *testing.T) {
 	for _, c := range man["commands"].([]any) {
 		if c := c.(map[string]any); c["name"] == "memory" {
 			ex := c["executor"].(map[string]any)
-			ex["calls"] = append(ex["calls"].([]any), "deck.skill_propose")
+			ex["calls"] = append(ex["calls"].([]any), "deck.document_propose")
 		}
 	}
 	man["screens"] = []any{map[string]any{"name": "skills", "title": "Skills", "blocks": []any{map[string]any{"type": "actions", "title": "Skill",
 		"actions": []any{map[string]any{"label": "Apply", "command": "memory",
-			"allows": []any{map[string]any{"command": "deck.skill_propose", "params": allowed}}}}}}}}
+			"allows": []any{map[string]any{"command": "deck.document_propose", "params": allowed}}}}}}}}
 	e.Must("deck.manifest_save", map[string]any{"project": "master", "manifest": string(harness.MustJSON(man))}, nil)
 	e.Must("deck.project_pause", map[string]any{"project": "master", "paused": false}, nil)
 	apply := e.RowAction("master", "skills", "master.memory", nil)
@@ -214,4 +214,86 @@ func TestAPressDoesNotStandForTheYesOfASkillChange(t *testing.T) {
 	if strings.Contains(skill.Text, "Pressed.") {
 		t.Fatal("the press did not change the skill")
 	}
+}
+
+// TestAFactOfTheOwnerChangesOnlyByTheirYes: the master proposes a new text or the deletion of a fact of the owner with
+// the quote it comes from, and the owner's yes makes it; a lesson and the index are not proposed.
+func TestAFactOfTheOwnerChangesOnlyByTheirYes(t *testing.T) {
+	t.Parallel()
+	var propose, said sync.Map
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		in, ok := propose.LoadAndDelete("in")
+		if !ok {
+			return provider.Result{Text: "nothing to propose"}
+		}
+		out, bad := c.Tool(ctx, "document_propose", in)
+		said.Store("master", fmt.Sprint(bad, " ", out))
+		return provider.Result{Text: "proposed"}
+	}))
+	fact := func(typ, body string) string {
+		return fmt.Sprintf("---\nname: replies\ndescription: %s\ntype: %s\n---\n\n%s\n", body, typ, body)
+	}
+	e.Must("deck.document_save", map[string]any{"name": "memory/replies.md", "kind": "memory", "text": fact("feedback", "Replies are short")}, nil)
+	e.Must("deck.document_save", map[string]any{"name": "memory/site-waits.md", "kind": "memory",
+		"text": lesson("site-waits", "process:1", "", "", "The site answers after a minute")}, nil)
+	type doc struct {
+		Text      string
+		Revision  int64
+		Revisions []struct{ Author, Reason string }
+	}
+	read := func(name string) (doc, int) {
+		var d doc
+		code, out := e.Call("deck.document_get", map[string]any{"name": name, "history": true})
+		_ = json.Unmarshal(out, &d)
+		return d, code
+	}
+	turn := 0
+	ask := func(in map[string]any) string {
+		d, _ := read(in["name"].(string))
+		in["if_revision"] = d.Revision
+		propose.Store("in", in)
+		turn++
+		e.MasterSaid(e.Say(0, fmt.Sprint("propose ", turn)), 1)
+		v, _ := said.Load("master")
+		return fmt.Sprint(v)
+	}
+	answer := func(want string) {
+		as := e.Asks()
+		if len(as) != 1 || !strings.Contains(as[0].Text, want) {
+			t.Fatalf("one proposal waits for the owner: %+v", as)
+		}
+		e.Answer(as[0].ID, "allow")
+	}
+	quote := `the owner said in topic:1: "longer replies, with the reasons"`
+	if got := ask(map[string]any{"name": "memory/site-waits.md", "text": lesson("site-waits", "process:1", "", "", "Two minutes"), "reason": quote}); !strings.Contains(got, "lessons are saved with document_save") {
+		t.Fatalf("a lesson is not proposed, the master saves it: %s", got)
+	}
+	if got := ask(map[string]any{"name": "memory/MEMORY.md", "text": "- x\n", "reason": quote}); !strings.HasPrefix(got, "true ") {
+		t.Fatalf("the index is not proposed: %s", got)
+	}
+	if got := ask(map[string]any{"name": "skills/memory/SKILL.md", "delete": true, "reason": quote}); !strings.Contains(got, "not deleted") {
+		t.Fatalf("a skill is not deleted by a proposal: %s", got)
+	}
+
+	next := fact("feedback", "Replies are longer, with the reasons")
+	if got := ask(map[string]any{"name": "memory/replies.md", "text": next, "reason": quote}); !strings.Contains(got, "waiting") {
+		t.Fatalf("the proposal of a fact waits for the owner: %s", got)
+	}
+	if d, _ := read("memory/replies.md"); d.Text != fact("feedback", "Replies are short") {
+		t.Fatalf("without a yes the fact is as it was: %s", d.Text)
+	}
+	answer("memory/replies.md")
+	e.Until("the fact changed", func() bool { d, _ := read("memory/replies.md"); return d.Text == next })
+	if d, _ := read("memory/replies.md"); d.Revisions[0].Author != "master" || d.Revisions[0].Reason != quote {
+		t.Fatalf("the revision is the master's with the quote: %+v", d.Revisions[0])
+	}
+
+	if got := ask(map[string]any{"name": "memory/replies.md", "delete": true, "reason": quote}); !strings.Contains(got, "waiting") {
+		t.Fatalf("the deletion of a fact waits for the owner: %s", got)
+	}
+	if _, code := read("memory/replies.md"); code != 200 {
+		t.Fatalf("without a yes the fact stays: %d", code)
+	}
+	answer("memory/replies.md")
+	e.Until("the fact deleted", func() bool { _, code := read("memory/replies.md"); return code == 404 })
 }

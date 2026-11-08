@@ -56,7 +56,7 @@ type episodeSummaryView struct {
 	At         string `json:"at"`
 }
 
-// episodesView is what happened in a period; More names the parts cut at the limit.
+// episodesView is what happened in a period, oldest first; More names the parts cut at the limit.
 type episodesView struct {
 	Processes []episodeProcessView  `json:"processes"`
 	Incidents []episodeIncidentView `json:"incidents"`
@@ -138,7 +138,7 @@ func (s *Service) episodesList(ctx context.Context, act registry.Actor, in episo
 		ms = ms[:limit]
 	}
 	for _, m := range ms {
-		out.Messages = append(out.Messages, episodeMessageView{Topic: m.TopicID, TopicTitle: m.Title, Text: untrusted.Cut(m.Text, 300), At: m.CreatedAt})
+		out.Messages = append(out.Messages, episodeMessageView{Topic: m.TopicID, TopicTitle: untrusted.Cut(m.Title, 120), Text: untrusted.Cut(m.Text, 300), At: m.CreatedAt})
 	}
 
 	ss, err := q.ListSummariesChangedIn(ctx, db.ListSummariesChangedInParams{WorkspaceID: act.Workspace, MasterID: store.ID(master.ID), Since: from, Until: to, Lim: limit + 1})
@@ -149,7 +149,7 @@ func (s *Service) episodesList(ctx context.Context, act registry.Actor, in episo
 		ss = ss[:limit]
 	}
 	for _, m := range ss {
-		out.Summaries = append(out.Summaries, episodeSummaryView{Topic: m.ID, TopicTitle: m.Title, Summary: untrusted.Cut(m.Text, 600), At: m.CreatedAt})
+		out.Summaries = append(out.Summaries, episodeSummaryView{Topic: m.ID, TopicTitle: untrusted.Cut(m.Title, 120), Summary: untrusted.Cut(m.Text, 600), At: m.CreatedAt})
 	}
 	return out, nil
 }

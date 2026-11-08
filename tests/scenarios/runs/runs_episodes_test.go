@@ -24,7 +24,8 @@ type episodeProcess struct {
 	ErrorType  string `json:"error_type"`
 	Error      string
 	Provider   string
-	DurationMs int64 `json:"duration_ms"`
+	DurationMs int64  `json:"duration_ms"`
+	FinishedAt string `json:"finished_at"`
 }
 
 type episodes struct {
@@ -35,8 +36,9 @@ type episodes struct {
 		Project string
 	}
 	Messages []struct {
-		Topic int64
-		Text  string
+		Topic      int64
+		TopicTitle string `json:"topic_title"`
+		Text       string
 	}
 	Summaries []struct {
 		Topic   int64
@@ -46,21 +48,31 @@ type episodes struct {
 }
 
 func (v episodes) has(id int64) bool {
-	return slices.ContainsFunc(v.Processes, func(p episodeProcess) bool {
-		return p.ID == id
-	})
+	return slices.ContainsFunc(v.Processes, func(p episodeProcess) bool { return p.ID == id })
 }
 
-// TestEpisodesListWhatHappenedInAPeriod: the owner and the master read the failed processes, incidents, the owner's
-// messages and changed summaries of a period; an agent of a module is refused; since and until bound the period.
+func (v episodes) ids() []int64 {
+	var out []int64
+	for _, p := range v.Processes {
+		out = append(out, p.ID)
+	}
+	return out
+}
+
+// TestEpisodesListWhatHappenedInAPeriod: the owner and the master read what happened in a period, oldest first, bound
+// by since, until and project, a cut part going on from its last time; a module's agent and a token are refused.
 func TestEpisodesListWhatHappenedInAPeriod(t *testing.T) {
 	t.Parallel()
 	since := time.Now().UTC().Add(-time.Second).Format(time.RFC3339Nano)
-	var refused atomic.Value
-	var read atomic.Value
+	var refused, read atomic.Value
+	var idle, spare atomic.Int64
 	long := strings.Repeat("the page was empty; ", 40)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {
+		case c.Command() == "work" && c.Req.Project == idle.Load():
+			return provider.Result{Structured: json.RawMessage(`null`)}
+		case c.Command() == "work" && c.Req.Project == spare.Load():
+			return provider.Result{Text: "done"}
 		case c.Command() == "work":
 			out, bad := c.Tool(ctx, "episodes_list", map[string]any{"since": since})
 			refused.Store(fmt.Sprint(bad, " ", out))
@@ -75,6 +87,8 @@ func TestEpisodesListWhatHappenedInAPeriod(t *testing.T) {
 	}))
 
 	plain := e.Project("plain", harness.PlainManifest)
+	idle.Store(e.Project("idle", harness.Nullable(harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))))
+	spare.Store(e.Project("spare", harness.PlainManifest))
 	old := store.Time(time.Now().Add(-48 * time.Hour))
 	var oldID int64
 	// A failure and its incident of two days ago.
@@ -91,30 +105,51 @@ func TestEpisodesListWhatHappenedInAPeriod(t *testing.T) {
 	if r, _ := refused.Load().(string); !strings.HasPrefix(r, "true") {
 		t.Fatalf("an agent of a module is refused the episodes: %s", r)
 	}
-	// The mark of an incident of today.
+	nothing := e.Run(idle.Load(), "work")
+	e.WaitState(nothing, "done")
+	other := e.Run(spare.Load(), "work")
+	e.WaitState(other, "done")
+	// The marks of incidents of today.
 	e.SQL(`INSERT INTO mark (workspace_id, project_id, name, value) VALUES (1, ?, ?, ?)`, plain, fmt.Sprintf("incident:%d.not_done", id), store.Time(time.Now()))
-	topic := e.Say(0, "hello, what broke today")
+	// The same.
+	e.SQL(`INSERT INTO mark (workspace_id, project_id, name, value) VALUES (1, ?, ?, ?)`, spare.Load(), fmt.Sprintf("incident:%d.running", other), store.Time(time.Now().Add(time.Millisecond)))
+	title := "hello, what broke today" + strings.Repeat(" and why", 30)
+	topic := e.Say(0, title)
 	// The summary a turn of the master writes.
 	e.PlantRevision("master", fmt.Sprintf("topics/%d/summary.md", topic), "The owner asks what broke today.")
+	gone := e.Say(0, "a topic to forget")
+	// The same.
+	e.PlantRevision("master", fmt.Sprintf("topics/%d/summary.md", gone), "Forgotten.")
+	e.Must("deck.chat_topic_delete", map[string]any{"topic": gone}, nil)
 
 	var v episodes
 	e.Must("deck.episodes_list", map[string]any{"since": since}, &v)
 	i := slices.IndexFunc(v.Processes, func(p episodeProcess) bool { return p.ID == id })
-	if i < 0 || v.has(oldID) {
-		t.Fatalf("the period holds the failure of today, not the old one: %+v", v.Processes)
+	if i < 0 || v.has(oldID) || v.has(nothing) || !v.has(other) {
+		t.Fatalf("the period holds what ended today with something, not the old one nor one done with nothing: %+v", v.Processes)
 	}
 	if p := v.Processes[i]; p.Project != "plain" || p.Command != "work" || p.State != "error" || p.ErrorType != "task.failed" ||
 		len(p.Error) > 310 || !strings.Contains(p.Error, "the page was empty") || p.Provider == "" || p.DurationMs < 0 {
 		t.Fatalf("a process says how it ended, its error cut: %+v", p)
 	}
-	if len(v.Incidents) != 1 || v.Incidents[0].Process != id || v.Incidents[0].Kind != "not_done" || v.Incidents[0].Project != "plain" {
-		t.Fatalf("the incident of today: %+v", v.Incidents)
+	if !slices.IsSortedFunc(v.Processes, func(a, b episodeProcess) int { return strings.Compare(a.FinishedAt, b.FinishedAt) }) {
+		t.Fatalf("the oldest first: %+v", v.Processes)
 	}
-	if len(v.Messages) != 1 || v.Messages[0].Topic != topic || v.Messages[0].Text != "hello, what broke today" {
-		t.Fatalf("the owner's message with its topic: %+v", v.Messages)
+	if len(v.Incidents) != 2 || v.Incidents[0].Process != id || v.Incidents[0].Kind != "not_done" || v.Incidents[0].Project != "plain" ||
+		v.Incidents[1].Process != other {
+		t.Fatalf("the incidents of today, oldest first: %+v", v.Incidents)
+	}
+	if len(v.Messages) != 1 || v.Messages[0].Topic != topic || v.Messages[0].Text != title || len(v.Messages[0].TopicTitle) > 130 {
+		t.Fatalf("the owner's message with its topic, its title cut, not those of a deleted topic: %+v", v.Messages)
 	}
 	if len(v.Summaries) != 1 || v.Summaries[0].Topic != topic || v.Summaries[0].Summary != "The owner asks what broke today." {
-		t.Fatalf("the summary that changed: %+v", v.Summaries)
+		t.Fatalf("the summary that changed, not that of a deleted topic: %+v", v.Summaries)
+	}
+
+	var mine episodes
+	e.Must("deck.episodes_list", map[string]any{"since": since, "project": "plain"}, &mine)
+	if !slices.Equal(mine.ids(), []int64{id}) || len(mine.Incidents) != 1 || mine.Incidents[0].Process != id || len(mine.Messages) != 1 {
+		t.Fatalf("project narrows the processes and incidents, the chat stays: %+v", mine)
 	}
 
 	before := time.Now().Add(-72 * time.Hour).UTC().Format(time.RFC3339)
@@ -123,12 +158,23 @@ func TestEpisodesListWhatHappenedInAPeriod(t *testing.T) {
 	if !past.has(oldID) || past.has(id) || len(past.Incidents) != 1 || past.Incidents[0].Kind != "running" || len(past.Messages) != 0 {
 		t.Fatalf("until ends the period before today: %+v", past)
 	}
-	var cut episodes
-	e.Must("deck.episodes_list", map[string]any{"since": before, "limit": 1}, &cut)
-	if len(cut.Processes) != 1 || !slices.Contains(cut.More, "processes") || !slices.Contains(cut.More, "incidents") || slices.Contains(cut.More, "summaries") {
-		t.Fatalf("a part cut at the limit says so: %d processes, more %v", len(cut.Processes), cut.More)
+
+	var all, first, rest episodes
+	e.Must("deck.episodes_list", map[string]any{"since": before}, &all)
+	e.Must("deck.episodes_list", map[string]any{"since": before, "limit": 2}, &first)
+	if !slices.Equal(first.ids(), all.ids()[:2]) || first.ids()[0] != oldID || !slices.Contains(first.More, "processes") ||
+		slices.Contains(first.More, "summaries") {
+		t.Fatalf("a part cut at the limit gives the oldest and says so: %v of %v, more %v", first.ids(), all.ids(), first.More)
 	}
+	e.Must("deck.episodes_list", map[string]any{"since": first.Processes[1].FinishedAt}, &rest)
+	got := slices.Concat(first.ids(), rest.ids())
+	if slices.ContainsFunc(all.ids(), func(id int64) bool { return !slices.Contains(got, id) }) {
+		t.Fatalf("since the last time of a page gives the rest: %v and %v of %v", first.ids(), rest.ids(), all.ids())
+	}
+
 	e.Refused("deck.episodes_list", map[string]any{"since": "yesterday"}, 422, "")
+	_, tok := e.Token("terminal", "deck.episodes_list", "deck.*")
+	e.As(tok).Refused("deck.episodes_list", map[string]any{"since": since}, 403, "not open to automation tokens")
 
 	e.Say(topic, "read the episodes of today")
 	e.Until("the master reads the episodes", func() bool {

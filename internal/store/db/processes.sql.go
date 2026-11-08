@@ -832,7 +832,7 @@ FROM mark m LEFT JOIN project j ON j.id = m.project_id
 WHERE m.workspace_id = ?1 AND m.name LIKE 'incident:%'
   AND (CAST(?2 AS INTEGER) = 0 OR m.project_id = CAST(?2 AS INTEGER))
   AND m.value >= ?3 AND m.value < ?4
-ORDER BY m.value DESC LIMIT ?5
+ORDER BY m.value, m.name LIMIT ?5
 `
 
 type ListEpisodeIncidentsParams struct {
@@ -849,7 +849,7 @@ type ListEpisodeIncidentsRow struct {
 	Project string
 }
 
-// The incidents of processes deck handed to the master in a period, newest first; the value of a mark is its time.
+// The incidents of processes deck handed to the master in a period, oldest first; the value of a mark is its time.
 func (q *Queries) ListEpisodeIncidents(ctx context.Context, arg ListEpisodeIncidentsParams) ([]ListEpisodeIncidentsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listEpisodeIncidents,
 		arg.WorkspaceID,
@@ -889,7 +889,7 @@ WHERE j.workspace_id = ?1
   AND (CAST(?2 AS INTEGER) = 0 OR p.project_id = CAST(?2 AS INTEGER))
   AND p.trial = 0 AND p.finished_at >= CAST(?3 AS TEXT) AND p.finished_at < CAST(?4 AS TEXT)
   AND NOT (p.state = 'done' AND p.result = 'null' AND p.not_by_schema = 0)
-ORDER BY p.finished_at DESC, p.id DESC LIMIT ?5
+ORDER BY p.finished_at, p.id LIMIT ?5
 `
 
 type ListEpisodeProcessesParams struct {
@@ -914,7 +914,7 @@ type ListEpisodeProcessesRow struct {
 	Topic      int64
 }
 
-// The processes of a workspace that finished in a period, not trials nor done with nothing, newest first.
+// The processes of a workspace that finished in a period, not trials nor done with nothing, oldest first.
 func (q *Queries) ListEpisodeProcesses(ctx context.Context, arg ListEpisodeProcessesParams) ([]ListEpisodeProcessesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listEpisodeProcesses,
 		arg.WorkspaceID,

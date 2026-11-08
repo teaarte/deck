@@ -155,7 +155,8 @@ and bring the modules in line.
   far as the caller reads them; `kinds`, `project`, `limit`; each hit gives `kind`, `name`, `document` and `revision`
   or `process`, `snippet` and `rank` (lower is better).
 - 2026-11-08: `deck.episodes_list` (the owner and the master) gives what happened from `since` until `until` (all so far
-  without one), newest first: `processes` that finished (not trials nor done with nothing: `state`, `error_type`,
+  without one), oldest first: `processes` that finished (not trials nor done with nothing: `state`, `error_type`,
   `error` cut, `provider`, `models`, `duration_ms`, `topic`), `incidents` (`process`, `kind`, `at`), the owner's
-  `messages` in chat topics and the `summaries` of topics that changed, `limit` a part (200, up to 1000) and `more`
-  the parts cut; `project` narrows the processes and incidents. A process stays listed for good, its full log a week.
+  `messages` in chat topics and the `summaries` of topics that changed, `limit` a part (200, up to 1000); `more` names
+  the parts cut: call again with `since` the last `finished_at` or `at` of that part for the rest (rows of that very
+  time may repeat); `project` narrows the processes and incidents. A process stays listed for good, its full log a week.

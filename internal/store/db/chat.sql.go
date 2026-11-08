@@ -330,7 +330,7 @@ const listOwnerMessagesIn = `-- name: ListOwnerMessagesIn :many
 SELECT m.topic_id, t.title, m.text, m.created_at FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
 WHERE t.workspace_id = ?1 AND t.deleted_at IS NULL AND m.role = 'owner'
   AND m.created_at >= ?2 AND m.created_at < ?3
-ORDER BY m.created_at DESC, m.id DESC LIMIT ?4
+ORDER BY m.created_at, m.id LIMIT ?4
 `
 
 type ListOwnerMessagesInParams struct {
@@ -347,7 +347,7 @@ type ListOwnerMessagesInRow struct {
 	CreatedAt string
 }
 
-// The messages of the owner in the topics of a workspace in a period, newest first.
+// The messages of the owner in the topics of a workspace in a period, oldest first.
 func (q *Queries) ListOwnerMessagesIn(ctx context.Context, arg ListOwnerMessagesInParams) ([]ListOwnerMessagesInRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOwnerMessagesIn,
 		arg.WorkspaceID,
@@ -424,7 +424,7 @@ JOIN document d ON d.workspace_id = t.workspace_id AND d.project_id = ?1 AND d.r
 JOIN document_revision r ON r.id = (SELECT MAX(x.id) FROM document_revision x WHERE x.document_id = d.id
     AND x.created_at >= ?2 AND x.created_at < ?3)
 WHERE t.workspace_id = ?4 AND t.deleted_at IS NULL
-ORDER BY r.created_at DESC, t.id DESC LIMIT ?5
+ORDER BY r.created_at, t.id LIMIT ?5
 `
 
 type ListSummariesChangedInParams struct {
@@ -442,7 +442,7 @@ type ListSummariesChangedInRow struct {
 	CreatedAt string
 }
 
-// The topics whose summary, a document of the master, got a revision in a period, with the newest of them.
+// The topics whose summary, a document of the master, got a revision in a period, with the newest of them, oldest first.
 func (q *Queries) ListSummariesChangedIn(ctx context.Context, arg ListSummariesChangedInParams) ([]ListSummariesChangedInRow, error) {
 	rows, err := q.db.QueryContext(ctx, listSummariesChangedIn,
 		arg.MasterID,

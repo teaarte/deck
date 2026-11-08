@@ -13,6 +13,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
@@ -33,6 +34,9 @@ type Service struct {
 	SaveManifest func(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (any, error)
 	// Go runs work beside the calls; false once deck stops.
 	Go func(func(context.Context)) bool
+	// Home is where the picture of the memory map is written; Fits are the models a command starts on, in order.
+	Home home.Layout
+	Fits func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
 }
 
 type documentView struct {
@@ -558,7 +562,7 @@ func (s *Service) documentRestore(ctx context.Context, act registry.Actor, in do
 
 // Commands are the commands of documents.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.documentsCommands(), s.revisionsCommands(), s.programsCommands(), s.overviewCommands(), s.proposeCommands())
+	return slices.Concat(s.documentsCommands(), s.revisionsCommands(), s.programsCommands(), s.mapCommands(), s.proposeCommands())
 }
 
 func (s *Service) documentsCommands() []*registry.Command {

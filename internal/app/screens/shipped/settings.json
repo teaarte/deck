@@ -174,6 +174,46 @@
               {"verb": "open", "screen": "settings", "params": {"tab": "Advanced"}, "when": "subject == 'push' && status != 'ok'"}
             ]}]}
       ]},
+      {"title": "Memory", "icon": "brain", "blocks": [
+        {"type": "media", "title": "What feeds what", "icon": "sitemap", "span": "full", "source": {"from": "deck.memory_map", "rows": "picture"},
+          "item": {"file": "file", "title": "title"}},
+        {"type": "list", "title": "Parts of memory", "icon": "brain", "span": "full", "cards": true, "source": {"from": "deck.memory_map", "rows": "nodes"},
+          "item": {"title": "title", "text": "text", "meta": "meta ?? nil", "icon": "icon", "since": "at ?? nil", "details": "details ?? nil", "tone": "tone ?? nil"},
+          "actions": [
+            {"verb": "run_now", "confirm": true, "command": "deck.trigger_run", "params": {"trigger": "=trigger"}, "when": "(trigger ?? 0) != 0"}
+          ]},
+        {"type": "list", "title": "Who sleeps and reviews", "icon": "moon", "cards": true,
+          "source": {"from": "deck.models_list", "rows": "work", "where": "project == 'master' && (command == 'sleep' || command == 'review')"},
+          "description": "The models of sleep and the daily review; sleep starts on a free model first.",
+          "empty": "Sleep and review have no model yet",
+          "item": {"title": "title", "text": "model ?? ''", "meta": "price ?? ''", "logo": "logo ?? model ?? ''",
+            "details": "(why ?? '') != '' ? why : len(models ?? []) > 1 ? join(models[1:], ' → ') : nil",
+            "tone": "(why ?? '') != '' ? 'warn' : nil"},
+          "actions": [
+            {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"},
+              "input": "model", "options": "=choices", "groups": "=choice_groups", "notes": "=choice_notes ?? nil", "logos": "=choice_logos ?? nil", "when": "len(choices ?? []) > 0"},
+            {"verb": "fallbacks", "screen": "settings", "params": {"tab": "Models", "dialog": "assign", "role": "=role", "project": "=project", "command": "=command", "models": "=join(models ?? [], ',')"}, "when": "len(choices ?? []) > 0"}
+          ]},
+        {"type": "list", "title": "Memory of each module", "icon": "database", "cards": true, "source": {"from": "deck.memory_map", "rows": "projects"},
+          "item": {"title": "project", "text": "summary", "meta": "lines", "since": "changed ?? nil", "icon": "'database'"},
+          "actions": [
+            {"verb": "open", "primary": true, "screen": "document", "project": "=project", "record": "=index", "when": "index != 0"}
+          ]},
+        {"type": "list", "title": "Lessons", "icon": "bulb", "span": "full", "source": {"from": "deck.memory_map", "rows": "lessons"}, "filter": ["project", "command"],
+          "description": "What deck's agents concluded from their runs, not your words; delete what you do not want.",
+          "empty": "No lessons yet",
+          "item": {"title": "name", "text": "description", "meta": "join(filter([project, command ?? ''], # != ''), ' · ')", "since": "changed", "details": "source", "icon": "'bulb'"},
+          "actions": [
+            {"verb": "open", "primary": true, "screen": "document", "project": "=project", "record": "=document"},
+            {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "=document"}}
+          ]},
+        {"type": "table", "title": "Repeated failures", "icon": "repeat", "span": "full", "source": {"from": "deck.memory_map", "rows": "repeats"},
+          "empty": "No command failed the same way twice lately",
+          "columns": [
+            {"label": "Module", "bind": "project"}, {"label": "Command", "bind": "command"}, {"label": "Failure", "bind": "error_type"},
+            {"label": "Failures", "bind": "failures", "format": "number"}, {"label": "Last", "bind": "last", "format": "relative"}
+          ]}
+      ]},
       {"title": "Devices", "icon": "devices", "blocks": [
         {"type": "dialog", "name": "pair", "title": "Pair a device", "icon": "qrcode", "blocks": [
           {"type": "form", "command": "deck.pair_link", "keep_open": true}]},

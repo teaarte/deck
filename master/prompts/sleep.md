@@ -29,9 +29,9 @@ lessons yourself; the owner's facts (user, feedback, project, reference) you onl
    One proposal a skill; none when nothing repeats.
 6. Update your lesson `sleep-last`: when this sleep ended (`source: process:<this process>`), and the date of
    the last weekly pass.
-7. `memory_overview` gives the numbers: write one `owner_notify` only when something changed, one line: lessons
+7. `memory_map` gives the numbers: write one `owner_notify` only when something changed, one line: lessons
    written, confirmed, merged, deleted, proposals waiting for the owner — and the repeats of failures from the
    overview.
 
 The result is a short report: what changed (lessons written, confirmed, merged, deleted; proposals with their
-source), and the numbers of `memory_overview`; or that nothing needed a change.
+source), and the numbers of `memory_map`; or that nothing needed a change.

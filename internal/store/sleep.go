@@ -15,7 +15,7 @@ var masterSleep = goose.NewGoMigration(67, &goose.GoFunc{RunTx: toSleep}, nil)
 
 // sleepCommand and sleepTrigger are sleep as deck first shipped it.
 const (
-	sleepCommand = `{"name": "sleep", "title": "Sleep", "description": "Once a night goes over what happened since the last sleep: writes, confirms and retires lessons with their source, proposes corrections of the owner's facts and of skills that keep failing the same way, and tidies the indexes.", "class": "internal", "callers": ["owner", "trigger"], "provider": "free", "executor": {"type": "agent", "prompt_file": "prompts/sleep.md", "skills": ["memory"], "calls": ["deck.projects_list", "deck.documents_list", "deck.document_get", "deck.document_save", "deck.document_delete", "deck.memory_overview", "deck.owner_notify"]}}`
+	sleepCommand = `{"name": "sleep", "title": "Sleep", "description": "Once a night goes over what happened since the last sleep: writes, confirms and retires lessons with their source, proposes corrections of the owner's facts and of skills that keep failing the same way, and tidies the indexes.", "class": "internal", "callers": ["owner", "trigger"], "provider": "free", "executor": {"type": "agent", "prompt_file": "prompts/sleep.md", "skills": ["memory"], "calls": ["deck.projects_list", "deck.documents_list", "deck.document_get", "deck.document_save", "deck.document_delete", "deck.memory_map", "deck.owner_notify"]}}`
 	sleepTrigger = `{"command": "sleep", "cron": "30 3 * * *"}`
 )
 

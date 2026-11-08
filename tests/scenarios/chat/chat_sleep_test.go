@@ -191,9 +191,9 @@ func TestADeckBeforeSleepWakesUpWithIt(t *testing.T) {
 	e2.Must("deck.document_get", map[string]any{"project": "master", "name": "prompts/sleep.md"}, nil)
 }
 
-// TestMemoryOverviewCountsFactsLessonsAndRepeats: repeats are failures of real runs that nothing took on; a trial and
+// TestMemoryMapCountsFactsLessonsAndRepeats: repeats are failures of real runs that nothing took on; a trial and
 // a run handed on to the next model are none.
-func TestMemoryOverviewCountsFactsLessonsAndRepeats(t *testing.T) {
+func TestMemoryMapCountsFactsLessonsAndRepeats(t *testing.T) {
 	t.Parallel()
 	main := &harness.Fake{Script: func(context.Context, *harness.Call) provider.Result {
 		return provider.Fail(fault.ModelUnavailable, "the model is down")
@@ -243,7 +243,7 @@ func TestMemoryOverviewCountsFactsLessonsAndRepeats(t *testing.T) {
 			Failures, Repeats int
 		}
 	}
-	e.Must("deck.memory_overview", nil, &o)
+	e.Must("deck.memory_map", nil, &o)
 	var shop bool
 	for _, row := range o.Projects {
 		if row.Project == "shop" {

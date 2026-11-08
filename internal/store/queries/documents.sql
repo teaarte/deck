@@ -90,3 +90,24 @@ ON CONFLICT (document_id) DO UPDATE SET reads = reads + 1, last_read_at = exclud
 
 -- name: ListMemoryReads :many
 SELECT document_id, reads, last_read_at FROM memory_read WHERE document_id IN (sqlc.slice(ids));
+
+
+-- name: LastRunOf :one
+SELECT id, state, error_type, result, error, started_at, CAST(COALESCE(finished_at, '') AS TEXT) AS finished_at FROM process
+WHERE project_id = sqlc.arg(project_id) AND command = sqlc.arg(command) AND trial = 0
+ORDER BY id DESC LIMIT 1;
+
+-- name: CountRunsSince :one
+SELECT COUNT(*) FROM process WHERE project_id = sqlc.arg(project_id) AND command = sqlc.arg(command) AND trial = 0
+  AND started_at >= sqlc.arg(since);
+
+-- name: TopicSummaries :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MAX(r.created_at), '') AS TEXT) AS newest FROM document d
+JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = sqlc.arg(workspace_id) AND d.name LIKE 'topics/%/summary.md' AND d.deleted_at IS NULL;
+
+-- name: SkillAuthors :many
+SELECT d.name, r.author FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = sqlc.arg(workspace_id) AND d.project_id IS NULL AND d.kind = 'skill' AND d.deleted_at IS NULL
+  AND d.name LIKE '%/SKILL.md'
+ORDER BY d.name;

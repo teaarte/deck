@@ -165,9 +165,7 @@ and bring the modules in line.
   since the last one: writes, confirms and retires lessons with their source, proposes changes of the owner's facts
   and of skills (the owner's yes saves them), tidies indexes;
   the migration gives sleep the pause and the models of `memory`. A command's `provider` may be `"free"`: with no
-  assignment, the agent models marked free and then the rest are its chain, as an assignment is. `deck.memory_overview` (owner and master) counts the memory of each project — facts, lessons, index
-  lines of 150, its last change — and the commands that failed the same way more than once in the last 30 days
-  (trials and runs handed on to the next model aside).
+  assignment, the agent models marked free and then the rest are its chain, as an assignment is.
 - 2026-11-08: `deck.document_propose` (master, owner) proposes the whole new `text` of a skill file (`name` as
   `document_get` names it) or of a memory fact that is not a lesson (`memory/<fact>.md`; without `project` the owner's),
   or with `delete: true` deleting such a fact; `reason` names the lessons it comes from or quotes the episode with its
@@ -191,3 +189,9 @@ and bring the modules in line.
 - 2026-11-08: a memory document counts its reads: a lesson that reached a turn, a fact an agent or the master read
   with `document_get` or found with `memory_search` (not the index, not the owner's reads); `documents_list` and the
   hits of `memory_search` give `reads` and `last_read_at` — a signal of what to raise or drop in the index.
+- 2026-11-09: `deck.memory_map` (owner and master; it was `memory_overview`) gives the parts of deck's memory:
+  `projects` (facts, lessons, index lines of 150, last change, the index document), `lessons` (document, project,
+  command, source), `nodes` (the owner's memory, modules, summaries of topics, skills, sleep, review, on_error,
+  on_incident with models, schedule and last run, the agents' own memory: off, repeated failures), `repeats` (the
+  commands that failed the same way more than once in `days`, 30 by default, trials and runs handed on aside) and
+  `picture`, a drawing of what feeds what in the master's data folder. Settings has a tab Memory of it.

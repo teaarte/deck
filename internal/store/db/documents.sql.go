@@ -59,6 +59,24 @@ func (q *Queries) CountMemoryRead(ctx context.Context, arg CountMemoryReadParams
 	return err
 }
 
+const countRunsSince = `-- name: CountRunsSince :one
+SELECT COUNT(*) FROM process WHERE project_id = ?1 AND command = ?2 AND trial = 0
+  AND started_at >= ?3
+`
+
+type CountRunsSinceParams struct {
+	ProjectID int64
+	Command   string
+	Since     string
+}
+
+func (q *Queries) CountRunsSince(ctx context.Context, arg CountRunsSinceParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countRunsSince, arg.ProjectID, arg.Command, arg.Since)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createDocument = `-- name: CreateDocument :one
 INSERT INTO document (workspace_id, project_id, record_id, kind, name)
 VALUES (?1, ?2, ?3, ?4, ?5) RETURNING id, workspace_id, project_id, record_id, kind, name, "current", deleted_at, created_at
@@ -224,6 +242,42 @@ func (q *Queries) GetRevision(ctx context.Context, arg GetRevisionParams) (Docum
 		&i.Author,
 		&i.Reason,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const lastRunOf = `-- name: LastRunOf :one
+SELECT id, state, error_type, result, error, started_at, CAST(COALESCE(finished_at, '') AS TEXT) AS finished_at FROM process
+WHERE project_id = ?1 AND command = ?2 AND trial = 0
+ORDER BY id DESC LIMIT 1
+`
+
+type LastRunOfParams struct {
+	ProjectID int64
+	Command   string
+}
+
+type LastRunOfRow struct {
+	ID         int64
+	State      string
+	ErrorType  string
+	Result     string
+	Error      string
+	StartedAt  string
+	FinishedAt string
+}
+
+func (q *Queries) LastRunOf(ctx context.Context, arg LastRunOfParams) (LastRunOfRow, error) {
+	row := q.db.QueryRowContext(ctx, lastRunOf, arg.ProjectID, arg.Command)
+	var i LastRunOfRow
+	err := row.Scan(
+		&i.ID,
+		&i.State,
+		&i.ErrorType,
+		&i.Result,
+		&i.Error,
+		&i.StartedAt,
+		&i.FinishedAt,
 	)
 	return i, err
 }
@@ -580,4 +634,57 @@ type SetDocumentCurrentParams struct {
 func (q *Queries) SetDocumentCurrent(ctx context.Context, arg SetDocumentCurrentParams) error {
 	_, err := q.db.ExecContext(ctx, setDocumentCurrent, arg.Current, arg.ID)
 	return err
+}
+
+const skillAuthors = `-- name: SkillAuthors :many
+SELECT d.name, r.author FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = ?1 AND d.project_id IS NULL AND d.kind = 'skill' AND d.deleted_at IS NULL
+  AND d.name LIKE '%/SKILL.md'
+ORDER BY d.name
+`
+
+type SkillAuthorsRow struct {
+	Name   string
+	Author string
+}
+
+func (q *Queries) SkillAuthors(ctx context.Context, workspaceID int64) ([]SkillAuthorsRow, error) {
+	rows, err := q.db.QueryContext(ctx, skillAuthors, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SkillAuthorsRow
+	for rows.Next() {
+		var i SkillAuthorsRow
+		if err := rows.Scan(&i.Name, &i.Author); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const topicSummaries = `-- name: TopicSummaries :one
+SELECT COUNT(*) AS n, CAST(COALESCE(MAX(r.created_at), '') AS TEXT) AS newest FROM document d
+JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = ?1 AND d.name LIKE 'topics/%/summary.md' AND d.deleted_at IS NULL
+`
+
+type TopicSummariesRow struct {
+	N      int64
+	Newest string
+}
+
+func (q *Queries) TopicSummaries(ctx context.Context, workspaceID int64) (TopicSummariesRow, error) {
+	row := q.db.QueryRowContext(ctx, topicSummaries, workspaceID)
+	var i TopicSummariesRow
+	err := row.Scan(&i.N, &i.Newest)
+	return i, err
 }

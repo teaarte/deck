@@ -138,7 +138,7 @@
           "deck.document_delete",
           "deck.episodes_list",
           "deck.memory_search",
-          "deck.memory_overview",
+          "deck.memory_map",
           "deck.owner_notify",
           "deck.document_propose"
         ]

@@ -100,5 +100,6 @@ run: tasks set to `ready` on their page, "Run" on the Tasks screen, then read th
 ## 7. Improve this skill
 
 When the owner fixes a code project by hand or a run went wrong because this skill or the example was silent,
-fix the rule here (`document_save`, kind `skill`, name `skills/code-project/SKILL.md`, no project) in the
-words of its section; no dated notes. Say what you changed.
+propose the fixed rule (`document_propose`, name `skills/code-project/SKILL.md`, no project, the whole text, its
+`if_revision` from `document_get`, `reason` what went wrong) in the words of its section; no dated notes. The owner
+decides with one button; say what you proposed.

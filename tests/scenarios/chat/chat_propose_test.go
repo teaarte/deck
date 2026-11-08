@@ -164,11 +164,11 @@ func TestAPressDoesNotStandForTheYesOfASkillChange(t *testing.T) {
 	var said sync.Map
 	var call atomic.Value
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		if c.Command() != "memory" {
+		if c.Command() != "sleep" {
 			return provider.Result{Text: "ok"}
 		}
 		out, bad := c.Tool(ctx, "document_propose", call.Load())
-		said.Store("memory", fmt.Sprint(bad, " ", out))
+		said.Store("sleep", fmt.Sprint(bad, " ", out))
 		return provider.Result{Text: "proposed"}
 	}))
 	var skill struct {
@@ -186,18 +186,12 @@ func TestAPressDoesNotStandForTheYesOfASkillChange(t *testing.T) {
 	if err := json.Unmarshal([]byte(m.Manifest), &man); err != nil {
 		t.Fatal(err)
 	}
-	for _, c := range man["commands"].([]any) {
-		if c := c.(map[string]any); c["name"] == "memory" {
-			ex := c["executor"].(map[string]any)
-			ex["calls"] = append(ex["calls"].([]any), "deck.document_propose")
-		}
-	}
 	man["screens"] = []any{map[string]any{"name": "skills", "title": "Skills", "blocks": []any{map[string]any{"type": "actions", "title": "Skill",
-		"actions": []any{map[string]any{"label": "Apply", "command": "memory",
+		"actions": []any{map[string]any{"label": "Apply", "command": "sleep",
 			"allows": []any{map[string]any{"command": "deck.document_propose", "params": allowed}}}}}}}}
 	e.Must("deck.manifest_save", map[string]any{"project": "master", "manifest": string(harness.MustJSON(man))}, nil)
 	e.Must("deck.project_pause", map[string]any{"project": "master", "paused": false}, nil)
-	apply := e.RowAction("master", "skills", "master.memory", nil)
+	apply := e.RowAction("master", "skills", "master.sleep", nil)
 	if _, ok := apply["params"].(map[string]any)["allows"]; !ok {
 		t.Fatalf("the button names the skill change: %+v", apply)
 	}
@@ -206,8 +200,8 @@ func TestAPressDoesNotStandForTheYesOfASkillChange(t *testing.T) {
 	if err := json.Unmarshal(out, &run); code != 200 || err != nil {
 		t.Fatalf("the press starts the run: %d %s", code, out)
 	}
-	e.Until("the run proposed", func() bool { _, ok := said.Load("memory"); return ok })
-	if got, _ := said.Load("memory"); !strings.Contains(fmt.Sprint(got), "waiting") {
+	e.Until("the run proposed", func() bool { _, ok := said.Load("sleep"); return ok })
+	if got, _ := said.Load("sleep"); !strings.Contains(fmt.Sprint(got), "waiting") {
 		t.Fatalf("the skill change waits for the owner's answer, press or not: %v", got)
 	}
 	e.Must("deck.document_get", map[string]any{"name": "skills/memory/SKILL.md"}, &skill)
@@ -296,4 +290,22 @@ func TestAFactOfTheOwnerChangesOnlyByTheirYes(t *testing.T) {
 	}
 	answer("memory/replies.md")
 	e.Until("the fact deleted", func() bool { _, code := read("memory/replies.md"); return code == 404 })
+
+	// The save checks the revision itself, past the gate, as on the owner's own call.
+	e.Must("deck.document_save", map[string]any{"name": "memory/tone.md", "kind": "memory", "text": harness.Fact("tone", "user", "Plain words")}, nil)
+	e.Must("deck.document_save", map[string]any{"name": "memory/tone.md", "text": harness.Fact("tone", "user", "Plain words, no jargon")}, nil)
+	e.Refused("deck.document_propose", map[string]any{"name": "memory/tone.md", "text": harness.Fact("tone", "user", "Any words"), "reason": quote, "if_revision": 1},
+		409, "read it again")
+
+	if got := ask(map[string]any{"name": "memory/tone.md", "delete": true, "reason": quote}); !strings.Contains(got, "waiting") {
+		t.Fatalf("the deletion waits for the owner: %s", got)
+	}
+	id := e.Asks()[0].ID
+	e.Must("deck.document_delete", map[string]any{"name": "memory/tone.md"}, nil)
+	e.Until("the proposal of a deletion done already closed", func() bool { return len(e.Asks()) == 0 })
+	var answered string
+	// How the ask closed, done or out of date, deck shows nowhere.
+	if err := e.SQLRow(`SELECT answer FROM ask WHERE id = ?`, id).Scan(&answered); err != nil || answered != "allow" {
+		t.Fatalf("a deletion done already closes as in force, not out of date: %q %v", answered, err)
+	}
 }

@@ -177,3 +177,7 @@ and bring the modules in line.
   `if_revision`, a diff past 2000 bytes (propose a smaller change). A text in force already is done without asking; a
   yes to a document changed since does not apply; a button's `allows` does not stand for it, as for calls that spend
   money.
+- 2026-11-09: a run no one started by hand — of a schedule or an event, or one such a run started; a reply to the
+  owner's message is not — saves and deletes in memory only lessons, the index `memory/MEMORY.md` and facts whose
+  `expires` passed; a save or delete of another fact is refused ("propose it with document_propose; the owner
+  decides"). `document_propose` stays the master's and the owner's.

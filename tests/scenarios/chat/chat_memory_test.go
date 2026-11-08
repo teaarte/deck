@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"deck2/internal/provider"
 	"deck2/tests/harness"
@@ -306,5 +307,63 @@ func TestTheMasterWritesItsDeletedMemoryIndexAgain(t *testing.T) {
 	e.Must("deck.document_get", map[string]any{"project": "master", "name": "memory/MEMORY.md"}, &d)
 	if d.Text != "- turn 2" {
 		t.Fatalf("the index is the new text: %+v", d)
+	}
+}
+
+// TestARunOfTheScheduleLeavesTheOwnersFactsToTheOwner: a run no one started by hand saves and deletes lessons, the
+// index and a fact past its date, but not a fact of the owner; a reply to the owner's message still does.
+func TestARunOfTheScheduleLeavesTheOwnersFactsToTheOwner(t *testing.T) {
+	t.Parallel()
+	var said sync.Map
+	heard := func(k string) string { v, _ := said.Load(k); return fmt.Sprint(v) }
+	e := harness.New(t, harness.WithClock(), harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		run := c.Command()
+		if run != "sleep" && run != "reply" {
+			return provider.Result{Text: "ok"}
+		}
+		do := func(key, tool string, args map[string]any) {
+			out, bad := c.Tool(ctx, tool, args)
+			said.Store(run+" "+key, fmt.Sprint(bad, " ", out))
+		}
+		do("fact", "document_save", map[string]any{"name": "memory/replies.md", "text": harness.Fact("replies", "feedback", "Replies by "+run)})
+		do("lesson", "document_save", map[string]any{"name": "memory/" + run + "-learnt.md", "kind": "memory",
+			"text": lesson(run+"-learnt", "process:1", "", "", "Learnt by "+run)})
+		do("index", "document_save", map[string]any{"name": "memory/MEMORY.md", "kind": "memory", "text": "- [Replies](replies.md) — by " + run + "\n"})
+		do("expired", "document_delete", map[string]any{"name": "memory/old-" + run + ".md"})
+		do("delete", "document_delete", map[string]any{"name": "memory/replies.md"})
+		return provider.Result{Text: "ok"}
+	}))
+	e.MasterAwake()
+	for _, run := range []string{"sleep", "reply"} {
+		e.Must("deck.document_save", map[string]any{"name": "memory/old-" + run + ".md", "kind": "memory",
+			"text": "---\nname: old-" + run + "\ndescription: x\ntype: project\nexpires: 2026-01-01\n---\n\nPast its date\n"}, nil)
+	}
+	e.Must("deck.document_save", map[string]any{"name": "memory/replies.md", "kind": "memory", "text": harness.Fact("replies", "feedback", "Replies are short")}, nil)
+
+	// 03:30 of the next night, the schedule of the master's sleep.
+	e.Clock.Add(19*time.Hour + 31*time.Minute)
+	e.Tick()
+	e.Until("the run of the schedule", func() bool { return heard("sleep delete") != "<nil>" })
+	for _, k := range []string{"fact", "delete"} {
+		if got := heard("sleep " + k); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "propose it with document_propose") {
+			t.Fatalf("a run of the schedule does not %s a fact of the owner: %s", k, got)
+		}
+	}
+	for _, k := range []string{"lesson", "index", "expired"} {
+		if got := heard("sleep " + k); !strings.HasPrefix(got, "false ") {
+			t.Fatalf("a run of the schedule keeps its %s: %s", k, got)
+		}
+	}
+	var got struct{ Text string }
+	e.Must("deck.document_get", map[string]any{"name": "memory/replies.md"}, &got)
+	if !strings.Contains(got.Text, "Replies are short") {
+		t.Fatalf("the fact of the owner is as the owner left it: %s", got.Text)
+	}
+
+	e.MasterSaid(e.Say(0, "replies may be longer"), 1)
+	for _, k := range []string{"fact", "lesson", "index", "expired", "delete"} {
+		if got := heard("reply " + k); !strings.HasPrefix(got, "false ") {
+			t.Fatalf("a reply to the owner's message may %s: %s", k, got)
+		}
 	}
 }

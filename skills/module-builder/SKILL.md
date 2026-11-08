@@ -719,8 +719,9 @@ rights "enable" will grant. Do not enable it yourself.
 ## 12. Improve this skill
 
 When the owner fixes by hand a module you built, or you had to guess because this skill was silent or wrong,
-fix the section that led you there: `document_save`, kind `skill`, name `skills/module-builder/SKILL.md`, no
-project. Change the rule itself, in the words of the section, and keep the skill general; no dated notes,
-examples of one module or history — deck keeps the revisions. Say in the hand-over what you changed. A new deck
-merges your edit into the text it ships; where both changed the same lines its text stands, and you get a note
+propose a fix of the section that led you there: `document_propose`, name `skills/module-builder/SKILL.md`, no
+project, the whole text with its `if_revision` from `document_get` and `reason` what went wrong; the owner decides
+with one button. Change the rule itself, in the words of the section, and keep the skill general; no dated notes,
+examples of one module or history — deck keeps the revisions. Say in the hand-over what you proposed. A new deck
+merges an edit into the text it ships; where both changed the same lines its text stands, and you get a note
 with the diff to bring back what still holds.

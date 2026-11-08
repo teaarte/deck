@@ -266,6 +266,15 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 		if err := editText(ctx, q, ref, &in); err != nil {
 			return err
 		}
+		if in.Kind == docs.KindMemory {
+			cur, err := docs.CurrentText(ctx, q, sc, docs.KindMemory, in.Name)
+			if err != nil {
+				return err
+			}
+			if err := ownersFact(ctx, q, act, in.Name, cur, in.Text); err != nil {
+				return err
+			}
+		}
 		var n int64
 		var changed bool
 		if d, n, changed, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil || !changed {
@@ -337,6 +346,49 @@ func mayWrite(ctx context.Context, q *db.Queries, act registry.Actor, s docs.Sco
 		}
 	}
 	return registry.Refuse("this project does not write %s; its agents write artifacts, its memory and the documents writes in its manifest names (%q, or its folder with / at the end), and the owner grants it", name, name)
+}
+
+// ownersFact refuses a run no one started by hand a save or delete of a memory fact that is not a lesson, as it is
+// or as it would be; the index is the agent's to keep.
+func ownersFact(ctx context.Context, q *db.Queries, act registry.Actor, name string, texts ...string) error {
+	if name == docs.MemoryIndex || !strings.HasPrefix(name, docs.MemoryDir) {
+		return nil
+	}
+	fact := false
+	for _, t := range texts {
+		if f, err := docs.ParseFact(t); t != "" && (err != nil || f.Type != docs.Lesson) {
+			fact = true
+		}
+	}
+	if !fact {
+		return nil
+	}
+	if alone, err := unattended(ctx, q, act); err != nil || !alone {
+		return err
+	}
+	return registry.Refuse("%s is a fact of the owner and no one started this run by hand: propose it with document_propose; the owner decides", name)
+}
+
+// unattended is a run of a schedule or an event, or one such a run started; a reply to the owner's message is not.
+func unattended(ctx context.Context, q *db.Queries, act registry.Actor) (bool, error) {
+	if act.Kind == registry.Trigger {
+		return true, nil
+	}
+	for id := act.ProcessID; id != 0; {
+		p, err := q.GetProcess(ctx, id)
+		if err != nil {
+			return false, err
+		}
+		if p.TriggerID.Valid {
+			t, err := q.GetTrigger(ctx, p.TriggerID.Int64)
+			if errors.Is(err, sql.ErrNoRows) {
+				return true, nil
+			}
+			return t.Kind != manifest.OnMessage, err
+		}
+		id = p.ParentID.Int64
+	}
+	return false, nil
 }
 
 // editText checks if_revision and, for old and new parts, makes the text of the save from the current one.
@@ -416,6 +468,18 @@ func (s *Service) documentDelete(ctx context.Context, act registry.Actor, in doc
 		return nil, registry.Invalid("a project keeps its %s; change it instead", d.Name)
 	case act.Kind == registry.Agent && (d.Kind != docs.KindMemory || d.ProjectID.Int64 != act.ProjectID):
 		return nil, registry.Refuse("agents delete only the memory of their project")
+	}
+	if d.Kind == docs.KindMemory {
+		r, err := docs.Revision(ctx, s.St.Q, d, 0)
+		if err != nil {
+			return nil, err
+		}
+		// A fact past the date the owner gave it may go.
+		if f, err := docs.ParseFact(r.Text); err != nil || !f.Expired(s.Now()) {
+			if err := ownersFact(ctx, s.St.Q, act, d.Name, r.Text); err != nil {
+				return nil, err
+			}
+		}
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: d.ID})

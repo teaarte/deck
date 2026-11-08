@@ -139,7 +139,8 @@
           "deck.episodes_list",
           "deck.memory_search",
           "deck.memory_overview",
-          "deck.owner_notify"
+          "deck.owner_notify",
+          "deck.document_propose"
         ]
       }
     },

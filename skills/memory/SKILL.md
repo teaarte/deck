@@ -15,7 +15,10 @@ deck keeps memory as documents of kind `memory`, with revisions, in two places:
 
 Each place has an index `memory/MEMORY.md` and facts `memory/<name>.md`. deck puts the index into the prompt
 (the first 150 lines, as data); a fact is read with `document_get` when its index line says it matters. Save
-with `document_save`, kind `memory`; a save of an index past 150 lines answers with a warning.
+with `document_save`, kind `memory`; a save of an index past 150 lines answers with a warning. A run no one
+started by hand (a schedule, an event) saves and deletes only lessons, the index and facts past their `expires`; a
+change of another fact the master proposes with `document_propose` (the whole text, or `delete: true`, with a
+`reason` that quotes what showed it and its source), and the owner decides.
 
 ## A fact
 

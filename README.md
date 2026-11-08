@@ -38,8 +38,8 @@ answer the one or two things that need you.
 
 ## Tiles and live widgets
 
-The home screen is a grid of cards you place and resize freely, any width by any height, separately for each
-device. Each module card is a **live widget**: a tiny screen of the module's own data that updates the moment the
+The home screen is a grid of cards, arranged like a phone's: the pencil at the bottom right lets you drag and resize
+them, put modules in folders or take them off the home, separately for each device. Each module card is a **live widget**: a tiny screen of the module's own data that updates the moment the
 data changes, with no polling.
 
 - A module declares up to eight widget views in its manifest, each for a least size (`1x1`, `2x1`, `3x2`, …) and
@@ -51,7 +51,8 @@ data changes, with no polling.
   assigned to that work. The result is an ordinary manifest edit you can undo.
 - **Today** is deck's own widget: what waits for you, what failed, what runs, what was done, what the day cost and
   what runs next.
-- A card without widgets shows its cover, which Deki can also draw.
+- A card without widgets shows its cover, which Deki can also draw; a widget stands on a veil over its module's
+  cover, and without one wears a color of the theme Deki can change.
 
 ## Deki, the master agent
 
@@ -106,8 +107,8 @@ For those who want to know how it holds together; the full picture is in
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/today.png" alt="Today: a decision to allow, what runs, what was done without you with an undo"><br><sub><b>Today.</b>
-One decision waits; a run's deletions sit under "done without you" with an undo.</sub></td>
+<td width="50%"><img src="docs/screenshots/today.png" alt="Today: a decision to allow and what was done without you with an undo"><br><sub><b>Today.</b>
+One decision waits; a run's deletions sit under "done without you" with an undo; each line opens its own page.</sub></td>
 <td width="50%"><img src="docs/screenshots/chat.png" alt="A board module with Deki's chat open beside it"><br><sub><b>Deki beside a module.</b>
 The chat sees the screen and offers its commands.</sub></td>
 </tr>
@@ -118,8 +119,8 @@ Side panel with a filter and stats, a chart and a table, all from the manifest.<
 Records in lanes by their status; dragging a card runs the module's command.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/models.png" alt="Settings, Models: who does what, a model per command"><br><sub><b>Models.</b>
-The model of each command picked in its row, with price and fallbacks.</sub></td>
+<td width="50%"><img src="docs/screenshots/models.png" alt="Settings, Models: what waits for you, then who does what as cards"><br><sub><b>Models.</b>
+What waits for you first; then a card for each work with its model's mark, its price, free or paid, and fallbacks.</sub></td>
 <td width="50%"><img src="docs/screenshots/tiles-dark.png" alt="The tiles in the dark scheme"><br><sub><b>Dark scheme.</b>
 The same tiles; the theme follows the system or your choice.</sub></td>
 </tr>

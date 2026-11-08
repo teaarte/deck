@@ -88,3 +88,11 @@ and bring the modules in line.
   is seldom needed below what the owner acts on. A line of a list takes `logo` (words naming a model, its maker or
   provider: the client draws its mark in place of the icon, else the first letter), a column the format `logo`.
   Buttons of deck's verbs wear an icon each.
+- 2026-11-08: a module exports with its data (`project_export` with `data`: records, memory, the data folder) and an
+  import brings it back; `project_reset` empties its data after a snapshot. A widget whose blocks are all empty gives
+  way to the cover of its module. An empty block below another of its place stays out of sight — say why a screen is
+  empty in its first block. A column of a table takes `icon` (an expression of the row's icon), a chart `details`
+  (the text of a point, beside its values). `folder_add` with `replace` changes the path of a folder in place;
+  `commands_list` gives `document`, the file of a command's script or prompt, by its fields. The theme token
+  `widget-card` colors a card that shows its module's view without a cover; with a cover the view stands on a veil
+  over it.

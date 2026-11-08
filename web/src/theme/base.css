@@ -17,6 +17,8 @@
   --deck-toast-text: #fff;
   --deck-side: var(--deck-fill, var(--mantine-color-default-hover));
   --deck-side-width: 240px;
+  --deck-layer-float: 20;
+  --deck-layer-bar: 150;
 }
 
 [data-mantine-color-scheme='dark'] {

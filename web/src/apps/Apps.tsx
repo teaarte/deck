@@ -255,10 +255,6 @@ export function Apps() {
           <Text size="sm" c="dimmed">{t('Drag a card to any cell or pull its corner; its menu sets its size or puts it in a folder')}</Text>
         </div>
       )}
-      <ActionIcon className={s.arrange} size={48} variant={placing ? 'filled' : 'default'} onClick={() => setPlacing(!placing)}
-        aria-label={t('Arrange the cards')} aria-pressed={placing} title={t(placing ? 'Done' : 'Arrange the cards')} data-placing-toggle data-placing-done={placing || undefined}>
-        {placing ? <IconCheck size={22} /> : <IconPencil size={22} />}
-      </ActionIcon>
       <div ref={containerRef} className={s.room} data-cols={cols}>
         {mounted && (
           <GridLayout width={width} layout={cells.map((c) => ({ ...c, minW: least(c.i, cols).w, minH: 1, maxW: cols }))} compactor={noCompactor}
@@ -298,6 +294,12 @@ export function Apps() {
             })}
           </GridLayout>
         )}
+      </div>
+      <div className={s.arrangeDock}>
+        <ActionIcon className={s.arrange} size={48} variant={placing ? 'filled' : 'default'} onClick={() => setPlacing(!placing)}
+          aria-label={t('Arrange the cards')} aria-pressed={placing} title={t(placing ? 'Done' : 'Arrange the cards')} data-placing-toggle data-placing-done={placing || undefined}>
+          {placing ? <IconCheck size={22} /> : <IconPencil size={22} />}
+        </ActionIcon>
       </div>
     </div>
   );

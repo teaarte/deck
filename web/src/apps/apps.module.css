@@ -424,19 +424,34 @@
   pointer-events: none;
 }
 
-/* The pencil that arranges the cards, at the bottom right; a phone keeps it above its tabs. */
-.arrange {
-  position: fixed;
-  right: var(--mantine-spacing-xl);
+/* The pencil that arranges the cards keeps to the bottom right of the screen's own column, so it never lies over the
+   chat beside it; a phone keeps it above its tabs. */
+.arrangeDock {
+  position: sticky;
   bottom: var(--mantine-spacing-xl);
-  z-index: 20;
+  z-index: var(--deck-layer-float);
+  display: flex;
+  justify-content: flex-end;
+  height: 0;
+  margin-top: auto;
+  pointer-events: none;
+}
+
+.arrange {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  pointer-events: auto;
   box-shadow: var(--deck-shadow);
 }
 
-@media (max-width: 36em) {
+@media (max-width: 48em) {
+  .arrangeDock {
+    bottom: calc(var(--tabs-height, 56px) + 14px + env(safe-area-inset-bottom) + var(--deck-gap) * 2);
+  }
+
   .arrange {
-    right: var(--mantine-spacing-md);
-    bottom: calc(96px + env(safe-area-inset-bottom));
+    right: var(--mantine-spacing-xs);
   }
 }
 

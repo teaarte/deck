@@ -76,6 +76,9 @@ func TestRealBrowserTheDesk(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the chat open narrows the grid", fmt.Sprintf(`Number(document.querySelector('[data-cols]').dataset.cols) < %d`, cols))
 	b.shot("desk-chat")
+	if got := b.eval(pencilOverChat); got != "" {
+		t.Fatalf("the pencil of the placing lies over the open chat: %s", got)
+	}
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.until("the grid as it was once the chat closes", cell("beta")+` === '`+moved+`'`)
 	if v := desk(b, cols-1); v.Own && v.Columns == int64(cols-1) {
@@ -89,10 +92,29 @@ func TestRealBrowserTheDesk(t *testing.T) {
 		t.Fatalf("the cards fit the phone: %s", got)
 	}
 	b.shot("desk-phone")
+	b.eval(`(document.querySelector('[data-phone-tabs] [data-chat-toggle]').click(), '')`)
+	b.until("the chat open on the phone", `Math.abs(document.querySelector('[data-chat-phone] [data-chat-close]')?.closest('.mantine-Drawer-content')?.getBoundingClientRect().left ?? 99) < 1`)
+	b.shot("desk-chat-390")
+	if got := b.eval(pencilOverChat); got != "" {
+		t.Fatalf("the pencil of the placing lies over the open chat on a phone: %s", got)
+	}
+	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	if !strings.Contains(b.eval(`document.querySelector('[data-cell="today"]').innerText`), "Today") {
 		t.Fatal("Today stays on the phone")
 	}
 }
+
+// pencilOverChat is empty unless the pencil of the placing lies over the open chat: where they meet, the chat is on top.
+const pencilOverChat = `(() => {
+	const p = document.querySelector('[data-placing-toggle]').getBoundingClientRect();
+	const chat = [...document.querySelectorAll('[data-chat-close]')].map((c) => c.closest('[data-chat-panel], .mantine-Drawer-content')).find((c) => c && c.getBoundingClientRect().width > 0);
+	if (!chat) return 'no open chat';
+	const c = chat.getBoundingClientRect();
+	const l = Math.max(p.left, c.left), r = Math.min(p.right, c.right), t = Math.max(p.top, c.top), b = Math.min(p.bottom, c.bottom);
+	if (l >= r || t >= b) return '';
+	const top = document.elementFromPoint((l + r) / 2, (t + b) / 2);
+	return top && chat.contains(top) ? '' : 'pencil ' + [p.left, p.top, p.width, p.height].map(Math.round).join(' ') + ' over chat ' + [c.left, c.top, c.width, c.height].map(Math.round).join(' ');
+})()`
 
 // pageCall calls a command of deck from the page, signed in as the client is, and gives what it answered.
 func pageCall(b *playwright, command string, input any) string {

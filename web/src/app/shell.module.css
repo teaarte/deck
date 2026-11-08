@@ -179,6 +179,10 @@
     margin: 0;
     padding: 0 0 calc(var(--tabs-height) + 14px + env(safe-area-inset-bottom) + var(--deck-gap) * 2);
   }
+
+  .main[data-main-apps] {
+    min-height: calc(100dvh - max(var(--deck-gap), env(safe-area-inset-top)));
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -262,7 +266,7 @@
   left: max(10px, env(safe-area-inset-left));
   right: max(10px, env(safe-area-inset-right));
   bottom: calc(14px + env(safe-area-inset-bottom));
-  z-index: 150;
+  z-index: var(--deck-layer-bar);
   display: flex;
   gap: 2px;
   padding: 4px;

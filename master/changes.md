@@ -171,5 +171,7 @@ and bring the modules in line.
 - 2026-11-08: `deck.skill_propose` (master, owner) proposes the whole new text of a skill file (`skill` as
   `document_get` names it, `project` for a module's own skill or `master`, `reason` with the names of the lessons
   it comes from); the owner sees the reason and a diff and changes the skill with one button, without a yes it stays.
-  A text that fails the skill checks or a skill that is not there is refused at once; a text the skill has already
-  is done without asking; a yes to a skill changed since does not apply.
+  `if_revision` is the revision the text was written from. A text that fails the skill checks, a skill that is not
+  there, a skill changed since `if_revision` or a diff longer than an ask shows (4000 bytes: propose a smaller change)
+  is refused at once; a text the skill has already is done without asking; a yes to a skill changed since does not
+  apply. A button's `allows` does not stand for it, as for calls that spend money.

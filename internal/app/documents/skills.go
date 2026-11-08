@@ -14,7 +14,6 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
-	"deck2/internal/untrusted"
 	"deck2/skills"
 )
 
@@ -96,13 +95,20 @@ type skillProposeIn struct {
 	Project string `type:"project" opt:"" desc:"The project of a module's own skill, or master for the skills of the master; without it a skill of the workspace"`
 	Text    string `type:"text" desc:"The whole new text of the file"`
 	Reason  string `desc:"Why it changes: the lessons it comes from, by their names"`
+	// IfRevision is the revision the text was written from; a skill changed since is not overwritten.
+	IfRevision int64 `json:"if_revision" desc:"The revision of the skill file the text was written from, as document_get gives it"`
 }
+
+// proposalDiff is the most of a diff an ask shows the owner; a longer change is refused, not cut.
+const proposalDiff = 4000
 
 // skillCommands are skill_propose, whose call by the master waits for the owner's yes with the diff it makes.
 func (s *Service) skillCommands() []*registry.Command {
 	c := registry.Def("skill_propose", "Propose a skill change",
 		"Proposes a new text of a skill file of the workspace, of the master or of a module, with why; the owner changes the skill with one button, and without the owner's yes it stays as it is.",
 		registry.OwnerSide, s.skillPropose).As(registry.External)
+	// The owner says yes to the diff the ask shows; a button the master drew does not stand for it.
+	c.Gate.OwnYes = true
 	c.Gate.Allowed = func(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
 		return s.proposal(ctx, act, input)
 	}
@@ -134,7 +140,7 @@ func (s *Service) skillCommands() []*registry.Command {
 		if err != nil {
 			return where + ": " + in.Reason
 		}
-		return where + ": " + in.Reason + "\n" + untrusted.Cut(docs.Diff(old.Text, in.Text), 2000)
+		return where + ": " + in.Reason + "\n" + docs.Diff(old.Text, in.Text)
 	}
 	return []*registry.Command{c}
 }
@@ -179,10 +185,19 @@ func (s *Service) proposal(ctx context.Context, act registry.Actor, input json.R
 	if strings.TrimSpace(in.Reason) == "" {
 		return false, registry.Invalid("say why the skill changes: the lessons it comes from, by their names")
 	}
+	if cur.Text == in.Text {
+		return true, nil
+	}
+	if cur.N != in.IfRevision {
+		return false, registry.Conflict("%s is at revision %d now, not %d: read it again and propose from it", in.Skill, cur.N, in.IfRevision)
+	}
 	if err := docs.CheckText(docs.KindSkill, in.Skill, in.Text); err != nil {
 		return false, err
 	}
-	return cur.Text == in.Text, nil
+	if n := len(docs.Diff(cur.Text, in.Text)); n > proposalDiff {
+		return false, registry.Invalid("the change is a diff of %d bytes, more than the %d an ask shows the owner: propose a smaller change", n, proposalDiff)
+	}
+	return false, nil
 }
 
 func (s *Service) skillPropose(ctx context.Context, act registry.Actor, in skillProposeIn) (any, error) {
@@ -192,9 +207,12 @@ func (s *Service) skillPropose(ctx context.Context, act registry.Actor, in skill
 	var n int64
 	var changed bool
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		ref, _, err := s.skillFile(ctx, q, act, in)
+		ref, cur, err := s.skillFile(ctx, q, act, in)
 		if err != nil {
 			return err
+		}
+		if cur.N != in.IfRevision && cur.Text != in.Text {
+			return registry.Conflict("%s is at revision %d now, not %d: read it again and propose from it", in.Skill, cur.N, in.IfRevision)
 		}
 		_, n, changed, err = docs.Save(ctx, q, ref, docs.KindSkill, in.Text, act.Author(), in.Reason)
 		return err

@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"deck2/internal/provider"
@@ -47,6 +49,9 @@ func TestASkillChangesOnlyByTheOwnersYes(t *testing.T) {
 	reason := "the lessons repeat-one, repeat-two and repeat-three say the same"
 	turn := 0
 	ask := func(in map[string]any) string {
+		if in = maps.Clone(in); in["if_revision"] == nil {
+			in["if_revision"] = read().Revision
+		}
 		propose.Store("in", in)
 		turn++
 		e.MasterSaid(e.Say(0, fmt.Sprint("propose ", turn)), 1)
@@ -76,6 +81,12 @@ func TestASkillChangesOnlyByTheOwnersYes(t *testing.T) {
 	}
 	if got := ask(map[string]any{"skill": "skills/nope/SKILL.md", "text": next, "reason": reason}); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "no skill file") {
 		t.Fatalf("a skill that is not there is refused: %s", got)
+	}
+	if got := ask(map[string]any{"skill": "skills/memory/SKILL.md", "text": next, "reason": reason, "if_revision": before.Revision - 1}); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "read it again") {
+		t.Fatalf("a text written from an older revision is refused: %s", got)
+	}
+	if got := ask(map[string]any{"skill": "skills/memory/SKILL.md", "text": before.Text + strings.Repeat("- a long new line of the skill\n", 200), "reason": reason}); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "smaller change") {
+		t.Fatalf("a change longer than an ask shows is refused, not cut: %s", got)
 	}
 	if as := waiting(); len(as) != 0 {
 		t.Fatalf("a refused proposal waits for no one: %+v", as)
@@ -133,12 +144,74 @@ func TestASkillChangesOnlyByTheOwnersYes(t *testing.T) {
 	if !strings.Contains(string(raw), "The owner's own line") {
 		t.Fatalf("the skill stays the owner's: %s", raw)
 	}
-	var dispatch struct{ Text string }
+	var dispatch struct {
+		Text     string
+		Revision int64
+	}
 	e.Must("deck.document_get", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md"}, &dispatch)
 	var done struct{ Changed bool }
-	e.Must("deck.skill_propose", map[string]any{"project": "master", "skill": "skills/dispatch/SKILL.md", "text": dispatch.Text + "\n- More.\n", "reason": "lesson b"}, &done)
+	e.Must("deck.skill_propose", map[string]any{"project": "master", "skill": "skills/dispatch/SKILL.md", "text": dispatch.Text + "\n- More.\n", "reason": "lesson b", "if_revision": dispatch.Revision}, &done)
 	e.Must("deck.document_get", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md"}, &dispatch)
 	if !done.Changed || !strings.HasSuffix(dispatch.Text, "- More.\n") {
 		t.Fatalf("the owner's own proposal of a skill of the master changes it at once: %+v", done)
+	}
+}
+
+// TestAPressDoesNotStandForTheYesOfASkillChange: a button of the master that names a skill change makes its run wait
+// for the owner's answer to the ask all the same.
+func TestAPressDoesNotStandForTheYesOfASkillChange(t *testing.T) {
+	t.Parallel()
+	var said sync.Map
+	var call atomic.Value
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() != "memory" {
+			return provider.Result{Text: "ok"}
+		}
+		out, bad := c.Tool(ctx, "skill_propose", call.Load())
+		said.Store("memory", fmt.Sprint(bad, " ", out))
+		return provider.Result{Text: "proposed"}
+	}))
+	var skill struct {
+		Text     string
+		Revision int64
+	}
+	e.Must("deck.document_get", map[string]any{"name": "skills/memory/SKILL.md"}, &skill)
+	in := map[string]any{"skill": "skills/memory/SKILL.md", "text": skill.Text + "\n- Pressed.\n", "reason": "lesson c", "if_revision": skill.Revision}
+	call.Store(in)
+	allowed := maps.Clone(in)
+	allowed["if_revision"] = fmt.Sprint("=", skill.Revision)
+	var m struct{ Manifest string }
+	e.Must("deck.manifest_get", map[string]any{"project": "master"}, &m)
+	var man map[string]any
+	if err := json.Unmarshal([]byte(m.Manifest), &man); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range man["commands"].([]any) {
+		if c := c.(map[string]any); c["name"] == "memory" {
+			ex := c["executor"].(map[string]any)
+			ex["calls"] = append(ex["calls"].([]any), "deck.skill_propose")
+		}
+	}
+	man["screens"] = []any{map[string]any{"name": "skills", "title": "Skills", "blocks": []any{map[string]any{"type": "actions", "title": "Skill",
+		"actions": []any{map[string]any{"label": "Apply", "command": "memory",
+			"allows": []any{map[string]any{"command": "deck.skill_propose", "params": allowed}}}}}}}}
+	e.Must("deck.manifest_save", map[string]any{"project": "master", "manifest": string(harness.MustJSON(man))}, nil)
+	e.Must("deck.project_pause", map[string]any{"project": "master", "paused": false}, nil)
+	apply := e.RowAction("master", "skills", "master.memory", nil)
+	if _, ok := apply["params"].(map[string]any)["allows"]; !ok {
+		t.Fatalf("the button names the skill change: %+v", apply)
+	}
+	code, out := e.Press(apply)
+	var run struct{ Process int64 }
+	if err := json.Unmarshal(out, &run); code != 200 || err != nil {
+		t.Fatalf("the press starts the run: %d %s", code, out)
+	}
+	e.Until("the run proposed", func() bool { _, ok := said.Load("memory"); return ok })
+	if got, _ := said.Load("memory"); !strings.Contains(fmt.Sprint(got), "waiting") {
+		t.Fatalf("the skill change waits for the owner's answer, press or not: %v", got)
+	}
+	e.Must("deck.document_get", map[string]any{"name": "skills/memory/SKILL.md"}, &skill)
+	if strings.Contains(skill.Text, "Pressed.") {
+		t.Fatal("the press did not change the skill")
 	}
 }

@@ -157,8 +157,8 @@ type Gate struct {
 	Holds func(ctx context.Context, workspace int64, input json.RawMessage) bool
 	// Undo is the call that takes a call back, as things stand before it is made; false when deck cannot.
 	Undo func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool)
-	// Spends marks a command that costs money: the owner's press of a button never stands for its yes.
-	Spends bool
+	// OwnYes marks a command only the owner's answer to its ask allows, money or a skill's text: a press never does.
+	OwnYes bool
 }
 
 // Modules yields the commands of a workspace not written in Go: those of module manifests, and deck's tools whose

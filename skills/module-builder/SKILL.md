@@ -286,7 +286,8 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   call: `"allows": [{"command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "models":
   "=split(models, ',')"}}]` — the press is the owner's yes to exactly that call with those params, made by the run the
   press starts (not its children, not the schedule); deck makes it at once and lists it as done without the owner with
-  its undo, so there is no second yes. Not for calls that spend money; secrets and rights stay the owner's alone.
+  its undo, so there is no second yes. Not for calls that spend money or change a skill; secrets and rights stay the
+  owner's alone.
   A row of the module's own collection or its record page may carry the one deck command a button calls,
   `{"label": "Delete", "command": "deck.record_delete"}`, with no other params and no undo: the owner deletes that
   record with what belongs to it, always seeing the list first (not on a `custom` block). No button only opens the

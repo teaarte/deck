@@ -51,9 +51,9 @@ func Bare(raw json.RawMessage) string {
 }
 
 // pressed takes the yes the owner's press gave the run of act to this very call, once; false when the press named no
-// such call, in a trial, and for a call that spends money.
+// such call, in a trial, and for a call only the owner's own yes allows.
 func (g *Gateway) pressed(ctx context.Context, act registry.Actor, c *registry.Command, input json.RawMessage) (bool, error) {
-	if act.ProcessID == 0 || act.Trial || c.Gate.Spends || c.Class != registry.External {
+	if act.ProcessID == 0 || act.Trial || c.Gate.OwnYes || c.Class != registry.External {
 		return false, nil
 	}
 	want := Bare(input)

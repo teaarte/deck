@@ -449,7 +449,8 @@ func (q *Queries) NextRevision(ctx context.Context, documentID int64) (int64, er
 const repeatFailures = `-- name: RepeatFailures :many
 SELECT pr.name AS project, p.command, p.error_type, COUNT(*) AS failures, CAST(MAX(p.started_at) AS TEXT) AS last_at
 FROM process p JOIN project pr ON pr.id = p.project_id
-WHERE pr.workspace_id = ?1 AND p.state = 'error' AND p.started_at >= ?2
+WHERE pr.workspace_id = ?1 AND p.state = 'error' AND p.trial = 0 AND p.started_at >= ?2
+  AND NOT EXISTS (SELECT 1 FROM process n WHERE n.follows_id = p.id)
 GROUP BY p.project_id, p.command, p.error_type HAVING COUNT(*) >= 2
 ORDER BY failures DESC, last_at DESC
 `

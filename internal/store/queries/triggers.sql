@@ -1,7 +1,8 @@
 -- name: UpsertTrigger :exec
 INSERT INTO "trigger" (project_id, command, kind, spec, params, next_run_at, skip_missed) VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (project_id, command, kind, spec)
-DO UPDATE SET params = excluded.params, skip_missed = excluded.skip_missed;
+DO UPDATE SET params = excluded.params, skip_missed = excluded.skip_missed,
+  next_run_at = coalesce("trigger".next_run_at, excluded.next_run_at);
 
 
 -- name: DeleteTrigger :exec

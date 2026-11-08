@@ -29,7 +29,7 @@ type memoryRow struct {
 	Changed    string `json:"changed,omitempty"`
 }
 
-// repeatRow is a command of a project that failed the same way more than once.
+// repeatRow is a command of a project that failed the same way more than once, trials and work handed on aside.
 type repeatRow struct {
 	Project   string `json:"project"`
 	Command   string `json:"command"`

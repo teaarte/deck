@@ -93,7 +93,11 @@ func TestSleepStartsOnAFreeModelFirst(t *testing.T) {
 	}
 }
 
-// TestADeckBeforeSleepWakesUpWithIt: the master of a deck that cleaned memory weekly comes back with sleep alone.
+// oldMemory is the weekly cleanup of the master before sleep.
+const oldMemory = `{"name": "memory", "title": "Clean up memory", "description": "Merges, shortens and deletes facts of the memory of the owner and of each project by the memory skill.", "class": "internal", "callers": ["owner", "trigger"], "provider": "claude-code", "executor": {"type": "agent", "prompt_file": "prompts/memory.md", "skills": ["memory"], "calls": ["deck.projects_list", "deck.documents_list", "deck.document_get", "deck.document_save", "deck.document_delete"]}}`
+
+// TestADeckBeforeSleepWakesUpWithIt: a deck whose owner edited the master, paused its weekly cleanup and gave it a
+// model comes back with sleep in its place, paused, on that model, and the owner's other edit kept.
 func TestADeckBeforeSleepWakesUpWithIt(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
@@ -103,9 +107,11 @@ func TestADeckBeforeSleepWakesUpWithIt(t *testing.T) {
 	if err := json.Unmarshal([]byte(cur.Text), &m); err != nil {
 		t.Fatal(err)
 	}
-	for _, c := range m["commands"].([]any) {
-		if c := c.(map[string]any); c["name"] == "sleep" {
-			c["name"], c["executor"].(map[string]any)["prompt_file"] = "memory", "prompts/memory.md"
+	var memory any
+	_ = json.Unmarshal([]byte(oldMemory), &memory)
+	for i, c := range m["commands"].([]any) {
+		if c.(map[string]any)["name"] == "sleep" {
+			m["commands"].([]any)[i] = memory
 		}
 	}
 	for _, tr := range m["triggers"].([]any) {
@@ -113,46 +119,99 @@ func TestADeckBeforeSleepWakesUpWithIt(t *testing.T) {
 			tr["command"], tr["cron"] = "memory", "0 10 * * 1"
 		}
 	}
-	old, _ := json.Marshal(m)
-	// The manifest of the master of a deck before sleep.
-	e.PlantRevision("master", "manifest.json", string(old))
-	// The prompt of its weekly cleanup.
+	old, _ := json.MarshalIndent(m, "", "  ")
+	// The prompt of the weekly cleanup of a deck before sleep.
 	e.PlantRevision("master", "prompts/memory.md", "Clean up the memory.")
-	// The trigger the weekly cleanup of a deck before had.
+	// The manifest of the master that deck shipped before sleep.
+	e.PlantRevision("master", "manifest.json", string(old))
+	edited := strings.Replace(string(old), `"title": "Daily review"`, `"title": "Morning review"`, 1)
+	// The owner's edit of it.
+	e.PlantRevision("master", "manifest.json", edited)
+	// Its author is the owner.
+	e.SQL(`UPDATE document_revision SET author = 'owner' WHERE id = (SELECT max(r.id) FROM document_revision r
+		JOIN document d ON d.id = r.document_id JOIN project p ON p.id = d.project_id WHERE p.builtin = 1 AND d.name = 'manifest.json')`)
+	// The trigger of the weekly cleanup.
 	e.SQL(`UPDATE "trigger" SET command = 'memory', spec = '0 10 * * 1' WHERE command = 'sleep'`)
+	var ts []struct {
+		ID            int64
+		Command, Spec string
+		Paused        bool `json:"own_paused"`
+	}
+	e.Must("deck.triggers_list", map[string]any{"project": "master"}, &ts)
+	for _, tr := range ts {
+		if tr.Command == "memory" {
+			e.Must("deck.trigger_pause", map[string]any{"trigger": tr.ID, "paused": true}, nil)
+		}
+	}
+	e.UseModels("master.memory", "fake")
+	// A base of a deck before sleep.
+	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 66`)
 	e2 := e.Restart()
-	var ts []struct{ Command, Spec string }
 	e2.Must("deck.triggers_list", map[string]any{"project": "master"}, &ts)
 	var sleeps int
 	for _, tr := range ts {
 		if tr.Command == "memory" {
 			t.Fatalf("the weekly cleanup is gone: %+v", ts)
 		}
-		if tr.Command == "sleep" && tr.Spec == "30 3 * * *" {
+		if tr.Command == "sleep" && tr.Spec == "30 3 * * *" && tr.Paused {
 			sleeps++
 		}
 	}
 	if sleeps != 1 {
-		t.Fatalf("one nightly sleep: %+v", ts)
+		t.Fatalf("one nightly sleep, paused as the cleanup was: %+v", ts)
 	}
-	e2.Refused("deck.document_get", map[string]any{"project": "master", "name": "prompts/memory.md"}, 404, "no document")
+	var ms harness.ModelsOut
+	e2.Must("deck.models_list", map[string]any{"project": "master"}, &ms)
+	var moved bool
+	for _, a := range ms.Assignments {
+		moved = moved || a.Project == "master" && a.Command == "sleep" && len(a.Models) == 1 && a.Models[0] == "fake"
+	}
+	if !moved {
+		t.Fatalf("the model of the cleanup goes to sleep: %+v", ms.Assignments)
+	}
+	e2.Must("deck.document_get", map[string]any{"project": "master", "name": "manifest.json"}, &cur)
+	if !strings.Contains(cur.Text, `"name": "sleep"`) || strings.Contains(cur.Text, `"name": "memory"`) ||
+		!strings.Contains(cur.Text, `"title": "Morning review"`) || !strings.Contains(cur.Text, `"prompt_file": "prompts/sleep.md"`) {
+		t.Fatalf("the manifest has sleep and the owner's edit:\n%s", cur.Text)
+	}
 	e2.Must("deck.document_get", map[string]any{"project": "master", "name": "prompts/sleep.md"}, nil)
 }
 
+// TestMemoryOverviewCountsFactsLessonsAndRepeats: repeats are failures of real runs that nothing took on; a trial and
+// a run handed on to the next model are none.
 func TestMemoryOverviewCountsFactsLessonsAndRepeats(t *testing.T) {
 	t.Parallel()
-	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+	main := &harness.Fake{Script: func(context.Context, *harness.Call) provider.Result { return provider.Fail(fault.ModelUnavailable, "the model is down") }}
+	backup := &harness.Fake{ProviderName: "backup", Script: func(context.Context, *harness.Call) provider.Result {
 		return provider.Fail(fault.TaskFailed, "broken")
-	}))
-	p := e.Project("shop", harness.TestManifest([]string{harness.AgentCommand("collect", "")}, nil))
+	}}
+	e := harness.New(t, harness.WithProvider(main, backup))
+	p := e.Project("shop", harness.TestManifest([]string{harness.AgentCommand("collect", ""), harness.AgentCommand("report", "")}, nil))
+	e.UseModels("shop.collect", "fake", "backup")
+	e.UseModels("shop.report", "backup")
 	e.Must("deck.document_save", map[string]any{"project": "shop", "name": "memory/tone.md", "kind": "memory",
 		"text": harness.Fact("tone", "feedback", "Plain reports")}, nil)
 	e.Must("deck.document_save", map[string]any{"project": "shop", "name": "memory/site.md", "kind": "memory",
 		"text": lesson("site", "process:1", "collect", "", "Wait for the site")}, nil)
 	e.Must("deck.document_save", map[string]any{"project": "shop", "name": "memory/MEMORY.md", "kind": "memory",
 		"text": "- [Tone](tone.md) — reports\n\n## Lessons\n- [Site](site.md) — collect\n"}, nil)
-	for range 3 {
-		e.WaitState(e.Run(p, "collect"), "error")
+	count := func(errorType string) (n int) {
+		// The failures of collect by type, handed on or not, which no read counts so.
+		_ = e.SQLRow(`SELECT count(*) FROM process WHERE command = 'collect' AND state = 'error' AND error_type = ?`, errorType).Scan(&n)
+		return n
+	}
+	for i := 1; i <= 3; i++ {
+		e.Run(p, "collect")
+		e.Until("the work of the run fails", func() bool { return count("task.failed") == i })
+	}
+	if n := count("model.unavailable"); n < 2 {
+		t.Fatalf("runs of collect were handed on from the main model: %d", n)
+	}
+	e.WaitState(e.Run(p, "report"), "error")
+	for range 2 {
+		var tried struct{ Process int64 }
+		e.Must("deck.command_try", map[string]any{"live": true, "command": "shop.report"}, &tried)
+		e.WaitState(tried.Process, "error")
 	}
 	var o struct {
 		Projects []struct {
@@ -178,7 +237,8 @@ func TestMemoryOverviewCountsFactsLessonsAndRepeats(t *testing.T) {
 	if !shop {
 		t.Fatalf("the memory of the project is counted: %+v", o.Projects)
 	}
-	if len(o.Repeats) != 1 || o.Repeats[0].Command != "collect" || o.Repeats[0].Failures != 3 || o.Repeats[0].Repeats != 2 {
-		t.Fatalf("a command that failed the same way three times repeats twice: %+v", o.Repeats)
+	if len(o.Repeats) != 1 || o.Repeats[0].Command != "collect" || o.Repeats[0].ErrorType != "task.failed" ||
+		o.Repeats[0].Failures != 3 || o.Repeats[0].Repeats != 2 {
+		t.Fatalf("a command that failed the same way three times repeats twice, trials and runs handed on aside: %+v", o.Repeats)
 	}
 }

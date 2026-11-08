@@ -160,7 +160,7 @@ func (s *Service) atFolder(ctx context.Context, p db.Project, cmd *manifest.Comm
 }
 
 // choices are the providers that run and have what a command requires, at least one: those of its assignment in
-// order, else all with the suggestion of the manifest (free models for "free") first; assigned: from an assignment.
+// order, else all with the suggestion of the manifest first; assigned: a chain, an assignment or free models first.
 func (s *Service) choices(ctx context.Context, p db.Project, cmd *manifest.Command, names []string) ([]provider.Provider, bool, error) {
 	place, requires := p.Name+"."+cmd.Name, cmd.Requires
 	var fits []provider.Provider
@@ -213,7 +213,8 @@ func (s *Service) choices(ctx context.Context, p db.Project, cmd *manifest.Comma
 	if len(fits) == 0 {
 		return nil, false, registry.Invalid("no provider fits %s, which requires %s; %s", place, strings.Join(requires, ", "), s.change(ctx, p.WorkspaceID, requires))
 	}
-	return fits, false, nil
+	chain := cmd.Provider == manifest.FreeProvider && s.Free(ctx, p.WorkspaceID, fits[0].Name())
+	return fits, chain, nil
 }
 
 // change says where the owner changes the model of a command: the models of the workspace that have what it

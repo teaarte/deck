@@ -161,7 +161,8 @@ and bring the modules in line.
   the parts cut: call again with `since` the last `finished_at` or `at` of that part for the rest (rows of that very
   time may repeat); `project` narrows the processes and incidents. A process stays listed for good, its full log a week.
 - 2026-11-08: the master's weekly `memory` is gone; its nightly `sleep` (`30 3 * * *`) keeps memory by the episodes
-  since the last one: corrects facts, writes lessons with their source, tidies indexes, proposes changes of skills.
-  A command's `provider` may be `"free"`: with no assignment, the agent models of the workspace marked free go first,
-  the rest after. `deck.memory_overview` (owner and master) counts the memory of each project — facts, lessons, index
-  lines of 150, its last change — and the commands that failed the same way more than once in the last 30 days.
+  since the last one: corrects facts, writes lessons with their source, tidies indexes, proposes changes of skills;
+  the migration gives sleep the pause and the models of `memory`. A command's `provider` may be `"free"`: with no
+  assignment, the agent models marked free and then the rest are its chain, as an assignment is. `deck.memory_overview` (owner and master) counts the memory of each project — facts, lessons, index
+  lines of 150, its last change — and the commands that failed the same way more than once in the last 30 days
+  (trials and runs handed on to the next model aside).

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
-	"slices"
 
 	"deck2/internal/docs"
 	"deck2/internal/health"
@@ -73,9 +72,6 @@ func (s *Service) seedMaster(ctx context.Context, workspace int64, files []docs.
 			if err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.Now()), WorkspaceID: workspace, ProjectID: p.ID, Text: n}); err != nil {
 				return err
 			}
-		}
-		if !slices.Contains(done.Changed, docs.ManifestName) {
-			return nil
 		}
 		cur, err := docs.Manifest(ctx, q, p)
 		if err != nil {

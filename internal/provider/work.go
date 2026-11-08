@@ -13,3 +13,9 @@ type Work struct {
 	// Why is one line of the health of the first model that is down, when the work goes to another.
 	Why string `json:"why,omitempty"`
 }
+
+// Placed is the work of the projects one model stands in: Now what it does now, Fallback where another model does it
+// now, after it or while it is down.
+type Placed struct {
+	Now, Fallback []string
+}

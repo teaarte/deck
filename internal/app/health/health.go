@@ -38,13 +38,15 @@ type healthRow struct {
 }
 
 // shownRow is a row of health with the work it stands for: the model of the command of a row of a command or of its
-// schedule, with Trigger its cron trigger; Places the work of the projects the model of a row does.
+// schedule, with Trigger its cron trigger; Places the work of the projects the model of a row does, Fallbacks the
+// work it stands in while another model does it, after it or while it is down.
 type healthView struct {
 	healthRow
 	Command string `json:"command,omitempty"`
 	provider.Work
-	Trigger int64    `json:"trigger,omitempty"`
-	Places  []string `json:"places,omitempty"`
+	Trigger   int64    `json:"trigger,omitempty"`
+	Places    []string `json:"places,omitempty"`
+	Fallbacks []string `json:"fallbacks,omitempty"`
 }
 
 // healthList shows what the machine runs, the providers, commands, tools and MCP servers of the actor's
@@ -90,7 +92,7 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, in healthListIn
 				}
 			}
 		case "provider", "model":
-			v.Places = places[name]
+			v.Places, v.Fallbacks = places[name].Now, places[name].Fallback
 		}
 		out = append(out, v)
 	}
@@ -178,7 +180,7 @@ type Service struct {
 	Missing func(ctx context.Context, workspace int64) map[string][]string
 	// Works looks up the model that does the work of a command; Places the work each model does.
 	Works  func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
-	Places func(ctx context.Context, workspace int64) map[string][]string
+	Places func(ctx context.Context, workspace int64) map[string]provider.Placed
 	// Go runs work beside the calls unless deck stops.
 	Go func(func(context.Context)) bool
 

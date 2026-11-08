@@ -262,15 +262,30 @@ func (s *Service) commandWork(ctx context.Context, b *Book, projectID int64, com
 	return provider.Work{}
 }
 
-// Places are the parts of the work of the projects of a workspace each model does now, by model: project.command for a
-// command, the project for the kinds of work of its scripts.
-func (s *Service) Places(ctx context.Context, workspace int64) map[string][]string {
-	out := map[string][]string{}
+// Places are the parts of the work of the projects of a workspace, by model: project.command for a command, the
+// project for the kinds of work of its scripts.
+func (s *Service) Places(ctx context.Context, workspace int64) map[string]provider.Placed {
+	out := map[string]provider.Placed{}
+	add := func(w provider.Work, place string) {
+		names := w.Models
+		if w.Model != "" && !slices.Contains(names, w.Model) {
+			names = append([]string{w.Model}, names...)
+		}
+		for _, name := range names {
+			p := out[name]
+			if name == w.Model {
+				p.Now = append(p.Now, place)
+			} else if !slices.Contains(p.Fallback, place) {
+				p.Fallback = append(p.Fallback, place)
+			}
+			out[name] = p
+		}
+	}
 	projects, _ := s.St.Q.ListWorkspaceProjects(ctx, workspace)
 	b := s.book(ctx, workspace, func(p string) string { return p })
 	for _, p := range projects {
 		for _, w := range s.rolesWork(ctx, b, p.ID) {
-			out[w.Model] = append(out[w.Model], p.Name)
+			add(w, p.Name)
 		}
 		m, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID)
 		if err != nil {
@@ -279,7 +294,7 @@ func (s *Service) Places(ctx context.Context, workspace int64) map[string][]stri
 		for _, c := range m.Commands {
 			if c.Executor.Type == "agent" || c.Executor.Type == "model" {
 				if w := s.commandWork(ctx, b, p.ID, c.Name); w.Model != "" {
-					out[w.Model] = append(out[w.Model], p.Name+"."+c.Name)
+					add(w, p.Name+"."+c.Name)
 				}
 			}
 		}

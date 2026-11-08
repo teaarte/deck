@@ -616,7 +616,8 @@ func TestASecretDeleteStaysInTheFolderOfSecrets(t *testing.T) {
 }
 
 // TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel: a failing check of a schedule shows the model its
-// command runs on with the models it could, and the button that runs it now; a model says what work it does.
+// command runs on with the models it could, and the button that runs it now; a model says what work it does, and the
+// work it stands in as a fallback.
 func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
@@ -650,19 +651,34 @@ func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
 	params := pick["params"].(map[string]any)
 	params["model"] = "quiet"
 	e.Must("deck.assignment_set", params, nil)
-	var hs []struct {
-		Subject, Model string
-		Places         []string
-		Kind           string
+	for _, name := range []string{"quiet", "fake"} {
+		if err := health.Write(t.Context(), e.App.Store, health.Of{Workspace: 1}, health.Provider(name), "ok", ""); err != nil {
+			t.Fatal(err)
+		}
 	}
+	type row struct {
+		Subject, Model    string
+		Places, Fallbacks []string
+		Kind              string
+	}
+	var hs []row
 	e.Must("deck.health_list", nil, &hs)
+	fallback := false
 	for _, h := range hs {
+		if h.Subject == "provider:fake" {
+			fallback = slices.Contains(h.Fallbacks, "daily.work") && !slices.Contains(h.Places, "daily.work")
+		}
 		if h.Subject == "trigger:daily.work" && (h.Model != "quiet" || h.Kind != "trigger") {
 			t.Fatalf("the picked model is the one the schedule runs on next: %+v", h)
 		}
 		if h.Subject == "provider:quiet" && !slices.Contains(h.Places, "daily.work") {
 			t.Fatalf("a model says the work it does: %+v", h)
 		}
+	}
+	if !slices.ContainsFunc(hs, func(h row) bool {
+		return h.Subject == "provider:quiet" && slices.Contains(h.Places, "daily.work")
+	}) || !fallback {
+		t.Fatalf("the model the pick moved after it says the work it stands in as a fallback: %+v", hs)
 	}
 }
 

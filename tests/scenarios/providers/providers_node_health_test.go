@@ -60,7 +60,9 @@ func TestWorkWhoseNodeIsAwaySaysSo(t *testing.T) {
 	n.Stop()
 	var why string
 	e.Until("the work to say its node is away", func() bool {
-		var out struct{ Assignments []struct{ Project, Why string } }
+		var out struct {
+			Assignments []struct{ Project, Why string }
+		}
 		e.Must("deck.models_list", map[string]any{"lang": "ru"}, &out)
 		for _, a := range out.Assignments {
 			if a.Project == "paint" {

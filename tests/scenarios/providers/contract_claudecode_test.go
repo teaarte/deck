@@ -143,6 +143,39 @@ func TestCodeRunSeesRepoInstructionsOnly(t *testing.T) {
 	}
 }
 
+// TestClaudeCodeTurnRunsWithoutItsOwnMemory: deck keeps the one memory, so the CLI's auto memory is off in every
+// turn, and a repo's settings do not turn it back on.
+func TestClaudeCodeTurnRunsWithoutItsOwnMemory(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	repo := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repo, ".claude"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	repoSettings := `{"env": {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "0"}, "autoMemoryEnabled": true}`
+	if err := os.WriteFile(filepath.Join(repo, ".claude", "settings.local.json"), []byte(repoSettings), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := c.Adapter(t.TempDir())
+	for n, req := range []provider.Request{{Cwd: t.TempDir()}, {Cwd: repo, Repo: true}} {
+		req.Prompt, req.SessionID = "x", "s"
+		if _, err := a.Run(context.Background(), req); err != nil {
+			t.Fatal(err)
+		}
+		var s struct {
+			Memory *bool             `json:"autoMemoryEnabled"`
+			Env    map[string]string `json:"env"`
+		}
+		if err := json.Unmarshal([]byte(c.Call(n+1).Settings), &s); err != nil {
+			t.Fatal(err)
+		}
+		if s.Memory == nil || *s.Memory || s.Env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] != "1" {
+			t.Fatalf("turn %d: the CLI's own memory must be off: %s", n+1, c.Call(n+1).Settings)
+		}
+	}
+}
+
 func TestResumedClaudeCodeTurnCountsOnlyItsOwnTokens(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)

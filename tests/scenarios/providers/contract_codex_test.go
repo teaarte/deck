@@ -28,6 +28,9 @@ func TestCodexRetryResumesTheThreadOfTheSession(t *testing.T) {
 	if got.State != "done" || string(got.Result) != `{"color":"blue"}` || string(resume["threadId"]) != `"01a0e033-872e-7e12-ad56-5fb4f01528ec"` {
 		t.Fatalf("the retry resumes the thread Codex started for the session: %+v %v", got, resume)
 	}
+	if v, _ := first.Config("features.memories"); v != "false" {
+		t.Fatalf("Codex runs without its own memory, deck keeps the one memory: %v", first.Args)
+	}
 	if first.Request("thread/resume") != nil || second.Request("thread/start") != nil {
 		t.Fatal("the first turn starts the thread, the retry resumes it")
 	}

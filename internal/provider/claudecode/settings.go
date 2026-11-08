@@ -38,7 +38,8 @@ func (a *Adapter) settings(req provider.Request) map[string]any {
 	for _, name := range apiVariables {
 		env[name] = ""
 	}
-	s := map[string]any{"apiKeyHelper": "", "env": env, "autoMode": autoMode(req)}
+	// deck keeps the one memory of every provider; the CLI's own is off, the variable over that of a repo too.
+	s := map[string]any{"apiKeyHelper": "", "env": env, "autoMode": autoMode(req), "autoMemoryEnabled": false}
 	var deny []string
 	if req.Repo {
 		blank(req.Cwd, env)
@@ -50,6 +51,7 @@ func (a *Adapter) settings(req provider.Request) map[string]any {
 		}
 		s["permissions"] = map[string]any{"deny": deny}
 	}
+	env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
 	if sandbox.Homed() {
 		return s
 	}

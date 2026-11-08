@@ -133,6 +133,18 @@ func TestACPRecordedTurnOfGoose(t *testing.T) {
 	if got.State != "done" || string(got.Result) != `{"written":1}` || c.Violation != "" {
 		t.Fatalf("the recorded turn hands its result in: %+v %s", got, c.Violation)
 	}
+	var tools map[string]struct{ Enabled bool }
+	if err := json.Unmarshal([]byte(c.Env["EXTENSIONS"]), &tools); err != nil {
+		t.Fatal(err)
+	}
+	for name, x := range tools {
+		if x.Enabled && name != "developer" && name != "skills" {
+			t.Fatalf("Goose runs with files, shell and skills alone, none of its own memory: %s", c.Env["EXTENSIONS"])
+		}
+	}
+	if !tools["developer"].Enabled || !tools["skills"].Enabled {
+		t.Fatalf("Goose keeps files, shell and skills: %s", c.Env["EXTENSIONS"])
+	}
 }
 
 // TestFakeACPRejectsWhatTheSchemaLacks: the fake agent refuses a method or a field the ACP schema does not have.

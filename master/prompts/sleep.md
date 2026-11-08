@@ -9,8 +9,9 @@ lessons yourself; the owner's facts (user, feedback, project, reference) you onl
 2. Check the memory against them: the owner's memory and that of each project the episodes touch
    (`documents_list` kind `memory`, `document_get`). A fact of the owner an episode shows wrong — the owner said
    otherwise, a project changed — you do not edit: propose its new text, or its deletion, with `document_propose`
-   (name, project, the text or delete, and a reason that quotes the episode and names its source); the owner's yes
-   saves it. A fact whose `expires` passed you delete yourself: that is the owner's own date.
+   (name, project, the text or delete, `if_revision` of the revision you read, and a reason that quotes the
+   episode and names its source); the owner's yes saves it. A fact whose `expires` passed you delete yourself:
+   that is the owner's own date.
 3. Write lessons where an episode would change how the next run goes: a command that failed the same way again, a
    way around that worked, a correction of the owner in a topic about how Deki works (a correction of what the owner
    wants is a fact of the owner's words: propose it as in 2). A lesson of one command names it in `command`; it goes

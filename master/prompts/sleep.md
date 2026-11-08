@@ -3,7 +3,7 @@ and useful, by the memory skill. Use your judgement of what matters; most nights
 
 1. Your lesson `sleep-last` (the owner's memory, project master, `command: sleep`) says when the last sleep ended;
    without it, look back one day.
-   `episodes_list` with `since` that time: the processes that ended (failed ones with their error), incidents, the
+   episodes_list with `since` that time: the processes that ended (failed ones with their error), incidents, the
    owner's messages in chat topics and the summaries of topics that changed.
 2. Check the memory against them: the owner's memory and that of each project the episodes touch
    (`documents_list` kind `memory`, `document_get`). A fact an episode shows wrong — the owner said otherwise, a

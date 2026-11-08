@@ -86,7 +86,7 @@ heading `## Lessons` of the index, below the owner's facts; only the first 40 of
 
 ## Sleep
 
-Once a night the master's command `sleep` goes over what happened since the last one (`episodes_list`: runs,
+Once a night the master's command `sleep` goes over what happened since the last one (episodes_list: runs,
 failures, incidents, the owner's messages, summaries of topics) and keeps memory true and short: it corrects a fact
 an episode shows wrong, writes lessons where an episode would change the next run (each with its `source`), merges
 duplicates, deletes what expired or the owner contradicted (`document_delete`; the owner can bring it back, and a

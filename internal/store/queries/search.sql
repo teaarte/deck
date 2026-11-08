@@ -15,3 +15,21 @@ WHERE f.body MATCH sqlc.arg(query)
   AND (CAST(sqlc.arg(own) AS INTEGER) = 0 OR coalesce(d.project_id, p.project_id, 0) IN (0, sqlc.arg(own)) OR f.kind = 'skill')
 ORDER BY score, f.rowid
 LIMIT sqlc.arg(lim) OFFSET sqlc.arg(skip);
+
+
+-- name: SearchMemoryWord :many
+-- word is a word too short for the trigram index, in lower case; the caller checks it stands as a word.
+SELECT CAST(f.rowid AS INTEGER) AS id, CAST(f.kind AS TEXT) AS kind, CAST(f.body AS TEXT) AS body,
+    CAST(coalesce(d.project_id, p.project_id, 0) AS INTEGER) AS project_id, CAST(coalesce(d.name, p.command) AS TEXT) AS name,
+    CAST(coalesce(d.current, 0) AS INTEGER) AS revision
+FROM memory_fts f
+LEFT JOIN document d ON d.id = f.rowid
+LEFT JOIN process p ON p.id = -f.rowid
+LEFT JOIN project pp ON pp.id = p.project_id
+WHERE instr(lower(f.body), sqlc.arg(word)) > 0
+  AND coalesce(d.workspace_id, pp.workspace_id) = sqlc.arg(workspace_id)
+  AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR coalesce(d.project_id, p.project_id) = sqlc.arg(project_id))
+  AND (CAST(sqlc.arg(kinds) AS TEXT) = '' OR instr(',' || sqlc.arg(kinds) || ',', ',' || f.kind || ',') > 0)
+  AND (CAST(sqlc.arg(own) AS INTEGER) = 0 OR coalesce(d.project_id, p.project_id, 0) IN (0, sqlc.arg(own)) OR f.kind = 'skill')
+ORDER BY f.rowid DESC
+LIMIT sqlc.arg(lim) OFFSET sqlc.arg(skip);

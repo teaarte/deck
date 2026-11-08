@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -61,17 +62,46 @@ func TestAFactNotInTheIndexIsFoundByMemorySearch(t *testing.T) {
 func TestMemorySearchFindsAWordInItsOtherForms(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "ok"} }))
-	e.Must("deck.document_save", map[string]any{"name": "memory/reply-model.md", "kind": "memory",
-		"text": harness.Fact("reply-model", "feedback", "Владелец отвечает только этой моделью")}, nil)
-	for _, q := range []string{"модель", "модели", "Модели", "МОДЕЛЯМИ", "какой моделью"} {
-		if hits := search(e, map[string]any{"query": q, "kinds": []string{"memory"}}); len(hits) != 1 || hits[0].Name != "memory/reply-model.md" {
-			t.Fatalf("a fact with моделью is found by %q: %+v", q, hits)
+	fact := func(name, text string) {
+		e.Must("deck.document_save", map[string]any{"name": "memory/" + name + ".md", "kind": "memory", "text": harness.Fact(name, "feedback", text)}, nil)
+	}
+	fact("reply-model", "Владелец отвечает только этой моделью")
+	fact("tree", "На праздник ставят ёлку")
+	fact("tree-plain", "Елка стоит до февраля")
+	fact("stack", "Servers are written in Go behind port 7700 with API v2 and good tests")
+	fact("old", "Старые заметки хранятся в архиве")
+	// A base of a deck before the trigram index: its facts not in this index yet.
+	e.SQL(`DELETE FROM memory_fts`)
+	// The migration of the trigram index builds it from the facts again.
+	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 68`)
+	e = e.Restart()
+
+	found := func(q string, want ...string) {
+		t.Helper()
+		var got []string
+		for _, h := range search(e, map[string]any{"query": q, "kinds": []string{"memory"}}) {
+			got = append(got, strings.TrimSuffix(strings.TrimPrefix(h.Name, "memory/"), ".md"))
+		}
+		slices.Sort(got)
+		if !slices.Equal(got, want) {
+			t.Fatalf("%q finds %v, not %v", q, got, want)
 		}
 	}
-	for _, q := range []string{"мо", "ok", "я и ты"} {
-		if hits := search(e, map[string]any{"query": q}); len(hits) != 0 {
-			t.Fatalf("words under three letters find nothing and are no error: %q %+v", q, hits)
-		}
+	for _, q := range []string{"модель", "модели", "Модели", "МОДЕЛЯМИ", "какой моделью"} {
+		found(q, "reply-model")
+	}
+	for _, q := range []string{"елка", "ёлка", "ЁЛКИ"} {
+		found(q, "tree", "tree-plain")
+	}
+	found("заметка в архив", "old")
+	found("server", "stack")
+	found("TEST", "stack")
+	found("7700", "stack")
+	found("Go", "stack")
+	found("v2", "stack")
+	found("go v2 port", "stack")
+	for _, q := range []string{"мо", "ok", "я и ты", "oo", "77"} {
+		found(q)
 	}
 }
 

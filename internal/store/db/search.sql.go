@@ -86,3 +86,78 @@ func (q *Queries) SearchMemory(ctx context.Context, arg SearchMemoryParams) ([]S
 	}
 	return items, nil
 }
+
+const searchMemoryWord = `-- name: SearchMemoryWord :many
+SELECT CAST(f.rowid AS INTEGER) AS id, CAST(f.kind AS TEXT) AS kind, CAST(f.body AS TEXT) AS body,
+    CAST(coalesce(d.project_id, p.project_id, 0) AS INTEGER) AS project_id, CAST(coalesce(d.name, p.command) AS TEXT) AS name,
+    CAST(coalesce(d.current, 0) AS INTEGER) AS revision
+FROM memory_fts f
+LEFT JOIN document d ON d.id = f.rowid
+LEFT JOIN process p ON p.id = -f.rowid
+LEFT JOIN project pp ON pp.id = p.project_id
+WHERE instr(lower(f.body), ?1) > 0
+  AND coalesce(d.workspace_id, pp.workspace_id) = ?2
+  AND (CAST(?3 AS INTEGER) = 0 OR coalesce(d.project_id, p.project_id) = ?3)
+  AND (CAST(?4 AS TEXT) = '' OR instr(',' || ?4 || ',', ',' || f.kind || ',') > 0)
+  AND (CAST(?5 AS INTEGER) = 0 OR coalesce(d.project_id, p.project_id, 0) IN (0, ?5) OR f.kind = 'skill')
+ORDER BY f.rowid DESC
+LIMIT ?7 OFFSET ?6
+`
+
+type SearchMemoryWordParams struct {
+	Word        string
+	WorkspaceID int64
+	ProjectID   int64
+	Kinds       string
+	Own         int64
+	Skip        int64
+	Lim         int64
+}
+
+type SearchMemoryWordRow struct {
+	ID        int64
+	Kind      string
+	Body      string
+	ProjectID int64
+	Name      string
+	Revision  int64
+}
+
+// word is a word too short for the trigram index, in lower case; the caller checks it stands as a word.
+func (q *Queries) SearchMemoryWord(ctx context.Context, arg SearchMemoryWordParams) ([]SearchMemoryWordRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchMemoryWord,
+		arg.Word,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.Kinds,
+		arg.Own,
+		arg.Skip,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchMemoryWordRow
+	for rows.Next() {
+		var i SearchMemoryWordRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Body,
+			&i.ProjectID,
+			&i.Name,
+			&i.Revision,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

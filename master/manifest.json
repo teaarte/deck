@@ -20,7 +20,7 @@
       "What to do, with everything the owner said that it needs": "Что сделать, со всем, что для этого сказал владелец",
       "The chat topic the task came from": "Тема чата, из которой пришла задача",
       "Sleep": "Сон",
-      "Once a night goes over what happened since the last sleep: corrects facts of memory by it, writes lessons with their source, tidies the indexes and proposes changes of skills that keep failing the same way.": "Раз в ночь разбирает, что случилось с прошлого сна: исправляет факты памяти, пишет уроки со ссылкой на источник, прибирает индексы и предлагает правки навыков, на которых повторяются одни и те же сбои.",
+      "Once a night goes over what happened since the last sleep: writes, confirms and retires lessons with their source, proposes corrections of the owner's facts and of skills that keep failing the same way, and tidies the indexes.": "Раз в ночь разбирает, что случилось с прошлого сна: пишет, подтверждает и убирает уроки со ссылкой на источник, предлагает правки фактов владельца и навыков, на которых повторяются одни и те же сбои, и прибирает индексы.",
       "Daily review": "Ежедневный обзор",
       "Looks over the projects of deck and tells the owner in the feed what is worth doing.": "Просматривает модули deck и пишет владельцу в ленту, что стоит сделать.",
       "Look into an error": "Разобрать ошибку",
@@ -117,7 +117,7 @@
     {
       "name": "sleep",
       "title": "Sleep",
-      "description": "Once a night goes over what happened since the last sleep: corrects facts of memory by it, writes lessons with their source, tidies the indexes and proposes changes of skills that keep failing the same way.",
+      "description": "Once a night goes over what happened since the last sleep: writes, confirms and retires lessons with their source, proposes corrections of the owner's facts and of skills that keep failing the same way, and tidies the indexes.",
       "class": "internal",
       "callers": [
         "owner",

@@ -87,9 +87,10 @@ heading `## Lessons` of the index, below the owner's facts; only the first 40 of
 ## Sleep
 
 Once a night the master's command `sleep` goes over what happened since the last one (`episodes_list`: runs,
-failures, incidents, the owner's messages, summaries of topics) and keeps memory true and short: it corrects a fact
-an episode shows wrong, writes lessons where an episode would change the next run (each with its `source`), merges
-duplicates, deletes what expired or the owner contradicted (`document_delete`; the owner can bring it back, and a
-deleted name is not saved again, so a fact that comes back takes another slug) and keeps each index under 150 lines,
-the owner's words first. The owner's words stay facts of the four types; what deck concluded is a lesson. A fact out
-of the index is not lost: `memory_search` finds it.
+failures, incidents, the owner's messages, summaries of topics) and keeps memory true and short. It changes only
+lessons itself: writes them where an episode would change the next run (each with its `source`), raises
+`confirmed` and sets `last_confirmed` when an episode repeats a lesson's situation, deletes lessons not confirmed
+for four weeks, merges those that contradict or repeat each other, and keeps about ten a command. A fact of the
+owner it never edits: it proposes the change with a quote of the episode, and the owner's yes saves it; only a
+fact whose `expires` passed it deletes itself. The counters reads and last_read tell what to lift into an index
+and what to drop from it; a document out of the index is not lost: `memory_search` finds it.

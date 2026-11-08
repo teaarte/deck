@@ -55,14 +55,14 @@
           {"type": "list", "title": "Commands", "icon": "terminal-2", "cards": true, "collapsed": true,
             "source": {"from": "deck.commands_list", "input": {"fields": ["name", "title", "description", "executor", "tool", "cron", "document", "model"]}, "where": "tool == ''", "sort": "name"},
             "description": "What the module can do; try one, or open the file of its script or prompt.",
-            "item": {"title": "title", "text": "description ?? ''", "meta": "(cron ?? '') != '' ? 'by schedule' : executor", "logo": "model ?? ''"},
+            "item": {"title": "title", "text": "description ?? ''", "meta": "(cron ?? '') != '' ? 'by schedule' : executor", "logo": "logo ?? model ?? ''"},
             "actions": [
               {"verb": "try", "screen": "settings", "params": {"dialog": "try-command", "command": "=name"}, "when": "executor != ''"},
               {"label": "Open the file", "icon": "file-code", "screen": "document", "record": "=document", "when": "(document ?? 0) != 0"}
             ]},
           {"type": "list", "title": "Models", "icon": "cpu", "cards": true, "source": {"from": "deck.models_list", "rows": "work"},
             "description": "The model each command and each kind of work of its scripts runs on; change it on its card.",
-            "item": {"title": "command != nil ? title : role", "text": "join(filter([model ?? '', price ?? ''], # != ''), ' · ')", "meta": "own ? 'chosen here' : 'default'", "logo": "model ?? ''",
+            "item": {"title": "command != nil ? title : role", "text": "join(filter([model ?? '', price ?? ''], # != ''), ' · ')", "meta": "own ? 'chosen here' : 'default'", "logo": "logo ?? model ?? ''",
               "details": "(why ?? '') != '' ? why : len(models ?? []) > 1 ? join(models[1:], ' → ') : nil",
               "tone": "(why ?? '') != '' ? 'warn' : nil"},
             "actions": [
@@ -106,7 +106,7 @@
       {"title": "Health", "icon": "heartbeat", "blocks": [
           {"type": "list", "title": "Health", "icon": "heartbeat", "cards": true, "source": {"from": "deck.health_list"}, "filter": ["kind", "status"],
             "description": "What deck checks of the module, with why one fails.",
-            "item": {"title": "subject == kind ? kind : subject", "text": "error ?? ''", "since": "updated_at", "logo": "model ?? ''",
+            "item": {"title": "subject == kind ? kind : subject", "text": "error ?? ''", "since": "updated_at", "logo": "logo ?? model ?? ''",
               "meta": "model ?? ''", "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : 'warn'",
               "icon": "status == 'ok' ? 'circle-check' : 'alert-triangle'"},
             "actions": [
@@ -116,7 +116,7 @@
             ]},
           {"type": "list", "title": "Failed runs", "icon": "alert-triangle", "cards": true, "empty": "No schedule failed its last run", "source": {"from": "deck.triggers_list", "where": "(failure ?? '') != ''", "sort": "command"},
             "description": "What runs by itself and failed its last run; change its model and run it again.",
-            "item": {"title": "title", "text": "failure", "meta": "model ?? ''", "logo": "model ?? ''", "tone": "'error'", "icon": "'alert-triangle'"},
+            "item": {"title": "title", "text": "failure", "meta": "model ?? ''", "logo": "logo ?? model ?? ''", "tone": "'error'", "icon": "'alert-triangle'"},
             "actions": [
               {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"}, "input": "model", "options": "=choices", "groups": "=choice_groups", "notes": "=choice_notes ?? nil", "logos": "=choice_logos ?? nil", "when": "len(choices ?? []) > 0"},
               {"verb": "run_now", "primary": true, "command": "deck.trigger_run", "params": {"trigger": "=id"}, "when": "kind == 'cron'"},

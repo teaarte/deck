@@ -89,3 +89,22 @@ func TestAModelPickerOffersTheModelsOfItsWorkWithTheirMarkAndNote(t *testing.T) 
 		t.Fatal("Who does what has pickers of models")
 	}
 }
+
+// TestTheModelsOfSpendWearTheMarkOfTheirProvider: a row of spend by model wears the mark of its provider, then model.
+func TestTheModelsOfSpendWearTheMarkOfTheirProvider(t *testing.T) {
+	t.Parallel()
+	e := harness.LightEnv(t)
+	var rows []struct {
+		Cells []any `json:"cells"`
+		Logos []any `json:"logos"`
+	}
+	_ = json.Unmarshal(e.ScreenBlock("", "spend", "By model", nil)["rows"], &rows)
+	if len(rows) == 0 {
+		t.Fatal("a working week has spend by model")
+	}
+	for _, r := range rows {
+		if len(r.Logos) == 0 || r.Logos[0] == nil || !strings.HasSuffix(r.Logos[0].(string), r.Cells[0].(string)) {
+			t.Fatalf("the model of a row wears the mark of its provider: %+v", r)
+		}
+	}
+}

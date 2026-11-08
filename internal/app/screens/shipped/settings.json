@@ -48,7 +48,7 @@
         {"type": "list", "title": "Who does what", "icon": "route", "cards": true, "source": {"from": "deck.models_list", "rows": "work"}, "filter": ["kind", "project", "model"],
           "description": "Each module's work and its model; change it on its card. Agent work needs an agent: Claude Code, Codex or Goose on your model.",
           "empty": "Nothing of deck runs on a model yet",
-          "item": {"title": "title", "text": "model ?? ''", "meta": "price ?? ''", "group": "project_title ?? 'deck'", "logo": "model ?? ''",
+          "item": {"title": "title", "text": "model ?? ''", "meta": "price ?? ''", "group": "project_title ?? 'deck'", "logo": "logo ?? model ?? ''",
             "details": "(why ?? '') != '' ? why : len(models ?? []) > 1 ? join(models[1:], ' → ') : nil",
             "tone": "(why ?? '') != '' ? 'warn' : nil"},
           "actions": [

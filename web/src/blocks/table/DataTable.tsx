@@ -9,6 +9,7 @@ import { Actions } from '../../ui/actions/Actions';
 import { opens as isOpener, rowOpen } from '../../ui/rowOpen';
 import { Value } from '../../ui/Value';
 import { NamedIcon } from '../../ui/NamedIcon';
+import { Logo } from '../../ui/logo/Logo';
 import { useBlockContext } from '../../screen/press';
 import { Cell } from './Cell';
 import { Pick } from './Pick';
@@ -44,6 +45,8 @@ export function DataTable({ columns, rows, searched }: { columns: Column[]; rows
     if (pick) return <Pick act={pick} value={r.cells[j]} logo={columns[j]?.format === 'logo'} />;
     const value = <Value v={r.cells[j]} s={columns[j] ?? {}} tone={r.tones?.[j]} hint={columns[j]?.format === 'tag' ? r.details?.[j] : undefined} />;
     const icon = r.icons?.[j];
+    const logo = r.logos?.[j];
+    if (logo) return <span className={s.iconCell} data-logo-of={logo}><Logo names={logo} size={16} />{value}</span>;
     return icon ? <span className={s.iconCell}><NamedIcon name={icon} fallback={text(r.cells[j])} size={16} />{value}</span> : value;
   };
   return (

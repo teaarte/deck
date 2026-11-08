@@ -135,4 +135,6 @@ and bring the modules in line.
   takes `notes` and `logos` (lists in the order of options) and a choice of a form `note`, `logo` and `icon` (each an
   expression over its item): the client shows the mark, the label and the note of each option, such as
   `"choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "'tts' in roles"}, "value":
-  "name", "note": "note ?? nil", "logo": "logo"}}`.
+  "name", "note": "note ?? nil", "logo": "logo"}}`. A column of a table takes `logo` (an expression of words naming
+  a model or its provider, such as `connection + ' ' + model`): the cell wears that mark before its value; the work of
+  a command gives `logo` of its model, provider first.

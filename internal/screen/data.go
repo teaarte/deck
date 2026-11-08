@@ -350,10 +350,16 @@ func (r *renderer) table(b manifest.Block, items []map[string]any, out map[strin
 		cells, tones, toned := make([]any, 0, len(b.Columns)), make([]any, len(b.Columns)), false
 		details, detailed := make([]any, len(b.Columns)), false
 		icons, iconed := make([]any, len(b.Columns)), false
+		logos, logoed := make([]any, len(b.Columns)), false
 		for j, c := range b.Columns {
 			if c.Icon != "" {
 				if ic, err := r.eval(c.Icon, it); err == nil && ic != nil && ic != "" {
 					icons[j], iconed = fmt.Sprint(ic), true
+				}
+			}
+			if c.Logo != "" {
+				if l, err := r.eval(c.Logo, it); err == nil && l != nil && strings.TrimSpace(fmt.Sprint(l)) != "" {
+					logos[j], logoed = strings.TrimSpace(fmt.Sprint(l)), true
 				}
 			}
 			v, err := r.eval(c.Bind, it)
@@ -391,6 +397,9 @@ func (r *renderer) table(b manifest.Block, items []map[string]any, out map[strin
 		}
 		if iconed {
 			row["icons"] = icons
+		}
+		if logoed {
+			row["logos"] = logos
 		}
 		rows = append(rows, row)
 	}

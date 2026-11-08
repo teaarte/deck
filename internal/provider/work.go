@@ -14,6 +14,8 @@ type Work struct {
 	ChoiceNotes []string `json:"choice_notes,omitempty"`
 	ChoiceLogos []string `json:"choice_logos,omitempty"`
 	Price       string   `json:"price,omitempty"`
+	// Logo are the words naming the provider and model of Model, for its mark.
+	Logo string `json:"logo,omitempty"`
 	// Why is one line of the health of the first model that is down, when the work goes to another.
 	Why string `json:"why,omitempty"`
 }

@@ -373,6 +373,10 @@ export interface Data {
      * the Tabler icon each cell wears before its value, null for none
      */
     icons?: (string | null)[];
+    /**
+     * the words naming the model or provider whose mark each cell wears before its value, null for none
+     */
+    logos?: (string | null)[];
     actions?: Action[];
   }[];
   /**

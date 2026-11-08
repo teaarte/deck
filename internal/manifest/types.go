@@ -535,8 +535,10 @@ type Column struct {
 	Details string `json:"details,omitempty"`
 	// Pick is the verb of the button of a table row whose input the cell picks from the button's options.
 	Pick string `json:"pick,omitempty"`
-	// Icon is an expression over the item giving the Tabler icon a table cell wears before its value.
+	// Icon is an expression over the item giving the Tabler icon a table cell wears before its value; Logo words naming
+	// a model or provider whose mark it wears.
 	Icon string `json:"icon,omitempty"`
+	Logo string `json:"logo,omitempty"`
 }
 
 // Action is a button. Params, Screen, Record, Project and Until take a fixed value or "=<expression>" over

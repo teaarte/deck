@@ -43,7 +43,7 @@
             {
               "label": "Model",
               "bind": "provider",
-              "format": "logo"
+              "logo": "(group ?? '') + ' ' + provider"
             },
             {
               "label": "Provider",
@@ -212,7 +212,7 @@
         {
           "label": "Model",
           "bind": "provider",
-          "format": "logo"
+          "logo": "(group ?? '') + ' ' + provider"
         },
         {
           "label": "Paid, $",

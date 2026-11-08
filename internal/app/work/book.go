@@ -194,6 +194,9 @@ func (b *Book) Grouped(w provider.Work) provider.Work {
 		}
 		return len(b.order)
 	}
+	if w.Model != "" {
+		w.Logo = b.Logo(w.Model)
+	}
 	w.Choices = slices.Clone(w.Choices)
 	slices.SortStableFunc(w.Choices, func(x, y string) int { return cmp.Compare(at(x), at(y)) })
 	// A group says whether its models cost money: the paid ones of a provider stand after its free ones.

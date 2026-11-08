@@ -51,11 +51,28 @@ func TestAFactNotInTheIndexIsFoundByMemorySearch(t *testing.T) {
 	}
 
 	for _, q := range []string{`pangolin" OR (NEAR* -x:`, `"`, `title:* AND`, `^ * " NOT`} {
-		if code, out := e.Call("deck.memory_search", map[string]any{"query": q}); code != 200 && !strings.Contains(string(out), "no words") {
+		if code, out := e.Call("deck.memory_search", map[string]any{"query": q}); code != 200 {
 			t.Fatalf("the syntax of FTS5 in a query is words, not an error: %q %d %s", q, code, out)
 		}
 	}
 	e.Refused("deck.memory_search", map[string]any{"query": "x", "kinds": []string{"files"}}, 422, "unknown kind")
+}
+
+func TestMemorySearchFindsAWordInItsOtherForms(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "ok"} }))
+	e.Must("deck.document_save", map[string]any{"name": "memory/reply-model.md", "kind": "memory",
+		"text": harness.Fact("reply-model", "feedback", "Владелец отвечает только этой моделью")}, nil)
+	for _, q := range []string{"модель", "модели", "Модели", "МОДЕЛЯМИ", "какой моделью"} {
+		if hits := search(e, map[string]any{"query": q, "kinds": []string{"memory"}}); len(hits) != 1 || hits[0].Name != "memory/reply-model.md" {
+			t.Fatalf("a fact with моделью is found by %q: %+v", q, hits)
+		}
+	}
+	for _, q := range []string{"мо", "ok", "я и ты"} {
+		if hits := search(e, map[string]any{"query": q}); len(hits) != 0 {
+			t.Fatalf("words under three letters find nothing and are no error: %q %+v", q, hits)
+		}
+	}
 }
 
 func TestMemorySearchFindsOnlyWhatTheCallerReads(t *testing.T) {

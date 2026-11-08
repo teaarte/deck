@@ -150,7 +150,8 @@ and bring the modules in line.
   command (`type: lesson`, `command: <it>`, not expired) of the memory of its project, the newest twelve within 4000
   bytes, as data; a run that may save documents is asked to write or update a lesson when it taught something.
   `on_error` and `on_incident` write lessons of the command that failed in its project's memory.
-- 2026-11-08: `deck.memory_search` finds words (any of them, a word also as the start of a longer one) in memory,
+- 2026-11-08: `deck.memory_search` finds words (any of them, in any form: a part of a word
+  without its Russian ending; words under three letters find nothing) in memory,
   the summaries of the master's topics, skills and finished processes (command, error, the start of the result), as
   far as the caller reads them; `kinds`, `project`, `limit`; each hit gives `kind`, `name`, `document` and `revision`
   or `process`, `snippet` and `rank` (lower is better).

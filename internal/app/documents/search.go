@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"deck2/internal/access"
 	"deck2/internal/registry"
@@ -16,7 +17,7 @@ import (
 var searchKinds = []string{"memory", "summary", "skill", "process"}
 
 type memorySearchIn struct {
-	Query   string   `desc:"Words to find; a hit has any of them, the more the higher, a word also as the start of a longer one"`
+	Query   string   `desc:"Words to find; a hit has any of them, the more the higher, in any form: a word is found as a part of a word without its ending; words under three letters find nothing"`
 	Project string   `type:"project" opt:"" desc:"Only this project; without it all the caller reads: an agent its own project, the skills of the workspace and those its reads give"`
 	Kinds   []string `opt:"" desc:"Only these: memory, summary (of a topic of the master), skill, process (a finished one: command, error, the start of its result)"`
 	Limit   int64    `opt:"" desc:"At most this many, 20 when not given, up to 100"`
@@ -36,14 +37,14 @@ type memoryHit struct {
 
 // memorySearch finds text in the index the triggers of the base keep, by the rules of document_get and process_get.
 func (s *Service) memorySearch(ctx context.Context, act registry.Actor, in memorySearchIn) ([]memoryHit, error) {
-	match := matchOf(in.Query)
-	if match == "" {
-		return nil, registry.Invalid("query has no words")
-	}
 	for _, k := range in.Kinds {
 		if !slices.Contains(searchKinds, k) {
 			return nil, registry.Invalid("unknown kind %q; one of %s", k, strings.Join(searchKinds, ", "))
 		}
+	}
+	match := matchOf(in.Query)
+	if match == "" {
+		return []memoryHit{}, nil
 	}
 	arg := db.SearchMemoryParams{Query: match, WorkspaceID: act.Workspace, Kinds: strings.Join(in.Kinds, ",")}
 	if act.Confined() {
@@ -101,12 +102,28 @@ func hitOf(r db.SearchMemoryRow, project string) memoryHit {
 	return h
 }
 
-// matchOf is the words of a query as an FTS5 query: each quoted as a prefix, any of them, so no text of the caller
-// reads as the syntax of FTS5.
+// matchOf is the words of a query as an FTS5 query of the trigram index: each a part of a word to find, its Russian
+// ending cut, quoted, any of them; words under three letters find nothing there and drop.
 func matchOf(query string) string {
-	words := strings.FieldsFunc(query, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsNumber(r) })
-	for i, w := range words {
-		words[i] = `"` + w + `"*`
+	var parts []string
+	for _, w := range strings.FieldsFunc(query, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsNumber(r) }) {
+		if w = stem(w); utf8.RuneCountInString(w) >= 3 {
+			parts = append(parts, `"`+w+`"`)
+		}
 	}
-	return strings.Join(words, " OR ")
+	return strings.Join(parts, " OR ")
+}
+
+// endings are the Russian endings stem cuts, longest first.
+var endings = strings.Fields("иями ями ами ией ием иях ого его ому ему ыми ими ях ах ов ев ей ой ий ый ая яя ое ее ые ие ую юю ом ем ам ям ью а я о е ы и у ю ь й")
+
+// stem is a word without its Russian ending when at least three letters stay.
+func stem(w string) string {
+	lw := strings.ToLower(w)
+	for _, e := range endings {
+		if cut, ok := strings.CutSuffix(lw, e); ok && utf8.RuneCountInString(cut) >= 3 {
+			return cut
+		}
+	}
+	return w
 }

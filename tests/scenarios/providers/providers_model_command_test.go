@@ -942,3 +942,57 @@ func TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce(t *testing.T) {
 		t.Fatalf("a request past the limit of the last model is the model's limit: %+v", got)
 	}
 }
+
+const roundTripScript = harness.PythonLib + `
+st, spoken = deck("deck.model_call", {"kind": "tts", "text": "Knights against snails"})
+heard = {}
+for ref in (spoken.get("file", ""), "results/" + spoken.get("file", "")):
+    code, out = deck("deck.model_call", {"kind": "stt", "file": ref})
+    heard[ref] = out.get("text") if code == 200 else out
+print(json.dumps({"status": st, "file": spoken.get("file"), "heard": heard}))
+`
+
+// TestTheFileOfASpeechGoesToARecordingAsTheCallGaveIt: the name a call answers with is a file of the next call's
+// input as it is, as is results/<name>.
+func TestTheFileOfASpeechGoesToARecordingAsTheCallGaveIt(t *testing.T) {
+	t.Parallel()
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/audio/speech": func(int, map[string]any) (int, string, string) { return 200, "audio/mpeg", "ID3-knights" },
+		"/v1/audio/transcriptions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", `{"text": "knights against snails"}`
+		},
+	})
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "local", "api": "openai", "url": api.URL + "/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "local", "model": "voice", "name": "voice", "kind": "tts"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "local", "model": "whisper", "name": "whisper", "kind": "stt"}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"voice"}}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"whisper"}}, nil)
+	e.Project("films", harness.Manifest(`{"models": ["@tts", "@stt"], "commands": [{"name": "loop", "title": "Loop", "description": "Speaks and hears it back.", "class": "internal",
+	  "result": {"type": "object"}, "executor": {"type": "script", "script": "loop"}}],
+	  "scripts": [{"name": "loop", "file": "scripts/loop.py", "runtime": "python"}]}`))
+	e.SaveScript("films", "scripts/loop.py", roundTripScript)
+	p := e.WaitState(e.Start("films", "loop", nil), "done", "error")
+	var got struct {
+		Status int
+		File   string
+		Heard  map[string]any
+	}
+	if json.Unmarshal(p.Result, &got) != nil || got.Status != 200 || !strings.HasPrefix(got.File, "tts-") || len(got.Heard) != 2 {
+		t.Fatalf("the speech is a file of the results folder: %+v", p)
+	}
+	for ref, text := range got.Heard {
+		if text != "knights against snails" {
+			t.Fatalf("%q from the answer of the speech is the recording of the next call: %v", ref, got.Heard)
+		}
+	}
+	heard := 0
+	for _, c := range api.Calls() {
+		if c.Path == "/v1/audio/transcriptions" {
+			heard++
+		}
+	}
+	if heard != 2 {
+		t.Fatalf("both recordings reached the model: %+v", api.Calls())
+	}
+}

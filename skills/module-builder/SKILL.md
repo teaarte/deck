@@ -560,8 +560,8 @@ on its own storage host is fetched through the proxy, so that host goes into `do
 price per call of such a model: a service that reports no `usage.cost` is counted by it, else without a cost.
 
 A tool of the manifest called from a script (`POST $DECK_URL/commands/<project>.<tool>`) that answers with a
-file returns `{"file": "<name>", "type", "size"}`: the file is `$DECK_RESULTS/<name>`, and `results/<name>`
-hands it to another tool or a `file` field.
+file returns `{"file": "<name>", "type", "size"}`: the file is `$DECK_RESULTS/<name>`, and `<name>` as it is
+(or `results/<name>`) hands it to another tool or a `file` field.
 
 ## 6. Agent commands
 

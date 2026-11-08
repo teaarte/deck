@@ -96,3 +96,5 @@ and bring the modules in line.
   `commands_list` gives `document`, the file of a command's script or prompt, by its fields. The theme token
   `widget-card` colors a card that shows its module's view without a cover; with a cover the view stands on a veil
   over it.
+- 2026-11-08: a `file` field takes the name a call answered with as it is (`tts-….mp3` from `deck.model_call`, a
+  tool, a screen shot), the same file as `results/<name>` of the calling process.

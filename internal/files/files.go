@@ -61,9 +61,14 @@ func (r Ref) Open() (*os.File, int64, error) {
 }
 
 // Resolve finds the file of a reference: a stored file of the project by id, or results/<name> in the
-// results folder of the process, which stays inside that folder.
+// results folder of the process, which stays inside that folder; a bare name is results/<name>, as a call answered it.
 func Resolve(ctx context.Context, h home.Layout, q *db.Queries, project, process int64, ref string) (Ref, error) {
-	if rest, ok := strings.CutPrefix(ref, Results); ok {
+	id, err := strconv.ParseInt(ref, 10, 64)
+	rest, ok := strings.CutPrefix(ref, Results)
+	if !ok && err != nil && process != 0 && ref != "" {
+		rest, ok = ref, true
+	}
+	if ok {
 		if process == 0 {
 			return Ref{}, registry.Invalid("%q is a results file, which only a process has", ref)
 		}
@@ -74,9 +79,8 @@ func Resolve(ctx context.Context, h home.Layout, q *db.Queries, project, process
 		}
 		return Ref{Path: path, Name: filepath.Base(path), Type: typeOf(path), root: root, rel: filepath.Clean("/" + rest)[1:]}, nil
 	}
-	id, err := strconv.ParseInt(ref, 10, 64)
 	if err != nil || id <= 0 {
-		return Ref{}, registry.Invalid("a file is a file id or results/<name>, not %q", ref)
+		return Ref{}, registry.Invalid("a file is a file id, or results/<name> or the name a call answered with, not %q", ref)
 	}
 	f, err := q.GetFile(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) || err == nil && f.ProjectID != project {

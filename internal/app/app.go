@@ -39,6 +39,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/home"
+	"deck2/internal/manifest"
 	"deck2/internal/mcphost"
 	"deck2/internal/node"
 	"deck2/internal/process"
@@ -161,7 +162,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Themes = themes.Service{St: st, Now: cfg.Now, Home: h, Invoke: a.Registry.Invoke, Language: a.Settings.Language,
 		Keep: a.Files.Keep, Thumb: a.Files.Thumb, Drop: a.Files.Drop}
 	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Work.Works, Incident: a.Processes.Incident, IsFailure: a.Processes.IsFailure}
-	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Missing: a.Scripts.Check, Go: a.bg.Go,
+	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Missing: a.missingPrograms, Go: a.bg.Go,
 		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted}
 	a.Snapshots = snapshots.Service{St: st, Emit: a.Bus.Emit, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, Still: a.Files.Still,
 		Expire: a.Records.Expire}
@@ -220,7 +221,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Projects = project.Service{St: st, Emit: a.Bus.Emit, Now: cfg.Now, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Scheduler: a.Scheduler, Scripts: a.Scripts, LogPath: a.Runner.LogPath, StopServer: a.Host.Stop, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
 		PrepareLater: a.Documents.PrepareLater, Noted: a.Feed.Noted, CheckScreens: a.Screens.CheckScreens,
-		Unassigned: a.Work.Unassigned, Secret: a.Secrets.Has, DropSecrets: a.Secrets.Drop,
+		Unassigned: a.Work.Unassigned, Missing: a.missingPrograms, Secret: a.Secrets.Has, DropSecrets: a.Secrets.Drop,
 		Theme: a.Themes.Current}
 	a.addBuiltins()
 	a.Browser.Load()
@@ -325,6 +326,15 @@ func (a *App) Run(ctx context.Context, every time.Duration) {
 	a.Chats.PumpChats(ctx)
 	a.bg.Go(func(ctx context.Context) { a.Loop(ctx, every) })
 	a.bg.Go(a.Owners.Nodes)
+}
+
+// missingPrograms are the scripts of a project whose programs deck does not find, by script name; scripts that run on
+// a node are not judged by deck's machine: the node refuses a run without its program.
+func (a *App) missingPrograms(ctx context.Context, projectID int64, m *manifest.Manifest) map[string]error {
+	if p, err := a.Folders.ScriptsAt(ctx, projectID); err != nil || p.On != nil {
+		return map[string]error{}
+	}
+	return a.Scripts.Check(m)
 }
 
 // nodeTransport carries the calls of a connection over the connection of its node, named in a failure by its name.

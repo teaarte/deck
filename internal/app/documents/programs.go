@@ -64,7 +64,7 @@ func (s *Service) Programs(ctx context.Context, projectID int64) error {
 	if err != nil {
 		return err
 	}
-	problems := s.Missing(m)
+	problems := s.Missing(ctx, projectID, m)
 	sbErr := s.Sandbox.Check()
 	known, err := s.St.Q.ListHealth(ctx, store.ID(p.WorkspaceID))
 	if err != nil {

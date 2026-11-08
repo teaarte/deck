@@ -111,5 +111,6 @@ and bring the modules in line.
   over it.
 - 2026-11-08: deck's image carries `ffmpeg` and `unzip` beside `python3`, `node`, `uv`, `bash`, `git`, `curl`,
   `chromium` and Goose (the list is in the skill of modules); a script names them in `programs` all the same. A program
-  missing from the image says so in health — the owner updates the image — and elsewhere the install names the package
-  manager of that machine (apt on Linux, brew on a Mac), not a `brew` of the manifest on Linux.
+  missing from the image says so in health — the owner updates the image; elsewhere the `install` of the manifest stays,
+  a plain `brew install <formula>` read as `apt-get install <formula>` on Linux. The scripts of a module whose folders
+  are on a node are checked by the node when they run, not by deck's machine.

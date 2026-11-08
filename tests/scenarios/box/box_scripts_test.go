@@ -544,6 +544,10 @@ func TestAMissingProgramSaysHowToInstallItAndIsCheckedAgain(t *testing.T) {
 	if !strings.Contains(h.Error, "deck-later-tool") || !strings.Contains(h.Error, install) {
 		t.Fatalf("the health names the missing program and how to install it on this system: %+v", h)
 	}
+	e.Project("bare", strings.Replace(harness.ScriptManifest("use", "", ""), `"runtime": "python"`, `"runtime": "python", "programs": ["deck-bare-tool"]`, 1))
+	if h := e.WaitHealth("command:bare.use", "error"); !strings.Contains(h.Error, "deck-bare-tool") || strings.Contains(h.Error, "install") {
+		t.Fatalf("a program without the install of its module gets no made-up install: %+v", h)
+	}
 	if p := e.WaitState(e.Start("progs", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, install) {
 		t.Fatalf("a run without its program is refused at once with the same line: %+v", p)
 	}
@@ -569,14 +573,14 @@ func TestAProgramMissingFromDecksImageAsksForANewerImage(t *testing.T) {
 	e.Project("progs", strings.Replace(harness.ScriptManifest("use", "", ""), `"runtime": "python"`,
 		`"runtime": "python", "programs": [{"name": "deck-image-tool", "install": "brew install deck-image-tool"}]`, 1))
 	h := e.WaitHealth("command:progs.use", "error")
-	if !strings.Contains(h.Error, `"deck-image-tool"`) || !strings.Contains(h.Error, "image of deck deck:local") || strings.Contains(h.Error, "brew") {
+	if !strings.Contains(h.Error, `"deck-image-tool"`) || !strings.Contains(h.Error, "deck's image") || strings.Contains(h.Error, "brew") {
 		t.Fatalf("the health of deck in its image asks for a newer image, not brew: %+v", h)
 	}
 	var needs []struct{ Kind, What, Detail string }
 	e.Must("deck.project_readiness_get", map[string]any{"project": "progs"}, &needs)
 	found := false
 	for _, n := range needs {
-		found = found || n.Kind == "program" && strings.Contains(n.Detail, "image of deck") && !strings.Contains(n.Detail, "brew")
+		found = found || n.Kind == "program" && strings.Contains(n.Detail, "deck's image") && !strings.Contains(n.Detail, "brew")
 	}
 	if !found {
 		t.Fatalf("what the module needs says the same: %+v", needs)

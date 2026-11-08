@@ -124,6 +124,39 @@ func TestAScriptOfAFolderOfANodeRunsOnTheNode(t *testing.T) {
 	}
 }
 
+// TestTheProgramsOfAScriptOnANodeAreNotJudgedByDecksImage: deck in its image asks for a newer image for a program it
+// lacks; once the folders of the module are on a node, only the node finds or misses the programs of its scripts.
+func TestTheProgramsOfAScriptOnANodeAreNotJudgedByDecksImage(t *testing.T) {
+	t.Parallel()
+	data := folderOf(t, "blue 101")
+	e := harness.New(t, harness.WithConfig(func(c *app.Config) { c.NodeWait, c.Image = time.Minute, "deck:local" }))
+	n := e.PairNode("Mac")
+	n.RunScripts()
+	n.Allow(data)
+	n.Start()
+	e.Until("the node to connect", func() bool { return e.App.Nodes.State(n.Joined.Device).Online })
+	e.Project("lab", strings.Replace(harness.ScriptManifest("read", "", ""), `"runtime": "python"`,
+		`"runtime": "python", "programs": [{"name": "deck-node-tool", "install": "brew install deck-node-tool"}]`, 1))
+	e.SaveScript("lab", "scripts/main.py", nodeScript)
+	if h := e.WaitHealth("command:lab.read", "error"); !strings.Contains(h.Error, "deck's image") {
+		t.Fatalf("a script that runs on deck in its image asks for a newer image: %+v", h)
+	}
+	e.Must("deck.folder_add", map[string]any{"project": "lab", "path": data, "name": "data", "node": "Mac"}, nil)
+	e.Must("deck.program_check", map[string]any{"project": "lab"}, nil)
+	if h := e.WaitHealth("command:lab.read", "ok"); h.Error != "" {
+		t.Fatalf("a script on a node is not judged by the programs of deck's image: %+v", h)
+	}
+	var needs []struct{ Kind, Detail string }
+	e.Must("deck.project_readiness_get", map[string]any{"project": "lab"}, &needs)
+	if slices.ContainsFunc(needs, func(n struct{ Kind, Detail string }) bool { return n.Kind == "program" }) {
+		t.Fatalf("what the module needs names no program of deck's machine for a script on a node: %+v", needs)
+	}
+	p := e.WaitState(e.Start("lab", "read", map[string]any{"allowed": data}), "done", "error")
+	if p.State != "error" || !strings.Contains(p.Error, "deck-node-tool") || strings.Contains(p.Error, "image") {
+		t.Fatalf("the node refuses the run without its program, by its own machine: %+v", p)
+	}
+}
+
 // TestAFolderItsNodeDoesNotAllowIsRefused: a folder outside the list of its node is not added, a folder the owner
 // takes off the list later refuses the script that reads it, and health says what the owner adds.
 func TestAFolderItsNodeDoesNotAllowIsRefused(t *testing.T) {

@@ -45,6 +45,8 @@ type Service struct {
 	CheckScreens func(ctx context.Context, act registry.Actor, p db.Project, m *manifest.Manifest) []string
 	// Unassigned are the commands of a manifest no model takes, with what the owner does.
 	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
+	// Missing reports the scripts of a project whose programs are not on the machine they run on, by script name.
+	Missing func(ctx context.Context, projectID int64, m *manifest.Manifest) map[string]error
 	// Secret reports whether a secret of a project is set; DropSecrets deletes the secrets of a project.
 	Secret      func(workspace int64, project, name string) bool
 	DropSecrets func(workspace int64, project string) error

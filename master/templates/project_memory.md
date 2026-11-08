@@ -1,2 +1,2 @@
-Memory of project {{.Project}}: what its owner said that holds across sessions. Read a fact with document_get (name memory/<file>); write only what the owner said, by the memory skill when you have it.
+Memory of project {{.Project}}: what its owner said and what its runs taught, held across sessions. Read a fact with document_get (name memory/<file>); write what the owner said, and lessons of your own runs, by the memory skill when you have it.
 {{.Index}}

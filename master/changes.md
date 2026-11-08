@@ -141,3 +141,8 @@ and bring the modules in line.
 - 2026-11-08: a topic of `chat_topics_list` gives `tokens` (what its replies and the work they started spent),
   `replied_on` (the model of its last reply) and `logo` (the words of that model's mark); with `module` it gives only
   the topics about that module (`-` for those about none), and `modules` names the modules of all topics (`project`, `-` for none) with `last`, the newest topic of each.
+- 2026-11-08: a memory fact may be `type: lesson` — a conclusion of deck's agents, not the owner's words — with
+  `source` (required: `process:<id>`, `topic:<id>` or `incident:<process id>.<kind>`, comma-separated), `command` (a
+  command of that project) and `expires`; an agent writes lessons in its own project's memory, the master in any.
+  Index lines of lessons go under `## Lessons` of `memory/MEMORY.md`: only the first 40 reach a prompt, a save past
+  them warns; `document_get` of a memory document that would no longer save answers `warning` with why (memory skill).

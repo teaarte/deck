@@ -47,7 +47,7 @@ type documentView struct {
 	Deleted   bool   `json:"deleted"`
 	// Editable is a document a screen edits as text.
 	Editable bool `json:"editable"`
-	// Warning says what a save did that its author should know of, such as an index past its limit.
+	// Warning says what the author of the text should know of: an index past its limit, a text that fails its check.
 	Warning   string         `json:"warning,omitempty"`
 	Revisions []revisionView `json:"revisions,omitempty"`
 }
@@ -201,6 +201,11 @@ func (s *Service) documentGet(ctx context.Context, act registry.Actor, in docume
 	}
 	v := s.docView(ctx, d)
 	v.Revision, v.Text = r.N, r.Text
+	if r.N == d.Current {
+		if err := docs.CheckMemory(d.Kind, d.Name, r.Text); err != nil {
+			v.Warning = "this text would not save as it is: " + err.Error()
+		}
+	}
 	if in.History {
 		v.Revisions, err = s.revisions(ctx, d)
 	}
@@ -259,6 +264,9 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 		if err := editText(ctx, q, ref, &in); err != nil {
 			return err
 		}
+		if err := lessonCommand(ctx, q, sc, in.Kind, in.Name, in.Text); err != nil {
+			return err
+		}
 		var n int64
 		var changed bool
 		if d, n, changed, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil || !changed {
@@ -271,11 +279,42 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 	}
 	v := s.docView(ctx, d)
 	if kind, _ := docs.Owner(d); d.Name == docs.MemoryIndex && kind == "" {
+		var warn []string
 		if n := docs.IndexLines(in.Text); n > docs.IndexLimit {
-			v.Warning = fmt.Sprintf("the index has %d lines; only the first %d reach prompts: merge or drop lines, the most important first", n, docs.IndexLimit)
+			warn = append(warn, fmt.Sprintf("the index has %d lines; only the first %d reach prompts: merge or drop lines, the most important first", n, docs.IndexLimit))
 		}
+		if n := docs.LessonLines(in.Text); n > docs.LessonLimit {
+			warn = append(warn, fmt.Sprintf("the lessons section has %d lines; only the first %d reach prompts: merge or drop lessons, the most useful first", n, docs.LessonLimit))
+		}
+		v.Warning = strings.Join(warn, "; ")
 	}
 	return v, nil
+}
+
+// lessonCommand refuses a lesson of a command its project does not have.
+func lessonCommand(ctx context.Context, q *db.Queries, sc docs.Scope, kind, name, text string) error {
+	if kind != docs.KindMemory || name == docs.MemoryIndex || sc.Project == 0 {
+		return nil
+	}
+	if err := docs.CheckMemory(kind, name, text); err != nil {
+		return err
+	}
+	f, err := docs.ParseFact(text)
+	if err != nil || f.Type != docs.Lesson || f.Command == "" {
+		return nil
+	}
+	p, err := q.GetProject(ctx, sc.Project)
+	if err != nil {
+		return err
+	}
+	m, err := docs.Manifest(ctx, q, p)
+	if err != nil {
+		return err
+	}
+	if m.Command(f.Command) == nil {
+		return registry.Invalid("project %s has no command %q for this lesson", p.Name, f.Command)
+	}
+	return nil
 }
 
 // ownSave refuses the kinds that have their own command to save them, which checks them.

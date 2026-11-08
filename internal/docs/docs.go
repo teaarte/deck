@@ -122,7 +122,7 @@ func Save(ctx context.Context, q *db.Queries, ref Ref, kind, text, author, reaso
 	if err := checkSkillText(kind, ref.Name, text); err != nil {
 		return db.Document{}, 0, false, err
 	}
-	if err := checkMemoryText(kind, ref.Name, text); err != nil {
+	if err := CheckMemory(kind, ref.Name, text); err != nil {
 		return db.Document{}, 0, false, err
 	}
 	d, err = q.FindDocument(ctx, ref.Find())

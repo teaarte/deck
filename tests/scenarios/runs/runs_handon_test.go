@@ -259,3 +259,39 @@ func TestAnAgentInALoopLeavesItsModel(t *testing.T) {
 		t.Fatalf("the next model does the work: %+v", got)
 	}
 }
+
+// TestAProcessThatWaitsForItsModelGoesToTheModelTheOwnerAssigns: a turn that waits for its model in its session goes
+// on on the model the owner assigns meanwhile, told what was done, rather than wait on for the old one.
+func TestAProcessThatWaitsForItsModelGoesToTheModelTheOwnerAssigns(t *testing.T) {
+	t.Parallel()
+	e, backup, _ := harness.TwoModels(t, func(ctx context.Context, c *harness.Call) provider.Result {
+		c.Req.Emit(provider.Event{Kind: provider.EventMessage, Text: "read the first half"})
+		<-ctx.Done()
+		return provider.Result{}
+	}, harness.Ok, harness.WithClock(&harness.Clock{At: harness.T0}))
+	e.UseModels("plain.work", "fake")
+	id := e.StartWork(1)
+	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 1 })
+	// The model at its limit, as another turn would find it.
+	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+		return process.ProviderHealth(ctx, q, "fake", "paused", "usage limit reached")
+	})
+	e.Sweep()
+	if got := e.WaitState(id, "waiting_provider", "error"); got.State != "waiting_provider" {
+		t.Fatalf("with no next model the turn waits for its model: %+v %+v", got, e.Fault(id))
+	}
+	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "model": "backup"}, nil)
+	e.Sweep()
+	e.WaitState(id, "error")
+	if got := e.Fault(id); got.ErrorType != "model.unavailable" || !strings.Contains(got.Error, "the assignment gives the work to backup") {
+		t.Fatalf("the waiting process closes as its model's failure: %+v", got)
+	}
+	next := e.Following(id)
+	if got := e.WaitState(next, "done", "error"); got.State != "done" || len(backup.Calls()) != 1 ||
+		!strings.Contains(backup.Calls()[0].Prompt, "continues process #"+harness.Itoa(id)) {
+		t.Fatalf("the model the owner assigned goes on with the work: %+v %+v", got, backup.Calls())
+	}
+	if rows := e.FailedRuns(); len(rows) != 0 {
+		t.Fatalf("a failure another model made good is not in the cockpit: %+v", rows)
+	}
+}

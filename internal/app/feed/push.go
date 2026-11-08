@@ -22,6 +22,7 @@ import (
 	"github.com/SherClockHolmes/webpush-go"
 
 	"deck2/internal/access"
+	"deck2/internal/ask"
 	"deck2/internal/egress"
 	"deck2/internal/health"
 	"deck2/internal/home"
@@ -149,7 +150,7 @@ func (s *Service) pushSources(say map[string]string, hidden bool) []pushSource {
 				asks, _ := s.St.Q.ListAsksAfter(ctx, db.ListAsksAfterParams{WorkspaceID: ws, ID: id(cursor)})
 				var items []pushItem
 				for _, q := range asks {
-					items = append(items, pushItem{s.pushText(ctx, say, hidden, q.ProjectID.Int64, tr(say, "Waiting for you"), strings.SplitN(q.Text, "\n", 2)[0], "/#/deck/cockpit"),
+					items = append(items, pushItem{s.pushText(ctx, say, hidden, q.ProjectID.Int64, tr(say, "Waiting for you"), strings.SplitN(q.Text, "\n", 2)[0], "/"+ask.Link(q.ID)),
 						fmt.Sprint(q.ID)})
 				}
 				return items

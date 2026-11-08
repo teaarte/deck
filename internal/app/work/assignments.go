@@ -1,6 +1,7 @@
 package work
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -80,31 +81,93 @@ type assignmentView struct {
 }
 
 type assignmentSetIn struct {
-	Role    string   `enum:"agent|text|image|tts|stt|music|video|search|widget" desc:"The work: agent turns, direct calls of text, image, tts (speech), stt (speech to text), music or video, web search for agents without their own, or the agent that draws views of the cards of modules"`
+	Role    string   `enum:"agent|text|image|tts|stt|music|video|search|widget" opt:"" desc:"The work: agent turns, direct calls of text, image, tts (speech), stt (speech to text), music or video, web search for agents without their own, or the agent that draws views of the cards of modules"`
 	Project string   `type:"project" opt:"" desc:"Project the assignment is for; the whole workspace without it"`
 	Command string   `opt:"" desc:"Command of the project the assignment is for; the whole project without it"`
 	Models  []string `opt:"" desc:"Names of models or built-in providers in order: the first, then the fallbacks; empty removes the assignment"`
 	Model   string   `opt:"" desc:"One model to go first instead of models: the ones in force here before stay after it as fallbacks"`
+	// Assignments are several at once, one confirmation of the owner for all of them.
+	Assignments string `type:"json" opt:"" desc:"Several assignments at once instead of the fields above, as a JSON list of {role, project, command, models or model}: a module or the master waits for one yes of the owner for all of them"`
+}
+
+// batch is the assignments of a call: its own fields, or the list of assignments; each names its role, and no place
+// comes twice.
+func batch(in assignmentSetIn) ([]assignmentSetIn, error) {
+	if in.Assignments == "" {
+		if in.Role == "" {
+			return nil, registry.Invalid("give role, or assignments for several at once")
+		}
+		return []assignmentSetIn{in}, nil
+	}
+	if in.Role != "" || in.Project != "" || in.Command != "" || len(in.Models) > 0 || in.Model != "" {
+		return nil, registry.Invalid("assignments come instead of role, project, command, models and model, not beside them")
+	}
+	var list []assignmentSetIn
+	if err := json.Unmarshal([]byte(in.Assignments), &list); err != nil {
+		return nil, registry.Invalid("assignments is a JSON list of {role, project, command, models or model}: %v", err)
+	}
+	if len(list) == 0 {
+		return nil, registry.Invalid("assignments names none")
+	}
+	seen := map[[3]string]bool{}
+	for _, a := range list {
+		if a.Assignments != "" || !slices.Contains(roles, a.Role) {
+			return nil, registry.Invalid("each of assignments names a role of %s and no assignments of its own", strings.Join(roles, ", "))
+		}
+		place := [3]string{a.Role, a.Project, a.Command}
+		if seen[place] {
+			return nil, registry.Invalid("assignments names %s of %s twice", a.Role, cmp.Or(strings.Trim(a.Project+"."+a.Command, "."), "the workspace"))
+		}
+		seen[place] = true
+	}
+	return list, nil
 }
 
 func (s *Service) assignmentSet(ctx context.Context, act registry.Actor, in assignmentSetIn) (any, error) {
-	project, models, err := s.planned(ctx, act.Workspace, in)
+	list, err := batch(in)
 	if err != nil {
 		return nil, err
 	}
-	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if len(models) == 0 {
-			return q.DeleteAssignment(ctx, db.DeleteAssignmentParams{WorkspaceID: act.Workspace, ProjectID: project, Command: in.Command, Role: in.Role})
+	type plan struct {
+		project int64
+		models  []string
+	}
+	plans := make([]plan, len(list))
+	for i, a := range list {
+		if plans[i].project, plans[i].models, err = s.planned(ctx, act.Workspace, a); err != nil {
+			return nil, err
 		}
-		raw, _ := json.Marshal(models)
-		return q.SetAssignment(ctx, db.SetAssignmentParams{WorkspaceID: act.Workspace, ProjectID: store.ID(project), Command: in.Command, Role: in.Role, Models: string(raw)})
+	}
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		for i, a := range list {
+			if len(plans[i].models) == 0 {
+				if err := q.DeleteAssignment(ctx, db.DeleteAssignmentParams{WorkspaceID: act.Workspace, ProjectID: plans[i].project, Command: a.Command, Role: a.Role}); err != nil {
+					return err
+				}
+				continue
+			}
+			raw, _ := json.Marshal(plans[i].models)
+			if err := q.SetAssignment(ctx, db.SetAssignmentParams{WorkspaceID: act.Workspace, ProjectID: store.ID(plans[i].project), Command: a.Command, Role: a.Role, Models: string(raw)}); err != nil {
+				return err
+			}
+		}
+		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	out := map[string]any{"role": in.Role, "project": in.Project, "command": in.Command, "models": models}
-	if w := s.pastLimits(ctx, act.Workspace, project, in.Command, models); len(w) > 0 {
-		out["warnings"] = w
+	var done []map[string]any
+	var warnings []string
+	for i, a := range list {
+		done = append(done, map[string]any{"role": a.Role, "project": a.Project, "command": a.Command, "models": plans[i].models})
+		warnings = append(warnings, s.pastLimits(ctx, act.Workspace, plans[i].project, a.Command, plans[i].models)...)
+	}
+	out := done[0]
+	if in.Assignments != "" {
+		out = map[string]any{"assignments": done}
+	}
+	if len(warnings) > 0 {
+		out["warnings"] = warnings
 	}
 	return out, nil
 }
@@ -206,111 +269,163 @@ func (s *Service) assignmentCommands() []*registry.Command {
 		"Sets the models that do a kind of work in the workspace, a project or a command: the first, then the fallbacks a new turn or call takes when it is down. A module or the master proposes an assignment this way, of any project, and the owner applies it with one button.",
 		registry.Everyone, s.assignmentSet).As(registry.External)
 	c.Gate.Allowed = func(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
-		in, err := assignmentInput(input)
-		if err == nil {
-			_, _, err = s.planned(ctx, act.Workspace, in)
+		list, err := assignmentInput(input)
+		for _, in := range list {
+			if _, _, err = s.planned(ctx, act.Workspace, in); err != nil {
+				break
+			}
 		}
 		return false, err
 	}
 	c.Gate.Free = func(context.Context, registry.Actor, json.RawMessage) (bool, error) {
 		return false, registry.Refuse("a trial or a draft does not change the models of deck; propose the assignment once the module is enabled")
 	}
+	// The fingerprint is the models in force at the place before, a list of them for several assignments.
 	c.Gate.Fingerprint = func(ctx context.Context, workspace, _ int64, input json.RawMessage) string {
-		in, err := assignmentInput(input)
+		list, err := assignmentInput(input)
 		if err != nil {
 			return ""
 		}
-		project, cmd, err := s.place(ctx, workspace, in)
-		if err != nil {
-			return ""
+		befores := make([][]string, len(list))
+		for i, in := range list {
+			project, cmd, err := s.place(ctx, workspace, in)
+			if err != nil {
+				return ""
+			}
+			before, err := s.before(ctx, workspace, project, in.Command, in.Role, cmd)
+			if err != nil {
+				return ""
+			}
+			befores[i] = append([]string{}, before...)
 		}
-		before, err := s.before(ctx, workspace, project, in.Command, in.Role, cmd)
-		if err != nil {
-			return ""
+		var raw []byte
+		if several(input) {
+			raw, _ = json.Marshal(befores)
+		} else {
+			raw, _ = json.Marshal(befores[0])
 		}
-		raw, _ := json.Marshal(append([]string{}, before...))
 		return string(raw)
 	}
 	// An assignment holds when its very place has those models, not one it would inherit them from.
 	c.Gate.Holds = func(ctx context.Context, workspace int64, input json.RawMessage) bool {
-		in, err := assignmentInput(input)
+		list, err := assignmentInput(input)
 		if err != nil {
 			return false
 		}
-		project, cmd, err := s.place(ctx, workspace, in)
-		if err != nil {
-			return false
-		}
-		raw, err := s.St.Q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: workspace, ProjectID: project, Command: in.Command, Role: in.Role})
-		var here []string
-		if err != nil || json.Unmarshal([]byte(raw), &here) != nil {
-			return false
-		}
-		after := slices.Compact(slices.Clone(in.Models))
-		if in.Model != "" {
-			before, err := s.before(ctx, workspace, project, in.Command, in.Role, cmd)
-			if err != nil {
+		for _, in := range list {
+			if !s.holds(ctx, workspace, in) {
 				return false
 			}
-			after = picked(in.Model, before)
 		}
-		return len(after) > 0 && slices.Equal(after, here)
+		return true
 	}
-	// The undo sets back the models of its very place, or removes the assignment the call made there.
+	// The undo sets back the models of each very place, or removes the assignment the call made there.
 	c.Gate.Undo = func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool) {
-		in, err := assignmentInput(input)
+		list, err := assignmentInput(input)
 		if err != nil {
 			return "", nil, false
 		}
-		project, _, err := s.place(ctx, workspace, in)
-		if err != nil {
-			return "", nil, false
+		backs := make([]map[string]any, len(list))
+		for i, in := range list {
+			project, _, err := s.place(ctx, workspace, in)
+			if err != nil {
+				return "", nil, false
+			}
+			prev := []string{}
+			raw, err := s.St.Q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: workspace, ProjectID: project, Command: in.Command, Role: in.Role})
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return "", nil, false
+			}
+			if err == nil {
+				_ = json.Unmarshal([]byte(raw), &prev)
+			}
+			back := map[string]any{"role": in.Role, "models": prev}
+			if in.Project != "" {
+				back["project"] = in.Project
+			}
+			if in.Command != "" {
+				back["command"] = in.Command
+			}
+			backs[i] = back
 		}
-		prev := []string{}
-		raw, err := s.St.Q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: workspace, ProjectID: project, Command: in.Command, Role: in.Role})
-		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			return "", nil, false
+		var b []byte
+		if several(input) {
+			all, _ := json.Marshal(backs)
+			b, _ = json.Marshal(map[string]any{"assignments": string(all)})
+		} else {
+			b, _ = json.Marshal(backs[0])
 		}
-		if err == nil {
-			_ = json.Unmarshal([]byte(raw), &prev)
-		}
-		back := map[string]any{"role": in.Role, "models": prev}
-		if in.Project != "" {
-			back["project"] = in.Project
-		}
-		if in.Command != "" {
-			back["command"] = in.Command
-		}
-		b, _ := json.Marshal(back)
 		return c.Name, b, true
 	}
 	c.Gate.Target = func(print string, input json.RawMessage) string {
-		in, err := assignmentInput(input)
+		list, err := assignmentInput(input)
 		if err != nil {
 			return ""
 		}
-		var before []string
-		_ = json.Unmarshal([]byte(print), &before)
-		after := slices.Compact(slices.Clone(in.Models))
-		if in.Model != "" {
-			after = picked(in.Model, before)
+		befores := make([][]string, len(list))
+		if several(input) {
+			_ = json.Unmarshal([]byte(print), &befores)
+		} else {
+			_ = json.Unmarshal([]byte(print), &befores[0])
 		}
-		where := "the workspace"
-		switch {
-		case in.Command != "":
-			where = in.Project + "." + in.Command
-		case in.Project != "":
-			where = in.Project
+		lines := make([]string, len(list))
+		for i, in := range list {
+			var before []string
+			if i < len(befores) {
+				before = befores[i]
+			}
+			after := slices.Compact(slices.Clone(in.Models))
+			if in.Model != "" {
+				after = picked(in.Model, before)
+			}
+			where := "the workspace"
+			switch {
+			case in.Command != "":
+				where = in.Project + "." + in.Command
+			case in.Project != "":
+				where = in.Project
+			}
+			lines[i] = fmt.Sprintf("%s of %s: %s → %s", in.Role, where, listed(before, "deck's default"), listed(after, "none, the default above it"))
 		}
-		return fmt.Sprintf("%s of %s: %s → %s", in.Role, where, listed(before, "deck's default"), listed(after, "none, the default above it"))
+		return strings.Join(lines, "\n")
 	}
 	return []*registry.Command{c}
 }
 
-func assignmentInput(input json.RawMessage) (assignmentSetIn, error) {
+func assignmentInput(input json.RawMessage) ([]assignmentSetIn, error) {
 	var in assignmentSetIn
-	err := json.Unmarshal(input, &in)
-	return in, err
+	if err := json.Unmarshal(input, &in); err != nil {
+		return nil, err
+	}
+	return batch(in)
+}
+
+// several says a call makes several assignments at once.
+func several(input json.RawMessage) bool {
+	var in struct{ Assignments string }
+	return json.Unmarshal(input, &in) == nil && in.Assignments != ""
+}
+
+// holds says the very place of an assignment has the models it would set.
+func (s *Service) holds(ctx context.Context, workspace int64, in assignmentSetIn) bool {
+	project, cmd, err := s.place(ctx, workspace, in)
+	if err != nil {
+		return false
+	}
+	raw, err := s.St.Q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: workspace, ProjectID: project, Command: in.Command, Role: in.Role})
+	var here []string
+	if err != nil || json.Unmarshal([]byte(raw), &here) != nil {
+		return false
+	}
+	after := slices.Compact(slices.Clone(in.Models))
+	if in.Model != "" {
+		before, err := s.before(ctx, workspace, project, in.Command, in.Role, cmd)
+		if err != nil {
+			return false
+		}
+		after = picked(in.Model, before)
+	}
+	return len(after) > 0 && slices.Equal(after, here)
 }
 
 func listed(names []string, none string) string {

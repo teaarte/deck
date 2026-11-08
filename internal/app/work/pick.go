@@ -49,6 +49,24 @@ func (s *Service) Next(ctx context.Context, projectID int64, cmd *manifest.Comma
 	return ""
 }
 
+// Ahead is the provider of a command's assignment that fits, is up and stands before the one a process runs on, any
+// when that one is assigned no longer; empty for none or a command the owner assigned nothing.
+func (s *Service) Ahead(ctx context.Context, projectID int64, cmd *manifest.Command, current string) string {
+	ws, fits, assigned, err := s.fitting(ctx, projectID, cmd)
+	if err != nil || !assigned {
+		return ""
+	}
+	if i := slices.IndexFunc(fits, func(pv provider.Provider) bool { return pv.Name() == current }); i >= 0 {
+		fits = fits[:i]
+	}
+	for _, pv := range fits {
+		if s.Up(ctx, ws, pv.Name()) {
+			return pv.Name()
+		}
+	}
+	return ""
+}
+
 // Able are the providers of a workspace that have what a command requires, whether it is assigned to them or not.
 func (s *Service) Able(ctx context.Context, workspace int64, cmd *manifest.Command) []string {
 	all, _ := s.All(ctx, workspace)

@@ -9,9 +9,9 @@ export interface Route {
   params?: Record<string, string>;
 }
 
-// LOCAL are the parameters only the client reads: the tab picked, the tab picked inside it, the dialog open, a new
-// topic of the chat asked for, the size of a card a widget fills and the tiles opened to be placed.
-const LOCAL = ['tab', 'sub', 'dialog', 'chat', 'widget', 'edit'];
+// LOCAL are the parameters only the client reads: tab, inner tab, dialog, a new topic of the chat, the size of a card
+// a widget fills, the tiles opened to be placed and the item a focus list shows first.
+const LOCAL = ['tab', 'sub', 'dialog', 'chat', 'widget', 'edit', 'focus'];
 
 export function parse(hash: string): Route {
   const [path, query = ''] = hash.replace(/^#\/?/, '').split('?');

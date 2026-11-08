@@ -365,6 +365,7 @@
   "Command of the project the assignment is for; the whole project without it": "Команда модуля, для которой назначение; без неё — весь модуль",
   "Names of models or built-in providers in order: the first, then the fallbacks; empty removes the assignment": "Модели по порядку: первая, затем запасные; пусто — убрать назначение",
   "One model to go first instead of models: the ones in force here before stay after it as fallbacks": "Одна модель первой вместо списка: прежние остаются после неё запасными",
+  "Several assignments at once instead of the fields above, as a JSON list of {role, project, command, models or model}: a module or the master waits for one yes of the owner for all of them": "Несколько назначений сразу вместо полей выше — JSON-список из {role, project, command, models или model}: модуль или мастер ждёт одного «да» владельца на все",
   "The work: agent turns, direct calls of text, image, tts (speech), stt (speech to text), music or video, web search for agents without their own, or the agent that draws views of the cards of modules": "Работа: ходы агента, прямые вызовы текста, картинок, озвучки (tts), распознавания речи (stt), музыки или видео, веб-поиск для агентов без своего, или агент, который рисует виды карточек модулей",
   "Project the assignment is for; the whole workspace without it": "Модуль, для которого назначение; без него — весь deck",
   "Command input: a JSON object": "Вход команды: объект JSON",

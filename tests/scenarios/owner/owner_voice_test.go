@@ -219,10 +219,11 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	}
 	id := e.Run(p, "work")
 	got = d.wait(e, 2)
-	if got[1]["title"] != "Waiting for you" || got[1]["body"] != "Which site?" || got[1]["url"] != "/#/deck/cockpit" || got[1]["badge"] != "1" {
-		t.Fatalf("a question is pushed by its first line: %+v", got[1])
+	asked := e.WaitAsk().ID
+	if got[1]["title"] != "Waiting for you" || got[1]["body"] != "Which site?" || got[1]["url"] != "/#/deck/cockpit?focus="+harness.Itoa(asked) || got[1]["badge"] != "1" {
+		t.Fatalf("a question is pushed by its first line, opening that very ask: %+v", got[1])
 	}
-	e.Answer(e.WaitAsk().ID, "the second")
+	e.Answer(asked, "the second")
 	e.WaitState(id, "error")
 	topic := e.Say(0, "buy milk")
 	e.MasterSaid(topic, 1)

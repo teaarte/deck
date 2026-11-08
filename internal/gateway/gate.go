@@ -23,6 +23,8 @@ import (
 type Waiting struct {
 	Ask  int64  `json:"waiting"`
 	Text string `json:"text"`
+	// Link is the address where the owner answers it.
+	Link string `json:"link"`
 }
 
 // Caller is the actor of a frozen call, stored so deck can make the call later on its behalf.
@@ -221,7 +223,7 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 		return nil, err
 	}
 	return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s is %s, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
-		"Go on with other work: once the owner allows it, deck makes exactly this call and tells you the result.", c.Name, c.Class, a.ID)}, nil
+		"Go on with other work: once the owner allows it, deck makes exactly this call and tells you the result.", c.Name, c.Class, a.ID), Link: ask.Link(a.ID)}, nil
 }
 
 // Outcome is what a frozen call gave when deck made it: the result, or the error text.

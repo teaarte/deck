@@ -18,15 +18,29 @@ import (
 // handOn closes a process its model refused and goes on with its work, told what it did, on the next model of the
 // assignment; false when there is none. A trial and a reply of the chat, which picks its own model, stay.
 func (r *Runner) handOn(ctx context.Context, t turn, pv provider.Provider, f *fault.F) bool {
-	if t.cmd.Name == t.m.EventCommand(manifest.OnMessage) {
-		return false
-	}
-	p, err := r.st.Q.GetProcess(ctx, t.process)
-	if err != nil || p.Trial == 1 {
+	if !r.handsOn(ctx, t) {
 		return false
 	}
 	next := r.deps.Next(ctx, t.project, t.cmd, pv.Name())
 	if next == "" {
+		return false
+	}
+	return r.handOnTo(ctx, t, pv.Name(), next, f)
+}
+
+// handsOn says the work of a process may go on in another: not a trial, nor a reply of the chat.
+func (r *Runner) handsOn(ctx context.Context, t turn) bool {
+	if t.cmd.Name == t.m.EventCommand(manifest.OnMessage) {
+		return false
+	}
+	p, err := r.st.Q.GetProcess(ctx, t.process)
+	return err == nil && p.Trial == 0
+}
+
+// handOnTo closes a process that ran on was and goes on with its work on next.
+func (r *Runner) handOnTo(ctx context.Context, t turn, was, next string, f *fault.F) bool {
+	p, err := r.st.Q.GetProcess(ctx, t.process)
+	if err != nil {
 		return false
 	}
 	input := map[string]any{}
@@ -35,7 +49,7 @@ func (r *Runner) handOn(ctx context.Context, t turn, pv provider.Provider, f *fa
 	if err != nil {
 		return false
 	}
-	note := r.HandOnNote(ctx, p, pv.Name(), f.Text)
+	note := r.HandOnNote(ctx, p, was, f.Text)
 	if p.FinishedAt.Valid {
 		return false
 	}
@@ -53,9 +67,34 @@ func (r *Runner) handOn(ctx context.Context, t turn, pv provider.Provider, f *fa
 		return true
 	}
 	r.passOn(ctx, p.ID, id, heard)
-	r.warnOf(ctx, p.ID, fmt.Sprintf("%s did not finish %s, %s goes on with it: %s", pv.Name(), cmp.Or(t.cmd.Title, t.cmd.Name), next, f.Text),
-		health.Provider(pv.Name()))
+	r.warnOf(ctx, p.ID, fmt.Sprintf("%s did not finish %s, %s goes on with it: %s", was, cmp.Or(t.cmd.Title, t.cmd.Name), next, f.Text),
+		health.Provider(was))
 	return true
+}
+
+// reassigned hands a process that waits for its provider on to a model its assignment puts before it now, one that
+// takes turns: the owner assigned another first; behind its own it waits in its session. False when it stays.
+func (r *Runner) reassigned(ctx context.Context, workspace int64, p db.Process) bool {
+	t, err := r.turnOf(ctx, p)
+	if err != nil || !r.handsOn(ctx, t) {
+		return false
+	}
+	next := r.deps.Ahead(ctx, p.ProjectID, t.cmd, p.Provider)
+	if next == "" || !r.deps.Goes(ctx, workspace, next) {
+		return false
+	}
+	if ok, err := r.claim(ctx, p.ID, p.State); err != nil || !ok {
+		return false
+	}
+	f := fault.New(fault.ModelUnavailable, fmt.Sprintf("%s takes no turns, and the assignment gives the work to %s now", p.Provider, next))
+	if r.handOnTo(ctx, t, p.Provider, next, f) {
+		return true
+	}
+	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: p.State, ID: p.ID, FromState: StateRunning})
+		return err
+	})
+	return false
 }
 
 // HandOnNote tells the process that goes on with the work of p what p did; was is the model p ran on and why

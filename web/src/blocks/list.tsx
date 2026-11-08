@@ -25,6 +25,7 @@ import { Fit } from './around';
 import { blockImpl } from './blockImpl';
 import { Virtual } from '../ui/Virtual';
 import { locale } from '../lib/i18n';
+import { useRoute } from '../app/router';
 
 export type Item = NonNullable<Data['items']>[number];
 
@@ -122,15 +123,17 @@ function Groups({ items, cards, line }: { items: Item[]; cards?: boolean; line: 
 
 const key = (it: Item) => show(it.id);
 
-// Focus shows the items one at a time, the next two edges behind it: Later puts the one shown last on this device,
-// and one whose press waits to go steps aside until it goes or is taken back.
+// Focus shows the items one at a time, the next two edges behind it: the one the address names first, Later puts the
+// one shown last on this device, and one whose press waits to go steps aside until it goes or is taken back.
 function Focus({ items, empty }: { items: Item[]; empty?: string }) {
   const { t } = useTranslation();
+  const first = useRoute().params?.focus;
   const [later, setLater] = useState<string[]>([]);
   const [held, setHeld] = useState<string[]>([]);
   useEffect(() => setHeld((h) => h.filter((k) => items.some((it) => key(it) === k))), [items]);
   const live = items.filter((it) => !held.includes(key(it)));
-  const order = [...live.filter((it) => !later.includes(key(it))), ...later.flatMap((k) => live.filter((it) => key(it) === k))];
+  const named = [...live.filter((it) => key(it) === first), ...live.filter((it) => key(it) !== first)];
+  const order = [...named.filter((it) => !later.includes(key(it))), ...later.flatMap((k) => live.filter((it) => key(it) === k))];
   const it = order[0];
   if (!it) return <Done text={empty} />;
   const hold = (k: string) => (on: boolean) => setHeld((h) => (on ? [...h, k] : h.filter((x) => x !== k)));

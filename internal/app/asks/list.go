@@ -49,14 +49,11 @@ type askView struct {
 	ExpiresAt string          `json:"expires_at"`
 	// Expired is a confirmation that ran out; it stays until the owner clears it.
 	Expired bool `json:"expired"`
-	// Link is the address of the screen where the owner answers it.
+	// Link is the address where the owner answers it: Today with it first.
 	Link string `json:"link"`
 	// Actions are the buttons that decide it, the same on Today and in the chat.
 	Actions []map[string]any `json:"actions"`
 }
-
-// answerLink is the screen where the owner answers what waits.
-const answerLink = "#/deck/cockpit"
 
 // asksList is what waits for the owner, oldest first: open asks and confirmations that expired.
 func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListIn) ([]askView, error) {
@@ -99,7 +96,12 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 		case q.Kind == ask.KindLogin:
 			r.What, r.Text = tr(r.What), tr(r.Text)
 		case registry.IsBuiltin(r.Command):
-			r.Where = tr(r.Where)
+			// A call of several, as assignments, says each on its line.
+			lines := strings.Split(r.Where, "\n")
+			for i := range lines {
+				lines[i] = tr(lines[i])
+			}
+			r.Where = strings.Join(lines, "\n")
 		}
 		if slices.Contains([]string{ask.KindCall, ask.KindConfirm, ask.KindGrant}, q.Kind) && r.What != "" {
 			r.Allow = tr(fmt.Sprintf("Allow: %s", r.What))
@@ -122,7 +124,7 @@ func (s *Service) Waiting(ctx context.Context, act registry.Actor) (map[string]i
 
 func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, lang string) askView {
 	r := askView{ID: q.ID, Kind: q.Kind, Project: names[q.ProjectID.Int64], Process: q.ProcessID.Int64, Text: q.Text, What: firstLine(q.Text),
-		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == ask.StateExpired, Link: answerLink}
+		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == ask.StateExpired, Link: ask.Link(q.ID)}
 	if q.ProcessID.Valid {
 		r.Who, r.By = s.processWho(ctx, q.ProcessID.Int64), s.processName(ctx, q.ProcessID.Int64)
 		if s.Said != nil {

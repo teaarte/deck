@@ -235,6 +235,7 @@ func TestARequestForRightsListsWhatItWidens(t *testing.T) {
 		"new": []string{`"writes": ["report.md"]`}, "reason": "keep the weekly report"})
 	_, out := e.Call("deck.asks_list", nil)
 	var rows []struct {
+		ID                                 int64
 		Kind, Who, What, Where, Text, Link string
 		Payload                            map[string]any
 	}
@@ -243,7 +244,7 @@ func TestARequestForRightsListsWhatItWidens(t *testing.T) {
 	}
 	r := rows[0]
 	if r.Kind != "grant" || r.Who != fmt.Sprintf("token #%d", tokID) || r.What != "Widen the rights of notes" ||
-		r.Where != "writes document report.md" || r.Text != "keep the weekly report" || r.Link != "#/deck/cockpit" {
+		r.Where != "writes document report.md" || r.Text != "keep the weekly report" || r.Link != "#/deck/cockpit?focus="+harness.Itoa(r.ID) {
 		t.Fatalf("who, what, where, why and the link: %+v", r)
 	}
 	if _, ok := r.Payload["widens"]; !ok || strings.Contains(string(out), "Do the work.") || strings.Count(string(out), "keep the weekly report") != 2 {

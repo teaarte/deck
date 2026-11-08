@@ -18,7 +18,9 @@ the fields you need (`fields`; of `records_list` they are the fields of the data
 `secret_set`, `oauth_start`, `browser_login`, `project_enable`; say which one and why when the module needs it.
 `model_set` and `assignment_set` a module or the master calls itself as a proposal: the call waits for the owner's
 button and applies exactly what it sent; deck closes it by itself as done when it is in force already, and as out of
-date when the assignment changed meanwhile (the caller hears so and asks again if it still needs it). Send the owner
+date when the assignment changed meanwhile (the caller hears so and asks again if it still needs it). Several
+assignments go in one call, `assignments` — a JSON list of `{role, project, command, models or model}` — so the owner
+answers them with one button; give the owner the `link` of the answer, which opens that very request. Send the owner
 to the form of a command only they call: `commands_list` marks it `owner_only` with `form`, the address of its form,
 and `form_params`, the parameters after `?` that fill it; give that link with the values (the secret `mail-key`, the
 API key of …), never a `curl`. The fields of a form are the input of its command, which `command_describe` gives.

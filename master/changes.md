@@ -114,3 +114,9 @@ and bring the modules in line.
   missing from the image says so in health — the owner updates the image; elsewhere the `install` of the manifest stays,
   a plain `brew install <formula>` read as `apt-get install <formula>` on Linux. The scripts of a module whose folders
   are on a node are checked by the node when they run, not by deck's machine.
+- 2026-11-08: `assignment_set` takes `assignments`, a JSON list of `{role, project, command, models or model}`, in
+  place of its own fields: several assignments wait for one button of the owner, each checked as its own call. A call
+  that waits for the owner answers `link`, and `asks_list` gives each ask its own `link` (Today with that ask first),
+  not the screen of all. A process that waits for its model goes on, told what it did, on a model its assignment now
+  puts before that one, once it takes turns; behind its own model it waits in its session. `health_list` gives a
+  model `fallbacks` beside `places`: the work it stands in while another model does it, after it or while it is down.

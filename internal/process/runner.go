@@ -165,6 +165,9 @@ type Deps struct {
 	For func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
 	// Next is the provider of a command's assignment after the one that refused its turn; empty for none.
 	Next func(ctx context.Context, projectID int64, cmd *manifest.Command, after string) string
+	// Ahead is the provider of a command's assignment that is up and stands before the one a process runs on, or any
+	// when that one is assigned no longer; empty for none.
+	Ahead func(ctx context.Context, projectID int64, cmd *manifest.Command, current string) string
 	// Named is the provider a process started on; its session belongs to it.
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
 	// Goes reports whether a turn of the workspace may run on the provider now; the runner never picks.

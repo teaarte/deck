@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -351,4 +352,96 @@ func TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight(t *testing.T) {
 	if c := e.ScriptCall("watcher", "deck.processes_list", map[string]any{"project": "master"}); c.Status != 403 {
 		t.Fatalf("every project is not the master, whose runs hold the owner's topics: %+v", c)
 	}
+}
+
+// TestAModuleProposesSeveralAssignmentsWithOneButton: deck.assignment_set with assignments waits for one yes of the
+// owner, who sees each place before and after; each is checked as its own call, and the link of the ask is the ask.
+func TestAModuleProposesSeveralAssignmentsWithOneButton(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "gemma", "kind": "text", "call_usd": 0.02}, nil)
+	for _, p := range []string{"films", "books", "songs"} {
+		e.Project(p, harness.PlainManifest)
+	}
+	e.Project("picker", harness.ScriptManifest("main", "", ""))
+	e.SaveScript("picker", "scripts/main.py", harness.DeckCallScript)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/gemma"}}, nil)
+
+	several := func(list ...map[string]any) map[string]any {
+		raw, _ := json.Marshal(list)
+		return map[string]any{"assignments": string(raw)}
+	}
+	bad := several(map[string]any{"role": "text", "project": "books", "models": []string{"openrouter/qwen"}},
+		map[string]any{"role": "text", "project": "songs", "models": []string{"nope"}})
+	if c := e.ScriptCall("picker", "deck.assignment_set", bad); c.Status != 404 {
+		t.Fatalf("one assignment deck cannot apply refuses them all at once: %+v", c)
+	}
+	if c := e.ScriptCall("picker", "deck.assignment_set", several(map[string]any{"role": "text", "project": "books", "models": []string{"openrouter/qwen"}},
+		map[string]any{"role": "text", "project": "books", "model": "openrouter/gemma"})); c.Status != 422 {
+		t.Fatalf("a place named twice is refused: %+v", c)
+	}
+
+	c := e.ScriptCall("picker", "deck.assignment_set", several(
+		map[string]any{"role": "text", "project": "films", "model": "openrouter/qwen"},
+		map[string]any{"role": "text", "project": "books", "models": []string{"openrouter/qwen"}},
+		map[string]any{"role": "text", "project": "songs", "models": []string{"openrouter/gemma", "openrouter/qwen"}}))
+	var waiting struct {
+		Waiting int64
+		Link    string
+	}
+	if c.Status != 202 || json.Unmarshal([]byte(c.Body), &waiting) != nil || waiting.Waiting == 0 {
+		t.Fatalf("the assignments wait for the owner: %+v", c)
+	}
+	var as []struct {
+		ID    int64
+		Where string
+		Link  string
+	}
+	e.Must("deck.asks_list", nil, &as)
+	if len(as) != 1 || as[0].ID != waiting.Waiting {
+		t.Fatalf("three assignments wait for one ask: %+v", as)
+	}
+	for _, line := range []string{"text of films: openrouter/gemma → openrouter/qwen, openrouter/gemma",
+		"text of books: deck's default → openrouter/qwen", "text of songs: deck's default → openrouter/gemma, openrouter/qwen"} {
+		if !strings.Contains(as[0].Where, line) {
+			t.Fatalf("the owner sees each place before and after: %s", as[0].Where)
+		}
+	}
+	_, raw := e.In("ru").Call("deck.asks_list", nil)
+	var ru []struct{ Where string }
+	if err := json.Unmarshal(raw, &ru); err != nil || len(ru) != 1 {
+		t.Fatalf("one ask in Russian too: %s", raw)
+	}
+	lines := strings.Split(ru[0].Where, "\n")
+	for _, l := range lines {
+		if !strings.HasPrefix(l, "текст для ") || strings.Contains(l, "deck's default") {
+			t.Fatalf("every assignment of the ask reads in Russian: %q", ru[0].Where)
+		}
+	}
+	if len(lines) != 3 || !strings.Contains(ru[0].Where, "по умолчанию deck → openrouter/qwen") {
+		t.Fatalf("each assignment on its line: %q", ru[0].Where)
+	}
+	if want := "#/deck/cockpit?focus=" + strconv.FormatInt(as[0].ID, 10); as[0].Link != want || waiting.Link != want {
+		t.Fatalf("the link of the ask opens the ask itself: %q %q", as[0].Link, waiting.Link)
+	}
+	if got := e.Assigned("books", "text"); got != nil {
+		t.Fatalf("nothing changes before the owner's yes: %v", got)
+	}
+	e.Answer(as[0].ID, "allow")
+	for p, want := range map[string][]string{"films": {"openrouter/qwen", "openrouter/gemma"}, "books": {"openrouter/qwen"}, "songs": {"openrouter/gemma", "openrouter/qwen"}} {
+		if got := e.Assigned(p, "text"); !slices.Equal(got, want) {
+			t.Fatalf("one yes applies every assignment: %s %v", p, got)
+		}
+	}
+
+	var out struct{ Assignments []struct{ Project string } }
+	e.Must("deck.assignment_set", several(map[string]any{"role": "text", "project": "books", "models": []string{}},
+		map[string]any{"role": "text", "project": "songs", "models": []string{"openrouter/qwen"}}), &out)
+	if len(out.Assignments) != 2 || e.Assigned("books", "text") != nil || !slices.Equal(e.Assigned("songs", "text"), []string{"openrouter/qwen"}) {
+		t.Fatalf("the owner's call of several applies at once: %+v", out)
+	}
+	e.Refused("deck.assignment_set", map[string]any{"role": "text", "assignments": "[]"}, 422, "instead of")
+	e.Refused("deck.assignment_set", map[string]any{}, 422, "give role")
 }

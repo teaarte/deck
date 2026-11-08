@@ -616,8 +616,7 @@ func TestASecretDeleteStaysInTheFolderOfSecrets(t *testing.T) {
 }
 
 // TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel: a failing check of a schedule shows the model its
-// command runs on with the models it could, and the button that runs it now; a model says what work it does, and the
-// work it stands in as a fallback.
+// command runs on with the models it could, and the button that runs it now; a model says the work it does or backs.
 func TestHealthShowsTheModelOfAFailingScheduleAndTheWorkOfAModel(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))

@@ -37,9 +37,8 @@ type healthRow struct {
 	Kind string `json:"kind" enum:"provider|agent|model|command|trigger|tool|mcp|secret|screen|project|retention|site|scripts|sandbox|tailscale|snapshot|disk|outbox|push|search|master|browser|update"`
 }
 
-// shownRow is a row of health with the work it stands for: the model of the command of a row of a command or of its
-// schedule, with Trigger its cron trigger; Places the work of the projects the model of a row does, Fallbacks the
-// work it stands in while another model does it, after it or while it is down.
+// shownRow is a row of health with the work it stands for: the model of a command or its schedule, with Trigger its
+// cron trigger; Places the work a model does, Fallbacks the work it stands in while another does it.
 type healthView struct {
 	healthRow
 	Command string `json:"command,omitempty"`

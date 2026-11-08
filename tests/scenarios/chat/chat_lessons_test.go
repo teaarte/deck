@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -122,4 +123,37 @@ func TestAnAgentWritesLessonsInItsOwnProjectOnly(t *testing.T) {
 		t.Fatalf("the master writes a lesson in any project: %s", said("master"))
 	}
 	e.Must("deck.document_get", map[string]any{"project": "beta", "name": "memory/by-master.md"}, nil)
+}
+
+var processOf = regexp.MustCompile(`as deck process (\d+)`)
+
+// TestReviewKeepsTheLineOfChangesItReadAsALesson: review saves the line of changes.md it read last as its lesson in
+// the owner's memory; a call outside the calls of its command is still refused.
+func TestReviewKeepsTheLineOfChangesItReadAsALesson(t *testing.T) {
+	t.Parallel()
+	var saidMap sync.Map
+	said := func(k string) string { v, _ := saidMap.Load(k); return fmt.Sprint(v) }
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		pid := processOf.FindStringSubmatch(c.Req.Prompt)[1]
+		out, bad := c.Tool(ctx, "document_save", map[string]any{"name": "memory/review-changes-read.md", "kind": "memory",
+			"text": lesson("review-changes-read", "process:"+pid, "review", "", "Read changes.md up to the line of 2026-11-08")})
+		saidMap.Store("save", fmt.Sprint(bad, " ", out))
+		out, bad = c.Tool(ctx, "document_delete", map[string]any{"name": "memory/review-changes-read.md"})
+		saidMap.Store("delete", fmt.Sprint(bad, " ", out))
+		return provider.Result{Text: "nothing to tell"}
+	}))
+	e.MasterAwake()
+	pid := e.Start("master", "review", nil)
+	e.WaitState(pid, "done")
+	if !strings.HasPrefix(said("save"), "false ") {
+		t.Fatalf("review saves its lesson: %s", said("save"))
+	}
+	if !strings.HasPrefix(said("delete"), "true ") {
+		t.Fatalf("a call outside the calls of review is refused: %s", said("delete"))
+	}
+	var got struct{ Project, Text string }
+	e.Must("deck.document_get", map[string]any{"name": "memory/review-changes-read.md"}, &got)
+	if got.Project != "master" || !strings.Contains(got.Text, fmt.Sprintf("source: process:%d", pid)) {
+		t.Fatalf("the lesson is in the owner's memory with its source: %+v", got)
+	}
 }

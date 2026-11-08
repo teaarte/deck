@@ -152,6 +152,9 @@
       "executor": {
         "type": "agent",
         "prompt_file": "prompts/review.md",
+        "skills": [
+          "memory"
+        ],
         "calls": [
           "deck.projects_list",
           "deck.processes_list",
@@ -159,6 +162,7 @@
           "deck.process_log_get",
           "deck.documents_list",
           "deck.document_get",
+          "deck.document_save",
           "deck.manifest_get",
           "deck.asks_list",
           "deck.records_list",

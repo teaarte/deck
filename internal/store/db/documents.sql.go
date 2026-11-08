@@ -309,6 +309,47 @@ func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([
 	return items, nil
 }
 
+const listMemoryTexts = `-- name: ListMemoryTexts :many
+SELECT d.name, r.text, r.created_at FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = ?1 AND d.project_id = ?2 AND d.record_id IS NULL
+  AND d.kind = 'memory' AND d.deleted_at IS NULL
+ORDER BY r.created_at DESC, r.id DESC
+`
+
+type ListMemoryTextsParams struct {
+	WorkspaceID int64
+	ProjectID   sql.NullInt64
+}
+
+type ListMemoryTextsRow struct {
+	Name      string
+	Text      string
+	CreatedAt string
+}
+
+func (q *Queries) ListMemoryTexts(ctx context.Context, arg ListMemoryTextsParams) ([]ListMemoryTextsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listMemoryTexts, arg.WorkspaceID, arg.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMemoryTextsRow
+	for rows.Next() {
+		var i ListMemoryTextsRow
+		if err := rows.Scan(&i.Name, &i.Text, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRevisions = `-- name: ListRevisions :many
 SELECT id, document_id, n, author, reason, created_at FROM document_revision WHERE document_id = ? ORDER BY n DESC
 `

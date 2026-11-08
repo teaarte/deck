@@ -68,3 +68,9 @@ WHERE d.workspace_id = ? AND (d.project_id IS NULL OR d.project_id = sqlc.arg(pr
 ORDER BY coalesce(d.project_id, 0), d.name;
 
 
+
+-- name: ListMemoryTexts :many
+SELECT d.name, r.text, r.created_at FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+WHERE d.workspace_id = sqlc.arg(workspace_id) AND d.project_id = sqlc.arg(project_id) AND d.record_id IS NULL
+  AND d.kind = 'memory' AND d.deleted_at IS NULL
+ORDER BY r.created_at DESC, r.id DESC;

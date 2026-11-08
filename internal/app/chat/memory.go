@@ -92,3 +92,48 @@ func (s *Service) memoryIndex(ctx context.Context, p db.Project, label string) (
 	}
 	return block, row.N, nil
 }
+
+// The lessons of a command a turn of it gets at most.
+const (
+	lessonsMax   = 12
+	lessonsBytes = 4000
+)
+
+// Lessons are the lessons of the command of a process in the memory of its project that have not expired, newest
+// first, as data with what was left out after it; empty when there are none.
+func (s *Service) Lessons(ctx context.Context, p db.Process) (string, error) {
+	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
+	if err != nil {
+		return "", err
+	}
+	rows, err := s.St.Q.ListMemoryTexts(ctx, db.ListMemoryTextsParams{WorkspaceID: proj.WorkspaceID, ProjectID: store.ID(proj.ID)})
+	if err != nil {
+		return "", err
+	}
+	var kept []string
+	size, left := 0, 0
+	for _, r := range rows {
+		f, err := docs.ParseFact(r.Text)
+		if r.Name == docs.MemoryIndex || err != nil || f.Type != docs.Lesson || f.Command != p.Command || f.Expired(s.Now()) {
+			continue
+		}
+		text := strings.TrimSpace(r.Text)
+		switch {
+		case left > 0 || len(kept) == lessonsMax || len(kept) > 0 && size+len(text) > lessonsBytes:
+			left++
+			continue
+		case len(text) > lessonsBytes:
+			text = untrusted.Cut(text, lessonsBytes)
+		}
+		kept = append(kept, text)
+		size += len(text) + 2
+	}
+	if len(kept) == 0 {
+		return "", nil
+	}
+	block := untrusted.Block(fmt.Sprintf("Lessons of command %s of project %s, newest first", p.Command, proj.Name), strings.Join(kept, "\n\n"))
+	if left > 0 {
+		block += fmt.Sprintf("\ndeck left out %d older lessons of this command; documents_list and document_get read them.", left)
+	}
+	return block, nil
+}

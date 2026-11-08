@@ -37,8 +37,9 @@ type commandText struct {
 	Collections                    []collection
 	Submit, TakesNull, NullResult  bool
 	Ask                            string
-	AskDeck, Writable              bool
+	AskDeck, Writable, Learns      bool
 	Writes, Data, Folder, Memory   string
+	Lessons                        string
 	Thread, StartNote              string
 }
 
@@ -71,8 +72,12 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	}
 	v := commandPrompt(t.process, proj.Name, instructions, body, t.m, t.cmd, t.input, tools, t.pv.QuestionTool())
 	v.Writable = proj.Builtin == 0 && slices.Contains(tools, "document_save")
+	v.Learns = slices.Contains(tools, "document_save")
 	v.Writes, v.Data, v.Folder, v.StartNote = strings.Join(t.m.Writes, ", "), data, t.folder, proc.StartNote
 	if v.Memory, err = r.deps.Memory(ctx, proc); err != nil {
+		return "", err
+	}
+	if v.Lessons, err = r.deps.Lessons(ctx, proc); err != nil {
 		return "", err
 	}
 	v.Thread = r.thread(ctx, proc)

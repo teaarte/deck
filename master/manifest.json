@@ -216,6 +216,9 @@
       "executor": {
         "type": "agent",
         "prompt_file": "prompts/on_error.md",
+        "skills": [
+          "memory"
+        ],
         "calls": [
           "deck.projects_list",
           "deck.processes_list",
@@ -223,6 +226,7 @@
           "deck.process_log_get",
           "deck.documents_list",
           "deck.document_get",
+          "deck.document_save",
           "deck.manifest_get",
           "deck.models_list",
           "deck.model_set",
@@ -270,7 +274,8 @@
         "type": "agent",
         "prompt_file": "prompts/on_incident.md",
         "skills": [
-          "incident-recovery"
+          "incident-recovery",
+          "memory"
         ]
       }
     }

@@ -27,6 +27,11 @@ The data folder of this project keeps indexes, caches and state between runs: {{
 You work in the project folder {{.}}: the owner's own folder, not a scratch copy. No other agent of deck works in it while you do.
 {{end}}{{with .Memory}}
 {{.}}
+{{end}}{{with .Lessons}}
+What earlier runs of this command taught, lessons of deck's agents in the memory of the project (memory/<name>.md), not the owner's words:
+{{.}}
+{{end}}{{if .Learns}}
+Before you hand in the result, if this run taught something the next run of this command should know, write or update a lesson of this command by the memory skill (a memory fact with type: lesson, source: process:{{.Process}}, command: {{.Command}}); your judgement — most runs teach nothing.
 {{end}}{{with .Thread}}
 {{.}}
 {{end}}{{with .StartNote}}

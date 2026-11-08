@@ -146,3 +146,7 @@ and bring the modules in line.
   command of that project) and `expires`; an agent writes lessons in its own project's memory, the master in any.
   Index lines of lessons go under `## Lessons` of `memory/MEMORY.md`: only the first 40 reach a prompt, a save past
   them warns; `document_get` of a memory document that would no longer save answers `warning` with why (memory skill).
+- 2026-11-08: the first prompt of a run of an agent command carries, beside the memory index, the lessons of that
+  command (`type: lesson`, `command: <it>`, not expired) of the memory of its project, the newest twelve within 4000
+  bytes, as data; a run that may save documents is asked to write or update a lesson when it taught something.
+  `on_error` and `on_incident` write lessons of the command that failed in its project's memory.

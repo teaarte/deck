@@ -19,5 +19,8 @@ why and tell the owner the fix; do not change the project yourself.
    A failure whose cause is a model or a connection names it in `cause` as the subject of its row of health,
    such as `model:groq/llama-70b`, so the notes of every module about it are one.
    What the owner's memory says they turned down, you do not offer again. A one-off writes nothing.
+4. When the cause would change how the next run of the failed command goes (a site that needs a wait, an input that
+   trips it), write or update a lesson of that command in the memory of the failed project by the memory skill:
+   `command:` the failed command, `source: process:<the failed process>`. A one-off teaches nothing.
 
 The result is one short line: what failed and what you told the owner.

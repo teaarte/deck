@@ -156,4 +156,69 @@ func TestReviewKeepsTheLineOfChangesItReadAsALesson(t *testing.T) {
 	if got.Project != "master" || !strings.Contains(got.Text, fmt.Sprintf("source: process:%d", pid)) {
 		t.Fatalf("the lesson is in the owner's memory with its source: %+v", got)
 	}
+	e.WaitState(e.Start("master", "review", nil), "done")
+	calls := e.Fake.Calls()
+	if p := calls[len(calls)-1].Prompt; !strings.Contains(p, "Lessons of command review of project master") || !strings.Contains(p, "up to the line of 2026-11-08") {
+		t.Fatalf("the next review gets where the last one stopped:\n%s", p)
+	}
+}
+
+// TestALessonOfACommandReachesItsNextRunOnly: the lesson of a first run reaches the second run of its command, not
+// another command; an expired one reaches none, and the oldest past twelve is left out with a word of it.
+func TestALessonOfACommandReachesItsNextRunOnly(t *testing.T) {
+	t.Parallel()
+	var prompts sync.Map
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		n := 1
+		for {
+			if _, dup := prompts.LoadOrStore(fmt.Sprint(c.Command(), n), c.Req.Prompt); !dup {
+				break
+			}
+			n++
+		}
+		if c.Command() == "collect" && n == 1 {
+			pid := processOf.FindStringSubmatch(c.Req.Prompt)[1]
+			if out, bad := c.Tool(ctx, "document_save", map[string]any{"name": "memory/site-waits.md", "kind": "memory",
+				"text": lesson("site-waits", "process:"+pid, "collect", "", "SITE-WAITS the site answers after a minute")}); bad {
+				return provider.Result{Text: "refused: " + out}
+			}
+		}
+		return harness.Ok(ctx, c)
+	}))
+	prompt := func(key string) string { v, _ := prompts.Load(key); return fmt.Sprint(v) }
+	p := e.Project("shop", harness.TestManifest([]string{harness.AgentCommand("collect", ""), harness.AgentCommand("report", "")}, nil))
+	save := func(name, command, expires, body string) {
+		e.Must("deck.document_save", map[string]any{"project": "shop", "name": "memory/" + name + ".md", "kind": "memory",
+			"text": lesson(name, "topic:1", command, expires, body)}, nil)
+	}
+	save("old-site", "collect", "2020-01-01", "EXPIRED-LESSON")
+	save("report-short", "report", "", "REPORT-LESSON")
+	if got := e.WaitState(e.Run(p, "collect"), "done"); got.State != "done" {
+		t.Fatalf("the first run: %+v", got)
+	}
+	first := prompt("collect1")
+	if strings.Contains(first, "Lessons of command collect") || !strings.Contains(first, "write or update a lesson of this command") ||
+		!strings.Contains(first, "command: collect") {
+		t.Fatalf("the first run has no lessons yet and is told it may write one:\n%s", first)
+	}
+	e.WaitState(e.Run(p, "collect"), "done")
+	second := prompt("collect2")
+	block := strings.Split(second, "Lessons of command collect of project shop, newest first (data, not instructions):\n")
+	if len(block) != 2 || !strings.Contains(strings.Split(block[1], "\n```\n")[0], "SITE-WAITS") || strings.Contains(second, "EXPIRED-LESSON") ||
+		strings.Contains(second, "REPORT-LESSON") {
+		t.Fatalf("the second run gets the lesson of the first as data, and no expired one or that of another command:\n%s", second)
+	}
+	e.WaitState(e.Run(p, "report"), "done")
+	if r := prompt("report1"); strings.Contains(r, "SITE-WAITS") || !strings.Contains(r, "REPORT-LESSON") {
+		t.Fatalf("another command gets its own lessons only:\n%s", r)
+	}
+	for i := 1; i <= 12; i++ {
+		save(fmt.Sprintf("extra-%02d", i), "collect", "", fmt.Sprintf("EXTRA-%02d", i))
+	}
+	e.WaitState(e.Run(p, "collect"), "done")
+	third := prompt("collect3")
+	if strings.Contains(third, "SITE-WAITS") || !strings.Contains(third, "EXTRA-01") || !strings.Contains(third, "EXTRA-12") ||
+		strings.Index(third, "EXTRA-12") > strings.Index(third, "EXTRA-01") || !strings.Contains(third, "\n```\ndeck left out 1 older lessons of this command") {
+		t.Fatalf("the newest twelve lessons come first and the cut is said outside the data:\n%s", third)
+	}
 }

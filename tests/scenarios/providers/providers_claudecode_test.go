@@ -133,7 +133,7 @@ func TestCLIThatDoesNotExitAfterItsResultIsKilled(t *testing.T) {
 			if got.State != "done" || !strings.Contains(string(got.Result), "ok") {
 				t.Fatalf("the result must be kept, got %+v", got)
 			}
-			if d := time.Since(start); d > 4*time.Second {
+			if d := time.Since(start); d > harness.Within(4*time.Second) {
 				t.Fatalf("took %s", d)
 			}
 			b, _ := os.ReadFile(filepath.Join(c.Dir, "calls", "1", "child"))

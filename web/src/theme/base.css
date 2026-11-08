@@ -19,6 +19,11 @@
   --deck-side-width: 240px;
   --deck-layer-float: 20;
   --deck-layer-bar: 150;
+  --deck-layer-full: 190;
+  --deck-layer-full-close: 191;
+  --deck-layer-preview: 300;
+  --deck-layer-asks: 350;
+  --deck-layer-toast: 400;
 }
 
 [data-mantine-color-scheme='dark'] {

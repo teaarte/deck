@@ -2,7 +2,7 @@
   position: fixed;
   left: 50%;
   bottom: max(16px, env(safe-area-inset-bottom));
-  z-index: 350;
+  z-index: var(--deck-layer-asks);
   width: min(520px, calc(100vw - 24px));
   max-height: min(60vh, 460px);
   overflow: auto;

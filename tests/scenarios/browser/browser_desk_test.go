@@ -92,6 +92,11 @@ func TestRealBrowserTheDesk(t *testing.T) {
 		t.Fatalf("the cards fit the phone: %s", got)
 	}
 	b.shot("desk-phone")
+	b.until("a home longer than the phone", `document.documentElement.scrollHeight > innerHeight + 200`)
+	b.eval(`(scrollTo(0, (document.documentElement.scrollHeight - innerHeight) / 2), '')`)
+	b.until("the pencil in sight above the tabs while the home scrolls", `(() => { const p = document.querySelector('[data-placing-toggle]').getBoundingClientRect(), tabs = document.querySelector('[data-phone-tabs]').getBoundingClientRect();
+		return scrollY > 0 && p.top >= 0 && p.bottom <= tabs.top })()`)
+	b.eval(`(scrollTo(0, 0), '')`)
 	b.eval(`(document.querySelector('[data-phone-tabs] [data-chat-toggle]').click(), '')`)
 	b.until("the chat open on the phone", `Math.abs(document.querySelector('[data-chat-phone] [data-chat-close]')?.closest('.mantine-Drawer-content')?.getBoundingClientRect().left ?? 99) < 1`)
 	b.shot("desk-chat-390")

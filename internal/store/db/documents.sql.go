@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const addRevision = `-- name: AddRevision :one
@@ -41,6 +42,21 @@ func (q *Queries) AddRevision(ctx context.Context, arg AddRevisionParams) (Docum
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const countMemoryRead = `-- name: CountMemoryRead :exec
+INSERT INTO memory_read (document_id, reads, last_read_at) VALUES (?, 1, ?)
+ON CONFLICT (document_id) DO UPDATE SET reads = reads + 1, last_read_at = excluded.last_read_at
+`
+
+type CountMemoryReadParams struct {
+	DocumentID int64
+	LastReadAt string
+}
+
+func (q *Queries) CountMemoryRead(ctx context.Context, arg CountMemoryReadParams) error {
+	_, err := q.db.ExecContext(ctx, countMemoryRead, arg.DocumentID, arg.LastReadAt)
+	return err
 }
 
 const createDocument = `-- name: CreateDocument :one
@@ -309,8 +325,45 @@ func (q *Queries) ListDocuments(ctx context.Context, arg ListDocumentsParams) ([
 	return items, nil
 }
 
+const listMemoryReads = `-- name: ListMemoryReads :many
+SELECT document_id, reads, last_read_at FROM memory_read WHERE document_id IN (/*SLICE:ids*/?)
+`
+
+func (q *Queries) ListMemoryReads(ctx context.Context, ids []int64) ([]MemoryRead, error) {
+	query := listMemoryReads
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []MemoryRead
+	for rows.Next() {
+		var i MemoryRead
+		if err := rows.Scan(&i.DocumentID, &i.Reads, &i.LastReadAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMemoryTexts = `-- name: ListMemoryTexts :many
-SELECT d.name, r.text, r.created_at FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+SELECT d.id, d.name, r.text, r.created_at FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
 WHERE d.workspace_id = ?1 AND d.project_id = ?2 AND d.record_id IS NULL
   AND d.kind = 'memory' AND d.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC
@@ -322,6 +375,7 @@ type ListMemoryTextsParams struct {
 }
 
 type ListMemoryTextsRow struct {
+	ID        int64
 	Name      string
 	Text      string
 	CreatedAt string
@@ -336,7 +390,12 @@ func (q *Queries) ListMemoryTexts(ctx context.Context, arg ListMemoryTextsParams
 	var items []ListMemoryTextsRow
 	for rows.Next() {
 		var i ListMemoryTextsRow
-		if err := rows.Scan(&i.Name, &i.Text, &i.CreatedAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Text,
+			&i.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

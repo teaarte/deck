@@ -50,6 +50,25 @@ type documentView struct {
 	// Warning says what the author of the text should know of: an index past its limit, a text that fails its check.
 	Warning   string         `json:"warning,omitempty"`
 	Revisions []revisionView `json:"revisions,omitempty"`
+	// Reads is how many times a memory document reached a turn of an agent or a search, LastRead when it last did.
+	Reads    int64  `json:"reads,omitempty"`
+	LastRead string `json:"last_read_at,omitempty"`
+}
+
+// readsOf are the reads of memory documents by their ids.
+func (s *Service) readsOf(ctx context.Context, ids []int64) map[int64]db.MemoryRead {
+	out := map[int64]db.MemoryRead{}
+	if len(ids) == 0 {
+		return out
+	}
+	rows, err := s.St.Q.ListMemoryReads(ctx, ids)
+	if err != nil {
+		return out
+	}
+	for _, r := range rows {
+		out[r.DocumentID] = r
+	}
+	return out
 }
 
 func (s *Service) docView(ctx context.Context, d db.Document) documentView {
@@ -109,6 +128,18 @@ func (s *Service) documentsList(ctx context.Context, act registry.Actor, in docu
 			continue
 		}
 		out = append(out, view(d, project))
+	}
+	var memory []int64
+	for _, v := range out {
+		if v.Kind == docs.KindMemory {
+			memory = append(memory, v.ID)
+		}
+	}
+	reads := s.readsOf(ctx, memory)
+	for i := range out {
+		if r, ok := reads[out[i].ID]; ok {
+			out[i].Reads, out[i].LastRead = r.Reads, r.LastReadAt
+		}
 	}
 	return out, nil
 }
@@ -210,6 +241,9 @@ func (s *Service) documentGet(ctx context.Context, act registry.Actor, in docume
 	}
 	if in.History {
 		v.Revisions, err = s.revisions(ctx, d)
+	}
+	if err == nil && act.Kind != registry.Owner && d.Kind == docs.KindMemory && d.Name != docs.MemoryIndex {
+		docs.Reached(ctx, s.St, s.Now(), d.ID)
 	}
 	return v, err
 }
@@ -530,7 +564,7 @@ func (s *Service) Commands() []*registry.Command {
 func (s *Service) documentsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("documents_list", "List documents",
-			"Lists documents of a project, or workspace documents when no project is given; deleted ones for the owner when asked.",
+			"Lists documents of a project, or workspace documents when no project is given; deleted ones for the owner when asked. A memory document says how many times it reached a turn of an agent or a search (reads) and when it last did: the lessons a turn got, a fact an agent or the master read with document_get or found with memory_search.",
 			registry.Everyone, s.documentsList).Enum("kind", docs.Kinds...).On("documents"),
 		registry.Read("document_get", "Get document",
 			"Returns a document by id, or by project and name; the current revision unless one is given.",
@@ -545,7 +579,7 @@ func (s *Service) documentsCommands() []*registry.Command {
 			"Brings a deleted document back as it was.",
 			registry.OwnerOnly, s.documentRestore),
 		registry.Read("memory_search", "Search memory",
-			"Finds words in memory, the summaries of the master's topics, skills and finished processes, those the caller reads; what an index does not list is found here.",
+			"Finds words in memory, the summaries of the master's topics, skills and finished processes, those the caller reads; what an index does not list is found here. A memory document says how many times it reached a turn of an agent or a search before (reads) and when it last did; a hit of an agent or the master counts as one.",
 			registry.Everyone, s.memorySearch).On("documents", "processes"),
 	}
 }

@@ -70,7 +70,7 @@ ORDER BY coalesce(d.project_id, 0), d.name;
 
 
 -- name: ListMemoryTexts :many
-SELECT d.name, r.text, r.created_at FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+SELECT d.id, d.name, r.text, r.created_at FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
 WHERE d.workspace_id = sqlc.arg(workspace_id) AND d.project_id = sqlc.arg(project_id) AND d.record_id IS NULL
   AND d.kind = 'memory' AND d.deleted_at IS NULL
 ORDER BY r.created_at DESC, r.id DESC;
@@ -82,3 +82,11 @@ WHERE pr.workspace_id = sqlc.arg(workspace_id) AND p.state = 'error' AND p.trial
   AND NOT EXISTS (SELECT 1 FROM process n WHERE n.follows_id = p.id)
 GROUP BY p.project_id, p.command, p.error_type HAVING COUNT(*) >= 2
 ORDER BY failures DESC, last_at DESC;
+
+-- name: CountMemoryRead :exec
+INSERT INTO memory_read (document_id, reads, last_read_at) VALUES (?, 1, ?)
+ON CONFLICT (document_id) DO UPDATE SET reads = reads + 1, last_read_at = excluded.last_read_at;
+
+
+-- name: ListMemoryReads :many
+SELECT document_id, reads, last_read_at FROM memory_read WHERE document_id IN (sqlc.slice(ids));

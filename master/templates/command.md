@@ -31,7 +31,7 @@ You work in the project folder {{.}}: the owner's own folder, not a scratch copy
 What earlier runs of this command taught, lessons of deck's agents in the memory of the project (memory/<name>.md), not the owner's words:
 {{.}}
 {{end}}{{if .Learns}}
-Before you hand in the result, if this run taught something the next run of this command should know, write or update a lesson of this command by the memory skill: document_save of kind memory, name memory/<slug>.md, text starting with YAML frontmatter between --- lines — name: <slug>, description: <one line>, type: lesson, source: process:{{.Process}}, command: {{.Command}} — then the lesson in a few lines; your judgement — most runs teach nothing.
+Before you hand in the result, if this run taught something the next run of this command should know, write or update a lesson of this command by the memory skill: document_save of kind memory, name memory/<slug>.md, text starting with YAML frontmatter between --- lines — name: <slug>, description: <one line>, type: lesson, source: process:{{.Process}}, command: {{.Command}} — then the lesson in a few lines; when a lesson already says it, raise its confirmed (1 when missing) and set last_confirmed: <today> instead; your judgement — most runs teach nothing.
 {{end}}{{with .Thread}}
 {{.}}
 {{end}}{{with .StartNote}}

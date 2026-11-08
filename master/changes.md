@@ -181,3 +181,13 @@ and bring the modules in line.
   owner's message is not — saves and deletes in memory only lessons, the index `memory/MEMORY.md` and facts whose
   `expires` passed; a save or delete of another fact is refused ("propose it with document_propose; the owner
   decides"). `document_propose` stays the master's and the owner's.
+- 2026-11-08: a lesson may say `confirmed` (how many times its situation came again, a whole number from 1) and
+  `last_confirmed` (a date); when the same thing happens again raise them instead of writing a new lesson, and merge
+  lessons that contradict each other (memory skill). A turn gets at most ten lessons of its command, the most
+  confirmed first, then those confirmed or written last.
+- 2026-11-08: the memory a turn loads — the owner's index, the index of its project and the lessons of its command —
+  stays within 12 KB in that order, each part present with at least 3 KB; a part cut says after its data that the rest
+  is found with `memory_search` or `document_get`.
+- 2026-11-08: a memory document counts its reads: a lesson that reached a turn, a fact an agent or the master read
+  with `document_get` or found with `memory_search` (not the index, not the owner's reads); `documents_list` and the
+  hits of `memory_search` give `reads` and `last_read_at` — a signal of what to raise or drop in the index.

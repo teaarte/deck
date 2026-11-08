@@ -81,10 +81,15 @@ Before 09:00 the site answers 503; one try after a wait of a minute got the page
 - `source` (required): what taught it — `process:<id>`, `topic:<id>` or `incident:<process id>.<kind>`, several
   comma-separated.
 - `command`: the command of that project the lesson is for; deck gives the lessons of a command to its next runs
-  (the newest twelve), so keep each short. Without it the lesson is read through the index.
+  (ten at most, the most confirmed first, within 12 KB of memory a turn loads), so keep each short. Without it the
+  lesson is read through the index.
+- `confirmed` (a whole number) and `last_confirmed` (a date): when the same thing happens again, raise `confirmed`
+  (1 when missing) and set `last_confirmed` to today instead of writing a new lesson.
 - `expires`: when it stops being worth knowing.
 
-A lesson that turns out wrong is edited or deleted, not answered by another. Index lines of lessons go under the
+A lesson that turns out wrong is edited or deleted, not answered by another; two lessons that contradict each other
+become one. A module's lessons stay in its memory; what holds across modules the master lifts into the owner's
+memory. Index lines of lessons go under the
 heading `## Lessons` of the index, below the owner's facts; only the first 40 of them reach a prompt.
 
 ## Sleep

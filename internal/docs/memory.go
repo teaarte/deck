@@ -1,6 +1,8 @@
 package docs
 
 import (
+	"context"
+	"log/slog"
 	"regexp"
 	"slices"
 	"strconv"
@@ -10,6 +12,8 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"deck2/internal/registry"
+	"deck2/internal/store"
+	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 	"deck2/schemas"
 )
@@ -25,6 +29,10 @@ const (
 	LessonsHeading = "## Lessons"
 	lineLimit      = 400
 	indexBytes     = 32000
+	// MemoryBudget is how many bytes of memory a turn loads in all: the indexes and the lessons of its command; each
+	// part present gets at least MemoryFloor of it.
+	MemoryBudget = 12 << 10
+	MemoryFloor  = MemoryBudget / 4
 )
 
 var memoryTypes = []string{"user", "feedback", "project", "reference", "lesson"}
@@ -40,7 +48,18 @@ type Fact struct {
 	Name, Description, Type string
 	Source, Command         string
 	Expires                 string
-	Metadata                struct{ Type string }
+	// Confirmed is how many times the situation of a lesson came again, LastConfirmed the day it last did.
+	Confirmed     string
+	LastConfirmed string `yaml:"last_confirmed"`
+	Metadata      struct{ Type string }
+}
+
+// Times is how many times a lesson was confirmed, 1 when it does not say.
+func (f Fact) Times() int {
+	if n, err := strconv.Atoi(f.Confirmed); err == nil && n > 0 {
+		return n
+	}
+	return 1
 }
 
 // ParseFact reads the frontmatter of a memory fact; the type may sit under metadata.
@@ -94,6 +113,14 @@ func CheckMemory(kind, name, text string) error {
 	if meta.Expires != "" {
 		if _, err := time.Parse(time.DateOnly, meta.Expires); err != nil {
 			return registry.Invalid("expires of a memory fact is a date, YYYY-MM-DD")
+		}
+	}
+	if n, err := strconv.Atoi(meta.Confirmed); meta.Confirmed != "" && (err != nil || n < 1) {
+		return registry.Invalid("confirmed of a memory fact is how many times it held, a whole number from 1")
+	}
+	if meta.LastConfirmed != "" {
+		if _, err := time.Parse(time.DateOnly, meta.LastConfirmed); err != nil {
+			return registry.Invalid("last_confirmed of a memory fact is a date, YYYY-MM-DD")
 		}
 	}
 	if meta.Type != Lesson {
@@ -174,4 +201,51 @@ func CutIndex(text string) (start, cut string) {
 		notes = append(notes, "deck shortened lines of this index longer than "+strconv.Itoa(lineLimit)+" bytes.")
 	}
 	return strings.Join(kept, "\n"), strings.Join(notes, " ")
+}
+
+// Share splits MemoryBudget between parts of these sizes in order of importance: each gets what it needs up to
+// MemoryFloor, then what is left goes to them in order.
+func Share(needs ...int) []int {
+	out, left := make([]int, len(needs)), MemoryBudget
+	for i, n := range needs {
+		out[i] = min(n, MemoryFloor)
+		left -= out[i]
+	}
+	for i, n := range needs {
+		more := min(n-out[i], left)
+		out[i] += more
+		left -= more
+	}
+	return out
+}
+
+// CutBytes is the start of text of at most n bytes in whole lines, a first line cut when it alone is longer; cut
+// tells whether anything was left out.
+func CutBytes(text string, n int) (start string, cut bool) {
+	if len(text) <= n {
+		return text, false
+	}
+	end := strings.LastIndexByte(text[:n+1], '\n')
+	if end <= 0 {
+		return untrusted.Cut(text, max(n-len("…"), 0)), true
+	}
+	return text[:end], true
+}
+
+// Reached counts that these memory documents reached a turn or a search, in a transaction of its own after the read.
+func Reached(ctx context.Context, st *store.Store, now time.Time, ids ...int64) {
+	if len(ids) == 0 {
+		return
+	}
+	err := st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		for _, id := range ids {
+			if err := q.CountMemoryRead(ctx, db.CountMemoryReadParams{DocumentID: id, LastReadAt: store.Time(now)}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		slog.Warn("count the reads of memory", "err", err)
+	}
 }

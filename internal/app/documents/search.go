@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"deck2/internal/access"
+	"deck2/internal/docs"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 )
@@ -33,6 +34,10 @@ type memoryHit struct {
 	Process  int64   `json:"process,omitempty"`
 	Snippet  string  `json:"snippet"`
 	Rank     float64 `json:"rank"`
+	// Reads is how many times a memory document reached a turn of an agent or a search before this one, LastRead
+	// when it last did.
+	Reads    int64  `json:"reads,omitempty"`
+	LastRead string `json:"last_read_at,omitempty"`
 }
 
 // memorySearch finds text in the index the triggers of the base keep, by the rules of document_get and process_get.
@@ -83,7 +88,25 @@ func (s *Service) memorySearch(ctx context.Context, act registry.Actor, in memor
 			return out, int64(len(rows)), err
 		})
 	}
-	return f.out, err
+	if err != nil {
+		return nil, err
+	}
+	var memory []int64
+	for _, h := range f.out {
+		if h.Kind == docs.KindMemory && h.Name != docs.MemoryIndex {
+			memory = append(memory, h.Document)
+		}
+	}
+	reads := s.readsOf(ctx, memory)
+	for i := range f.out {
+		if r, ok := reads[f.out[i].Document]; ok && f.out[i].Kind == docs.KindMemory {
+			f.out[i].Reads, f.out[i].LastRead = r.Reads, r.LastReadAt
+		}
+	}
+	if act.Kind != registry.Owner {
+		docs.Reached(ctx, s.St, s.Now(), memory...)
+	}
+	return f.out, nil
 }
 
 // finds gathers the hits of a search the actor reads, each once, up to limit.

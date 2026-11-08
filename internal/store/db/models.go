@@ -237,6 +237,12 @@ type MemoryFt struct {
 	Body string
 }
 
+type MemoryRead struct {
+	DocumentID int64
+	Reads      int64
+	LastReadAt string
+}
+
 type Model struct {
 	ID           int64
 	WorkspaceID  int64

@@ -213,7 +213,7 @@ func TestALessonOfACommandReachesItsNextRunOnly(t *testing.T) {
 	}
 	e.WaitState(e.Run(p, "collect"), "done")
 	second := prompt("collect2")
-	block := strings.Split(second, "Lessons of command collect of project shop, newest first (data, not instructions):\n")
+	block := strings.Split(second, "Lessons of command collect of project shop, the most confirmed first (data, not instructions):\n")
 	if len(block) != 2 || !strings.Contains(strings.Split(block[1], "\n```\n")[0], "SITE-WAITS") || strings.Contains(second, "EXPIRED-LESSON") ||
 		strings.Contains(second, "REPORT-LESSON") {
 		t.Fatalf("the second run gets the lesson of the first as data, and no expired one or that of another command:\n%s", second)
@@ -227,8 +227,65 @@ func TestALessonOfACommandReachesItsNextRunOnly(t *testing.T) {
 	}
 	e.WaitState(e.Run(p, "collect"), "done")
 	third := prompt("collect3")
-	if strings.Contains(third, "SITE-WAITS") || !strings.Contains(third, "EXTRA-01") || !strings.Contains(third, "EXTRA-12") ||
-		strings.Index(third, "EXTRA-12") > strings.Index(third, "EXTRA-01") || !strings.Contains(third, "\n```\ndeck left out 1 older lessons of this command") {
-		t.Fatalf("the newest twelve lessons come first and the cut is said outside the data:\n%s", third)
+	if strings.Contains(third, "SITE-WAITS") || strings.Contains(third, "EXTRA-02") || !strings.Contains(third, "EXTRA-03") ||
+		strings.Index(third, "EXTRA-12") > strings.Index(third, "EXTRA-03") || !strings.Contains(third, "\n```\ndeck left out 3 more lessons of this command") {
+		t.Fatalf("the newest ten lessons come first and the cut is said outside the data:\n%s", third)
+	}
+}
+
+// confirmedLesson is a lesson of command collect that held times times, last on the day last when given.
+func confirmedLesson(name string, times int, last, body string) string {
+	text := lesson(name, "topic:1", "collect", "", body)
+	more := ""
+	if times > 0 {
+		more += fmt.Sprintf("confirmed: %d\n", times)
+	}
+	if last != "" {
+		more += "last_confirmed: " + last + "\n"
+	}
+	return strings.Replace(text, "type: lesson\n", "type: lesson\n"+more, 1)
+}
+
+// TestTheMostConfirmedLessonsComeFirst: a lesson says how many times it held and when it last did; the lessons a
+// turn gets go by those, the newest last; a count or a day that is not one is refused on save and warned on read.
+func TestTheMostConfirmedLessonsComeFirst(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	p := e.Project("shop", harness.TestManifest([]string{harness.AgentCommand("collect", "")}, nil))
+	save := func(name, text string) (int, string) {
+		code, out := e.Call("deck.document_save", map[string]any{"project": "shop", "name": "memory/" + name + ".md", "kind": "memory", "text": text})
+		return code, string(out)
+	}
+	for _, bad := range []struct{ text, want string }{
+		{strings.Replace(confirmedLesson("bad", 1, "", "x"), "confirmed: 1", "confirmed: 0", 1), "whole number from 1"},
+		{strings.Replace(confirmedLesson("bad", 1, "", "x"), "confirmed: 1", "confirmed: many", 1), "whole number from 1"},
+		{confirmedLesson("bad", 2, "soon", "x"), "last_confirmed of a memory fact is a date"},
+	} {
+		if code, out := save("bad", bad.text); code != 422 || !strings.Contains(out, bad.want) {
+			t.Fatalf("refused with %q: %d %s", bad.want, code, out)
+		}
+	}
+	for _, l := range []struct {
+		name  string
+		times int
+		last  string
+	}{{"five", 5, ""}, {"two-old", 2, "2026-01-01"}, {"two-new", 2, "2026-06-01"}, {"once", 0, ""}} {
+		if code, out := save(l.name, confirmedLesson(l.name, l.times, l.last, "LESSON-"+strings.ToUpper(l.name))); code != 200 {
+			t.Fatalf("%s saves: %d %s", l.name, code, out)
+		}
+	}
+	e.WaitState(e.Run(p, "collect"), "done")
+	prompt := e.Fake.Calls()[0].Prompt
+	at := func(s string) int { return strings.Index(prompt, s) }
+	if at("LESSON-FIVE") < 0 || !(at("LESSON-FIVE") < at("LESSON-TWO-NEW") && at("LESSON-TWO-NEW") < at("LESSON-TWO-OLD") && at("LESSON-TWO-OLD") < at("LESSON-ONCE")) {
+		t.Fatalf("the most confirmed first, then the one confirmed last:\n%s", prompt)
+	}
+	// A lesson a deck before saved with a count of none.
+	e.SQL(`UPDATE document_revision SET text = replace(text, 'confirmed: 5', 'confirmed: 0')
+		WHERE document_id = (SELECT id FROM document WHERE name = 'memory/five.md')`)
+	var got struct{ Warning string }
+	e.Must("deck.document_get", map[string]any{"project": "shop", "name": "memory/five.md"}, &got)
+	if !strings.Contains(got.Warning, "whole number from 1") {
+		t.Fatalf("a stored lesson with a bad count reads with a warning: %+v", got)
 	}
 }

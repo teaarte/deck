@@ -4,6 +4,7 @@ yourself; what is outside or costs money you only offer.
 
 When the cause would change how the next run of the command of that process goes, write or update a lesson of that
 command in the memory of its project by the memory skill: `command:` that command,
-`source: incident:<process>.<incident>`.
+`source: incident:<process>.<incident>`. Lessons of a command reach only agent runs of it: for a script, offer the
+fix of the script, or write one without `command`, read through the index.
 
 The result is one short line: the incident, what you did, and what you offered the owner.

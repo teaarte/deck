@@ -42,7 +42,6 @@ func TestALessonNamesWhatTaughtIt(t *testing.T) {
 		{"no-source", lesson("no-source", "", "", "", "x"), `needs "source"`},
 		{"bad-source", lesson("bad-source", "process:1, the chat", "", "", "x"), `"the chat"`},
 		{"bad-command", lesson("bad-command", "process:1", "Work Now", "", "x"), "not the name of a command"},
-		{"no-command", lesson("no-command", "process:1", "review", "", "x"), `no command "review"`},
 		{"late", lesson("late", "process:1", "", "soon", "x"), "YYYY-MM-DD"},
 	} {
 		if code, out := save("alpha", "memory/"+bad.name+".md", bad.text); code != 422 || !strings.Contains(out, bad.want) {
@@ -50,6 +49,17 @@ func TestALessonNamesWhatTaughtIt(t *testing.T) {
 		}
 	}
 	var got struct{ Text, Warning string }
+	e.Must("deck.document_save", map[string]any{"project": "alpha", "name": "memory/no-command.md", "kind": "memory",
+		"text": lesson("no-command", "process:1", "review", "", "x")}, &got)
+	want := "no command review in project alpha: this lesson reaches no run"
+	if got.Warning != want {
+		t.Fatalf("a lesson of a command the project lacks saves with a warning: %+v", got)
+	}
+	e.Must("deck.document_get", map[string]any{"project": "alpha", "name": "memory/no-command.md"}, &got)
+	if got.Warning != want {
+		t.Fatalf("and reads with it: %+v", got)
+	}
+	got.Warning = ""
 	e.Must("deck.document_get", map[string]any{"project": "alpha", "name": "memory/retry-later.md"}, &got)
 	if got.Warning != "" {
 		t.Fatalf("a lesson that saves reads without a warning: %+v", got)

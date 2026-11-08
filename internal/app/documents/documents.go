@@ -204,6 +204,8 @@ func (s *Service) documentGet(ctx context.Context, act registry.Actor, in docume
 	if r.N == d.Current {
 		if err := docs.CheckMemory(d.Kind, d.Name, r.Text); err != nil {
 			v.Warning = "this text would not save as it is: " + err.Error()
+		} else {
+			v.Warning = lessonWarning(ctx, s.St.Q, d, r.Text)
 		}
 	}
 	if in.History {
@@ -264,9 +266,6 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 		if err := editText(ctx, q, ref, &in); err != nil {
 			return err
 		}
-		if err := lessonCommand(ctx, q, sc, in.Kind, in.Name, in.Text); err != nil {
-			return err
-		}
 		var n int64
 		var changed bool
 		if d, n, changed, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil || !changed {
@@ -278,6 +277,7 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 		return nil, err
 	}
 	v := s.docView(ctx, d)
+	v.Warning = lessonWarning(ctx, s.St.Q, d, in.Text)
 	if kind, _ := docs.Owner(d); d.Name == docs.MemoryIndex && kind == "" {
 		var warn []string
 		if n := docs.IndexLines(in.Text); n > docs.IndexLimit {
@@ -291,30 +291,23 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 	return v, nil
 }
 
-// lessonCommand refuses a lesson of a command its project does not have.
-func lessonCommand(ctx context.Context, q *db.Queries, sc docs.Scope, kind, name, text string) error {
-	if kind != docs.KindMemory || name == docs.MemoryIndex || sc.Project == 0 {
-		return nil
-	}
-	if err := docs.CheckMemory(kind, name, text); err != nil {
-		return err
+// lessonWarning says that a lesson names a command its project does not have, so it reaches no run.
+func lessonWarning(ctx context.Context, q *db.Queries, d db.Document, text string) string {
+	if d.Kind != docs.KindMemory || d.Name == docs.MemoryIndex || !d.ProjectID.Valid {
+		return ""
 	}
 	f, err := docs.ParseFact(text)
 	if err != nil || f.Type != docs.Lesson || f.Command == "" {
-		return nil
+		return ""
 	}
-	p, err := q.GetProject(ctx, sc.Project)
+	p, err := q.GetProject(ctx, d.ProjectID.Int64)
 	if err != nil {
-		return err
+		return ""
 	}
-	m, err := docs.Manifest(ctx, q, p)
-	if err != nil {
-		return err
+	if m, err := docs.Manifest(ctx, q, p); err != nil || m.Command(f.Command) != nil {
+		return ""
 	}
-	if m.Command(f.Command) == nil {
-		return registry.Invalid("project %s has no command %q for this lesson", p.Name, f.Command)
-	}
-	return nil
+	return fmt.Sprintf("no command %s in project %s: this lesson reaches no run", f.Command, p.Name)
 }
 
 // ownSave refuses the kinds that have their own command to save them, which checks them.

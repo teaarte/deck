@@ -438,3 +438,27 @@ SELECT CAST(p.id AS INTEGER) AS project_id, s.session_id FROM chat_session s
 JOIN chat_topic t ON t.id = s.topic_id
 JOIN project p ON p.workspace_id = t.workspace_id AND p.builtin = 1
 WHERE t.archived = 0 AND t.deleted_at IS NULL;
+
+
+-- name: ListEpisodeProcesses :many
+-- The processes of a workspace that finished in a period, not trials nor done with nothing, newest first.
+SELECT p.id, j.name AS project, p.command, p.state, p.error_type, p.error, p.provider, p.started_at,
+    CAST(p.finished_at AS TEXT) AS finished_at,
+    CAST(COALESCE((SELECT group_concat(DISTINCT c.gen_ai_provider_name) FROM llm_call c WHERE c.process_id = p.id), '') AS TEXT) AS models,
+    CAST(COALESCE(json_extract(p.input, '$.topic'), 0) AS INTEGER) AS topic
+FROM process p JOIN project j ON j.id = p.project_id
+WHERE j.workspace_id = sqlc.arg(workspace_id)
+  AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR p.project_id = CAST(sqlc.arg(project_id) AS INTEGER))
+  AND p.trial = 0 AND p.finished_at >= CAST(sqlc.arg(since) AS TEXT) AND p.finished_at < CAST(sqlc.arg(until) AS TEXT)
+  AND NOT (p.state = 'done' AND p.result = 'null' AND p.not_by_schema = 0)
+ORDER BY p.finished_at DESC, p.id DESC LIMIT sqlc.arg(lim);
+
+
+-- name: ListEpisodeIncidents :many
+-- The incidents of processes deck handed to the master in a period, newest first; the value of a mark is its time.
+SELECT m.name, m.value, CAST(COALESCE(j.name, '') AS TEXT) AS project
+FROM mark m LEFT JOIN project j ON j.id = m.project_id
+WHERE m.workspace_id = sqlc.arg(workspace_id) AND m.name LIKE 'incident:%'
+  AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR m.project_id = CAST(sqlc.arg(project_id) AS INTEGER))
+  AND m.value >= sqlc.arg(since) AND m.value < sqlc.arg(until)
+ORDER BY m.value DESC LIMIT sqlc.arg(lim);

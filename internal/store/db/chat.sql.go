@@ -326,6 +326,61 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]C
 	return items, nil
 }
 
+const listOwnerMessagesIn = `-- name: ListOwnerMessagesIn :many
+SELECT m.topic_id, t.title, m.text, m.created_at FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
+WHERE t.workspace_id = ?1 AND t.deleted_at IS NULL AND m.role = 'owner'
+  AND m.created_at >= ?2 AND m.created_at < ?3
+ORDER BY m.created_at DESC, m.id DESC LIMIT ?4
+`
+
+type ListOwnerMessagesInParams struct {
+	WorkspaceID int64
+	Since       string
+	Until       string
+	Lim         int64
+}
+
+type ListOwnerMessagesInRow struct {
+	TopicID   int64
+	Title     string
+	Text      string
+	CreatedAt string
+}
+
+// The messages of the owner in the topics of a workspace in a period, newest first.
+func (q *Queries) ListOwnerMessagesIn(ctx context.Context, arg ListOwnerMessagesInParams) ([]ListOwnerMessagesInRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOwnerMessagesIn,
+		arg.WorkspaceID,
+		arg.Since,
+		arg.Until,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOwnerMessagesInRow
+	for rows.Next() {
+		var i ListOwnerMessagesInRow
+		if err := rows.Scan(
+			&i.TopicID,
+			&i.Title,
+			&i.Text,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPendingMessages = `-- name: ListPendingMessages :many
 SELECT id, topic_id, role, text, context, process_id, retry_key, created_at FROM chat_message WHERE topic_id = ? AND role = 'owner' AND process_id = 0 ORDER BY id
 `
@@ -347,6 +402,66 @@ func (q *Queries) ListPendingMessages(ctx context.Context, topicID int64) ([]Cha
 			&i.Context,
 			&i.ProcessID,
 			&i.RetryKey,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSummariesChangedIn = `-- name: ListSummariesChangedIn :many
+SELECT t.id, t.title, r.text, r.created_at FROM chat_topic t
+JOIN document d ON d.workspace_id = t.workspace_id AND d.project_id = ?1 AND d.record_id IS NULL
+    AND d.deleted_at IS NULL AND d.name = 'topics/' || t.id || '/summary.md'
+JOIN document_revision r ON r.id = (SELECT MAX(x.id) FROM document_revision x WHERE x.document_id = d.id
+    AND x.created_at >= ?2 AND x.created_at < ?3)
+WHERE t.workspace_id = ?4 AND t.deleted_at IS NULL
+ORDER BY r.created_at DESC, t.id DESC LIMIT ?5
+`
+
+type ListSummariesChangedInParams struct {
+	MasterID    sql.NullInt64
+	Since       string
+	Until       string
+	WorkspaceID int64
+	Lim         int64
+}
+
+type ListSummariesChangedInRow struct {
+	ID        int64
+	Title     string
+	Text      string
+	CreatedAt string
+}
+
+// The topics whose summary, a document of the master, got a revision in a period, with the newest of them.
+func (q *Queries) ListSummariesChangedIn(ctx context.Context, arg ListSummariesChangedInParams) ([]ListSummariesChangedInRow, error) {
+	rows, err := q.db.QueryContext(ctx, listSummariesChangedIn,
+		arg.MasterID,
+		arg.Since,
+		arg.Until,
+		arg.WorkspaceID,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListSummariesChangedInRow
+	for rows.Next() {
+		var i ListSummariesChangedInRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Text,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

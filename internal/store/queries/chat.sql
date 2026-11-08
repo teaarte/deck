@@ -177,3 +177,20 @@ SELECT CAST(p AS TEXT) AS project, CAST(id AS INTEGER) AS last_topic, CAST(MAX(u
     FROM chat_topic t WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL AND t.archived = 0)
 GROUP BY p
 ORDER BY p;
+
+-- name: ListOwnerMessagesIn :many
+-- The messages of the owner in the topics of a workspace in a period, newest first.
+SELECT m.topic_id, t.title, m.text, m.created_at FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
+WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL AND m.role = 'owner'
+  AND m.created_at >= sqlc.arg(since) AND m.created_at < sqlc.arg(until)
+ORDER BY m.created_at DESC, m.id DESC LIMIT sqlc.arg(lim);
+
+-- name: ListSummariesChangedIn :many
+-- The topics whose summary, a document of the master, got a revision in a period, with the newest of them.
+SELECT t.id, t.title, r.text, r.created_at FROM chat_topic t
+JOIN document d ON d.workspace_id = t.workspace_id AND d.project_id = sqlc.arg(master_id) AND d.record_id IS NULL
+    AND d.deleted_at IS NULL AND d.name = 'topics/' || t.id || '/summary.md'
+JOIN document_revision r ON r.id = (SELECT MAX(x.id) FROM document_revision x WHERE x.document_id = d.id
+    AND x.created_at >= sqlc.arg(since) AND x.created_at < sqlc.arg(until))
+WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL
+ORDER BY r.created_at DESC, t.id DESC LIMIT sqlc.arg(lim);

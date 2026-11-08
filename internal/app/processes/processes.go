@@ -536,6 +536,9 @@ func (s *Service) processCommands() []*registry.Command {
 		registry.Read("process_log_get", "Process log",
 			"Gives a page of the events of a process, oldest first, each with its number n: the last ones, or those before or after a number; only errors, tool calls or messages; a text longer than 1000 bytes is cut, and a page of one event gives it whole. While it runs and for a week after it ended.",
 			registry.Everyone, s.processLog).On("log"),
+		registry.Read("episodes_list", "Episodes",
+			"Lists what happened in a period, newest first: the processes that finished (not trials nor done with nothing) with their failure, models and duration, the incidents deck handed to the master, the owner's messages in chat topics and the topics whose summary changed; long texts cut; more names a part cut at the limit. A process stays listed for good, its full log a week (process_log_get).",
+			registry.OwnerSide, s.episodesList).On("processes", "chat", "documents").NoTokens(),
 	}
 }
 

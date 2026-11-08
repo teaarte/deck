@@ -826,6 +826,136 @@ func (q *Queries) ListChildProcesses(ctx context.Context, parentID sql.NullInt64
 	return items, nil
 }
 
+const listEpisodeIncidents = `-- name: ListEpisodeIncidents :many
+SELECT m.name, m.value, CAST(COALESCE(j.name, '') AS TEXT) AS project
+FROM mark m LEFT JOIN project j ON j.id = m.project_id
+WHERE m.workspace_id = ?1 AND m.name LIKE 'incident:%'
+  AND (CAST(?2 AS INTEGER) = 0 OR m.project_id = CAST(?2 AS INTEGER))
+  AND m.value >= ?3 AND m.value < ?4
+ORDER BY m.value DESC LIMIT ?5
+`
+
+type ListEpisodeIncidentsParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+	Since       string
+	Until       string
+	Lim         int64
+}
+
+type ListEpisodeIncidentsRow struct {
+	Name    string
+	Value   string
+	Project string
+}
+
+// The incidents of processes deck handed to the master in a period, newest first; the value of a mark is its time.
+func (q *Queries) ListEpisodeIncidents(ctx context.Context, arg ListEpisodeIncidentsParams) ([]ListEpisodeIncidentsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listEpisodeIncidents,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.Since,
+		arg.Until,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListEpisodeIncidentsRow
+	for rows.Next() {
+		var i ListEpisodeIncidentsRow
+		if err := rows.Scan(&i.Name, &i.Value, &i.Project); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEpisodeProcesses = `-- name: ListEpisodeProcesses :many
+SELECT p.id, j.name AS project, p.command, p.state, p.error_type, p.error, p.provider, p.started_at,
+    CAST(p.finished_at AS TEXT) AS finished_at,
+    CAST(COALESCE((SELECT group_concat(DISTINCT c.gen_ai_provider_name) FROM llm_call c WHERE c.process_id = p.id), '') AS TEXT) AS models,
+    CAST(COALESCE(json_extract(p.input, '$.topic'), 0) AS INTEGER) AS topic
+FROM process p JOIN project j ON j.id = p.project_id
+WHERE j.workspace_id = ?1
+  AND (CAST(?2 AS INTEGER) = 0 OR p.project_id = CAST(?2 AS INTEGER))
+  AND p.trial = 0 AND p.finished_at >= CAST(?3 AS TEXT) AND p.finished_at < CAST(?4 AS TEXT)
+  AND NOT (p.state = 'done' AND p.result = 'null' AND p.not_by_schema = 0)
+ORDER BY p.finished_at DESC, p.id DESC LIMIT ?5
+`
+
+type ListEpisodeProcessesParams struct {
+	WorkspaceID int64
+	ProjectID   int64
+	Since       string
+	Until       string
+	Lim         int64
+}
+
+type ListEpisodeProcessesRow struct {
+	ID         int64
+	Project    string
+	Command    string
+	State      string
+	ErrorType  string
+	Error      string
+	Provider   string
+	StartedAt  string
+	FinishedAt string
+	Models     string
+	Topic      int64
+}
+
+// The processes of a workspace that finished in a period, not trials nor done with nothing, newest first.
+func (q *Queries) ListEpisodeProcesses(ctx context.Context, arg ListEpisodeProcessesParams) ([]ListEpisodeProcessesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listEpisodeProcesses,
+		arg.WorkspaceID,
+		arg.ProjectID,
+		arg.Since,
+		arg.Until,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListEpisodeProcessesRow
+	for rows.Next() {
+		var i ListEpisodeProcessesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Project,
+			&i.Command,
+			&i.State,
+			&i.ErrorType,
+			&i.Error,
+			&i.Provider,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.Models,
+			&i.Topic,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFailedProcesses = `-- name: ListFailedProcesses :many
 SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, p.error_type, p.error_details, p.follows_id, p.again, p.allows, p.wrote, p.submitted_at FROM process p
 WHERE p.project_id IN (SELECT id FROM project WHERE workspace_id = ?1)

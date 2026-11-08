@@ -4,11 +4,15 @@ import { onVoiceWanted } from './chatStore';
 import { ActionIcon, Anchor, Badge, Button, CloseButton, Group, Menu, Modal, Stack, Text, Textarea, Tooltip } from '@mantine/core';
 import { IconArrowUp, IconFileMusic, IconMapPin, IconMessagePlus, IconMicrophone, IconMicrophoneFilled, IconPaperclip, IconPlayerStopFilled, IconPlus } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
+import i18n from '../lib/i18n';
 import { useRoute } from '../app/router';
 import { entryOf, placesOf, useMenuData } from '../hooks/useMenu';
 import s from './chat.module.css';
 import type { useAttachments } from './useAttachments';
 import { useVoice } from './useVoice';
+
+// screenWord is a screen that is no place of the menu in the owner's words, such as Process for process.
+const screenWord = (screen?: string) => (screen ? i18n.t(screen.charAt(0).toUpperCase() + screen.slice(1).replace(/-/g, ' ')) : '');
 
 // Picture is a picture attached and not sent yet, shown from the device.
 function Picture({ file }: { file: File }) {
@@ -32,8 +36,8 @@ export function Composer({ text, setText, files, busy, transcribe, onSend, onNew
   const menu = useMenuData();
   // The screen the message goes with, by the titles the owner sees.
   const place = [route.project && (entryOf(menu, route.project)?.title ?? route.project),
-    !route.project && route.screen === 'apps' ? t('Modules') : placesOf(menu, route.project).find((x) => x.name === route.screen)?.title ?? route.screen]
-    .filter(Boolean).join(' · ');
+    !route.project && route.screen === 'apps' ? t('Modules') : placesOf(menu, route.project).find((x) => x.name === route.screen)?.title ?? screenWord(route.screen)]
+    .filter(Boolean).join(' · ') + (route.record ? ` #${route.record}` : '');
   // detached sends the message without the screen the owner is on, so a new topic belongs to no module.
   const [detached, setDetached] = useState(false);
   useEffect(() => setDetached(false), [route.project, route.screen, route.record]);
@@ -48,7 +52,7 @@ export function Composer({ text, setText, files, busy, transcribe, onSend, onNew
       onDragOver={(e) => { e.preventDefault(); files.setDropping(true); }} onDragLeave={() => files.setDropping(false)}
       onDrop={(e) => { e.preventDefault(); files.setDropping(false); files.attach(e.dataTransfer.files); }}>
       {(route.project || route.screen) && (
-        <Group gap={6} px={6} pt={2}>
+        <Group gap={6}>
           {detached ? (
             <Badge size="sm" variant="outline" color="gray" tt="none" maw="100%" className="deck-pointer" onClick={() => setDetached(false)} data-context-off>
               {t('Not about this screen')}
@@ -62,7 +66,7 @@ export function Composer({ text, setText, files, busy, transcribe, onSend, onNew
         </Group>
       )}
       {files.files.length > 0 && (
-        <Group gap={6} px={6} pt={4} data-attached>
+        <Group gap={6} data-attached>
           {files.files.map((f, i) => f.type.startsWith('image/') ? (
             <span key={i} className={s.attachedPicture} data-attached-picture>
               <Picture file={f} />
@@ -75,7 +79,7 @@ export function Composer({ text, setText, files, busy, transcribe, onSend, onNew
         </Group>
       )}
       {voice.failed && !voice.hearing && (
-        <Group gap={6} px={6} pt={4} wrap="nowrap" data-voice-failed>
+        <Group gap={6} wrap="nowrap" data-voice-failed>
           <Text size="xs" c="red" className="deck-grow" lineClamp={2}>{t('The recording is kept, not turned into text: {{error}}', { error: voice.failed })}</Text>
           <Button size="compact-xs" variant="light" onClick={voice.again} data-voice-again>{t('Recognize again')}</Button>
           <Button size="compact-xs" variant="subtle" color="gray" onClick={voice.discard} data-voice-discard>{t('Discard')}</Button>
@@ -86,7 +90,7 @@ export function Composer({ text, setText, files, busy, transcribe, onSend, onNew
           <IconMicrophoneFilled size={18} color="var(--mantine-color-red-filled)" />
           <span>{t('Speak — the recording becomes text')}</span>
         </div>
-      ) : <Textarea variant="unstyled" autosize minRows={1} maxRows={10} placeholder={t('Message to the master')} value={text} data-chat-input px={8}
+      ) : <Textarea variant="unstyled" autosize minRows={1} maxRows={10} placeholder={t('Message to the master')} value={text} data-chat-input
         onChange={(e) => onEdit(e.currentTarget.value)}
         onPaste={(e) => {
           // A copy from an app comes as rich text with a picture of it: the text is what was meant.

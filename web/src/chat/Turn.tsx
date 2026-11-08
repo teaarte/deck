@@ -9,6 +9,7 @@ import { toneColor } from '../lib/format';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
 import { Deki, DekiHead, turnPose, useMascot } from '../ui/deki/Deki';
 import { Glyph } from '../ui/Glyph';
+import { Logo } from '../ui/logo/Logo';
 import { usePress } from '../ui/actions/usePress';
 import s from './chat.module.css';
 
@@ -91,7 +92,11 @@ export function Turn({ turn }: { turn: TurnValue }) {
           </span>
           <Text size="sm" fw={600} truncate className="deck-grow" c={running && !turn.waits ? undefined : toneColor(turn.tone)} data-turn-now>{head}</Text>
           {running && !Number.isNaN(started) && <Text size="xs" c="dimmed" className={s.turnFact} data-turn-timer>{clock(Math.max(0, (tick - started) / 1000))}</Text>}
-          {turn.provider && <Text size="xs" c="dimmed" truncate className={s.turnModel} data-turn-model>{turn.provider}</Text>}
+          {turn.provider && (
+            <span className={s.turnModel} title={t('The model of this turn')} data-turn-model>
+              <Logo names={turn.provider} size={14} /><Text span size="xs" c="dimmed" truncate>{turn.provider}</Text>
+            </span>
+          )}
           {more && <span className={s.turnChevron} aria-hidden>{open ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}</span>}
         </UnstyledButton>
         {turn.stop && <Stop act={turn.stop} />}

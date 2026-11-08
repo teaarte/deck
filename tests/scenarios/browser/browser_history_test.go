@@ -45,7 +45,7 @@ func TestRealBrowserTheHistoryAndThePickersOfModels(t *testing.T) {
 		b.Open(e, "#/p/web/main")
 		toggle := map[string]string{"desktop": "[data-chat-toggle]", "390": `[data-tab="deki"]`}[size.name]
 		b.until(size.name+": the chat button", `document.querySelector('`+toggle+`')`)
-		b.eval(`(document.querySelector('` + toggle + `').click(), '')`)
+		b.eval(`([...document.querySelectorAll('[data-chat-close]')].some((x) => x.offsetParent) || document.querySelector('` + toggle + `').click(), '')`)
 		b.until(size.name+": the chat open", `[...document.querySelectorAll('[data-chat-close]')].some((x) => x.offsetParent)`)
 		b.until(size.name+": the history", `(document.querySelector('[data-chat-phone]') || document).querySelector('[data-topics]')`)
 		b.eval(`((document.querySelector('[data-chat-phone]') || document).querySelector('[data-topics]').click(), '')`)

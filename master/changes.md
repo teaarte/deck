@@ -95,8 +95,8 @@ and bring the modules in line.
   (the text of a point, beside its values). `folder_add` with `replace` changes the path of a folder in place;
   `commands_list` gives `document`, the file of a command's script or prompt, by its fields. The theme token
   `widget-card` colors a card that shows its module's view without a cover; with a cover the view stands on a veil
-  over it.
-- 2026-11-07 (written 2026-11-08, missed before): deck runs in Docker on the owner's Mac as on a server — its programs
+  over it; `widget-row-gap` (the space between the lines of a widget) and the part `widget-row` (a line of a widget) shape its lines.
+- 2026-11-07 (written 2026-11-08; a summary of what modules see now, some of it older): deck runs in Docker on the owner's Mac as on a server — its programs
   are those of deck's image (Claude Code, Codex, Goose, uv, python3, node, git, chromium); a program a module names
   that is not in the image is a failure of its command in health, not something to install with brew. A text model of
   an API runs agent commands only in an ACP agent, Goose in deck's image: `model_set` with `agent: goose`

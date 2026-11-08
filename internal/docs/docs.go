@@ -196,6 +196,31 @@ func Merge3(edit, base, next string) (string, []Conflict) {
 	return strings.Join(out, "\n"), conflicts
 }
 
+// Diff is what changed from old to next by lines: removed lines with -, added with +, a line of context around each
+// change and … for the lines between.
+func Diff(old, next string) string {
+	rs := diff3.DiffComm(strings.Split(old, "\n"), strings.Split(next, "\n"))
+	var b strings.Builder
+	for i, r := range rs {
+		if r.Common == nil {
+			b.WriteString(prefixed("- ", r.File1) + prefixed("+ ", r.File2))
+			continue
+		}
+		var keep []string
+		if i > 0 {
+			keep = append(keep, r.Common[0])
+		}
+		if i < len(rs)-1 && (i == 0 || len(r.Common) > 1) {
+			if len(keep)+1 < len(r.Common) {
+				keep = append(keep, "…")
+			}
+			keep = append(keep, r.Common[len(r.Common)-1])
+		}
+		b.WriteString(prefixed("  ", keep))
+	}
+	return b.String()
+}
+
 // CurrentText returns the current text of a document of the given kind ("" for any); empty when missing.
 func CurrentText(ctx context.Context, q *db.Queries, s Scope, kind, name string) (string, error) {
 	row, err := q.CurrentText(ctx, db.CurrentTextParams{WorkspaceID: s.Workspace, ProjectID: store.ID(s.Project), Name: name, Kind: kind})

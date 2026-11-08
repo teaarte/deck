@@ -107,7 +107,7 @@ func ship(ctx context.Context, q *db.Queries, ref Ref, f File) (changed bool, no
 	owner := cur.Author == registry.Owner
 	merged, conflicts := carry(f.Kind, cur.Text, base, f.Text, owner)
 	if merged != "" {
-		if bad := checkText(f.Kind, ref.Name, merged); bad != nil {
+		if bad := CheckText(f.Kind, ref.Name, merged); bad != nil {
 			merged, conflicts = "", []string{fmt.Sprintf("the merged text does not hold: %v", bad)}
 		}
 	}
@@ -116,7 +116,7 @@ func ship(ctx context.Context, q *db.Queries, ref Ref, f File) (changed bool, no
 		return false, "", err
 	}
 	switch {
-	case merged == "" && owner && checkText(f.Kind, ref.Name, cur.Text) == nil:
+	case merged == "" && owner && CheckText(f.Kind, ref.Name, cur.Text) == nil:
 		// The owner's text stays current over deck's, which is the base of the next merge.
 		if _, _, _, err := Save(ctx, q, ref, f.Kind, cur.Text, cur.Author, "the owner's edit stays: what deck shipped does not merge with it"); err != nil {
 			return false, "", err
@@ -183,8 +183,8 @@ func orNone(v []byte) string {
 	return string(v)
 }
 
-// checkText is why a text cannot be a document of its kind; a manifest has to read.
-func checkText(kind, name, text string) error {
+// CheckText is why a text cannot be a document of its kind; a manifest has to read.
+func CheckText(kind, name, text string) error {
 	if kind == KindManifest {
 		_, err := manifest.Parse([]byte(text))
 		return err

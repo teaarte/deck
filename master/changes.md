@@ -121,7 +121,9 @@ and bring the modules in line.
   puts before that one, once it takes turns; behind its own model it waits in its session. `health_list` gives a
   model `fallbacks` beside `places`: the work it stands in while another model does it, after it or while it is down.
 - 2026-11-08: a model on a node (`codex@Mac`, a model of a CLI or of an ACP agent `@Mac`) is a model deck has while
-  that node is paired: health no longer says "deck has no such model" of it. The row of a node names its connections
+  that node is paired and, while it is connected, runs that agent: health no longer says "deck has no such model" of
+  it, and an assignment of an agent the node does not run is refused with what to allow on it; work whose first
+  model is on a node away says `its node Mac is offline`. The row of a node names its connections
   in quotes, `it serves the connection "media"`, `the connection "local" does not answer on its machine`; the step of
   a self-check after resume is `turn after resume`. `project_readiness_get` with `lang` gives the rights in that
   language. A question to the owner without text is refused to the agent; a process parked on a frozen call shows

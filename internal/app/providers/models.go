@@ -331,9 +331,9 @@ func (s *Service) Exists(ctx context.Context, workspace int64, name string) bool
 		return true
 	}
 	base, node, ok := provider.AtNode(name)
-	if !ok || strings.Contains(base, "@") || !s.Exists(ctx, workspace, base) {
+	if !ok {
 		return false
 	}
-	_, err := s.NodeNamed(ctx, workspace, node)
+	_, err := s.onNode(ctx, workspace, base, node)
 	return err == nil
 }

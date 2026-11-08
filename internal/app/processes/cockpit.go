@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"deck2/internal/access"
+	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
@@ -55,8 +56,8 @@ func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang 
 		asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
 		i := slices.IndexFunc(asks, holds)
 		// A parked process waits for every open ask, a frozen call too.
-		if i < 0 && p.State == process.StateWaitingAnswer && len(asks) > 0 {
-			i = 0
+		if i < 0 && p.State == process.StateWaitingAnswer {
+			i = slices.IndexFunc(asks, func(a db.Ask) bool { return a.State == ask.StateOpen })
 		}
 		if i >= 0 {
 			v.Ask, v.Question = asks[i].ID, asks[i].Text

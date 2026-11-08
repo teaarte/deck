@@ -222,6 +222,11 @@ func (s *Service) change(ctx context.Context, workspace int64, requires []string
 	return "pick one that has it in the row of the command in the settings of the module: " + strings.Join(names, ", ")
 }
 
+const nodeAway = "its node %s is offline"
+
+// downs are the statuses of health a new start picks no provider in.
+var downs = []string{health.Checking, health.Paused, health.Error, health.NeedsLogin}
+
 // why is one line of why the work does not go to the first of models, in words tr gives: the health of the first one
 // down up to using; empty when the first does the work.
 func (s *Service) why(ctx context.Context, workspace int64, models []string, using string, tr func(string) string) string {
@@ -229,8 +234,14 @@ func (s *Service) why(ctx context.Context, workspace int64, models []string, usi
 		if !s.Exists(ctx, workspace, name) {
 			return name + ": " + tr(noModel)
 		}
-		if h, err := s.Health(ctx, workspace, name); err == nil && !s.Up(ctx, workspace, name) {
-			return name + ": " + untrusted.Flat(tr(cmp.Or(h.Error, h.Status)), 200)
+		if !s.Up(ctx, workspace, name) {
+			h, err := s.Health(ctx, workspace, name)
+			if _, node, ok := provider.AtNode(name); ok && (err != nil || !slices.Contains(downs, h.Status)) {
+				return name + ": " + fmt.Sprintf(tr(nodeAway), node)
+			}
+			if err == nil {
+				return name + ": " + untrusted.Flat(tr(cmp.Or(h.Error, h.Status)), 200)
+			}
 		}
 		if name == using {
 			return ""

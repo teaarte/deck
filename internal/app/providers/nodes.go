@@ -47,6 +47,15 @@ func (s *Service) onNode(ctx context.Context, workspace int64, base, name string
 	if err != nil {
 		return nil, err
 	}
+	agent := s.agentOf(ctx, workspace, base)
+	if agent == "" {
+		return nil, registry.NotFound("no provider %q: %s runs in no agent", base+"@"+name, base)
+	}
+	// What a node runs is known while it is connected; away, its turns wait for it.
+	if st := s.Nodes.State(device); st.Online && !slices.Contains(st.Agents, agent) {
+		return nil, registry.Invalid("node %s does not run the agent %s: on its machine allow it with deck -join %s --install --allow %s",
+			name, agent, st.Address, agent)
+	}
 	cfg := remote.Config{Spec: remote.Spec{Agent: base, Name: base}, Base: pv, Machine: s.machine(device, name)}
 	if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: base}); err == nil {
 		m, c := row.Model, row.Connection

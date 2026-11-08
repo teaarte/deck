@@ -857,14 +857,17 @@ func TestTheHistorySaysTheModuleModelAndTokensOfEachTopic(t *testing.T) {
 		Topics []struct {
 			ID int64 `json:"id"`
 		} `json:"topics"`
-		Modules []string `json:"modules"`
+		Modules []struct {
+			Project string `json:"project"`
+			Last    int64  `json:"last"`
+		} `json:"modules"`
 	}
 	e.Must("deck.chat_topics_list", map[string]any{"module": "web"}, &mod)
-	if len(mod.Topics) != 1 || mod.Topics[0].ID != web || !slices.Equal(mod.Modules, []string{"web"}) {
+	if len(mod.Topics) != 1 || mod.Topics[0].ID != web || len(mod.Modules) != 2 || mod.Modules[0].Project != "-" || mod.Modules[1].Project != "web" || mod.Modules[1].Last != web {
 		t.Fatalf("the history of a module gives only its topics, and the modules of all: %+v", mod)
 	}
 	e.Must("deck.chat_topics_list", map[string]any{"module": "-"}, &mod)
-	if len(mod.Topics) != 4 {
+	if len(mod.Topics) != 4 || mod.Modules[0].Last != mod.Topics[0].ID {
 		t.Fatalf("the history without a module gives the topics about none: %+v", mod)
 	}
 }

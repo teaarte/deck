@@ -168,10 +168,12 @@ SELECT CAST(COALESCE(SUM(c.gen_ai_usage_input_tokens + c.gen_ai_usage_output_tok
 FROM llm_call c WHERE c.process_id IN (SELECT id FROM turn);
 
 -- name: ListTopicProjects :many
--- The modules the topics of a workspace are about: the project of the screen of the first message of each.
-SELECT DISTINCT CAST(json_extract(m.context, '$.project') AS TEXT) AS project
-FROM chat_topic t JOIN chat_message m ON m.id = (SELECT m2.id FROM chat_message m2
-    WHERE m2.topic_id = t.id AND json_valid(m2.context) AND COALESCE(json_extract(m2.context, '$.project'), '') != '' ORDER BY m2.id LIMIT 1)
-JOIN project pr ON pr.workspace_id = t.workspace_id AND pr.name = json_extract(m.context, '$.project')
-WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL
-ORDER BY 1;
+-- The modules the topics of a workspace are about, - for none, each with its newest topic not archived.
+SELECT CAST(p AS TEXT) AS project, CAST(id AS INTEGER) AS last_topic, CAST(MAX(updated_at) AS TEXT) AS updated_at FROM (
+    SELECT t.id, t.updated_at, COALESCE((SELECT pr.name FROM project pr WHERE pr.workspace_id = t.workspace_id AND pr.name =
+        (SELECT json_extract(m.context, '$.project') FROM chat_message m
+            WHERE m.topic_id = t.id AND json_valid(m.context) AND COALESCE(json_extract(m.context, '$.project'), '') != ''
+            ORDER BY m.id LIMIT 1)), '-') AS p
+    FROM chat_topic t WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL AND t.archived = 0)
+GROUP BY p
+ORDER BY p;

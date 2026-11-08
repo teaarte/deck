@@ -1223,9 +1223,12 @@ export interface ChatValue {
    */
   models?: string[];
   /**
-   * the modules any topic is about, whatever the topics given
+   * the modules any topic is about, - for none, with the newest topic of each not archived, whatever the topics given
    */
-  modules?: string[];
+  modules?: {
+    project: string;
+    last: number;
+  }[];
   /**
    * each model in short, in words: its price, speed and context
    */

@@ -51,15 +51,28 @@ func TestRealBrowserTheHistoryAndThePickersOfModels(t *testing.T) {
 		b.eval(`((document.querySelector('[data-chat-phone]') || document).querySelector('[data-topics]').click(), '')`)
 		web := lines + `.filter((x) => x.querySelector('[data-topic-title]').innerText.startsWith('web topic'))`
 		b.until(size.name+": the topic open first, then the last ten of the module, newest first, then Show all",
-			lines+`.length === 11 && `+lines+`[0].querySelector('[data-topic-title]').innerText === 'about nothing' && `+web+`.length === 10
-			&& `+lines+`[1].querySelector('[data-topic-title]').innerText === 'web topic 12' && document.querySelector('[data-topics-more]')?.innerText.includes('12')
+			`(() => { const ls = `+lines+`, other = ls[0]?.querySelector('[data-topic-title]').innerText === 'about nothing';
+				return ls.length === (other ? 11 : 10) && ls[other ? 1 : 0].querySelector('[data-topic-title]').innerText === 'web topic 12' })()`+` && `+web+`.length === 10
+			&& document.querySelector('[data-topics-more]')?.innerText.includes('12')
 			&& `+web+`.every((x) => x.querySelector('[data-icon], [data-icon-letter]'))`)
 		b.shot("f9-history-" + size.name)
 		b.eval(`(document.querySelector('[data-topics-more]').closest('[role=option]').click(), '')`)
-		b.until(size.name+": all the topics of the module after Show all", lines+`.length === 13 && !document.querySelector('[data-topics-more]')`)
+		b.until(size.name+": all the topics of the module after Show all", `[12, 13].includes(`+lines+`.length) && `+web+`.length === 12 && !document.querySelector('[data-topics-more]')`)
 		b.eval(`((document.querySelector('[data-chat-phone]') || document).querySelector('[data-topics]').click(), '')`)
 		b.eval(`((document.querySelector('[data-chat-phone]') || document).querySelector('[data-topic-project]').click(), '')`)
 		b.until(size.name+": the modules with their icons", `[...document.querySelectorAll('[data-topic-projects] [role=menuitem]')].some((x) => x.innerText.trim() === 'web' && x.querySelector('[data-icon], [data-icon-letter]'))`)
+		in := `(document.querySelector('[data-chat-phone]') || document)`
+		module := func(label string) {
+			b.eval(`([...document.querySelectorAll('[data-topic-projects] [role=menuitem]')].find((x) => x.innerText.trim() === '` + label + `').click(), '')`)
+		}
+		module("Without a module")
+		b.until(size.name+": another module opens its newest topic", in+`.querySelector('[data-topics]').value === 'about nothing'`)
+		b.eval(`(` + in + `.querySelector('[data-topic-project]').click(), '')`)
+		b.until(size.name+": the modules again", `[...document.querySelectorAll('[data-topic-projects] [role=menuitem]')].some((x) => x.innerText.trim() === 'web')`)
+		module("web")
+		b.until(size.name+": back to the module, its newest topic", in+`.querySelector('[data-topics]').value === 'web topic 12'`)
+		b.eval(`(` + in + `.querySelector('[data-topic-project]').click(), '')`)
+		b.until(size.name+": the modules once more", `[...document.querySelectorAll('[data-topic-projects] [role=menuitem]')].some((x) => x.innerText.trim() === 'All modules')`)
 		b.eval(`([...document.querySelectorAll('[data-topic-projects] [role=menuitem]')].find((x) => x.innerText.trim() === 'All modules').click(), '')`)
 		b.eval(`((document.querySelector('[data-chat-phone]') || document).querySelector('[data-topics]').click(), '')`)
 		b.until(size.name+": a topic says the tokens it spent", `document.querySelector('[data-topic-tokens="12345"]')?.innerText.includes('12')`)

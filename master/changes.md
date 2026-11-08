@@ -140,4 +140,4 @@ and bring the modules in line.
   a command gives `logo` of its model, provider first.
 - 2026-11-08: a topic of `chat_topics_list` gives `tokens` (what its replies and the work they started spent),
   `replied_on` (the model of its last reply) and `logo` (the words of that model's mark); with `module` it gives only
-  the topics about that module (`-` for those about none), and `modules` names the modules of all topics.
+  the topics about that module (`-` for those about none), and `modules` names the modules of all topics (`project`, `-` for none) with `last`, the newest topic of each.

@@ -143,13 +143,20 @@ type chatView struct {
 type topicsView struct {
 	Topics   []topicView `json:"topics"`
 	Archived []topicView `json:"archived"`
-	// Modules are the modules any topic of the workspace is about, whatever the topics given.
-	Modules []string `json:"modules"`
-	Models  []string `json:"models"`
-	Model   string   `json:"model,omitempty"`
+	// Modules are the modules any topic of the workspace is about, - for none, with the newest topic of each, whatever
+	// the topics given.
+	Modules []moduleView `json:"modules"`
+	Models  []string     `json:"models"`
+	Model   string       `json:"model,omitempty"`
 	// Notes say each model in short, such as its price and speed; Logos are the words naming its provider and model.
 	Notes map[string]string `json:"notes"`
 	Logos map[string]string `json:"logos"`
+}
+
+// moduleView is a module the topics are about and its newest topic.
+type moduleView struct {
+	Project string `json:"project"`
+	Last    int64  `json:"last"`
 }
 
 // turnPart is the turn going on in the topic picked: its lines, the questions of its reply and what it and the
@@ -329,11 +336,13 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 	if v.Archived, err = s.topics(ctx, act.Workspace, true, 0, 20, in.Module, tr); err != nil {
 		return v, err
 	}
-	if v.Modules, err = s.St.Q.ListTopicProjects(ctx, act.Workspace); err != nil {
+	mods, err := s.St.Q.ListTopicProjects(ctx, act.Workspace)
+	if err != nil {
 		return v, err
 	}
-	if v.Modules == nil {
-		v.Modules = []string{}
+	v.Modules = make([]moduleView, 0, len(mods))
+	for _, m := range mods {
+		v.Modules = append(v.Modules, moduleView{Project: m.Project, Last: m.LastTopic})
 	}
 	v.Models, v.Model = s.models(ctx, act.Workspace)
 	facts := s.Facts(ctx, act.Workspace, registry.Lang(ctx))

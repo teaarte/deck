@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/models"
 	"deck2/internal/process"
@@ -18,6 +19,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 	"deck2/schemas"
 )
 
@@ -64,9 +66,69 @@ func (s *Service) modelCommands() []*registry.Command {
 		}
 		return name + " → " + cmp.Or(strings.Join(sets, ", "), "as the catalog of the connection has it")
 	}
-	return []*registry.Command{c,
-		registry.Def("model_delete", "Remove model", "Removes a model and takes it out of the assignments that name it.",
-			registry.OwnerOnly, s.modelDelete)}
+	d := registry.Def("model_delete", "Remove model",
+		"Removes a model and takes it out of the assignments that name it. A module that lists it in allowed_external removes without the owner a free model its own call added that no assignment names, and the owner sees it with an undo; any other removal waits for the owner.",
+		registry.Everyone, s.modelDelete).As(registry.External)
+	d.Gate.Allowed = func(ctx context.Context, a registry.Actor, input json.RawMessage, listed bool) (bool, error) {
+		var in modelDeleteIn
+		if !listed || a.Trial || json.Unmarshal(input, &in) != nil {
+			return false, nil
+		}
+		m, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: a.Workspace, Name: in.Name})
+		if err != nil {
+			return false, nil
+		}
+		return s.spare(ctx, s.St.Q, a, m.Model)
+	}
+	// A removal takes the model out of its assignments, which no undo brings back: only the owner's own yes allows it.
+	d.Gate.OwnYes = true
+	return []*registry.Command{c, d}
+}
+
+// spare says a module may remove a model without the owner: the call of its own project added it, it is free, no
+// assignment names it and it keeps no files.
+func (s *Service) spare(ctx context.Context, q *db.Queries, a registry.Actor, m db.Model) (bool, error) {
+	free := m.Free == 1 || !m.InputUsd.Valid && !m.OutputUsd.Valid && !m.CallUsd.Valid && m.Subscription == 0
+	if !a.Confined() || a.ProjectID == 0 || m.ProjectID.Int64 != a.ProjectID || !free || strings.Contains(m.Options, `"$file"`) {
+		return false, nil
+	}
+	used, err := assigned(ctx, q, m.WorkspaceID, m.Name)
+	return !used, err
+}
+
+// assigned says an assignment of a workspace names a model, on a node too.
+func assigned(ctx context.Context, q *db.Queries, workspace int64, name string) (bool, error) {
+	rows, err := q.ListAssignments(ctx, workspace)
+	if err != nil {
+		return false, err
+	}
+	for _, r := range rows {
+		var names []string
+		_ = json.Unmarshal([]byte(r.Models), &names)
+		if slices.ContainsFunc(names, func(n string) bool {
+			base, _, _ := provider.AtNode(n)
+			return n == name || base == name
+		}) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// back is the input of model_set that makes a model again as it is.
+func back(m db.Model, connection string) json.RawMessage {
+	in := map[string]any{"connection": connection, "model": m.Model, "name": m.Name, "kind": m.Kind, "unit": m.Unit, "free": m.Free == 1,
+		"subscription": m.Subscription == 1, "options": m.Options, "tpm": m.Tpm, "context": m.Context}
+	for k, v := range map[string]sql.NullFloat64{"input_usd": m.InputUsd, "output_usd": m.OutputUsd, "call_usd": m.CallUsd} {
+		if v.Valid {
+			in[k] = v.Float64
+		}
+	}
+	if m.Agent != "" {
+		in["agent"], in["check_minutes"] = m.Agent, m.CheckMinutes
+	}
+	b, _ := json.Marshal(in)
+	return b
 }
 
 func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetIn) (any, error) {
@@ -99,6 +161,9 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	m := db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: in.Name, Model: in.Model, Kind: in.Kind, Options: "{}",
 		InputUsd: positive(in.InputUSD), OutputUsd: positive(in.OutputUSD), CallUsd: positive(in.CallUSD), Unit: in.Unit,
 		Agent: in.Agent, CheckMinutes: in.CheckMinutes}
+	if act.Confined() {
+		m.ProjectID = store.ID(act.ProjectID)
+	}
 	unpriced := in.Free == nil && !m.InputUsd.Valid && !m.OutputUsd.Valid && !m.CallUsd.Valid
 	if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
 		if unpriced {
@@ -290,8 +355,10 @@ type modelDeleteIn struct {
 	Name string `desc:"Model name"`
 }
 
+// modelDelete removes a model; one a module removed without the owner's yes the owner sees with its undo.
 func (s *Service) modelDelete(ctx context.Context, act registry.Actor, in modelDeleteIn) (any, error) {
 	var n int64
+	_, approved := gateway.Approved(ctx)
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		active, err := q.CountActiveOnProvider(ctx, db.CountActiveOnProviderParams{Provider: in.Name, WorkspaceID: act.Workspace})
 		if err != nil {
@@ -300,7 +367,15 @@ func (s *Service) modelDelete(ctx context.Context, act registry.Actor, in modelD
 		if active > 0 {
 			return registry.Invalid("%d processes still run on %s; stop them or let them finish first", active, in.Name)
 		}
-		if old, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
+		old, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name})
+		var unasked bool
+		if err == nil {
+			if unasked, err = s.spare(ctx, q, act, old.Model); err != nil {
+				return err
+			}
+			if act.Confined() && !approved && !unasked {
+				return registry.Conflict("%s changed meanwhile: it is no free model of this module that no assignment names; the owner removes it", in.Name)
+			}
 			if err := q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: "model", OwnerID: old.Model.ID}); err != nil {
 				return err
 			}
@@ -311,7 +386,12 @@ func (s *Service) modelDelete(ctx context.Context, act registry.Actor, in modelD
 		if err := s.Unassign(ctx, q, act.Workspace, in.Name); err != nil {
 			return err
 		}
-		return q.DeleteModelHealth(ctx, db.DeleteModelHealthParams{WorkspaceID: store.ID(act.Workspace), Name: in.Name})
+		if err := q.DeleteModelHealth(ctx, db.DeleteModelHealthParams{WorkspaceID: store.ID(act.Workspace), Name: in.Name}); err != nil || !unasked || approved {
+			return err
+		}
+		return store.AddChange(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: act.Workspace, ProjectID: act.ProjectID,
+			Author: act.Author(), Text: fmt.Sprintf("deleted model %s", untrusted.Line(in.Name, 80)), Actions: "[]", Command: registry.Deck("model_set"),
+			Params: string(back(old.Model, old.Connection.Name)), ProcessID: store.ID(act.ProcessID), What: "deleted models"})
 	})
 	if err != nil {
 		return nil, err

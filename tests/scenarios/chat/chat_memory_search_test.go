@@ -74,6 +74,8 @@ func TestMemorySearchFindsAWordInItsOtherForms(t *testing.T) {
 	e.SQL(`DELETE FROM memory_fts`)
 	// The migration of the trigram index builds it from the facts again.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 68`)
+	// Nor kept its models the module that added them.
+	e.SQL(`ALTER TABLE model DROP COLUMN project_id`)
 	e = e.Restart()
 
 	found := func(q string, want ...string) {

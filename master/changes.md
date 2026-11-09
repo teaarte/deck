@@ -223,3 +223,7 @@ and bring the modules in line.
   process of this module asked the owner for closes, with the input `ask` (id), `answer` (`yes`, `no` or `expired`)
   and `process` (the one that asked), so its input declares those fields; a module never hears the asks of others.
   A module that polled for the owner's answers on a schedule takes this trigger instead.
+- 2026-11-09: `deck.model_delete` may stand in `allowed_external`: then a module removes without the owner a model its
+  own call of `deck.model_set` added, free and named in no assignment, and the owner sees it among the changes made
+  without them with an undo that brings the model back; any other removal by a module waits for the owner. deck no
+  longer checks by itself a model in an agent that no assignment names; `deck.provider_check` still does.

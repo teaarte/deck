@@ -133,7 +133,8 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   `$DECK_MODELS/<connection>/…` needs that connection itself in `models`, a model's name is not enough); deck keeps each call with its cost in its journal,
   and the settings of the module list the models it called. A model the module needs and deck lacks: propose it
   with `deck.model_set` (connection, model, kind; the price comes from the catalog of the connection) — the call
-  waits for the owner's button. deck has no limits of money: the owner sets them at the provider, so a module never
+  waits for the owner's button. A free model the module added that no assignment names any more it removes with
+  `deck.model_delete`, listed in `allowed_external`, without the owner, who sees it with an undo. deck has no limits of money: the owner sets them at the provider, so a module never
   loops on paid calls.
 - **MCP servers** (`tools.mcp.servers`, the usual `mcp.servers` shape): `command`/`args`/`env` (values may use
   `$secret.<name>`) or `url`; a `command` server reaches the web only through deck's proxy, to the hosts of

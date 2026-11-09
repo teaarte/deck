@@ -266,6 +266,7 @@ type Model struct {
 	Subscription int64
 	Tpm          int64
 	Context      int64
+	ProjectID    sql.NullInt64
 }
 
 type Outbox struct {

@@ -388,6 +388,8 @@ func TestThePushesOfADeckBeforeDevicesStayAsDevices(t *testing.T) {
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 59`)
 	// Nor had its connections a node.
 	e.SQL(`ALTER TABLE connection DROP COLUMN node_id`)
+	// Nor kept its models the module that added them.
+	e.SQL(`ALTER TABLE model DROP COLUMN project_id`)
 	// Nor had it the devices of the owner.
 	for _, q := range harness.BeforeDevices {
 		e.SQL(q)

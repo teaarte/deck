@@ -81,6 +81,10 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 		}
 	}
 	for _, pv := range s.checked(ctx) {
+		if s.idle(ctx, pv.Name()) {
+			s.unstick(ctx, pv.Name())
+			continue
+		}
 		if s.onCLI(ctx, pv.Name()) {
 			continue
 		}
@@ -277,6 +281,28 @@ func errText(err error) string {
 		return ""
 	}
 	return err.Error()
+}
+
+// idle says a provider is a model no assignment names, which deck does not check by itself.
+func (s *Service) idle(ctx context.Context, name string) bool {
+	spaces, _ := s.St.Q.ListWorkspaces(ctx)
+	for _, ws := range spaces {
+		if _, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: ws, Name: name}); err == nil {
+			used, err := assigned(ctx, s.St.Q, ws, name)
+			return err == nil && !used
+		}
+	}
+	return false
+}
+
+// unstick clears the health of a check a stop cut short, which no check of an idle model ends.
+func (s *Service) unstick(ctx context.Context, name string) {
+	s.mu.Lock()
+	running := s.checksOf(name).running
+	s.mu.Unlock()
+	if h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Provider(name)); err == nil && h.Status == health.Checking && !running {
+		s.clearCheck(ctx, name)
+	}
 }
 
 // onCLI reports whether a provider is a model of an agent CLI on the owner's subscription, on a node too.

@@ -160,6 +160,8 @@ func TestADeckBeforeSleepWakesUpWithIt(t *testing.T) {
 	e.UseModels("master.memory", "fake")
 	// A base of a deck before sleep.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 67`)
+	// Nor kept its models the module that added them.
+	e.SQL(`ALTER TABLE model DROP COLUMN project_id`)
 	e2 := e.Restart()
 	e2.Must("deck.triggers_list", map[string]any{"project": "master"}, &ts)
 	var sleeps int

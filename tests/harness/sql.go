@@ -95,4 +95,4 @@ var BeforePasskeys = []string{`CREATE TABLE device_old (id INTEGER PRIMARY KEY A
 	`INSERT INTO session_old SELECT hash, device_id, created_at, seen_at FROM session`,
 	`DROP TABLE session`, `DROP TABLE device`, `DROP TABLE passkey`,
 	`ALTER TABLE device_old RENAME TO device`, `ALTER TABLE session_old RENAME TO session`,
-	`ALTER TABLE connection DROP COLUMN node_id`, `DELETE FROM goose_db_version WHERE version_id >= 61`}
+	`ALTER TABLE connection DROP COLUMN node_id`, `ALTER TABLE model DROP COLUMN project_id`, `DELETE FROM goose_db_version WHERE version_id >= 61`}

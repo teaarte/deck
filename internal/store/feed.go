@@ -56,6 +56,8 @@ func Line(ctx context.Context, q *db.Queries, f db.Feed) ([]string, bool, error)
 			whats[i] = fmt.Sprintf("deleted records of %s: %d", of, times[w])
 		} else if w == "deleted files" {
 			whats[i] = fmt.Sprintf("deleted files: %d", times[w])
+		} else if w == "deleted models" {
+			whats[i] = fmt.Sprintf("deleted models: %d", times[w])
 		} else if times[w] > 1 {
 			whats[i] = fmt.Sprintf("%s ×%d", w, times[w])
 		}

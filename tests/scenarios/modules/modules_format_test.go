@@ -30,6 +30,8 @@ func TestAStoredManifestOfFormat14ReadsInFormat15(t *testing.T) {
 	}
 	// A base an older deck left: the manifests of format 14.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 56`)
+	// Nor kept its models the module that added them.
+	e.SQL(`ALTER TABLE model DROP COLUMN project_id`)
 	// Nor had its connections a node.
 	e.SQL(`ALTER TABLE connection DROP COLUMN node_id`)
 	// Nor had it the devices of the owner.
@@ -98,6 +100,8 @@ func TestAStoredManifestOfFormat15ReadsInFormat16(t *testing.T) {
 		(?, 'kept', 'done', 0, '2026-10-01T10:10:00.000Z', '2026-10-01T10:40:00.000Z')`, p, p, p, p, p, p, p, p)
 	// A base an older deck left: the manifests of format 15.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 58`)
+	// Nor kept its models the module that added them.
+	e.SQL(`ALTER TABLE model DROP COLUMN project_id`)
 	// Nor had its connections a node.
 	e.SQL(`ALTER TABLE connection DROP COLUMN node_id`)
 	// Nor had it the devices of the owner.

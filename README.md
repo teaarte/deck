@@ -211,8 +211,12 @@ Caddy came under the profile has only `DECK_DOMAIN` in `.env`: add `COMPOSE_PROF
 (`tailscale:builtin`) that it goes away. Its node `deck` keeps serving until the last step, so the phone works
 meanwhile.
 
-1. Install Tailscale on the host and sign it in to the same tailnet: on a Mac with OrbStack the Tailscale app, on a
-   Linux server `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up`.
+A server that already has its domain with Caddy needs only step 5. On a Mac with OrbStack or a Linux server without
+a domain:
+
+1. Install Tailscale on the host and sign it in to the same tailnet: on a Mac the Tailscale app with its command line
+   (the app's Settings → Install CLI), on a Linux server
+   `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up --operator=$USER`.
 2. On the host: `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701`; `tailscale serve status`
    shows the address, `https://<machine>.<tailnet>.ts.net`.
 3. Put `DECK_DOMAIN=<machine>.<tailnet>.ts.net` in `.env` (no `COMPOSE_PROFILES=domain`: Tailscale serves https, not

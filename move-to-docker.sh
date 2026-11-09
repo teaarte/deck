@@ -22,6 +22,6 @@ docker compose run --rm --no-deps -T --entrypoint sh -v "$from:/from:ro" deck -c
   tar -cf - --exclude=./state/deck.lock --exclude=./state/doors --exclude=.DS_Store . | tar -xf - -C /var/lib/deck
   chown -R deck:deck /var/lib/deck'
 if [ -d "$from/state/tailscale" ] && ! grep -qs '^DECK_TAILSCALE=.' .env; then
-  echo "move-to-docker: deck was on a tailnet; put its name in .env (DECK_TAILSCALE=deck) to keep its address there"
+  echo "move-to-docker: deck was on a tailnet; put its name in .env (DECK_TAILSCALE=deck) to keep its address there for now; the built-in Tailscale goes away in a coming release (README, Moving off the built-in Tailscale)"
 fi
 echo "move-to-docker: $from is in the volume; docker compose up -d starts deck on it, and $from stays as it was"

@@ -30,8 +30,8 @@ import (
 
 // tailnetControl is a coordination server of a test tailnet whose nodes the test signs in.
 func tailnetControl(t *testing.T) *testcontrol.Server {
+	// Off for the whole process: the tests of the tailnet run in parallel on loopback.
 	netns.SetEnabled(false)
-	t.Cleanup(func() { netns.SetEnabled(true) })
 	derp := integration.RunDERPAndSTUN(t, logger.Discard, "127.0.0.1")
 	control := &testcontrol.Server{DERPMap: derp, DNSConfig: &tailcfg.DNSConfig{Proxied: true}, MagicDNSDomain: "tail-scale.ts.net",
 		RequireAuth: true, Logf: logger.Discard}

@@ -4,11 +4,9 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"slices"
 	"time"
 
 	"deck2/internal/access"
-	"deck2/internal/ask"
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -73,8 +71,7 @@ func (s *Service) running(ctx context.Context, workspace, topic int64, tr func(s
 	rows, _ := s.St.Q.ListOpenTopicProcesses(ctx, db.ListOpenTopicProcessesParams{MasterID: m.ID, Topic: topic, Lim: openLook})
 	for _, r := range rows {
 		v := view(r.Process, r.Project)
-		asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, r.Process.ID)
-		if slices.ContainsFunc(asks, func(a db.Ask) bool { return a.State == ask.StateOpen }) {
+		if r.Waits == 1 {
 			v.Waits, v.Word, v.Tone = true, tr("waits for you"), "warn"
 		}
 		open = append(open, v)

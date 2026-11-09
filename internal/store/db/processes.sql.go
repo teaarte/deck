@@ -828,8 +828,8 @@ type ListBusyTopicsRow struct {
 	Waits int64
 }
 
-// The topics of a master whose reply or a process a reply started has not ended: when the first of them began and
-// whether one waits for the owner.
+// The topics of a master whose reply or a process a reply started has not ended (the states that end one are
+// process.Final): when the first of them began and whether one waits for the owner.
 func (q *Queries) ListBusyTopics(ctx context.Context, masterID int64) ([]ListBusyTopicsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listBusyTopics, masterID)
 	if err != nil {
@@ -1413,7 +1413,9 @@ func (q *Queries) ListOpenProcesses(ctx context.Context, arg ListOpenProcessesPa
 }
 
 const listOpenTopicProcesses = `-- name: ListOpenTopicProcesses :many
-SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, p.error_type, p.error_details, p.follows_id, p.again, p.allows, p.wrote, p.submitted_at, j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, p.error_type, p.error_details, p.follows_id, p.again, p.allows, p.wrote, p.submitted_at, j.name AS project,
+    CAST(EXISTS (SELECT 1 FROM ask a WHERE a.process_id = p.id AND a.state = 'open') AS INTEGER) AS waits
+FROM process p JOIN project j ON j.id = p.project_id
 WHERE p.parent_id IN (SELECT t.id FROM process t WHERE t.project_id = ?1 AND json_extract(t.input, '$.topic') = CAST(?2 AS INTEGER))
   AND p.state NOT IN ('done', 'error', 'stopped', 'interrupted')
 ORDER BY p.id DESC LIMIT ?3
@@ -1428,9 +1430,11 @@ type ListOpenTopicProcessesParams struct {
 type ListOpenTopicProcessesRow struct {
 	Process Process
 	Project string
+	Waits   int64
 }
 
-// The processes the replies of a topic started that have not ended, newest first.
+// The processes the replies of a topic started that have not ended, newest first, and whether one waits for the owner.
+// The states that end a process are process.Final.
 func (q *Queries) ListOpenTopicProcesses(ctx context.Context, arg ListOpenTopicProcessesParams) ([]ListOpenTopicProcessesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOpenTopicProcesses, arg.MasterID, arg.Topic, arg.Lim)
 	if err != nil {
@@ -1481,6 +1485,7 @@ func (q *Queries) ListOpenTopicProcesses(ctx context.Context, arg ListOpenTopicP
 			&i.Process.Wrote,
 			&i.Process.SubmittedAt,
 			&i.Project,
+			&i.Waits,
 		); err != nil {
 			return nil, err
 		}

@@ -36,7 +36,7 @@ export function WorkStrip({ running, recent, iconOf }: { running: Running[]; rec
   const waits = running.some((p) => p.waits);
   return (
     <div className={s.workBox}>
-      <div className={s.work} role="status" aria-label={t('Running')} data-chat-work={running.length}>
+      <div className={s.workStrip} role="status" aria-label={t('Running')} data-chat-work={running.length}>
         <span className={s.workCount}>
           <span className={s.busyDot} data-waits={waits || undefined} aria-hidden />
           <Text span size="xs" fw={600} className={s.workLabel}>{t('Running')}</Text>

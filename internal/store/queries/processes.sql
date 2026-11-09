@@ -92,8 +92,11 @@ ORDER BY p.id DESC LIMIT sqlc.arg(lim);
 
 
 -- name: ListOpenTopicProcesses :many
--- The processes the replies of a topic started that have not ended, newest first.
-SELECT sqlc.embed(p), j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+-- The processes the replies of a topic started that have not ended, newest first, and whether one waits for the owner.
+-- The states that end a process are process.Final.
+SELECT sqlc.embed(p), j.name AS project,
+    CAST(EXISTS (SELECT 1 FROM ask a WHERE a.process_id = p.id AND a.state = 'open') AS INTEGER) AS waits
+FROM process p JOIN project j ON j.id = p.project_id
 WHERE p.parent_id IN (SELECT t.id FROM process t WHERE t.project_id = sqlc.arg(master_id) AND json_extract(t.input, '$.topic') = CAST(sqlc.arg(topic) AS INTEGER))
   AND p.state NOT IN ('done', 'error', 'stopped', 'interrupted')
 ORDER BY p.id DESC LIMIT sqlc.arg(lim);
@@ -108,8 +111,8 @@ ORDER BY p.finished_at DESC LIMIT sqlc.arg(lim);
 
 
 -- name: ListBusyTopics :many
--- The topics of a master whose reply or a process a reply started has not ended: when the first of them began and
--- whether one waits for the owner.
+-- The topics of a master whose reply or a process a reply started has not ended (the states that end one are
+-- process.Final): when the first of them began and whether one waits for the owner.
 SELECT CAST(json_extract(t.input, '$.topic') AS INTEGER) AS topic,
     CAST(MIN(COALESCE(p.reopened_at, p.started_at)) AS TEXT) AS since,
     CAST(MAX(EXISTS (SELECT 1 FROM ask a WHERE a.process_id = p.id AND a.state = 'open')) AS INTEGER) AS waits

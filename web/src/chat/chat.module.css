@@ -493,7 +493,7 @@
   container-type: inline-size;
 }
 
-.work {
+.workStrip {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
@@ -551,7 +551,7 @@
 }
 
 @container (max-width: 380px) {
-  .work {
+  .workStrip {
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;

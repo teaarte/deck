@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -150,8 +151,10 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	}
 	in, out := child.Stdin, child.Stdout
 	c := &client{onEvent: req.OnEvent}
-	conn := sdk.NewClientSideConnection(c, in, out)
+	open := make(chan struct{})
+	conn := sdk.NewClientSideConnection(c, in, gated{out, open})
 	conn.SetLogger(slog.New(slog.DiscardHandler))
+	close(open)
 	t := &turn{a: a, req: req, c: c, conn: conn, dir: dir, session: agentSession, mcp: child.URL() + mcp.Path, e: e}
 	res, runErr := t.run(ctx)
 	_ = in.Close()
@@ -181,4 +184,16 @@ func (a *Adapter) now() time.Time {
 		return a.cfg.Now()
 	}
 	return time.Now()
+}
+
+// gated holds the reads of a connection until open closes: the SDK sets the logger of a connection only racing the
+// reader it already started, which logs as the output ends.
+type gated struct {
+	r    io.Reader
+	open chan struct{}
+}
+
+func (g gated) Read(p []byte) (int, error) {
+	<-g.open
+	return g.r.Read(p)
 }

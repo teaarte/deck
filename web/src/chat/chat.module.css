@@ -411,3 +411,35 @@
   background: var(--mantine-primary-color-light);
   color: var(--mantine-primary-color-light-color);
 }
+
+/* The one block a message of the master shows, under its text. */
+.shown {
+  margin-top: 8px;
+  max-width: min(100%, 560px);
+  padding: 10px 12px;
+  border-radius: var(--deck-block-radius);
+  border: 1px solid var(--mantine-color-default-border);
+  background: var(--mantine-color-body);
+  line-height: 1.45;
+}
+
+.shown[data-answered] {
+  background: var(--mantine-color-default-hover);
+}
+
+.shownFold {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 28px;
+}
+
+.shownDone {
+  flex: none;
+  color: var(--mantine-color-green-text);
+}
+
+.shownBody {
+  margin-top: 8px;
+}

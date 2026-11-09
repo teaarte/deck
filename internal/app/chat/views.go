@@ -78,6 +78,8 @@ type messageView struct {
 	CreatedAt string    `json:"created_at"`
 	// Delete takes back a message of the owner no reply took yet.
 	Delete action `json:"delete,omitempty"`
+	// Block is the one block of the catalog a message of the master shows.
+	Block *blockView `json:"block,omitempty"`
 }
 
 // fileView is a file of a message: one the owner attached, or one the reply and the processes it started made.
@@ -185,6 +187,9 @@ func viewMessage(m db.ChatMessage) messageView {
 	}
 	if m.Context != "" && m.Role != roleDeck {
 		v.Screen = json.RawMessage(m.Context)
+	}
+	if m.Block != "" {
+		v.Block = viewBlock(m)
 	}
 	return v
 }

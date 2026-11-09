@@ -1269,5 +1269,14 @@
   "text, one answer": "текст (один ответ без инструментов)",
   "{{n}} tokens_one": "{{n}} токен",
   "{{n}} tokens_few": "{{n}} токена",
-  "{{n}} tokens_many": "{{n}} токенов"
+  "{{n}} tokens_many": "{{n}} токенов",
+  "Answered": "Отвечено",
+  "Show a block in the chat": "Показать блок в чате",
+  "Shows the owner one block in the topic this reply answers: options to pick, a form to fill (a bounded number slides), a table, a chart or a card, its data in place; the final text of the turn goes over it, and the owner's answer comes as the next message.": "Показывает владельцу один блок в теме, на которую отвечает этот ход: варианты на выбор, форму (число в границах — ползунок), таблицу, график или карточку с данными на месте; итоговый текст хода встаёт над ним, а ответ владельца приходит следующим сообщением.",
+  "The block, by the schema shown of the catalog: choice, form, table, chart or card with its data in place": "Блок по схеме shown каталога: choice, form, table, chart или card с данными на месте",
+  "Answer in the chat": "Ответить в чате",
+  "Answers the block of a message of the master: the option picked or the fields filled, which the topic gets as the owner's next message.": "Отвечает на блок сообщения мастера: выбранный вариант или заполненные поля, которые тема получает следующим сообщением владельца.",
+  "The message of the master whose block the owner answers": "Сообщение мастера, на блок которого отвечает владелец",
+  "The option picked, of a choice": "Выбранный вариант",
+  "The fields filled, of a form, as a JSON object": "Заполненные поля формы, объект JSON"
 }

@@ -49,14 +49,17 @@ type AutomationToken struct {
 }
 
 type ChatMessage struct {
-	ID        int64
-	TopicID   int64
-	Role      string
-	Text      string
-	Context   string
-	ProcessID int64
-	RetryKey  string
-	CreatedAt string
+	ID         int64
+	TopicID    int64
+	Role       string
+	Text       string
+	Context    string
+	ProcessID  int64
+	RetryKey   string
+	CreatedAt  string
+	Block      string
+	Answer     string
+	AnsweredAt sql.NullString
 }
 
 type ChatSession struct {

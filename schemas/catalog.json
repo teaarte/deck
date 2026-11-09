@@ -359,6 +359,9 @@
           "files": {"type": "array", "description": "the files the owner attached, or that the reply and the processes it started made", "items": {"type": "object", "additionalProperties": false, "required": ["id", "name"], "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "type": {"type": "string"}, "size": {"type": "integer"}, "url": {"type": "string"}, "thumb": {"type": "string", "description": "the light copy of a picture, shown small; the file itself only in a viewer"}, "width": {"type": "integer"}, "height": {"type": "integer"}, "color": {"type": "string", "description": "the main color of the picture, shown while it loads"}}}},
           "screen": {"type": "object", "description": "the screen the owner wrote it on: project, screen, record, process"},
           "reply": {"$ref": "#/$defs/reply"}, "created_at": {"type": "string"}, "delete": {"$ref": "#/$defs/action", "description": "takes back a message of the owner no reply took yet"},
+          "block": {"type": "object", "additionalProperties": false, "required": ["type", "data"], "description": "of a message of the master: the one block of the catalog it shows, its data in place, and the answer of the owner once given", "properties": {
+            "type": {"enum": ["choice", "form", "table", "chart", "card"]}, "title": {"type": "string"}, "props": {"type": "object", "description": "what a block of the type takes beside its data, such as the columns of a table or the kind of a chart"},
+            "data": {"$ref": "#/$defs/data"}, "answered": {"type": "object", "additionalProperties": false, "required": ["at"], "properties": {"at": {"type": "string"}, "choice": {"type": "string", "description": "the option picked"}}}}},
           "told": {"type": "object", "additionalProperties": false, "required": ["id", "project", "command", "state", "open"], "description": "on a message of deck: the work it tells of, in the state it was in; its text is the result, or what it waits for",
             "properties": {"id": {"type": "integer"}, "project": {"type": "string"}, "command": {"type": "string"}, "state": {"type": "string"}, "open": {"$ref": "#/$defs/action"}, "word": {"type": "string", "description": "the state in the owner's words"}, "tone": {"$ref": "#/$defs/tone"}, "waits": {"type": "boolean"},
               "reason": {"type": "string", "description": "why a failed work failed, in the owner's words"}, "error": {"type": "string", "description": "what deck wrote of the failure"},
@@ -390,6 +393,29 @@
           "text": {"type": "string"}, "command": {"type": "string"}, "by": {"type": "string"}, "payload": {}, "expires_at": {"type": "string"}, "expired": {"type": "boolean"},
           "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}}}}}
     },
+    "shown": {"type": "object", "description": "A block the master shows in its reply in a chat topic (deck.chat_block_show): one of the catalog's, its data in place.", "required": ["type"],
+      "oneOf": [
+        {"additionalProperties": false, "required": ["type", "options"], "description": "Options the owner answers by a press: 2 to 6 short labels, each a description at will.", "properties": {
+          "type": {"const": "choice"}, "title": {"type": "string", "maxLength": 120},
+          "options": {"type": "array", "minItems": 2, "maxItems": 6, "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {
+            "label": {"type": "string", "minLength": 1, "maxLength": 60}, "description": {"type": "string", "maxLength": 160}}}}}},
+        {"additionalProperties": false, "required": ["type", "input"], "description": "Fields the owner fills and sends: input is the schema of a command input (flat, App Intents types, no files); a number with minimum and maximum is a slider; values fill fields first; submit names the button.", "properties": {
+          "type": {"const": "form"}, "title": {"type": "string", "maxLength": 120}, "input": {"type": "object"}, "values": {"type": "object"}, "submit": {"type": "string", "maxLength": 40}}},
+        {"additionalProperties": false, "required": ["type", "columns", "rows"], "description": "Rows to compare: a label for each column, a row a list of its cells, at most 50 rows.", "properties": {
+          "type": {"const": "table"}, "title": {"type": "string", "maxLength": 120},
+          "columns": {"type": "array", "minItems": 1, "maxItems": 8, "items": {"type": "object", "additionalProperties": false, "required": ["label"], "properties": {
+            "label": {"type": "string", "minLength": 1}, "format": {"type": "string"}, "currency": {"type": "string"}}}},
+          "rows": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"type": "array", "items": {"type": ["string", "number", "boolean", "null"]}}}}},
+        {"additionalProperties": false, "required": ["type", "x", "series"], "description": "A trend: the values of x, and each series a label and a value for each x (null is a gap).", "properties": {
+          "type": {"const": "chart"}, "title": {"type": "string", "maxLength": 120}, "kind": {"enum": ["line", "bar"]}, "format": {"type": "string"}, "currency": {"type": "string"},
+          "x": {"type": "array", "minItems": 1, "maxItems": 500, "items": {"type": ["string", "number"]}},
+          "series": {"type": "array", "minItems": 1, "maxItems": 5, "items": {"type": "object", "additionalProperties": false, "required": ["label", "values"], "properties": {
+            "label": {"type": "string", "minLength": 1}, "values": {"type": "array", "items": {"type": ["number", "null"]}}}}}}},
+        {"additionalProperties": false, "required": ["type", "fields"], "description": "One thing in fields: a label and a value each, markdown at will.", "properties": {
+          "type": {"const": "card"}, "title": {"type": "string", "maxLength": 120},
+          "fields": {"type": "array", "minItems": 1, "maxItems": 12, "items": {"type": "object", "additionalProperties": false, "required": ["label", "value"], "properties": {
+            "label": {"type": "string", "minLength": 1}, "value": {"type": ["string", "number", "boolean"]}, "markdown": {"type": "boolean"}, "format": {"type": "string"}, "currency": {"type": "string"}}}}}}
+      ]},
     "topic": {"type": "object", "additionalProperties": false, "required": ["id", "title", "archived", "updated_at"], "properties": {
       "id": {"type": "integer"}, "title": {"type": "string"}, "project": {"type": "string", "description": "the project of the screen of its first message"}, "archived": {"type": "boolean"}, "updated_at": {"type": "string"},
       "last": {"type": "string", "description": "the last message, cut short"}, "model": {"type": "string", "description": "the model its replies go on, when the owner picked one"}, "tokens": {"type": "integer", "description": "the tokens its replies and the work they started spent"}, "replied_on": {"type": "string", "description": "the model of its last reply"}, "logo": {"type": "string", "description": "words naming the provider and model of its last reply, whose mark the client draws"}, "reply": {"$ref": "#/$defs/reply"}}},

@@ -3,7 +3,8 @@ import { compile } from 'json-schema-to-typescript';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const { $defs, components } = JSON.parse(readFileSync(new URL('../../schemas/catalog.json', import.meta.url), 'utf8'));
-const { values, ...defs } = $defs;
+// shown is what the master writes, which the server reads: the client gets it as block data.
+const { values, shown, ...defs } = $defs;
 delete values.description;
 for (const [name, v] of Object.entries(values)) defs[name[0].toUpperCase() + name.slice(1) + 'Value'] = v;
 // A prop as a block draws it: children are ids, the data and the other data a block reads are the value at their path.

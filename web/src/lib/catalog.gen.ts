@@ -1095,6 +1095,25 @@ export interface ChatValue {
     created_at: string;
     delete?: Action7;
     /**
+     * of a message of the master: the one block of the catalog it shows, its data in place, and the answer of the owner once given
+     */
+    block?: {
+      type: "choice" | "form" | "table" | "chart" | "card";
+      title?: string;
+      /**
+       * what a block of the type takes beside its data, such as the columns of a table or the kind of a chart
+       */
+      props?: {};
+      data: Data;
+      answered?: {
+        at: string;
+        /**
+         * the option picked
+         */
+        choice?: string;
+      };
+    };
+    /**
      * on a message of deck: the work it tells of, in the state it was in; its text is the result, or what it waits for
      */
     told?: {

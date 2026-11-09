@@ -22,8 +22,9 @@ export type FormValue = Omit<Generated, 'commands'> & { commands: FormCommand[] 
 // Outcome is where the run of the form stands.
 type Outcome = RunState & { process?: number };
 
-// Form asks for the input of a command by its schema, calls it and shows the result under the form.
-export function Form({ value }: { value: FormValue }) {
+// Form asks for the input of a command by its schema, calls it and shows the result under the form; a still one shows
+// the values it was sent with and takes no other.
+export function Form({ value, still }: { value: FormValue; still?: boolean }) {
   const { t } = useTranslation();
   const inDialog = useContext(DialogClose);
   const close = value.keep_open ? undefined : inDialog;
@@ -41,7 +42,8 @@ export function Form({ value }: { value: FormValue }) {
   const fields = [...(cmd?.order ?? []).filter((k) => k in props), ...Object.keys(props).filter((k) => !cmd?.order?.includes(k))];
   const required = new Set(cmd?.input?.required ?? []);
   const ro = new Set(value.readonly ?? []);
-  const edit = !!value.send?.input;
+  // An edit of a record sends the fields as the JSON of one; so does an answer in the chat, which edits nothing.
+  const edit = !!value.send?.input && value.record !== undefined;
   const project = cmd?.project ?? value.project;
 
   const submit = async () => {
@@ -69,7 +71,8 @@ export function Form({ value }: { value: FormValue }) {
       // A command that answers with a chat topic, such as one telling the master, opens it.
       if (topic) openTopic(topic);
       if (!started) {
-        if (alive.current) setOut({ state: 'done', result: res });
+        // An answer in the chat shows in the chat; the form folds.
+        if (alive.current && !(value.send && !edit)) setOut({ state: 'done', result: res });
         close?.();
         return;
       }
@@ -101,13 +104,13 @@ export function Form({ value }: { value: FormValue }) {
       {cmd?.description && <Text size="sm" c="dimmed">{cmd.description}</Text>}
       {cmd && fields.map((name) => [name, props[name]] as const).map(([name, s]) => (
         <Field key={cmd.name + name} name={name} schema={s} value={form.values[name]} files={form.files[name] ?? []}
-          readOnly={ro.has(name)} required={required.has(name) && !edit} choices={value.choices?.[name]}
+          readOnly={still || ro.has(name)} required={required.has(name) && !edit && !still} choices={value.choices?.[name]}
           onValue={(v) => form.edit(name, v)} onFiles={(f) => form.attach(name, f)} />
       ))}
-      {cmd && (
+      {cmd && !still && (
         <Group>
           <Failed error={failed.at === 'run' ? failed.error : ''} onClose={() => setFailed({ at: '', error: '' })}>
-            <Button onClick={submit} loading={busy} data-submit>{edit ? t('Save') : t('Run')}</Button>
+            <Button onClick={submit} loading={busy} data-submit>{edit ? t('Save') : value.send?.label || t('Run')}</Button>
           </Failed>
         </Group>
       )}

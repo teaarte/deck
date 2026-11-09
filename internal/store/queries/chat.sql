@@ -194,3 +194,27 @@ JOIN document_revision r ON r.id = (SELECT MAX(x.id) FROM document_revision x WH
     AND x.created_at >= sqlc.arg(since) AND x.created_at < sqlc.arg(until))
 WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL
 ORDER BY r.created_at, t.id LIMIT sqlc.arg(lim);
+
+
+-- name: AddBlockMessage :one
+-- A block the master shows in its reply, before the reply's text.
+INSERT INTO chat_message (topic_id, role, text, process_id, block, created_at) VALUES (?, 'master', '', ?, ?, ?) RETURNING *;
+
+
+-- name: AnswerMessage :execrows
+UPDATE chat_message SET answer = sqlc.arg(answer), answered_at = sqlc.arg(at) WHERE id = sqlc.arg(id) AND block != '' AND answered_at IS NULL;
+
+
+-- name: FillShownText :execrows
+-- The final text of a turn goes over the block it showed last, wherever messages came after it.
+UPDATE chat_message SET text = sqlc.arg(text) WHERE id = (SELECT MAX(m.id) FROM chat_message m
+  WHERE m.topic_id = sqlc.arg(topic_id) AND m.process_id = sqlc.arg(process_id) AND m.block != '' AND m.text = '' AND m.created_at >= sqlc.arg(since));
+
+
+-- name: ReplaceShownBlock :one
+-- A turn shows one block: another one in its place while the owner did not answer and nothing came after it.
+UPDATE chat_message SET block = sqlc.arg(block) WHERE id = (SELECT MAX(m.id) FROM chat_message m
+  WHERE m.topic_id = sqlc.arg(topic_id) AND m.process_id = sqlc.arg(process_id) AND m.block != '' AND m.text = ''
+    AND m.answered_at IS NULL AND m.created_at >= sqlc.arg(since)
+    AND NOT EXISTS (SELECT 1 FROM chat_message o WHERE o.topic_id = m.topic_id AND o.id > m.id))
+RETURNING id;

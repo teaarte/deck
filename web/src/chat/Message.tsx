@@ -12,6 +12,7 @@ import { Details } from '../ui/Details';
 import { Markdown } from '../ui/Markdown';
 import s from './chat.module.css';
 import { Processes } from './Turn';
+import { Shown } from './Shown';
 
 import { Thumb } from '../blocks/media/Thumb';
 import { locale } from '../lib/i18n';
@@ -171,7 +172,8 @@ export const Message = memo(function Message({ m, latest }: { m: ChatMessage; la
   return (
     <div className={s.masterLine} data-message="master" data-avatar={mascot || undefined} data-shown={shown || undefined} tabIndex={-1} onClick={show}>
       {mascot && <span className={s.avatar}><DekiHead size={28} /></span>}
-      <Markdown text={m.text} />
+      {m.text && <Markdown text={m.text} />}
+      {m.block && <Shown b={m.block} />}
       {!!m.files?.length && <div className={s.made} data-message-files><Suspense><Media items={m.files} /></Suspense></div>}
       {m.work && <Work w={m.work} />}
       <Group gap={4} className={s.lineTools} data-line-tools>

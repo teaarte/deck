@@ -10,8 +10,44 @@ import (
 	"database/sql"
 )
 
+const addBlockMessage = `-- name: AddBlockMessage :one
+INSERT INTO chat_message (topic_id, role, text, process_id, block, created_at) VALUES (?, 'master', '', ?, ?, ?) RETURNING id, topic_id, role, text, context, process_id, retry_key, created_at, block, answer, answered_at
+`
+
+type AddBlockMessageParams struct {
+	TopicID   int64
+	ProcessID int64
+	Block     string
+	CreatedAt string
+}
+
+// A block the master shows in its reply, before the reply's text.
+func (q *Queries) AddBlockMessage(ctx context.Context, arg AddBlockMessageParams) (ChatMessage, error) {
+	row := q.db.QueryRowContext(ctx, addBlockMessage,
+		arg.TopicID,
+		arg.ProcessID,
+		arg.Block,
+		arg.CreatedAt,
+	)
+	var i ChatMessage
+	err := row.Scan(
+		&i.ID,
+		&i.TopicID,
+		&i.Role,
+		&i.Text,
+		&i.Context,
+		&i.ProcessID,
+		&i.RetryKey,
+		&i.CreatedAt,
+		&i.Block,
+		&i.Answer,
+		&i.AnsweredAt,
+	)
+	return i, err
+}
+
 const addMessage = `-- name: AddMessage :one
-INSERT INTO chat_message (topic_id, role, text, context, process_id, retry_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id, topic_id, role, text, context, process_id, retry_key, created_at
+INSERT INTO chat_message (topic_id, role, text, context, process_id, retry_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id, topic_id, role, text, context, process_id, retry_key, created_at, block, answer, answered_at
 `
 
 type AddMessageParams struct {
@@ -44,8 +80,29 @@ func (q *Queries) AddMessage(ctx context.Context, arg AddMessageParams) (ChatMes
 		&i.ProcessID,
 		&i.RetryKey,
 		&i.CreatedAt,
+		&i.Block,
+		&i.Answer,
+		&i.AnsweredAt,
 	)
 	return i, err
+}
+
+const answerMessage = `-- name: AnswerMessage :execrows
+UPDATE chat_message SET answer = ?1, answered_at = ?2 WHERE id = ?3 AND block != '' AND answered_at IS NULL
+`
+
+type AnswerMessageParams struct {
+	Answer string
+	At     sql.NullString
+	ID     int64
+}
+
+func (q *Queries) AnswerMessage(ctx context.Context, arg AnswerMessageParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, answerMessage, arg.Answer, arg.At, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const archiveProjectTopics = `-- name: ArchiveProjectTopics :exec
@@ -153,8 +210,34 @@ func (q *Queries) DeleteWaitingMessage(ctx context.Context, id int64) (int64, er
 	return result.RowsAffected()
 }
 
+const fillShownText = `-- name: FillShownText :execrows
+UPDATE chat_message SET text = ?1 WHERE id = (SELECT MAX(m.id) FROM chat_message m
+  WHERE m.topic_id = ?2 AND m.process_id = ?3 AND m.block != '' AND m.text = '' AND m.created_at >= ?4)
+`
+
+type FillShownTextParams struct {
+	Text      string
+	TopicID   int64
+	ProcessID int64
+	Since     string
+}
+
+// The final text of a turn goes over the block it showed last, wherever messages came after it.
+func (q *Queries) FillShownText(ctx context.Context, arg FillShownTextParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, fillShownText,
+		arg.Text,
+		arg.TopicID,
+		arg.ProcessID,
+		arg.Since,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const findMessageByKey = `-- name: FindMessageByKey :one
-SELECT m.id, m.topic_id, m.role, m.text, m.context, m.process_id, m.retry_key, m.created_at FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
+SELECT m.id, m.topic_id, m.role, m.text, m.context, m.process_id, m.retry_key, m.created_at, m.block, m.answer, m.answered_at FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
 WHERE t.workspace_id = ? AND m.retry_key = ? AND m.retry_key != ''
 LIMIT 1
 `
@@ -176,6 +259,9 @@ func (q *Queries) FindMessageByKey(ctx context.Context, arg FindMessageByKeyPara
 		&i.ProcessID,
 		&i.RetryKey,
 		&i.CreatedAt,
+		&i.Block,
+		&i.Answer,
+		&i.AnsweredAt,
 	)
 	return i, err
 }
@@ -203,7 +289,7 @@ func (q *Queries) GetChatSession(ctx context.Context, arg GetChatSessionParams) 
 }
 
 const getMessage = `-- name: GetMessage :one
-SELECT id, topic_id, role, text, context, process_id, retry_key, created_at FROM chat_message WHERE id = ?
+SELECT id, topic_id, role, text, context, process_id, retry_key, created_at, block, answer, answered_at FROM chat_message WHERE id = ?
 `
 
 func (q *Queries) GetMessage(ctx context.Context, id int64) (ChatMessage, error) {
@@ -218,6 +304,9 @@ func (q *Queries) GetMessage(ctx context.Context, id int64) (ChatMessage, error)
 		&i.ProcessID,
 		&i.RetryKey,
 		&i.CreatedAt,
+		&i.Block,
+		&i.Answer,
+		&i.AnsweredAt,
 	)
 	return i, err
 }
@@ -243,7 +332,7 @@ func (q *Queries) GetTopic(ctx context.Context, id int64) (ChatTopic, error) {
 }
 
 const lastMessages = `-- name: LastMessages :many
-SELECT id, topic_id, role, text, context, process_id, retry_key, created_at FROM (SELECT id, topic_id, role, text, context, process_id, retry_key, created_at FROM chat_message WHERE topic_id = ?1 AND id < ?2 ORDER BY id DESC LIMIT ?3)
+SELECT id, topic_id, role, text, context, process_id, retry_key, created_at, block, answer, answered_at FROM (SELECT id, topic_id, role, text, context, process_id, retry_key, created_at, block, answer, answered_at FROM chat_message WHERE topic_id = ?1 AND id < ?2 ORDER BY id DESC LIMIT ?3)
 ORDER BY id
 `
 
@@ -271,6 +360,9 @@ func (q *Queries) LastMessages(ctx context.Context, arg LastMessagesParams) ([]C
 			&i.ProcessID,
 			&i.RetryKey,
 			&i.CreatedAt,
+			&i.Block,
+			&i.Answer,
+			&i.AnsweredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -286,7 +378,7 @@ func (q *Queries) LastMessages(ctx context.Context, arg LastMessagesParams) ([]C
 }
 
 const listMessages = `-- name: ListMessages :many
-SELECT id, topic_id, role, text, context, process_id, retry_key, created_at FROM chat_message WHERE topic_id = ?1 AND id > ?2 ORDER BY id
+SELECT id, topic_id, role, text, context, process_id, retry_key, created_at, block, answer, answered_at FROM chat_message WHERE topic_id = ?1 AND id > ?2 ORDER BY id
 `
 
 type ListMessagesParams struct {
@@ -312,6 +404,9 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]C
 			&i.ProcessID,
 			&i.RetryKey,
 			&i.CreatedAt,
+			&i.Block,
+			&i.Answer,
+			&i.AnsweredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -382,7 +477,7 @@ func (q *Queries) ListOwnerMessagesIn(ctx context.Context, arg ListOwnerMessages
 }
 
 const listPendingMessages = `-- name: ListPendingMessages :many
-SELECT id, topic_id, role, text, context, process_id, retry_key, created_at FROM chat_message WHERE topic_id = ? AND role = 'owner' AND process_id = 0 ORDER BY id
+SELECT id, topic_id, role, text, context, process_id, retry_key, created_at, block, answer, answered_at FROM chat_message WHERE topic_id = ? AND role = 'owner' AND process_id = 0 ORDER BY id
 `
 
 func (q *Queries) ListPendingMessages(ctx context.Context, topicID int64) ([]ChatMessage, error) {
@@ -403,6 +498,9 @@ func (q *Queries) ListPendingMessages(ctx context.Context, topicID int64) ([]Cha
 			&i.ProcessID,
 			&i.RetryKey,
 			&i.CreatedAt,
+			&i.Block,
+			&i.Answer,
+			&i.AnsweredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -728,6 +826,34 @@ func (q *Queries) ReleaseMessages(ctx context.Context, arg ReleaseMessagesParams
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const replaceShownBlock = `-- name: ReplaceShownBlock :one
+UPDATE chat_message SET block = ?1 WHERE id = (SELECT MAX(m.id) FROM chat_message m
+  WHERE m.topic_id = ?2 AND m.process_id = ?3 AND m.block != '' AND m.text = ''
+    AND m.answered_at IS NULL AND m.created_at >= ?4
+    AND NOT EXISTS (SELECT 1 FROM chat_message o WHERE o.topic_id = m.topic_id AND o.id > m.id))
+RETURNING id
+`
+
+type ReplaceShownBlockParams struct {
+	Block     string
+	TopicID   int64
+	ProcessID int64
+	Since     string
+}
+
+// A turn shows one block: another one in its place while the owner did not answer and nothing came after it.
+func (q *Queries) ReplaceShownBlock(ctx context.Context, arg ReplaceShownBlockParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, replaceShownBlock,
+		arg.Block,
+		arg.TopicID,
+		arg.ProcessID,
+		arg.Since,
+	)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const seeChat = `-- name: SeeChat :exec

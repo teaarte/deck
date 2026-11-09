@@ -19,7 +19,7 @@ const long = (v: unknown) => typeof v === 'string' && v.length > LONG;
 // its buttons.
 export const card = blockImpl('card', (_, d) => <Card d={d} />);
 
-function Card({ d }: { d: Data }) {
+export function Card({ d }: { d: Data }) {
   const { t } = useTranslation();
   const v = (d.value ?? {}) as Partial<CardValue>;
   const fields = v.fields ?? [];

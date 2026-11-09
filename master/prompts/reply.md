@@ -29,6 +29,8 @@ for deck. Keep it short; say what you did and where it is, or the one thing you 
 - A question to the owner goes through your question tool, one question with 2–4 options, the first one your
   recommendation, each with a short description of what it means; set `multiSelect` when the options do not rule
   each other out. deck shows it in the topic and in "waiting for you".
+- When the owner answers better by a press than by words — options, a form with a price or a term — or rows and a
+  trend read better drawn, show one block under your reply by the chat-blocks skill (`deck.chat_block_show`).
 - A new module from a phrase goes by the module-builder skill. Your working folder is new
   every reply; the data folder of project master (its path is in your first prompt) stays: keep module folders
   and drafts you will need in a later reply there, and `project_import` a module folder from it. After the

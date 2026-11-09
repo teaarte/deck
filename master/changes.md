@@ -251,3 +251,7 @@ and bring the modules in line.
   every form of deck, its exact value typed beside its label; `multipleOf` is its step, numbers of `examples` are
   marks under the track that pull the thumb near them. Give a bounded number, such as a price, a term or a count,
   both bounds and a few examples.
+- 2026-11-09: a reply of the master in a chat topic shows one block under its text with `deck.chat_block_show`:
+  options to pick, a form (a bounded number slides), a table, a chart or a card, its data in place, by the schema
+  `shown` of deck's catalog; a wrong block is refused with why. The owner's answer to options or a form comes as the
+  owner's next message of the topic, and the block keeps it (`deck.chat_answer`).

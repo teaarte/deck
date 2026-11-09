@@ -396,7 +396,7 @@ func transcript(ms []db.ChatMessage) string {
 			fmt.Fprintf(&b, "deck: process #%d %s: %s\n", m.ProcessID, s.State, strings.TrimSpace(m.Text))
 			continue
 		}
-		fmt.Fprintf(&b, "%s: %s\n", m.Role, strings.TrimSpace(m.Text))
+		fmt.Fprintf(&b, "%s: %s%s\n", m.Role, strings.TrimSpace(m.Text), shownLine(m))
 	}
 	return b.String()
 }

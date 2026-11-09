@@ -27,7 +27,7 @@ func (s *Service) replyOf(ctx context.Context, p db.Process) int64 {
 	return in.Topic
 }
 
-// Turn keeps the final text of a reply turn as the master's message in its topic.
+// Turn keeps the final text of a reply turn as the master's message in its topic, over the block it showed last.
 func (h replies) Turn(ctx context.Context, p db.Process, text string) {
 	s := h.s
 	topic := s.replyOf(ctx, p)
@@ -35,8 +35,14 @@ func (h replies) Turn(ctx context.Context, p db.Process, text string) {
 		return
 	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID}); err != nil {
+		filled, err := q.FillShownText(ctx, db.FillShownTextParams{Text: strings.TrimSpace(text), TopicID: topic, ProcessID: p.ID, Since: p.StartedAt})
+		if err != nil {
 			return err
+		}
+		if filled == 0 {
+			if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID}); err != nil {
+				return err
+			}
 		}
 		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.Now()), ID: topic}); err != nil {
 			return err

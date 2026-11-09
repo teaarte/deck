@@ -10,4 +10,6 @@
 /docs/*
 !/docs/architecture.md
 !/docs/acceptance.md
+!/docs/install.md
+!/docs/node.md
 !/docs/screenshots/

@@ -4,7 +4,6 @@
 !.git/packed-refs
 .claude
 docs
-desktop
 web/node_modules
 deck
 *.db

@@ -89,6 +89,14 @@ one place.
   layout, script contract, checks and review of a module's code), `code-project` and `memory`. What deck ships (the master and the skills) one
   function lays out on start, `docs.Ship`: an edit of the master or the owner merges into deck's new text, a
   conflict is a note to the master, and a file deck ships no more goes.
+- **Memory.** Memory is documents: the facts of the owner in `memory/` of the project `master`, each project's own in
+  its `memory/`, with an index (`MEMORY.md`) that reaches the prompts as data. A fact of `type: lesson` is what an
+  agent learned; the lessons of a command reach its next runs. `deck.memory_search` finds words in memory, and the
+  master's nightly `sleep` confirms or retires lessons and proposes corrections; Settings → Memory shows it all
+  (`deck.memory_map`).
+- **Blocks in the chat.** A reply turn of the master may show one block of the catalog under its text
+  (`deck.chat_block_show`: options, a form, a table, a chart or a card); the owner's press comes back to the topic as
+  the owner's next message.
 - **Failures** have one form (`internal/fault`): a type from a closed set, whose failure it is, a text and
   details. A script reports its own failure as `{"error", "type", "details"}`.
 
@@ -128,13 +136,12 @@ records or data, and imports from one as a draft. The owner reads what the draft
 
 ## Build and run
 
-You need Go 1.27 and at least one agent CLI on the machine (`claude` or `codex`). Node is needed only to rebuild
-the client.
+You need Go 1.27 and at least one agent CLI on the machine (`claude` or `codex`). Node.js is needed only to rebuild
+the client. Installing and running deck for use is Docker ([install](install.md)); nodes are in [node.md](node.md).
 
 ```bash
 go build -tags tailnet -o deck ./cmd/deck   # without the tag: no tailnet, a smaller binary
 DECK_HOME=/tmp/deckhome ./deck              # prints http://deck.localhost:7700 and the first link (default home ~/.deck2)
-./deck -tailscale deck                      # the same on your tailnet over HTTPS
 cd web && npm ci && npm run build           # type check and rebuild the embedded client (web/dist)
 sqlc generate                               # after editing internal/store/queries or migrations
 ```
@@ -147,7 +154,7 @@ is pure Go). On start, deck migrates the database and the stored manifests to th
 amd64/arm64, each with and without the tailnet.
 `cmd/deck-release` writes `release.json` with the size and sha256 of each file and signs it with the ed25519 key in
 the secret `DECK_RELEASE_KEY` of the GitHub environment `release`. The public key is `internal/release/release.pub`, built into deck. `-ldflags -X deck2/internal/release.Version=…` sets the version; `deck -version`
-prints it with the build. `internal/app/updates` reads the latest list once a day through `gateway.Fetch` and keeps
+prints it with the build. `internal/app/updates` reads the latest list once a day through `egress.Fetch` and keeps
 the health row `update`. Its `deck.update_install` puts the binary of its build in place and restarts deck with
 `syscall.Exec` after a full stop. It takes a snapshot first and keeps the old binary until the new deck serves
 (`state/update.json`). A start that finds that update already tried goes back to the old binary.
@@ -156,7 +163,7 @@ the health row `update`. Its `deck.update_install` puts the binary of its build 
 pushes `ghcr.io/teaarte/deck:<version>` and `:latest`. `compose.yaml` runs it on 127.0.0.1:7700 and 7701, where a browser of
 the machine opens deck at deck.localhost; with a domain (`DECK_DOMAIN` and the profile `domain`) Caddy is in front,
 HTTPS on 443 and the second origin on 8443, deck takes `-public` and X-Forwarded-For only from Caddy (`-proxy`);
-optionally on the tailnet (`DECK_TAILSCALE`). A deck in an image (`DECK_IMAGE`) does not replace itself: a newer one is a newer image.
+optionally on the tailnet (`DECK_TAILSCALE`, going away: the README says how to move off it). A deck in an image (`DECK_IMAGE`) does not replace itself: a newer one is a newer image.
 Claude Code and Codex are signed in from Settings → Models (`deck.agent_login`); their logins live in the volume
 `deck`, one for all projects (`agents/<cli>/login`). `move-to-docker.sh` brings the folder of a deck that ran
 without Docker into that volume.

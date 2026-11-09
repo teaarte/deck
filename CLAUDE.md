@@ -20,6 +20,9 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
 - Script packages from PyPI and npm through deck's proxy: `DECK_REAL_PACKAGES=1 go test ./tests/scenarios/real -run TestRealScriptPackages -v`
 - Web client in a real browser (Playwright MCP; checks that `web/dist` is fresh):
   `DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v` (`DECK_SCREENSHOTS=<dir>` keeps screenshots)
+- The README's screenshots on demo modules: `DECK_REAL_BROWSER=1 DECK_SCREENSHOTS=<dir> go test ./tests/scenarios/browser
+  -run TestRealBrowserShowcase -v`, then `docs/screenshots/<name>.png` from `<dir>/TestRealBrowserShowcase/web-readme-<name>.png`
+  (quantized to 256 colours)
 - Scenario tests on Linux (bubblewrap sandbox, a user without privileges as in deck's image and WSL2, the three
   `security_opt` lines of `compose.yaml`, needs docker):
   `DECK_LINUX=1 go test ./tests/linux -v`
@@ -99,9 +102,15 @@ hold; look inside a package for the rest.
 - `internal/files` — the files a command input points to and tools answer with (the files service is `app/files`).
 - `internal/home` — the layout of deck's folder, the one check that a path is inside a folder (`Within`, `Real`,
   `Resolve`) and the one way to write a file whole (`WriteFile`, `Create`/`Keep`, `Fresh`).
+- `internal/auth` — signing the owner's devices in: codes of `deck pair`, passkeys by origin, a device for each
+  browser, the sessions of their cookies; no owner token.
+- `internal/boxes` — the one place the rights of a module become the box of its program.
+- `internal/node` — a node (`deck -join`): deck's side holds the one connection each node opened, the node's side
+  serves deck's calls to its loopback, agents and folders by its own list (`allow.go`).
 - `internal/script`, `internal/trigger`, `internal/tools` (+ `internal/mcphost`), `internal/release`,
   `internal/nonce` — what their names say.
-- `internal/tsnet` — deck on the owner's tailnet, only in a build with the tag `tailnet`.
+- `internal/tsnet` — deck on the owner's tailnet, only in a build with the tag `tailnet` (going away: README, "Moving off
+  the built-in Tailscale").
 - `internal/lint` — code rules checked by `tests/lint`; `layers.go` is the table of layers L0–L9 (an import goes only
   down, a domain only `internal/app` imports, a package in no layer is an error); the rules of Go (`rules.go`: os/exec
   only in sandbox, HTTP clients only in egress, file writes only in home, the environment only in cmd/deck, …) keep
@@ -114,7 +123,7 @@ hold; look inside a package for the rest.
   the rules of names (`names.go`) and the one compile of a JSON Schema; `deck_only` marks what only deck's own screens use (the format a model reads drops it, a module with it warns).
 - `web` — the client: Vite + React + Mantine v9 + `@a2ui/react` v0.9 — import from `@a2ui/react/v0_9` and
   `@a2ui/web_core/v0_9` (the root export is v0.8); folders by owner in `src/` (`app` the frame,
-  `screen`, `cockpit`, `apps` the cards that stand for the side menu in that look, `blocks` a folder or file per block,
+  `screen`, `apps` the cards that stand for the side menu in that look, `blocks` a folder or file per block,
   `chat`, `ui` (`ui/logo` the marks of models and providers, a subset of `@lobehub/icons-static-svg`, `web/THIRD_PARTY.md`), `hooks`, `lib`, `settings`, `theme`); a block `collapsed` is read once opened;
   `custom` blocks are hosted with `@modelcontextprotocol/ext-apps` 2; `web/dist` is the embedded build — rebuild and
   commit it with the sources. Every button presses through `screen/press.ts`: an A2UI action of its block's context,

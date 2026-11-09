@@ -1,5 +1,5 @@
 # deck on a server, and on a Mac in Docker: deck with the tailnet, Claude Code, Codex, Goose, uv and a browser;
-# every foreign program runs in a box of its own (bubblewrap). compose.yaml runs it; see README, "Server".
+# every foreign program runs in a box of its own (bubblewrap). compose.yaml runs it; see README, "Install".
 
 # The versions of the CLIs, which tests/linux builds its image with too.
 ARG CLAUDE_VERSION=2.1.281

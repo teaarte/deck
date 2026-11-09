@@ -84,6 +84,30 @@ func unpackFile(root *os.Root, at string, r io.Reader, mode os.FileMode) error {
 	return nil
 }
 
+// PutIn writes a new file under dir whole from what r gives, never past dir nor through a link in it; a name that is
+// there already is os.ErrExist.
+func PutIn(dir, name string, r io.Reader) error {
+	at := filepath.Clean(filepath.FromSlash(name))
+	if !filepath.IsLocal(at) {
+		return fmt.Errorf("%q is outside %s", name, dir)
+	}
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return err
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	if err := Plain(root, at); err != nil {
+		return err
+	}
+	if _, err := root.Lstat(at); err == nil {
+		return os.ErrExist
+	}
+	return unpackFile(root, at, r, 0o600)
+}
+
 // RemoveIn removes the files and folders of names under dir, never past it.
 func RemoveIn(dir string, names []string) error {
 	root, err := os.OpenRoot(dir)

@@ -219,6 +219,9 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   Do not build a module on deleting: a record that is done or dropped keeps a `status` (`archived`, `deleted`) its
   screens and scripts leave out, and only what must go for good (a mistake, a duplicate) is deleted;
   `retention_days` clears old records by itself.
+- **Deleting files**: a wrong file of a record or of the data folder the owner sees (a picture, a render) goes with
+  `deck.file_delete` (`file`, or `path` from the root of the data folder) rather than `rm`: the owner sees a line
+  with an undo for a day. Files of another project are refused; a folder goes file by file.
 - **Documents** agents and scripts write are artifacts, each of one record, and the memory of the project. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
   `prompts/*.md` and other module documents are written by you, not by the module at run time — unless a command's
   work is to change them (its own code, a style it refines): then `"writes"` of the manifest names them, a

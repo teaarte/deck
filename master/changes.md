@@ -233,3 +233,7 @@ and bring the modules in line.
   JPEG, GIF or WebP gives the picture to an agent as an image beside its answer (with `fields` too), whose `image`
   is `{type, url, width, height}`; a picture over 3.75 MB or 8000 pixels a side is refused with its size and the
   limit, a PDF is refused (a script gets its text or its pages as pictures into the data folder first).
+- 2026-11-09: `deck.file_delete` takes `project` and `path` instead of `file` for a file of the data folder of a
+  project (not a folder, not through a link); the master and a process of the project delete the files of its records
+  and of its data folder, not only those of their own run, and the owner sees each among the changes made without
+  them with an undo for a day (`file_restore` with `owner_kind` `data` and `path`). Another project is refused.

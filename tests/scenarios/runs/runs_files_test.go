@@ -3,6 +3,7 @@ package runs
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"image"
 	"image/png"
@@ -10,8 +11,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"deck2/internal/fault"
+	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
 
@@ -64,7 +68,7 @@ func TestAProcessDeletesOnlyTheFilesOfItsOwnRun(t *testing.T) {
 		p := e.Proc(mine)
 		return p.State == "done" && strings.Contains(string(p.Result), "file")
 	})
-	if said := string(e.Proc(mine).Result); !strings.Contains(said, "deletes only the files its own run made") {
+	if said := string(e.Proc(mine).Result); !strings.Contains(said, "those its own run made; file") {
 		t.Fatalf("a file of another run is refused: %s", said)
 	}
 	if got, kept := files(mine), files(other); len(got) != 1 || got["final.png"] == 0 || len(kept) != 3 {
@@ -167,5 +171,139 @@ func TestAnAgentSeesAPictureOfItsDataFolder(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(data, "plan.pdf"), []byte("%PDF-1.7\n"), 0o600)
 	if code, out := e.Call("deck.data_read", map[string]any{"project": "draw", "path": "plan.pdf"}); code == 200 || !strings.Contains(string(out), "PDF") {
 		t.Fatalf("a PDF is refused with how to read it: %d %s", code, out)
+	}
+}
+
+// TestAnAgentDeletesTheFilesOfItsProject: an agent deletes files of a record and of the data folder of its project as
+// one line of done without you whose undo brings both back; another project, a link, a folder are refused.
+func TestAnAgentDeletesTheFilesOfItsProject(t *testing.T) {
+	t.Parallel()
+	var photo, foreign int64
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		var said []string
+		for _, in := range []map[string]any{
+			{"file": photo}, {"path": "renders/dom-14-ne-photo.png"},
+			{"file": foreign}, {"project": "other", "path": "x.png"}, {"path": "../../1/data/x.png"}, {"path": "link/x.png"},
+			{"path": "renders"}, {"path": "."},
+		} {
+			out, bad := c.Tool(ctx, "file_delete", in)
+			if !bad {
+				out = "ok"
+			}
+			said = append(said, out)
+		}
+		b, _ := json.Marshal(said)
+		return provider.Result{Text: string(b)}
+	}))
+	clean := `{"name": "clean", "title": "Clean", "description": "Cleans.", "class": "internal", "executor": {"type": "agent", "prompt": "Clean."}},`
+	house := e.Project("house", strings.Replace(harness.FilesManifest(), `"commands": [`, `"commands": [`+clean, 1))
+	other := e.Project("other", harness.FilesManifest())
+	for _, p := range []string{"house", "other"} {
+		e.SaveScript(p, "scripts/seed.py", harness.SeedScript)
+	}
+	recordFile := func(project string) (int64, int64) {
+		var s struct{ Record int64 }
+		_ = json.Unmarshal(e.WaitState(e.Start(project, "seed", nil), "done").Result, &s)
+		var fs []struct{ ID int64 }
+		e.Must("deck.files_list", map[string]any{"record": s.Record}, &fs)
+		if len(fs) != 1 {
+			t.Fatalf("the seed record of %s has its photo: %+v", project, fs)
+		}
+		return s.Record, fs[0].ID
+	}
+	record, id := recordFile("house")
+	_, foreign = recordFile("other")
+	photo = id
+	layout := deckhome.Layout(e.App.Cfg.Home)
+	data, otherData := layout.Data(house), layout.Data(other)
+	render := filepath.Join(data, "renders", "dom-14-ne-photo.png")
+	_ = os.MkdirAll(filepath.Dir(render), 0o700)
+	_ = os.WriteFile(render, []byte("wrong photo"), 0o600)
+	_ = os.MkdirAll(otherData, 0o700)
+	_ = os.WriteFile(filepath.Join(otherData, "x.png"), []byte("theirs"), 0o600)
+	_ = os.Symlink(otherData, filepath.Join(data, "link"))
+
+	res := e.WaitState(e.Start("house", "clean", nil), "done").Result
+	var said []string
+	var raw string
+	if json.Unmarshal(res, &raw) == nil {
+		res = []byte(raw)
+	}
+	_ = json.Unmarshal(res, &said)
+	want := []string{"ok", "ok", "another project", "another project", "no file inside", "through a link", "is a folder", "no file inside"}
+	if len(said) != len(want) {
+		t.Fatalf("each deletion answers: %v", said)
+	}
+	for i, w := range want {
+		if !strings.Contains(said[i], w) {
+			t.Fatalf("deletion %d answers %q, not %q: %v", i, said[i], w, said)
+		}
+	}
+	if b, err := os.ReadFile(filepath.Join(otherData, "x.png")); err != nil || string(b) != "theirs" {
+		t.Fatalf("the file of another project stays: %q %v", b, err)
+	}
+	if _, err := os.Stat(render); !os.IsNotExist(err) {
+		t.Fatalf("the file of the data folder is gone: %v", err)
+	}
+	var fs []struct{ ID int64 }
+	if e.Must("deck.files_list", map[string]any{"record": record}, &fs); len(fs) != 0 {
+		t.Fatalf("the file of the record is gone: %+v", fs)
+	}
+	var feed []struct {
+		ID      int64
+		Text    string
+		CanUndo bool `json:"can_undo"`
+	}
+	e.Must("deck.feed_list", map[string]any{"kind": "change", "project": "house"}, &feed)
+	if len(feed) != 1 || !feed[0].CanUndo || !strings.Contains(feed[0].Text, "deleted files: 2") {
+		t.Fatalf("both deletions are one line of done without you with an undo: %+v", feed)
+	}
+	e.Must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
+	if b, err := os.ReadFile(render); err != nil || string(b) != "wrong photo" {
+		t.Fatalf("the undo writes the file of the data folder back: %q %v", b, err)
+	}
+	if e.Must("deck.files_list", map[string]any{"record": record}, &fs); len(fs) != 1 || fs[0].ID != photo {
+		t.Fatalf("the undo gives the record its file back: %+v", fs)
+	}
+}
+
+// TestTheMasterDeletesAFileOfTheProjectOfItsWork: a work the master handed over deletes a wrong file of the data
+// folder of the project it works on, and the owner sees it with an undo.
+func TestTheMasterDeletesAFileOfTheProjectOfItsWork(t *testing.T) {
+	t.Parallel()
+	var from atomic.Int64
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() != "work" {
+			return harness.HandOver(ctx, c, &from)
+		}
+		if out, bad := c.Tool(ctx, "file_delete", map[string]any{"project": "house", "path": "dom-14-nw-photo.png"}); bad {
+			return provider.Fail(fault.TaskFailed, out)
+		}
+		return provider.Result{Text: "Deleted the wrong photo."}
+	}))
+	house := e.Project("house", harness.PlainManifest)
+	data := deckhome.Layout(e.App.Cfg.Home).Data(house)
+	_ = os.MkdirAll(data, 0o700)
+	photo := filepath.Join(data, "dom-14-nw-photo.png")
+	_ = os.WriteFile(photo, []byte("wrong photo"), 0o600)
+	topic := e.Say(0, "delete the wrong photo of version 14")
+	if told := e.Told(topic, "done", ""); told.Text != "Deleted the wrong photo." {
+		t.Fatalf("the work is done: %+v", told)
+	}
+	if _, err := os.Stat(photo); !os.IsNotExist(err) {
+		t.Fatalf("the photo is gone: %v", err)
+	}
+	var feed []struct {
+		ID      int64
+		Text    string
+		CanUndo bool `json:"can_undo"`
+	}
+	e.Must("deck.feed_list", map[string]any{"kind": "change", "project": "house"}, &feed)
+	if len(feed) != 1 || !feed[0].CanUndo || !strings.Contains(feed[0].Text, "dom-14-nw-photo.png") {
+		t.Fatalf("the owner sees the deletion with an undo: %+v", feed)
+	}
+	e.Must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
+	if b, err := os.ReadFile(photo); err != nil || string(b) != "wrong photo" {
+		t.Fatalf("the undo brings the photo back: %q %v", b, err)
 	}
 }

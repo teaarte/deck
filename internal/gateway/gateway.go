@@ -50,6 +50,13 @@ type Session struct {
 	Master bool
 	// Heard hears each call of a tool of the session, a sign of the model that makes it.
 	Heard func()
+
+	// reads is the last read of an agent, how many times in a row it got the same answer, and the reads it was
+	// warned of, under mu.
+	mu     sync.Mutex
+	read   string
+	reads  int
+	warned map[string]bool
 }
 
 func (s *Session) actor() registry.Actor {
@@ -329,7 +336,7 @@ func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session) 
 		srv.AddTool(&mcp.Tool{Name: tool, Title: c.Title, Description: c.Description, InputSchema: c.Input},
 			func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				defer g.progress(ctx, req)()
-				return g.invoke(ctx, s, name, req.Params.Arguments), nil
+				return g.invoke(ctx, s, name, req.Params.Arguments, c.Readable), nil
 			})
 		allowed = append(allowed, provider.Qualify(tool))
 	}
@@ -361,13 +368,57 @@ func (g *Gateway) progress(ctx context.Context, req *mcp.CallToolRequest) func()
 	return func() { close(done) }
 }
 
-func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json.RawMessage) *mcp.CallToolResult {
+// liveKey marks a call an agent's turn makes now through its tools, rather than one made for it later.
+type liveKey struct{}
+
+// Live says the call of ctx is one an agent's turn makes now through its tools, which may wait for it.
+func Live(ctx context.Context) bool { return ctx.Value(liveKey{}) != nil }
+
+func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json.RawMessage, read bool) *mcp.CallToolResult {
+	if s.Token == 0 && s.Run == "" && s.ProcessID != 0 {
+		ctx = context.WithValue(ctx, liveKey{}, true)
+	}
 	out, err := g.call(ctx, s.actor(), name, args)
 	if err != nil {
+		s.again("", "")
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}
 	}
 	b, _ := json.Marshal(out)
-	return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}
+	res := &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}
+	if !read || s.Token != 0 {
+		s.again("", "")
+	} else if warn := s.again(name+"\x00"+Canonical(args), string(b)); warn {
+		res.Content = append(res.Content, &mcp.TextContent{Text: fmt.Sprintf(readLoop, registry.ToolName(name), sameReads)})
+	}
+	return res
+}
+
+// sameReads is how many times in a row an agent reads the same and gets the same answer before deck warns it, once,
+// that its turn stops as a loop if it goes on.
+const sameReads = 3
+
+const readLoop = "deck: you called %s %d times in a row with the same input and got the same answer. To wait for a process, " +
+	"call process_get with wait=600 instead of asking again; to wait for the owner, end your turn. If you go on, deck stops your turn as a loop."
+
+// again notes a call of the session, a read by its key and answer, and says whether to warn of a loop of reads now.
+func (s *Session) again(key, answer string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if key == "" {
+		s.read, s.reads = "", 0
+		return false
+	}
+	if at := key + "\x00" + answer; at != s.read {
+		s.read, s.reads = at, 0
+	}
+	if s.reads++; s.reads < sameReads || s.warned[key] {
+		return false
+	}
+	if s.warned == nil {
+		s.warned = map[string]bool{}
+	}
+	s.warned[key], s.read, s.reads = true, "", 0
+	return true
 }
 
 // call runs a registry command for a caller other than the owner: the class rules decide whether it runs now, by the

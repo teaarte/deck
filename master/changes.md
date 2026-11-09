@@ -197,3 +197,9 @@ and bring the modules in line.
   `picture`, a drawing of what feeds what in the master's data folder, in the language of the workspace. Settings has
   a tab Memory of it. A path of a data folder in `item.file` of a media block may end with `?v=<version>`: the file
   is the same, its address changes with the version, so the client reads it again.
+- 2026-11-09: a call of a project's command that is not an agent (script, tool, model) from an agent's or the
+  master's turn waits up to 15 seconds and gives `{process, state, result}` (or `error`, `error_type`) when it ended,
+  `{process, state, ask, question}` when it waits for the owner, else `{process, state}` as before; agent commands
+  give `{process}` at once. `process_get` without `wait` of an open process from a turn gives `hint`, how to wait; the
+  same look again without `wait` waits up to a minute itself. The third same read in a row with the same answer gets
+  one warning after its answer; the turn stops as a loop only if the reads go on.

@@ -16,6 +16,7 @@ import (
 	"deck2/internal/access"
 	"deck2/internal/ask"
 	"deck2/internal/fault"
+	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
@@ -123,6 +124,8 @@ type processView struct {
 	// Left is what a trial and the processes it started left, and LeftNote what that list does not hold.
 	Left     []process.Left `json:"left,omitempty"`
 	LeftNote string         `json:"left_note,omitempty"`
+	// Hint tells an agent that looked at an open process without a wait how to wait for it.
+	Hint string `json:"hint,omitempty"`
 }
 
 func msTime(v sql.NullInt64) string {
@@ -281,6 +284,14 @@ func (s *Service) Open(ctx context.Context, act registry.Actor) (map[string]int6
 // maxWait is the longest process_get waits; an agent whose tool calls time out sooner waits a little less than that.
 const maxWait = 30 * time.Minute
 
+// pollWait is how long process_get waits for an agent that looks at an open process again without a wait.
+const pollWait = time.Minute
+
+// open says a process still works, rather than ended or waiting for the owner.
+func open(p db.Process) bool {
+	return !p.FinishedAt.Valid && p.State != process.StateWaitingAnswer && p.State != process.StateNeedsLogin
+}
+
 // ceilingMargin is how long before the ceiling of its own process a wait of an agent ends, for it to act on it.
 const ceilingMargin = 2 * time.Minute
 
@@ -294,6 +305,15 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	p, err := s.ownProcess(ctx, act, in.Process)
 	if err != nil {
 		return processView{}, err
+	}
+	// An agent that looks at an open process again without a wait gets the wait from deck.
+	looks, asked := 0, in.Wait
+	turn := gateway.Live(ctx) && act.ProcessID != 0 && act.ProcessID != p.ID
+	if turn {
+		looks = s.Runner.Polled(act.ProcessID, p.ID, in.Wait > 0)
+		if in.Wait <= 0 && looks > 1 && open(p) {
+			in.Wait = int64(pollWait / time.Second)
+		}
 	}
 	until := time.Now().Add(min(time.Duration(max(in.Wait, 0))*time.Second, waitLimit(act)))
 	if self, err := s.St.Q.GetProcess(ctx, act.ProcessID); act.ProcessID != 0 && err == nil && self.DeadlineMs.Valid {
@@ -336,6 +356,14 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		}
 	}
 	v.Terminal = s.terminal(ctx, p)
+	if turn && asked <= 0 && open(p) {
+		started, _ := time.Parse(store.TimeLayout, p.StartedAt)
+		ran := s.Now().Sub(started).Round(time.Second)
+		v.Hint = fmt.Sprintf("process %d is still running (for %s). To wait for it, call process_get with wait=600 instead of calling it again", p.ID, ran)
+		if looks > 1 {
+			v.Hint = fmt.Sprintf("deck waited up to %d seconds for it: ", int(pollWait.Seconds())) + v.Hint
+		}
+	}
 	s.shown(ctx, p, &v, registry.Lang(ctx))
 	if p.State == process.StateWaitingSlot {
 		ahead, err := s.St.Q.CountSlotAhead(ctx, db.CountSlotAheadParams{WorkspaceID: project.WorkspaceID, ID: p.ID})
@@ -586,4 +614,33 @@ func sameFailures(ps []db.Process, n int) ([]db.Process, map[int64]int64) {
 		out = append(out, p)
 	}
 	return out, repeats
+}
+
+// quickWait is how long a call of a command that is not an agent, from an agent's turn, waits for its outcome.
+const quickWait = 15 * time.Second
+
+// outcomeView is a process a call started with its outcome, when it came within quickWait, or what it waits for.
+type outcomeView struct {
+	Process   int64           `json:"process"`
+	Running   bool            `json:"running,omitempty"`
+	State     string          `json:"state,omitempty"`
+	Result    json.RawMessage `json:"result,omitempty"`
+	Error     string          `json:"error,omitempty"`
+	ErrorType string          `json:"error_type,omitempty"`
+	Ask       int64           `json:"ask,omitempty"`
+	Question  string          `json:"question,omitempty"`
+}
+
+// Outcome is what a call from an agent's turn that started a process of a command that is not an agent gives back:
+// its result or failure when it ends within quickWait, the ask it waits on, or the process going on.
+func (s *Service) Outcome(ctx context.Context, act registry.Actor, st process.Started) (any, error) {
+	v, err := s.processGet(ctx, act, processGetIn{Process: st.Process, Wait: int64(quickWait / time.Second)})
+	if err != nil {
+		return st, nil
+	}
+	out := outcomeView{Process: v.ID, Running: st.Running, State: v.State, Ask: v.Ask, Question: v.Question}
+	if v.FinishedAt != "" {
+		out.Result, out.Error, out.ErrorType = v.Result, v.Error, v.ErrorType
+	}
+	return out, nil
 }

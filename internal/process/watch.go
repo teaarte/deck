@@ -192,3 +192,21 @@ func (r *Runner) leaveModel(ctx context.Context, t *turn, l *leaving) {
 		r.deps.Broke(ctx, pv.Name())
 	}
 }
+
+// Polled notes that a running turn looked at a process, with a wait or without, and tells how many looks without a
+// wait it made at that process in a row.
+func (r *Runner) Polled(turn, at int64, waits bool) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	lt := r.live[turn]
+	if lt == nil {
+		return 0
+	}
+	if waits || lt.polled != at {
+		lt.polled, lt.polls = at, 0
+	}
+	if !waits {
+		lt.polls++
+	}
+	return lt.polls
+}

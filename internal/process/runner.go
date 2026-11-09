@@ -140,6 +140,9 @@ type liveTurn struct {
 	slot *slot
 	// watch is the provider call under way, under r.mu.
 	watch *watch
+	// polled is the process the turn last looked at without a wait, and polls how many times in a row, under r.mu.
+	polled int64
+	polls  int
 }
 
 // Elsewhere runs scripts on another machine than deck's: side is deck's side of a script, emit tells the feed.

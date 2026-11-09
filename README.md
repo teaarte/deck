@@ -355,7 +355,8 @@ checks it against `release.json`, whose ed25519 signature it checks with the key
 new binary in place and restarts; the agents go on in their sessions. If the new version never gets as far as
 serving, the next start goes back to the old one. If the signature or a sha256 does not match, deck
 stays as it is. A deck built from source
-calls itself `dev`, offers no updates, and is updated with `git pull` and `go build`. On start, deck migrates its
+calls itself `dev`, offers no updates, and is updated with `git pull` and `go build`, or, built into the image
+`deck:local`, with `sh install.sh` in its checkout. On start, deck migrates its
 database and the stored manifests.
 
 ## Status

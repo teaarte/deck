@@ -70,23 +70,49 @@ type Service struct {
 	busy    bool
 }
 
-// Mark keeps the row of the update with the version and build of this deck; a build from source says how it updates.
+// Mark keeps the row of the update with the version and build of this deck and the way it updates; a row of a release
+// that says no newer one is out is rewritten, so a row of another build does not stay.
 func (s *Service) Mark(ctx context.Context) error {
 	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := health.Get(ctx, q, health.Of{}, Subject); errors.Is(err, sql.ErrNoRows) || s.Version == "dev" {
-			text := ""
-			if s.Version == "dev" {
-				text = "built from source; it updates with git pull and go build"
-			}
-			if _, err := health.Set(ctx, q, health.Of{}, Subject, health.OK, text); err != nil {
+		row, err := health.Get(ctx, q, health.Of{}, Subject)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if err != nil || s.Version == "dev" || row.Status == health.OK && s.way() != "" {
+			if _, err := health.Set(ctx, q, health.Of{}, Subject, health.OK, s.way()); err != nil {
 				return err
 			}
-		} else if err != nil {
-			return err
 		}
 		version := release.Named(s.Version, s.Commit) + " " + s.Variant
 		return q.SetHealthVersion(ctx, db.SetHealthVersionParams{Version: version, Subject: Subject})
 	})
+}
+
+// way is how this deck updates, as its row says: a build from source into an image is the image deck:local that
+// install.sh of a checkout builds, for the Dockerfile names the published image in every build.
+func (s *Service) way() string {
+	switch {
+	case s.Version == "dev" && s.Image != "":
+		return "built from source into the image deck:local; it updates with sh install.sh in its checkout (git pull, docker build -t deck:local, docker compose up -d)"
+	case s.Version == "dev":
+		return "built from source; it updates with git pull and go build"
+	case s.Image != "":
+		return fmt.Sprintf("runs from the image %s; it updates with docker compose pull && docker compose up -d", s.Image)
+	}
+	return ""
+}
+
+// inPlace refuses an update in place of a deck that updates another way, in the words of its row.
+func (s *Service) inPlace() error {
+	switch {
+	case s.Version == "dev" && s.Image != "":
+		return registry.Invalid("this deck is built from source into the image deck:local; it updates with sh install.sh in its checkout (git pull, docker build -t deck:local, docker compose up -d)")
+	case s.Version == "dev":
+		return registry.Invalid("this deck is built from source; it updates with git pull and go build")
+	case s.Image != "":
+		return registry.Invalid("this deck runs from the image %s; it updates with docker compose pull && docker compose up -d", s.Image)
+	}
+	return nil
 }
 
 // Daily looks for a newer release once a day.
@@ -143,6 +169,9 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 		return fs, err
 	}
 	status, text := health.OK, fmt.Sprintf("deck %s is the latest", s.Version)
+	if s.Image != "" {
+		text = fmt.Sprintf("deck %s is the latest; it runs from the image %s and updates with docker compose pull && docker compose up -d", s.Version, s.Image)
+	}
 	newer := release.Newer(fs.Version, s.Version)
 	if newer {
 		status, text = health.Warning, fmt.Sprintf("deck %s is out; this one is %s", fs.Version, s.Version)
@@ -201,7 +230,7 @@ func (s *Service) version(context.Context, registry.Actor, struct{}) (versionOut
 
 func (s *Service) checkNow(ctx context.Context, _ registry.Actor, _ struct{}) (any, error) {
 	if s.Version == "dev" {
-		return nil, registry.Invalid("this deck is built from source; it updates with git pull and go build")
+		return nil, s.inPlace()
 	}
 	_, _ = s.check(ctx)
 	return s.out(), nil
@@ -209,8 +238,8 @@ func (s *Service) checkNow(ctx context.Context, _ registry.Actor, _ struct{}) (a
 
 // update puts the latest release in place and restarts deck in it.
 func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any, error) {
-	if s.Version == "dev" {
-		return nil, registry.Invalid("this deck is built from source; it updates with git pull and go build")
+	if err := s.inPlace(); err != nil {
+		return nil, err
 	}
 	s.mu.Lock()
 	if s.busy {
@@ -227,9 +256,6 @@ func (s *Service) update(ctx context.Context, _ registry.Actor, _ struct{}) (any
 			s.mu.Unlock()
 		}
 	}()
-	if s.Image != "" {
-		return nil, registry.Invalid("this deck runs from the image %s; a newer one comes as a newer image: docker compose pull && docker compose up -d", s.Image)
-	}
 	fs, err := s.check(ctx)
 	if err != nil {
 		return nil, registry.Refuse("the latest release: %v", err)

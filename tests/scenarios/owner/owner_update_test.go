@@ -232,3 +232,46 @@ func TestABuildFromSourceSaysItsCommit(t *testing.T) {
 		}
 	}
 }
+
+// The row of the update and a refusal to update in place say the one way this deck updates: a binary from source by
+// git pull and go build, an image from source by install.sh of its checkout, a released image by docker compose pull.
+func TestADeckSaysHowItUpdates(t *testing.T) {
+	t.Parallel()
+	r := newRelease(t)
+	r.publish(t, "v0.2.0", map[string][]byte{"deck-test": newBinary("v0.2.0")}, nil)
+	for _, c := range []struct{ name, version, image, row, refusal string }{
+		{"binary from source", "dev", "", "built from source; it updates with git pull and go build",
+			"deck: this deck is built from source; it updates with git pull and go build"},
+		{"image from source", "dev", "ghcr.io/teaarte/deck",
+			"built from source into the image deck:local; it updates with sh install.sh in its checkout (git pull, docker build -t deck:local, docker compose up -d)",
+			"deck: this deck is built from source into the image deck:local; it updates with sh install.sh in its checkout (git pull, docker build -t deck:local, docker compose up -d)"},
+		{"released image", "v0.1.0", "ghcr.io/teaarte/deck",
+			"runs from the image ghcr.io/teaarte/deck; it updates with docker compose pull && docker compose up -d",
+			"deck: this deck runs from the image ghcr.io/teaarte/deck; it updates with docker compose pull && docker compose up -d"},
+		{"released image, the latest", "v0.2.0", "ghcr.io/teaarte/deck",
+			"runs from the image ghcr.io/teaarte/deck; it updates with docker compose pull && docker compose up -d",
+			"deck: this deck runs from the image ghcr.io/teaarte/deck; it updates with docker compose pull && docker compose up -d"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			e := harness.New(t, harness.WithConfig(func(cfg *app.Config) {
+				cfg.Releases, cfg.Version, cfg.Variant, cfg.Image = r.source(), c.version, "deck-test", c.image
+			}))
+			if h := e.WaitHealth(updates.Subject, "ok"); h.Error != c.row {
+				t.Fatalf("the row of the update says how this deck updates: %+v", h)
+			}
+			e.Refused("deck.update_install", nil, 422, c.refusal)
+			if c.version == "dev" {
+				e.Refused("deck.update_check", nil, 422, c.refusal)
+				return
+			}
+			e.Must("deck.update_check", nil, nil)
+			status, want := "warning", "deck v0.2.0 is out; pull the image ghcr.io/teaarte/deck: docker compose pull && docker compose up -d"
+			if c.version == "v0.2.0" {
+				status, want = "ok", "deck v0.2.0 is the latest; it runs from the image ghcr.io/teaarte/deck and updates with docker compose pull && docker compose up -d"
+			}
+			if h := e.WaitHealth(updates.Subject, status); h.Error != want {
+				t.Fatalf("the row after a check still says how this deck updates: %+v", h)
+			}
+		})
+	}
+}

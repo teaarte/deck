@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -415,6 +416,26 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 func (a *App) Plain(address string, port int) {
 	text := fmt.Sprintf("deck is opened at %s, an address it does not sign the owner in at: a passkey needs https; on this machine run tailscale serve --bg %d and tailscale serve --bg --https=8443 %d, or put deck behind a domain with Caddy, then start deck with -public and that https address", address, port, port+1)
 	if err := health.Write(context.Background(), a.Store, health.Of{}, health.HTTPS, health.Warning, text); err != nil {
+		slog.Error("write health", "err", err)
+	}
+}
+
+// Tailnet says at the start whether deck joins the tailnet itself: on it, the log and a warning of health say that
+// the built-in Tailscale goes away and how to move to the host's; off it, the rows of the tailnet go.
+func (a *App) Tailnet(name string, port int) {
+	ctx := context.Background()
+	if name == "" {
+		err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			return errors.Join(health.Clear(ctx, q, health.Of{}, health.Tailscale), health.Clear(ctx, q, health.Of{}, health.BuiltinTailscale))
+		})
+		if err != nil {
+			slog.Error("clear health", "err", err)
+		}
+		return
+	}
+	text := fmt.Sprintf("the built-in Tailscale goes away in the next releases: install Tailscale on the host and run tailscale serve --bg %d and tailscale serve --bg --https=8443 %d, start deck with -public and that https address (DECK_DOMAIN in .env of deck's compose), then pair the phone again at the new address", port, port+1)
+	slog.Warn(text)
+	if err := health.Write(ctx, a.Store, health.Of{}, health.BuiltinTailscale, health.Warning, text); err != nil {
 		slog.Error("write health", "err", err)
 	}
 }

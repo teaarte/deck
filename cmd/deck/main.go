@@ -211,6 +211,7 @@ func run() (*release.Restart, error) {
 	a.Run(ctx, 30*time.Second)
 	started.Store(true)
 
+	a.Tailnet(*tailnet, port)
 	if *tailnet != "" {
 		node, err := tsnet.Start(ctx, tsnet.Config{Hostname: *tailnet, Dir: a.Home.Tailscale(), Health: a.TailnetHealth}, server)
 		if err != nil {
@@ -324,7 +325,7 @@ func proxied(ctx context.Context, list string) {
 		names = append(names, n)
 	}
 	if len(names) > 0 {
-		slog.Warn("no proxy before deck is found: with a domain in deck's compose put COMPOSE_PROFILES=domain into .env beside DECK_DOMAIN and run docker compose up -d", "proxy", strings.Join(names, ","))
+		slog.Warn("no proxy before deck is found: with a domain in deck's compose put COMPOSE_PROFILES=domain into .env beside DECK_DOMAIN and run docker compose up -d; behind tailscale serve of the host no proxy is needed", "proxy", strings.Join(names, ","))
 	}
 }
 

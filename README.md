@@ -177,11 +177,11 @@ runs there, it asks before replacing it; with no terminal (a script or an agent)
 - **On this machine** — <http://deck.localhost:7700>. Browsers take `deck.localhost` to this machine and treat it as
   secure, so a passkey works there without https; its cookie goes to no other server of the machine. Tried in
   Chromium (Chrome, Edge) and WebKit (Safari); Firefox is not tried yet.
-- **From your phone and other devices** — over https only. Either Tailscale: put `DECK_TAILSCALE=deck` in `.env`,
-  and deck joins your tailnet itself as `https://deck.<tailnet>.ts.net` (the sign-in link is in its log); or install
-  Tailscale on the machine and run `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701`, with
-  `DECK_DOMAIN=<machine>.<tailnet>.ts.net` in `.env`. Tailscale is needed on the device you open deck from too. Or
-  your own domain, below.
+- **From your phone and other devices** — over https only. Either Tailscale: install it on the machine and run
+  `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701`, with
+  `DECK_DOMAIN=<machine>.<tailnet>.ts.net` in `.env`; Tailscale is needed on the device you open deck from too. Or
+  your own domain, below. `DECK_TAILSCALE=deck` (deck joins your tailnet itself) still works but goes away in a
+  coming release: move off it as below.
 - **As an app window** — in Safari, File → Add to Dock; in Chrome or Edge, Install deck from the address bar. On a
   phone, add deck to the home screen: pushes and sharing a link or a file into a module work as in a native app.
 
@@ -202,9 +202,24 @@ certificate and serves deck at that name, with no Tailscale:
 printf 'DECK_DOMAIN=deck.example.com\nCOMPOSE_PROFILES=domain\n' > .env
 ```
 
-Add `DECK_TAILSCALE=deck` to `.env` to also reach deck on your tailnet from deck's own node. A server set up before
+Add `DECK_TAILSCALE=deck` to `.env` to also reach deck on your tailnet from deck's own node (it goes away in a
+coming release, see below). A server set up before
 Caddy came under the profile has only `DECK_DOMAIN` in `.env`: add `COMPOSE_PROFILES=domain` when you download the new
 `compose.yaml`, or Caddy no longer starts (deck says so in its log).
+
+**Moving off the built-in Tailscale.** A deck started with `DECK_TAILSCALE` says in its log and in Settings → Health
+(`tailscale:builtin`) that it goes away. Its node `deck` keeps serving until the last step, so the phone works
+meanwhile.
+
+1. Install Tailscale on the host and sign it in to the same tailnet: on a Mac with OrbStack the Tailscale app, on a
+   Linux server `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up`.
+2. On the host: `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701`; `tailscale serve status`
+   shows the address, `https://<machine>.<tailnet>.ts.net`.
+3. Put `DECK_DOMAIN=<machine>.<tailnet>.ts.net` in `.env` (no `COMPOSE_PROFILES=domain`: Tailscale serves https, not
+   Caddy) and run `docker compose up -d`.
+4. `docker compose exec deck deck pair` and open the link at the new address on the phone; it makes a passkey there.
+5. Remove `DECK_TAILSCALE` from `.env`, run `docker compose up -d`, and remove the machine `deck` in the Tailscale
+   admin console (Machines).
 
 **What the container needs.** Every program of a module runs in a box of its own inside the container, built by
 bubblewrap as on any Linux. For that `compose.yaml` gives the container three lines, and nothing else is loosened:

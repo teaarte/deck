@@ -79,6 +79,8 @@ const (
 	Search    = "search"
 	// Master is the row of a workspace whose built-in master a project of the owner keeps out.
 	Master = "master"
+	// BuiltinTailscale is the row that says the tailnet inside deck goes away, beside the row of its node.
+	BuiltinTailscale = "tailscale:builtin"
 )
 
 // Provider is the subject of a provider of agent turns, of the machine.

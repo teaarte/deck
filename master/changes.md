@@ -260,3 +260,7 @@ and bring the modules in line.
   provider's, and the provider's only for a maker deck has no mark of; the provider stands in `provider` (and starts
   `choice_groups`), whose words give its mark. A form's `choices` take `group`, the heading a value
   stands under, such as `"group": "provider"` of models: the picker groups the values by it.
+- 2026-11-09: the built-in Tailscale (`-tailscale`, `DECK_TAILSCALE`) still runs but goes away in a coming release; a
+  deck started with it has the health row `tailscale:builtin` (warning) saying how to move to Tailscale on the host
+  (`tailscale serve`, `-public`/`DECK_DOMAIN`, pair the phone again). Off it, the rows `tailscale` and
+  `tailscale:builtin` go at the start.

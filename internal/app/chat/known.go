@@ -3,23 +3,21 @@ package chat
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 
 	"deck2/internal/access"
 	"deck2/internal/ask"
 	"deck2/internal/docs"
-	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
 
 const (
-	// indexMax is the most the project index of a reply turn takes, openMax its open work.
+	// indexMax is the most bytes the project index of a reply turn takes, openMax its open work.
 	indexMax = 2048
 	openMax  = 1024
-	// openLook is how many of the newest processes of a topic a turn looks at for its open work.
+	// openLook is how many of the newest open processes of a topic a turn looks at.
 	openLook = 50
 )
 
@@ -41,7 +39,7 @@ func (s *Service) projectIndex(ctx context.Context, workspace int64) string {
 		}
 		line := fmt.Sprintf("- %s (%s)", p.Name, state)
 		if prompt, err := docs.CurrentText(ctx, s.St.Q, docs.ProjectScope(p), docs.KindPrompt, docs.PromptName); err == nil {
-			if d := untrusted.Flat(docs.Description(prompt), 120); d != "" {
+			if d := untrusted.Short(docs.Description(prompt), 120); d != "" {
 				line += ": " + d
 			}
 		}
@@ -57,23 +55,20 @@ func (s *Service) openWork(ctx context.Context, t db.ChatTopic) string {
 	if err != nil {
 		return ""
 	}
-	rows, err := s.St.Q.ListTopicProcesses(ctx, db.ListTopicProcessesParams{MasterID: m.ID, Topic: t.ID, Lim: openLook})
+	rows, err := s.St.Q.ListOpenTopicProcesses(ctx, db.ListOpenTopicProcessesParams{MasterID: m.ID, Topic: t.ID, Lim: openLook})
 	if err != nil {
 		return ""
 	}
 	var lines []string
 	for _, r := range rows {
 		p := r.Process
-		if slices.Contains(process.Final, p.State) {
-			continue
-		}
 		lines = append(lines, fmt.Sprintf("- #%d %s.%s, %s since %s", p.ID, r.Project, p.Command, p.State, p.StartedAt))
 		asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
 		for _, a := range asks {
 			if a.State != ask.StateOpen {
 				continue
 			}
-			lines = append(lines, fmt.Sprintf("  - ask #%d %s waits for the owner since %s: %s", a.ID, a.Kind, a.CreatedAt, untrusted.Flat(a.Text, 120)))
+			lines = append(lines, fmt.Sprintf("  - ask #%d %s waits for the owner since %s: %s", a.ID, a.Kind, a.CreatedAt, untrusted.Short(a.Text, 120)))
 		}
 	}
 	return within("Open work of this topic, newest first", lines, openMax, registry.Deck("processes_list")+" with topic gives it all")

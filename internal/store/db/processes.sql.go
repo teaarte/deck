@@ -1371,6 +1371,89 @@ func (q *Queries) ListOpenProcesses(ctx context.Context, arg ListOpenProcessesPa
 	return items, nil
 }
 
+const listOpenTopicProcesses = `-- name: ListOpenTopicProcesses :many
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, p.error_type, p.error_details, p.follows_id, p.again, p.allows, p.wrote, p.submitted_at, j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+WHERE p.parent_id IN (SELECT t.id FROM process t WHERE t.project_id = ?1 AND json_extract(t.input, '$.topic') = CAST(?2 AS INTEGER))
+  AND p.state NOT IN ('done', 'error', 'stopped', 'interrupted')
+ORDER BY p.id DESC LIMIT ?3
+`
+
+type ListOpenTopicProcessesParams struct {
+	MasterID int64
+	Topic    int64
+	Lim      int64
+}
+
+type ListOpenTopicProcessesRow struct {
+	Process Process
+	Project string
+}
+
+// The processes the replies of a topic started that have not ended, newest first.
+func (q *Queries) ListOpenTopicProcesses(ctx context.Context, arg ListOpenTopicProcessesParams) ([]ListOpenTopicProcessesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listOpenTopicProcesses, arg.MasterID, arg.Topic, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListOpenTopicProcessesRow
+	for rows.Next() {
+		var i ListOpenTopicProcessesRow
+		if err := rows.Scan(
+			&i.Process.ID,
+			&i.Process.ProjectID,
+			&i.Process.Command,
+			&i.Process.Kind,
+			&i.Process.State,
+			&i.Process.Provider,
+			&i.Process.SessionID,
+			&i.Process.Input,
+			&i.Process.Result,
+			&i.Process.NotBySchema,
+			&i.Process.Error,
+			&i.Process.StartNote,
+			&i.Process.ParentID,
+			&i.Process.Depth,
+			&i.Process.TriggerID,
+			&i.Process.RetryKey,
+			&i.Process.ManifestRevision,
+			&i.Process.Trial,
+			&i.Process.Folder,
+			&i.Process.Pgid,
+			&i.Process.CeilingMs,
+			&i.Process.DeadlineMs,
+			&i.Process.OutputMs,
+			&i.Process.SilentSinceMs,
+			&i.Process.PauseUntilMs,
+			&i.Process.WaitMessage,
+			&i.Process.WaitFresh,
+			&i.Process.StartedAt,
+			&i.Process.FinishedAt,
+			&i.Process.Alone,
+			&i.Process.Dismissed,
+			&i.Process.ReopenedAt,
+			&i.Process.ErrorType,
+			&i.Process.ErrorDetails,
+			&i.Process.FollowsID,
+			&i.Process.Again,
+			&i.Process.Allows,
+			&i.Process.Wrote,
+			&i.Process.SubmittedAt,
+			&i.Project,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProcessGroups = `-- name: ListProcessGroups :many
 SELECT id, project_id, pgid, session_id, kind, provider FROM process WHERE pgid != 0
 `

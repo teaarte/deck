@@ -91,6 +91,14 @@ WHERE p.parent_id IN (SELECT t.id FROM process t WHERE t.project_id = sqlc.arg(m
 ORDER BY p.id DESC LIMIT sqlc.arg(lim);
 
 
+-- name: ListOpenTopicProcesses :many
+-- The processes the replies of a topic started that have not ended, newest first.
+SELECT sqlc.embed(p), j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+WHERE p.parent_id IN (SELECT t.id FROM process t WHERE t.project_id = sqlc.arg(master_id) AND json_extract(t.input, '$.topic') = CAST(sqlc.arg(topic) AS INTEGER))
+  AND p.state NOT IN ('done', 'error', 'stopped', 'interrupted')
+ORDER BY p.id DESC LIMIT sqlc.arg(lim);
+
+
 -- name: ClaimProcess :execrows
 UPDATE process SET state = sqlc.arg(to_state) WHERE id = sqlc.arg(id) AND state = sqlc.arg(from_state);
 

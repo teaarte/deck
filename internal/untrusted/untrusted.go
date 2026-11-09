@@ -62,6 +62,15 @@ func (t *TailWriter) String() string {
 // Flat is s on one line of at most n bytes, unquoted.
 func Flat(s string, n int) string { return Cut(strings.Join(strings.Fields(s), " "), n) }
 
+// Short is s on one line of at most n characters, unquoted.
+func Short(s string, n int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > n {
+		return string(r[:n]) + "…"
+	}
+	return s
+}
+
 // Line is s as one quoted line of at most n bytes, for a short value inside deck's own sentence.
 func Line(s string, n int) string {
 	return strconv.Quote(Cut(strings.Join(strings.Fields(s), " "), n))

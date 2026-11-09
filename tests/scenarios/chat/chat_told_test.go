@@ -96,8 +96,9 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 			Reply *harness.TopicReply `json:"reply"`
 		} `json:"topic"`
 	}
-	// The reply's words come a moment before its process ends.
+	// The reply's words come a moment before its process ends; a read without a reply leaves none of the last read.
 	e.Until("the third reply to end", func() bool {
+		after.Topic.Reply = nil
 		e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &after)
 		return after.Topic.Reply == nil || after.Topic.Reply.State != "running"
 	})

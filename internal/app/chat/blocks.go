@@ -382,8 +382,17 @@ func viewBlock(m db.ChatMessage) *blockView {
 		in, _ := json.Marshal(b.Input)
 		form := map[string]any{"project": master.Name, "commands": []map[string]any{{
 			"name": registry.Deck("chat_answer"), "title": b.Title, "input": b.Input, "order": manifest.PropertyOrder(in)}}}
-		if len(b.Values) > 0 {
-			form["values"] = b.Values
+		// A field starts at the value the master gave it, else at the default of its schema.
+		values := map[string]any{}
+		props, _ := b.Input["properties"].(map[string]any)
+		for k, p := range props {
+			if d, ok := p.(map[string]any)["default"]; ok {
+				values[k] = d
+			}
+		}
+		maps.Copy(values, b.Values)
+		if len(values) > 0 {
+			form["values"] = values
 		}
 		if v.Answered == nil {
 			send := answering(map[string]any{})

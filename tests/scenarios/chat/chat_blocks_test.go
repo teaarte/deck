@@ -41,7 +41,7 @@ func shownIn(e *harness.Env, topic int64) []shownMessage {
 const offerForm = `{"type": "form", "title": "Offer", "submit": "Send", "values": {"price": 100},
   "input": {"type": "object", "required": ["price"], "properties": {
     "price": {"type": "integer", "title": "Price", "minimum": 0, "maximum": 1000, "multipleOf": 10, "examples": [100, 200, 500]},
-    "rush": {"type": "boolean", "title": "Rush"}}}}`
+    "rush": {"type": "boolean", "title": "Rush", "default": false}}}}`
 
 // TestTheMasterShowsABlockAndTheOwnerAnswersIt: a reply shows a block under its text, a wrong one refused with why;
 // the block keeps the owner's answer to a form or a choice, which comes to the master as the owner's next message.
@@ -117,7 +117,7 @@ func TestTheMasterShowsABlockAndTheOwnerAnswersIt(t *testing.T) {
 	}
 	_ = json.Unmarshal(form.Block.Data, &data)
 	if form.Block.Type != "form" || form.Block.Title != "Offer" || data.State != "ready" || len(data.Value.Commands) != 1 ||
-		data.Value.Commands[0].Name != "deck.chat_answer" || data.Value.Values["price"] != float64(100) ||
+		data.Value.Commands[0].Name != "deck.chat_answer" || data.Value.Values["price"] != float64(100) || data.Value.Values["rush"] != false ||
 		data.Value.Send["command"] != "deck.chat_answer" || data.Value.Send["input"] != "values" || data.Value.Send["label"] != "Send" ||
 		strings.Join(data.Value.Commands[0].Order, ",") != "price,rush" {
 		t.Fatalf("the form asks by its fields and answers through chat_answer: %+v %s", form.Block, form.Block.Data)

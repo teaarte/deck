@@ -346,7 +346,7 @@ func (s *Service) chatCommands() []*registry.Command {
 			"Sets the model the master's replies in a chat topic go on from the next one; empty brings back the master's own model.",
 			registry.OwnerOnly, s.chatTopicModel),
 		registry.Def("chat_block_show", "Show a block in the chat",
-			"Shows the owner one block in the topic this reply answers: options to pick, a form to fill (a bounded number slides), a table, a chart or a card, its data in place; the final text of the turn goes over it, and the owner's answer comes as the next message.",
+			"Shows the owner one block in the topic this reply answers: options to pick, a form to fill (a number with minimum and maximum slides, its examples the marks), a table, a chart or a card, its data in place; the final text of the turn goes over it, and the owner's answer comes as the next message.",
 			registry.OwnerSide, s.chatBlockShow),
 		registry.Def("chat_answer", "Answer in the chat",
 			"Answers the block of a message of the master: the option picked or the fields filled, which the topic gets as the owner's next message.",

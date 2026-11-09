@@ -3,6 +3,7 @@ package runs
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -267,7 +268,23 @@ func TestStopThatSucceedsAlwaysEndsTheProcessStopped(t *testing.T) {
 	p := e.Project("race", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	for i := range 60 {
 		id := e.Run(p, "job")
-		<-returning
+		// A process that ends or waits before its agent is called fails the test with how it stands, not hangs it.
+		e.Until(fmt.Sprintf("the agent of process %d to be called", id), func() bool {
+			select {
+			case <-returning:
+				return true
+			default:
+			}
+			if got := e.Proc(id); got.State != "running" {
+				select {
+				case <-returning:
+					return true
+				default:
+					t.Fatalf("process %d is %s before its agent was called: %s", id, got.State, got.Error)
+				}
+			}
+			return false
+		})
 		time.Sleep(time.Duration(i%6) * 300 * time.Microsecond)
 		code, _ := e.Call("deck.process_stop", map[string]any{"process": id})
 		got := e.WaitState(id, "done", "stopped")

@@ -103,7 +103,6 @@
 /* Today's lines go the whole width; Deki stands in the room they leave, or small in the head without one. */
 .card[data-big] .today {
   min-height: 28px;
-  padding-right: 40px;
 }
 
 .todayRoom {

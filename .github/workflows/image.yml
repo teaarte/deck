@@ -5,9 +5,9 @@ name: image
 on:
   push:
     branches: [master]
-    paths: [Dockerfile, compose.yaml, seccomp.json, deck-box.apparmor, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go, "*.go", go.mod, go.sum, cmd/**, internal/**, master/**, schemas/**, skills/**, starters/**, web/dist/**, web/embed.go]
+    paths: [Dockerfile, compose.yaml, seccomp.json, deck-box.apparmor, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go, tests/scenarios/real/real_server_update_test.go, "*.go", go.mod, go.sum, cmd/**, internal/**, master/**, schemas/**, skills/**, starters/**, web/dist/**, web/embed.go]
   pull_request:
-    paths: [Dockerfile, compose.yaml, seccomp.json, deck-box.apparmor, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go, "*.go", go.mod, go.sum, cmd/**, internal/**, master/**, schemas/**, skills/**, starters/**, web/dist/**, web/embed.go]
+    paths: [Dockerfile, compose.yaml, seccomp.json, deck-box.apparmor, .dockerignore, .github/workflows/image.yml, tests/scenarios/real/real_server_test.go, tests/scenarios/real/real_server_update_test.go, "*.go", go.mod, go.sum, cmd/**, internal/**, master/**, schemas/**, skills/**, starters/**, web/dist/**, web/embed.go]
   schedule:
     - cron: "17 3 * * *"
   workflow_dispatch:

@@ -16,6 +16,18 @@ UPDATE feed SET repeats = repeats + 1, created_at = sqlc.arg(created_at) WHERE i
 -- name: ListChangeLine :many
 SELECT * FROM feed WHERE id = sqlc.arg(id) OR line_id = sqlc.arg(id) ORDER BY id;
 
+-- name: LeaveChangeLine :exec
+UPDATE feed SET repeats = repeats - 1 WHERE id = sqlc.arg(id);
+
+-- name: HandChangeLine :exec
+-- The first change after the head leads the line of the others.
+UPDATE feed SET line_id = CASE WHEN id = sqlc.arg(heir) THEN NULL ELSE sqlc.arg(heir) END,
+    repeats = CASE WHEN id = sqlc.arg(heir) THEN sqlc.arg(repeats) ELSE repeats END
+WHERE line_id = sqlc.arg(id);
+
+-- name: DeleteFeed :exec
+DELETE FROM feed WHERE id = ?;
+
 -- name: CauseNote :one
 SELECT id FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND cause = sqlc.arg(cause) AND kind = 'note' AND for_master = 0
     AND read_at IS NULL AND substr(created_at, 1, 10) = substr(CAST(sqlc.arg(created_at) AS TEXT), 1, 10)

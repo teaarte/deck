@@ -9,8 +9,10 @@ import (
 	"image/png"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -268,7 +270,7 @@ func TestAnAgentDeletesTheFilesOfItsProject(t *testing.T) {
 }
 
 // TestTheMasterDeletesAFileOfTheProjectOfItsWork: a work the master handed over deletes a wrong file of the data
-// folder of the project it works on, and the owner sees it with an undo.
+// folder of the project it names, once of two at a time; the undo writes over no file that is there again.
 func TestTheMasterDeletesAFileOfTheProjectOfItsWork(t *testing.T) {
 	t.Parallel()
 	var from atomic.Int64
@@ -276,8 +278,24 @@ func TestTheMasterDeletesAFileOfTheProjectOfItsWork(t *testing.T) {
 		if c.Command() != "work" {
 			return harness.HandOver(ctx, c, &from)
 		}
-		if out, bad := c.Tool(ctx, "file_delete", map[string]any{"project": "house", "path": "dom-14-nw-photo.png"}); bad {
-			return provider.Fail(fault.TaskFailed, out)
+		if out, bad := c.Tool(ctx, "file_delete", map[string]any{"path": "dom-14-nw-photo.png"}); !bad || !strings.Contains(out, "name the project") {
+			return provider.Fail(fault.TaskFailed, "deleted without a project: "+out)
+		}
+		outs := make([]string, 2)
+		var wg sync.WaitGroup
+		for i := range outs {
+			wg.Go(func() {
+				out, bad := c.Tool(ctx, "file_delete", map[string]any{"project": "house", "path": "dom-14-nw-photo.png"})
+				if !bad {
+					out = "ok"
+				}
+				outs[i] = out
+			})
+		}
+		wg.Wait()
+		slices.Sort(outs)
+		if outs[1] != "ok" || !strings.Contains(outs[0], `no "dom-14-nw-photo.png"`) {
+			return provider.Fail(fault.TaskFailed, fmt.Sprintf("one of two deletions at a time: %q", outs))
 		}
 		return provider.Result{Text: "Deleted the wrong photo."}
 	}))
@@ -299,9 +317,17 @@ func TestTheMasterDeletesAFileOfTheProjectOfItsWork(t *testing.T) {
 		CanUndo bool `json:"can_undo"`
 	}
 	e.Must("deck.feed_list", map[string]any{"kind": "change", "project": "house"}, &feed)
-	if len(feed) != 1 || !feed[0].CanUndo || !strings.Contains(feed[0].Text, "dom-14-nw-photo.png") {
-		t.Fatalf("the owner sees the deletion with an undo: %+v", feed)
+	if len(feed) != 1 || !feed[0].CanUndo || feed[0].Text != `deleted file "dom-14-nw-photo.png"` {
+		t.Fatalf("the owner sees the one deletion with an undo: %+v", feed)
 	}
+	_ = os.WriteFile(photo, []byte("new photo"), 0o600)
+	if code, out := e.Call("deck.feed_undo", map[string]any{"entry": feed[0].ID}); code != 409 {
+		t.Fatalf("the undo writes over no file that is there again: %d %s", code, out)
+	}
+	if b, _ := os.ReadFile(photo); string(b) != "new photo" {
+		t.Fatalf("the file that is there stays: %q", b)
+	}
+	_ = os.Remove(photo)
 	e.Must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
 	if b, err := os.ReadFile(photo); err != nil || string(b) != "wrong photo" {
 		t.Fatalf("the undo brings the photo back: %q %v", b, err)

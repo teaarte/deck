@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"syscall"
 )
 
 // unpacked numbers the files Unpack writes apart before they move into place.
@@ -84,28 +85,79 @@ func unpackFile(root *os.Root, at string, r io.Reader, mode os.FileMode) error {
 	return nil
 }
 
-// PutIn writes a new file under dir whole from what r gives, never past dir nor through a link in it; a name that is
-// there already is os.ErrExist.
-func PutIn(dir, name string, r io.Reader) error {
-	at := filepath.Clean(filepath.FromSlash(name))
-	if !filepath.IsLocal(at) {
+// ErrApart is a move between two file systems, which deck does not make as a copy.
+var ErrApart = errors.New("the data folder and deck's stored files are on different file systems")
+
+// ErrMoved is a file that is not the one checked before, or a path that now goes through a link.
+var ErrMoved = errors.New("the file changed meanwhile")
+
+// Trash moves the file name of dir, the one fi says, to the stored file id, through one root of deck's folder.
+func (l Layout) Trash(dir, name string, fi os.FileInfo, id int64) error {
+	root, at, err := l.under(dir, name)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	now, err := root.Lstat(at)
+	if err != nil {
+		return err
+	}
+	if !os.SameFile(fi, now) {
+		return ErrMoved
+	}
+	stored, _ := filepath.Rel(string(l), l.File(id))
+	if err := root.MkdirAll(filepath.Dir(stored), 0o700); err != nil {
+		return err
+	}
+	if err := root.Rename(at, stored); errors.Is(err, syscall.EXDEV) {
+		return ErrApart
+	} else if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Untrash puts the stored file id back as the file name of dir, never over a file there: that is os.ErrExist.
+func (l Layout) Untrash(id int64, dir, name string) error {
+	if !filepath.IsLocal(filepath.FromSlash(name)) {
 		return fmt.Errorf("%q is outside %s", name, dir)
 	}
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	root, err := os.OpenRoot(dir)
+	root, at, err := l.under(dir, name)
 	if err != nil {
 		return err
 	}
 	defer root.Close()
-	if err := Plain(root, at); err != nil {
+	if err := root.MkdirAll(filepath.Dir(at), 0o700); err != nil {
 		return err
 	}
-	if _, err := root.Lstat(at); err == nil {
+	stored, _ := filepath.Rel(string(l), l.File(id))
+	if err := root.Link(stored, at); errors.Is(err, os.ErrExist) {
 		return os.ErrExist
+	} else if err != nil {
+		return err
 	}
-	return unpackFile(root, at, r, 0o600)
+	return nil
+}
+
+// under is deck's folder as a root and name of dir in it, refused when its path goes through a link.
+func (l Layout) under(dir, name string) (*os.Root, string, error) {
+	rel, err := filepath.Rel(string(l), dir)
+	if err != nil || !filepath.IsLocal(rel) {
+		return nil, "", fmt.Errorf("%s is outside deck's folder", dir)
+	}
+	at := filepath.Join(rel, filepath.Clean(filepath.FromSlash(name)))
+	root, err := os.OpenRoot(string(l))
+	if err != nil {
+		return nil, "", err
+	}
+	if err := Plain(root, at); err != nil {
+		root.Close()
+		return nil, "", ErrMoved
+	}
+	return root, at, nil
 }
 
 // RemoveIn removes the files and folders of names under dir, never past it.

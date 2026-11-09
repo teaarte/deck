@@ -236,4 +236,5 @@ and bring the modules in line.
 - 2026-11-09: `deck.file_delete` takes `project` and `path` instead of `file` for a file of the data folder of a
   project (not a folder, not through a link); the master and a process of the project delete the files of its records
   and of its data folder, not only those of their own run, and the owner sees each among the changes made without
-  them with an undo for a day (`file_restore` with `owner_kind` `data` and `path`). Another project is refused.
+  them with an undo for a day (`file_restore` with `owner_kind` `data` and `path`, never over a file there again), a
+  file of the data folder in a draft too. The master names `project`; another project is refused.

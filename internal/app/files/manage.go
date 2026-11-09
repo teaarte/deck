@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"mime"
 	"os"
 	"path/filepath"
@@ -74,24 +73,29 @@ func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileDel
 		if err != nil {
 			return err
 		}
-		return s.deleted(ctx, q, act, p, f.Name, out)
+		_, err = s.deleted(ctx, q, act, p, f.Name, out)
+		return err
 	})
 }
 
-// deleted lists a file deleted without the owner among what was done without them, with the undo that brings it back.
-func (s *Service) deleted(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, name string, undo map[string]any) error {
-	if act.Kind == registry.Owner || p.Status == store.ProjectDraft {
-		return nil
+// deleted lists a file deleted without the owner among what was done without them, with the undo that brings it
+// back; a stored file of a draft is not listed.
+func (s *Service) deleted(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, name string, undo map[string]any) (int64, error) {
+	if act.Kind == registry.Owner || p.Status == store.ProjectDraft && undo["owner_kind"] != "data" {
+		return 0, nil
 	}
 	params, _ := json.Marshal(undo)
-	return store.AddChange(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
+	return store.AddChangeID(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
 		Author: act.Author(), Text: fmt.Sprintf("deleted file %s", untrusted.Line(name, 80)), Actions: "[]", Command: registry.Deck("file_restore"),
 		Params: string(params), ProcessID: store.ID(act.ProcessID), What: "deleted files"})
 }
 
-// dataDelete moves a file of the data folder of a project into the trash of the stored files, out of the sight of
-// the box; a folder, the folder itself and a path through a link are refused.
+// dataDelete moves a file of the data folder of a project to the trash of the stored files, out of the sight of the
+// box; the trash row and the line of the owner are written first and taken back when the move fails.
 func (s *Service) dataDelete(ctx context.Context, act registry.Actor, project, path string) (any, error) {
+	if project == "" && act.Kind == registry.Master {
+		return nil, registry.Invalid("name the project whose data folder holds %q", path)
+	}
 	p, err := access.Project(ctx, s.St.Q, act, project)
 	if err != nil {
 		return nil, err
@@ -103,7 +107,8 @@ func (s *Service) dataDelete(ctx context.Context, act registry.Actor, project, p
 	if !filepath.IsLocal(at) || at == "." {
 		return nil, registry.Invalid("%q is no file inside the data folder of %s", path, p.Name)
 	}
-	root, err := os.OpenRoot(s.Home.Data(p.ID))
+	dir := s.Home.Data(p.ID)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return nil, registry.NotFound("%s has no data folder yet", p.Name)
 	}
@@ -113,44 +118,51 @@ func (s *Service) dataDelete(ctx context.Context, act registry.Actor, project, p
 	}
 	missing := registry.NotFound("no %q in the data folder of %s", path, p.Name)
 	fi, err := root.Lstat(at)
-	if err != nil {
+	switch {
+	case err != nil:
 		return nil, missing
-	}
-	if fi.IsDir() {
+	case fi.IsDir():
 		return nil, registry.Invalid("%q is a folder; delete its files one by one", path)
-	}
-	src, err := home.OpenRegular(root, at)
-	if err != nil {
+	case !fi.Mode().IsRegular():
 		return nil, registry.Invalid("%q is no regular file", path)
-	}
-	defer src.Close()
-	tmp, err := home.Create(s.Home.Files())
-	if err != nil {
-		return nil, err
-	}
-	defer tmp.Drop()
-	n, err := io.Copy(tmp, src)
-	if err != nil {
-		return nil, err
 	}
 	defer s.Hold()()
 	rel := filepath.ToSlash(at)
-	f, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (db.File, error) {
-		return q.CreateFile(ctx, db.CreateFileParams{ProjectID: p.ID, OwnerKind: files.TrashKind, OwnerID: s.Now().Unix(), Name: filepath.Base(at),
-			Type: mime.TypeByExtension(filepath.Ext(at)), Size: n, CreatedAt: store.Time(s.Now())})
+	var f db.File
+	var change int64
+	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if f, err = q.CreateFile(ctx, db.CreateFileParams{ProjectID: p.ID, OwnerKind: files.TrashKind, OwnerID: s.Now().Unix(), Name: filepath.Base(at),
+			Type: mime.TypeByExtension(filepath.Ext(at)), Size: fi.Size(), CreatedAt: store.Time(s.Now())}); err != nil {
+			return err
+		}
+		change, err = s.deleted(ctx, q, act, p, rel, map[string]any{"file": f.ID, "owner_kind": "data", "path": rel})
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
-	if err = tmp.Keep(s.Home.File(f.ID)); err == nil {
-		err = root.Remove(at)
-	}
-	if err != nil {
-		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteFile(ctx, f.ID) })
+	if err := s.Home.Trash(dir, at, fi, f.ID); err != nil {
+		if terr := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			if change != 0 {
+				if err := store.DropChange(ctx, q, change); err != nil {
+					return err
+				}
+			}
+			return q.DeleteFile(ctx, f.ID)
+		}); terr != nil {
+			return nil, errors.Join(err, terr)
+		}
+		switch {
+		case errors.Is(err, os.ErrNotExist):
+			return nil, missing
+		case errors.Is(err, home.ErrApart):
+			return nil, registry.Refuse("deck cannot delete %q with an undo: %v", path, err)
+		case errors.Is(err, home.ErrMoved):
+			return nil, registry.Conflict("%q changed meanwhile; read the data folder again", path)
+		}
 		return nil, err
 	}
-	out := map[string]any{"file": f.ID, "owner_kind": "data", "path": rel}
-	return out, s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return s.deleted(ctx, q, act, p, rel, out) })
+	return map[string]any{"file": f.ID, "owner_kind": "data", "path": rel}, nil
 }
 
 type fileRestoreIn struct {
@@ -181,16 +193,14 @@ func (s *Service) fileRestore(ctx context.Context, act registry.Actor, in fileRe
 	return map[string]any{"file": f.ID}, s.rebind(ctx, f, files.TrashKind, f.OwnerID, in.OwnerKind, in.OwnerID)
 }
 
-// dataRestore writes a deleted file of a data folder back to its place, never over a file that is there again.
+// dataRestore puts a deleted file of a data folder back in its place, never over a file that is there again.
 func (s *Service) dataRestore(ctx context.Context, f db.File, path string) (any, error) {
-	src, err := os.Open(s.Home.File(f.ID))
-	if err != nil {
-		return nil, registry.NotFound("file %d is gone", f.ID)
-	}
-	defer src.Close()
-	switch err := home.PutIn(s.Home.Data(f.ProjectID), path, src); {
+	defer s.Hold()()
+	switch err := s.Home.Untrash(f.ID, s.Home.Data(f.ProjectID), path); {
 	case errors.Is(err, os.ErrExist):
 		return nil, registry.Conflict("%q is in the data folder again; deck writes nothing over it", path)
+	case errors.Is(err, os.ErrNotExist):
+		return nil, registry.NotFound("file %d is gone", f.ID)
 	case err != nil:
 		return nil, registry.Invalid("%q cannot go back to the data folder: %v", path, err)
 	}

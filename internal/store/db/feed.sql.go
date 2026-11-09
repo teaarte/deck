@@ -178,6 +178,15 @@ func (q *Queries) CountUnreadNotes(ctx context.Context, workspaceID int64) (int6
 	return column_1, err
 }
 
+const deleteFeed = `-- name: DeleteFeed :exec
+DELETE FROM feed WHERE id = ?
+`
+
+func (q *Queries) DeleteFeed(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteFeed, id)
+	return err
+}
+
 const deleteMasterNotes = `-- name: DeleteMasterNotes :exec
 DELETE FROM feed WHERE workspace_id = ?1 AND for_master = 1 AND id <= ?2
 `
@@ -227,6 +236,24 @@ func (q *Queries) GetFeed(ctx context.Context, id int64) (Feed, error) {
 	return i, err
 }
 
+const handChangeLine = `-- name: HandChangeLine :exec
+UPDATE feed SET line_id = CASE WHEN id = ?1 THEN NULL ELSE ?1 END,
+    repeats = CASE WHEN id = ?1 THEN ?2 ELSE repeats END
+WHERE line_id = ?3
+`
+
+type HandChangeLineParams struct {
+	Heir    int64
+	Repeats int64
+	ID      sql.NullInt64
+}
+
+// The first change after the head leads the line of the others.
+func (q *Queries) HandChangeLine(ctx context.Context, arg HandChangeLineParams) error {
+	_, err := q.db.ExecContext(ctx, handChangeLine, arg.Heir, arg.Repeats, arg.ID)
+	return err
+}
+
 const joinChangeLine = `-- name: JoinChangeLine :exec
 UPDATE feed SET repeats = repeats + 1, created_at = ?1 WHERE id = ?2
 `
@@ -238,6 +265,15 @@ type JoinChangeLineParams struct {
 
 func (q *Queries) JoinChangeLine(ctx context.Context, arg JoinChangeLineParams) error {
 	_, err := q.db.ExecContext(ctx, joinChangeLine, arg.CreatedAt, arg.ID)
+	return err
+}
+
+const leaveChangeLine = `-- name: LeaveChangeLine :exec
+UPDATE feed SET repeats = repeats - 1 WHERE id = ?1
+`
+
+func (q *Queries) LeaveChangeLine(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, leaveChangeLine, id)
 	return err
 }
 

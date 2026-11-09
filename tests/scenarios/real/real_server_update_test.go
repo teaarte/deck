@@ -335,12 +335,11 @@ func (b *bare) keep(cookie, v string) {
 	b.must(cookie, "deck.document_save", map[string]any{"project": "kept", "name": "notes/plan.md", "kind": "doc", "text": keptText})
 }
 
-// logins signs the CLIs in as their sign-in leaves them in deck's folder.
+// logins signs the CLIs in where the sign-in of v0.2 left them, not where this tree looks: a move would show.
 func (b *bare) logins() {
 	b.t.Helper()
-	l := home.Layout(b.home)
-	b.write(filepath.Join(l.Login("claude"), ".credentials.json"), claudeLogin, "deck")
-	b.write(filepath.Join(l.Login("codex"), "auth.json"), codexLogin, "deck")
+	b.write(b.home+"/agents/claude/login/.credentials.json", claudeLogin, "deck")
+	b.write(b.home+"/agents/codex/login/auth.json", codexLogin, "deck")
 }
 
 // updated waits for deck of this tree to answer in place of the one of version v.

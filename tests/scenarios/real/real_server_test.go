@@ -3,6 +3,7 @@ package real
 import (
 	"bufio"
 	"cmp"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -87,8 +88,9 @@ var candidate struct {
 func build(t *testing.T) (image, bin string) {
 	t.Helper()
 	candidate.once.Do(func() {
-		dir, err := os.MkdirTemp("", "deck-server-")
-		if err != nil {
+		// One folder a tree, written over by each run: no run leaves one behind.
+		dir := filepath.Join(os.TempDir(), fmt.Sprintf("deck-server-%x", sha256.Sum256([]byte(harness.Root)))[:8+len("deck-server-")])
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			candidate.err = err
 			return
 		}

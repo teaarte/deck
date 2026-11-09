@@ -38,8 +38,8 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	}
 	var skillRoots []string
 	_ = json.Unmarshal(c.Call(1).Request("skills/extraRoots/set")["extraRoots"], &skillRoots)
-	if len(skillRoots) != 1 || !strings.HasPrefix(skillRoots[0], deckhome.Layout(home).AgentTurns("codex")+string(os.PathSeparator)) {
-		t.Fatalf("the skills are a folder of the turn deck keeps: %v", skillRoots)
+	if len(skillRoots) != 1 || !strings.HasPrefix(skillRoots[0], deckhome.Layout(home).AgentSkills("codex")+string(os.PathSeparator)) {
+		t.Fatalf("the skills are a folder of the session deck keeps: %v", skillRoots)
 	}
 	for _, name := range []string{"module-builder", "module-conventions"} {
 		text, err := os.ReadFile(filepath.Join(skillRoots[0], name, "SKILL.md"))
@@ -56,8 +56,8 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	if got.State != "done" || string(got.Result) != `{"color":"blue"}` || cc.Violation != "" {
 		t.Fatalf("the result comes in by the schema with result_submit: %+v %s", got, cc.Violation)
 	}
-	if _, err := os.Stat(skillRoots[0]); !os.IsNotExist(err) {
-		t.Fatalf("the skills of the finished turn are removed: %v", err)
+	if _, err := os.Stat(skillRoots[0]); err != nil {
+		t.Fatalf("the skills stay at their path for the next turn of the session: %v", err)
 	}
 	if len(cc.Mcp) != 2 || !strings.Contains(cc.Mcp[0]["text"].(string), "blue") || cc.Mcp[1]["is_error"] != false {
 		t.Fatalf("the agent got the owner's answer from ask and deck took its result: %v", cc.Mcp)
@@ -335,5 +335,33 @@ func TestCodexShellOutsideItsBoxHasTheNetwork(t *testing.T) {
 	net, _ := cc.Config("permissions.deck.network.enabled")
 	if mode != "" || proxy != "" || net != "true" {
 		t.Fatalf("the shell has the whole network without the proxy of Codex: %s %s %s", mode, proxy, net)
+	}
+}
+
+// TestATopicOnCodexFindsItsSkillsAtTheSamePath: the next turn of a chat topic goes on in its thread with the skills at
+// the path of the turn before, so the agent need not read them again.
+func TestATopicOnCodexFindsItsSkillsAtTheSamePath(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCodex(t)
+	c.Stream(1, "reply.jsonl")
+	raw, err := os.ReadFile(harness.Testdata("codex/reply.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.StreamText(2, strings.Replace(string(raw), `{"reply": "thread/start"`, `{"reply": "thread/resume"`, 1))
+	e := harness.New(t, harness.WithCodex(c))
+	topic := e.Say(0, "We are out of oat milk.")
+	e.MasterSaid(topic, 1)
+	e.Say(topic, "And bread.")
+	e.MasterSaid(topic, 2)
+	var roots [2][]string
+	for i := range roots {
+		_ = json.Unmarshal(c.Call(i + 1).Request("skills/extraRoots/set")["extraRoots"], &roots[i])
+	}
+	if len(roots[0]) != 1 || !slices.Equal(roots[0], roots[1]) || c.Call(2).Request("thread/resume") == nil {
+		t.Fatalf("the turn that goes on in the thread finds the skills at the same path: %v", roots)
+	}
+	if _, err := os.Stat(filepath.Join(roots[1][0], "dispatch", "SKILL.md")); err != nil {
+		t.Fatalf("the skills are there: %v", err)
 	}
 }

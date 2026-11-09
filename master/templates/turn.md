@@ -13,4 +13,7 @@
 {{end}}{{range .Pending}}{{if .Where}}(written on {{.Where}})
 {{end}}{{.Text}}
 
-{{end}}{{if .Summarized}}The summary of this topic is document {{.Summary}} of project master.{{else}}This topic has no summary yet; deck asks for one when it grows, as document {{.Summary}} of project master.{{end}}{{if .Grown}} The topic has {{.Grown}} messages after its summary: update it by the topic-summary skill.{{end}}
+{{end}}{{if .Summarized}}The summary of this topic is document {{.Summary}} of project master, at revision {{.Revision}}, with {{.After}} messages after it; change it with old and new and if_revision {{.Revision}}, no document_get needed.{{else}}This topic has no summary yet; deck asks for one when it grows, as document {{.Summary}} of project master.{{end}}{{if .Grown}} The topic has {{.Grown}} messages after its summary: update it by the topic-summary skill.{{end}}
+{{with .Projects}}{{.}}
+{{end}}{{with .Open}}{{.}}
+{{end}}

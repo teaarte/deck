@@ -12,7 +12,9 @@ session. So the summary has to carry everything that still matters.
 
 Write it with `document_save`: project `master`, kind `doc`, the name deck gives (`topics/<topic>/summary.md`),
 reason "topic summary". Each save is a new revision of the whole text, not an append: send the whole text,
-or only the lines that change with `old` and `new`.
+or only the lines that change with `old` and `new`. deck says in each turn the revision the summary is at and how
+many messages came after it: send it as `if_revision` with the change; read the summary with `document_get` only
+when you change lines you do not have.
 
 What goes in, as short lines under these headings:
 

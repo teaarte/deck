@@ -259,8 +259,9 @@ func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.C
 		Pending                []message
 		Summarized             bool
 		Summary                string
-		Grown                  int64
+		Revision, After, Grown int64
 		Notes                  string
+		Projects, Open         string
 	}{Topic: t.ID, Summary: summaryName(t.ID)}
 	if notes != "" {
 		v.Notes = untrusted.Block("notes", notes)
@@ -302,54 +303,46 @@ func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.C
 	for _, m := range pending {
 		v.Pending = append(v.Pending, message{Where: screenText(m.Context), Text: strings.TrimSpace(m.Text)})
 	}
-	grown, err := s.sinceSummary(ctx, t)
+	sum, err := s.summary(ctx, t)
 	if err != nil {
 		return "", "", err
 	}
-	since, _, err := s.summary(ctx, t)
+	grown, err := s.St.Q.CountMessagesAfter(ctx, db.CountMessagesAfterParams{TopicID: t.ID, Since: sum.CreatedAt})
 	if err != nil {
 		return "", "", err
 	}
-	v.Summarized = since != ""
+	v.Summarized, v.Revision, v.After = sum.N > 0, sum.N, grown
 	if grown >= summaryDue {
 		v.Grown = grown
 	}
+	v.Projects, v.Open = s.projectIndex(ctx, t.WorkspaceID), s.openWork(ctx, t)
 	return master.Text("turn", v), sign, nil
 }
 
-// sinceSummary counts the messages of a topic after the current revision of its summary.
-func (s *Service) sinceSummary(ctx context.Context, t db.ChatTopic) (int64, error) {
-	since, _, err := s.summary(ctx, t)
-	if err != nil {
-		return 0, err
-	}
-	return s.St.Q.CountMessagesAfter(ctx, db.CountMessagesAfterParams{TopicID: t.ID, Since: since})
-}
-
-// summary is the current summary of a topic and when it was written; empty when the master wrote none.
-func (s *Service) summary(ctx context.Context, t db.ChatTopic) (since, text string, err error) {
+// summary is the current revision of the summary of a topic; empty when the master wrote none.
+func (s *Service) summary(ctx context.Context, t db.ChatTopic) (db.DocumentRevision, error) {
 	p, err := access.Master(ctx, s.St.Q, t.WorkspaceID)
 	if err != nil {
-		return "", "", err
+		return db.DocumentRevision{}, err
 	}
 	d, err := docs.Find(ctx, s.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: summaryName(t.ID)})
 	if errors.Is(err, sql.ErrNoRows) {
-		return "", "", nil
+		return db.DocumentRevision{}, nil
 	}
 	if err != nil {
-		return "", "", err
+		return db.DocumentRevision{}, err
 	}
-	r, err := docs.Revision(ctx, s.St.Q, d, 0)
-	return r.CreatedAt, r.Text, err
+	return docs.Revision(ctx, s.St.Q, d, 0)
 }
 
 // retelling is the start of a topic for a session that did not see it: the summary and the messages after it,
 // at most retellTail, before the message before.
 func (s *Service) retelling(ctx context.Context, t db.ChatTopic, before int64) (string, error) {
-	since, text, err := s.summary(ctx, t)
+	sum, err := s.summary(ctx, t)
 	if err != nil {
 		return "", err
 	}
+	since, text := sum.CreatedAt, sum.Text
 	tail, err := s.St.Q.LastMessages(ctx, db.LastMessagesParams{TopicID: t.ID, Before: before, Lim: retellTail})
 	if err != nil {
 		return "", err

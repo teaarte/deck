@@ -120,12 +120,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return provider.Result{}, err
 	}
 	b := a.box(req.Project, nil, req.Hosts)
-	dir, drop, err := provider.Turn(a.Home, cli)
-	if err != nil {
-		return provider.Result{}, err
-	}
-	defer drop()
-	skills, err := writeSkills(dir, req.Skills)
+	skills, err := provider.Skills(a.Home, cli, req.SessionID, req.Skills)
 	if err != nil {
 		return provider.Result{}, err
 	}
@@ -141,7 +136,10 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if req.Repo {
 		writes = append(writes, gitDirs(req.Cwd)...)
 	}
-	b.Read, b.Write = append(append(slices.Clone(req.Read), dir), b.Read...), append(writes, b.Write...)
+	b.Read, b.Write = append(slices.Clone(req.Read), b.Read...), append(writes, b.Write...)
+	if skills != "" {
+		b.Read = append(b.Read, skills)
+	}
 	tail := untrusted.NewTail(2000)
 	p, err := a.Sandbox.Run(context.WithoutCancel(ctx), b, sandbox.IO{Stderr: func(line string) { _, _ = tail.Write([]byte(line + "\n")) }})
 	if err != nil {
@@ -217,18 +215,6 @@ func (a *Adapter) sessionFile(session string) string {
 // remember writes the Codex thread of a deck session atomically with mode 600.
 func (a *Adapter) remember(session, thread string) error {
 	return home.WriteFile(a.sessionFile(session), []byte(thread))
-}
-
-// writeSkills puts the skills of the turn into a folder of the turn.
-func writeSkills(turn string, skills map[string]string) (string, error) {
-	if len(skills) == 0 {
-		return "", nil
-	}
-	dir := filepath.Join(turn, "skills")
-	if err := home.WriteTree(dir, skills); err != nil {
-		return "", fmt.Errorf("codex: %w", err)
-	}
-	return dir, nil
 }
 
 // gateway connects to the deck MCP server of the turn to hand Codex's own approval requests to deck.

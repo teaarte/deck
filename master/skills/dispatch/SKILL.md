@@ -7,7 +7,8 @@ description: Puts the owner's tasks into the right deck project as records of it
 
 ## Which project
 
-1. `projects_list` gives each project with its description, the first line of its md prompt. Pick by meaning,
+1. Each turn deck gives the projects, one a line with its state and description, the first line of its md
+   prompt; call `projects_list` only for more than that (screens, rights, folders). Pick by meaning,
    not by words: "the button on the cockpit is off" is a task of the project whose description is the deck code,
    even if the owner never named it.
 2. The screen the owner is on is a strong hint: a message written on a project's screen is most likely about

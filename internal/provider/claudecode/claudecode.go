@@ -186,7 +186,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if err := home.WriteFile(setFile, set); err != nil {
 		return provider.Result{}, err
 	}
-	plugin, err := writePlugin(dir, req.Skills)
+	plugin, err := writePlugin(a.Home, req.SessionID, req.Skills)
 	if err != nil {
 		return provider.Result{}, err
 	}
@@ -198,6 +198,9 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	b.Mark, b.Dir, b.Deck, b.GPU = a.Sandbox.Mark(sandbox.KindAgent, req.SessionID), req.Cwd, side, req.GPU
 	b.Env = append(b.Env, "MCP_TOOL_TIMEOUT=2400000")
 	b.Read, b.Write = append(append(slices.Clone(req.Read), dir), b.Read...), append(append([]string{req.Cwd}, req.Dirs...), b.Write...)
+	if plugin != "" {
+		b.Read = append(b.Read, plugin)
+	}
 	tail := untrusted.NewTail(2000)
 	// The turn ends the program itself, with a SIGINT first when ctx ends.
 	p, err := a.Sandbox.Run(context.WithoutCancel(ctx), b, sandbox.IO{Stderr: func(line string) { _, _ = tail.Write([]byte(line + "\n")) }})

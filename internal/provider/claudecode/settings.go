@@ -139,19 +139,18 @@ func excludes(repo string) []string {
 	return out
 }
 
-// writePlugin puts skills into a plugin folder of the turn: with no setting sources the CLI reads skills only from
-// plugins.
-func writePlugin(turn string, skills map[string]string) (string, error) {
+// writePlugin puts skills into a plugin folder of the session, at one path while they do not change: with no setting
+// sources the CLI reads skills only from plugins.
+func writePlugin(h home.Layout, session string, skills map[string]string) (string, error) {
 	if len(skills) == 0 {
 		return "", nil
 	}
-	dir := filepath.Join(turn, "plugin")
 	files := map[string]string{".claude-plugin/plugin.json": `{"name":"deck"}`}
 	for path, text := range skills {
 		files[filepath.Join("skills", path)] = text
 	}
-	if err := home.WriteTree(dir, files); err != nil {
-		_ = os.RemoveAll(dir)
+	dir, err := provider.Skills(h, cli, session, files)
+	if err != nil {
 		return "", fmt.Errorf("claude-code: %w", err)
 	}
 	return dir, nil

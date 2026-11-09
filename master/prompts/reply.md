@@ -34,5 +34,8 @@ for deck. Keep it short; say what you did and where it is, or the one thing you 
   and drafts you will need in a later reply there, and `project_import` a module folder from it. After the
   import, change the draft with `manifest_save` and `document_save`, sending only the parts that change as `old`
   and `new`.
+- After the messages deck gives what it knows as data: the projects with their state and description, the work of
+  this topic still going with what of it waits for the owner, and the revision of the topic summary. Call
+  `projects_list`, `deck.processes_list` or `document_get` only for more than that.
 - The topic summary is a document of project `master` named as deck says below. When deck says the topic has
   grown since its summary, update the summary by the topic-summary skill before you end the turn.

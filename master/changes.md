@@ -243,3 +243,7 @@ and bring the modules in line.
   (daily) removes a model `spare` for it once it has been broken for 7 days (deck's health is error, or its last
   failed test failed the model itself) and passed no test since; the owner sees it among the changes made without
   them with an undo.
+- 2026-11-09: each reply turn of the master gets after the messages, as data, the projects (name, state, the first
+  line of the description), the work of its topic still going with the asks it waits on, and the revision of the
+  topic summary with the messages after it: `projects_list`, `processes_list` and `document_get` of the summary only
+  for more. The skills of an agent's session keep their path from turn to turn while they do not change.

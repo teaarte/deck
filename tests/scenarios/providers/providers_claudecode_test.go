@@ -227,8 +227,8 @@ func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
 	if b, _ := os.ReadFile(filepath.Join(copied, ".claude-plugin", "plugin.json")); !strings.Contains(string(b), `"deck"`) {
 		t.Fatalf("the plugin has its manifest: %q", b)
 	}
-	if _, err := os.Stat(dir); !os.IsNotExist(err) {
-		t.Fatalf("the plugin folder is removed after the turn: %v", err)
+	if _, err := os.Stat(dir); err != nil {
+		t.Fatalf("the plugin folder stays at its path for the next turn of the session: %v", err)
 	}
 
 	e.Project("bare", harness.PlainManifest)
@@ -353,5 +353,23 @@ func TestAnAgentKilledTwiceSaysWhoKilledIt(t *testing.T) {
 	got := e.WaitState(e.Run(p, "work"), "done", "error")
 	if got.State != "error" || c.Calls() != 2 || !strings.Contains(got.Error, "SIGTERM") || !strings.Contains(got.Error, "not deck") {
 		t.Fatalf("a turn killed twice fails once, naming the signal and that it came from outside deck: %d calls, %+v", c.Calls(), got)
+	}
+}
+
+// TestATopicOnTheCLIFindsItsSkillsAtTheSamePath: the next turn of a chat topic resumes its session with the plugin of
+// skills at the path of the turn before.
+func TestATopicOnTheCLIFindsItsSkillsAtTheSamePath(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	e := harness.New(t, harness.WithCLI(c))
+	topic := e.Say(0, "hello")
+	e.MasterSaid(topic, 1)
+	e.Say(topic, "again")
+	e.MasterSaid(topic, 2)
+	first, _ := harness.Flag(c.Call(1).Args, "--plugin-dir")
+	second, _ := harness.Flag(c.Call(2).Args, "--plugin-dir")
+	if _, resumed := harness.Flag(c.Call(2).Args, "--resume"); first == "" || first != second || !resumed {
+		t.Fatalf("the resumed session finds its skills at the same path: %q %q", first, second)
 	}
 }

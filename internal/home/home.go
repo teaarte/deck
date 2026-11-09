@@ -93,9 +93,14 @@ func (l Layout) AgentLock(provider string) string {
 	return filepath.Join(string(l), "agents", provider, "lock")
 }
 
-// AgentTurns holds a folder a turn of the CLI of an agent, of what deck gives it: settings, MCP config, skills.
+// AgentTurns holds a folder a turn of the CLI of an agent, of what deck gives it: settings and MCP config.
 func (l Layout) AgentTurns(provider string) string {
 	return filepath.Join(string(l), "agents", provider, "turns")
+}
+
+// AgentSkills holds the skills deck gives the sessions of the CLI of an agent, a folder a session.
+func (l Layout) AgentSkills(provider string) string {
+	return filepath.Join(string(l), "agents", provider, "skills")
 }
 
 // PushKey is the key pair deck signs the pushes of a workspace with, apart from the secrets of the workspace.

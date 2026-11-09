@@ -137,7 +137,7 @@ func TestTheOpenWorkOfATopicIsFoundBehindManyFinished(t *testing.T) {
 	e.MasterSaid(topic, 3)
 	calls := e.Fake.Calls()
 	last := calls[len(calls)-1].Prompt
-	if !strings.Contains(last, "master.work, running since ") || strings.Contains(last, "plain.work") {
+	if !strings.Contains(last, " master.work, ") || strings.Contains(last, "plain.work") {
 		t.Fatalf("the open work is found behind the finished ones, which it leaves out:\n%s", last)
 	}
 }

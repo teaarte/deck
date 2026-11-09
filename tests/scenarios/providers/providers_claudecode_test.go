@@ -8,9 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 
@@ -116,16 +114,20 @@ func TestFakeCLIRejectsUnknownFlags(t *testing.T) {
 	}
 }
 
+// A child the CLI leaves is known by the lock it holds, not by a pid: in a sandbox with a pid namespace of its own
+// the pid it sees is not one of the machine.
 func TestCLIThatDoesNotExitAfterItsResultIsKilled(t *testing.T) {
 	t.Parallel()
-	for name, after := range map[string]string{
-		"hangs":        `sleep 300 & echo $! > "$c/child"; wait`,
-		"leaves child": `sleep 300 >/dev/null 2>&1 & echo $! > "$c/child"`,
+	for name, tc := range map[string]struct{ out, after string }{
+		"hangs":        {"", "wait"},
+		"leaves child": {" >/dev/null 2>&1", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			c := harness.NewCLI(t)
 			c.Stream(0, "ok.jsonl")
-			c.After(after)
+			c.Before(fmt.Sprintf(`DECK_FAKE_MCP=hold '%s' "$c/alive"%s &
+until [ -e "$c/alive.held" ]; do sleep 0.05; done`, harness.Fakes, tc.out))
+			c.After(tc.after)
 			e := harness.New(t, harness.WithCLI(c))
 			p := e.Project("plain", harness.PlainManifest)
 			start := time.Now()
@@ -136,12 +138,12 @@ func TestCLIThatDoesNotExitAfterItsResultIsKilled(t *testing.T) {
 			if d := time.Since(start); d > harness.Within(4*time.Second) {
 				t.Fatalf("took %s", d)
 			}
-			b, _ := os.ReadFile(filepath.Join(c.Dir, "calls", "1", "child"))
-			pid, err := strconv.Atoi(strings.TrimSpace(string(b)))
+			f, err := os.Open(filepath.Join(c.Dir, "calls", "1", "alive"))
 			if err != nil {
 				t.Fatal(err)
 			}
-			e.Until(fmt.Sprintf("child %d of the CLI to exit", pid), func() bool { return syscall.Kill(pid, 0) != nil })
+			defer f.Close()
+			e.Until("the child of the CLI to exit", func() bool { return harness.Stopped(f) })
 		})
 	}
 }

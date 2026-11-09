@@ -26,6 +26,21 @@ import (
 // a pid namespace of its own gives the server a pid of that namespace.
 var alive *os.File
 
+// hold keeps the file at path locked while it lives, as a child a program leaves behind, and says so in path.held.
+func hold(path string) {
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err == nil {
+		err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX)
+	}
+	if err == nil {
+		err = os.WriteFile(path+".held", nil, 0o600)
+	}
+	if err != nil {
+		fakeFailed(err)
+	}
+	time.Sleep(time.Hour)
+}
+
 // Stopped reports whether no fake server holds the lock of the file f, opened before the server could go.
 func Stopped(f *os.File) bool {
 	return syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) == nil
@@ -61,6 +76,8 @@ func Serve() bool {
 			fakeFailed(fmt.Errorf("approve takes url, tool and input, got %q", os.Args[1:]))
 		}
 		askApprove(os.Args[1], os.Args[2], os.Args[3])
+	case "hold":
+		hold(os.Args[1])
 	case "call":
 		if len(os.Args) != 4 {
 			fakeFailed(fmt.Errorf("call takes url, tool and arguments, got %q", os.Args[1:]))

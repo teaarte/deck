@@ -191,8 +191,8 @@ and bring the modules in line.
   hits of `memory_search` give `reads` and `last_read_at` — a signal of what to raise or drop in the index.
 - 2026-11-09: `deck.memory_map` (owner and master; it was `memory_overview`) gives the parts of deck's memory:
   `projects` (facts, lessons, index lines of 150, last change, the index document), `lessons` (document, project,
-  command, source), `nodes` (the owner's memory, modules, summaries of topics, skills, sleep, review, on_error,
-  on_incident with models, schedule and last run, the agents' own memory: off, repeated failures), `repeats` (the
+  command, source, confirmed, reads), `nodes` (the owner's memory, modules, summaries of topics, skills, sleep,
+  review, on_error, on_incident with models, schedule and last run, the agents' own memory: off, repeated failures), `repeats` (the
   commands that failed the same way more than once in `days`, 30 by default, trials and runs handed on aside) and
   `picture`, a drawing of what feeds what in the master's data folder, in the language of the workspace. Settings has
   a tab Memory of it. A path of a data folder in `item.file` of a media block may end with `?v=<version>`: the file

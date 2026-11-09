@@ -116,7 +116,7 @@ func TestTheMemoryTabMapsMemoryWithAPictureAndButtons(t *testing.T) {
 	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "auto"}, nil)
 
 	ls := lines("Lessons")
-	if len(ls) != 1 || ls[0].Title != "site-waits" || labels(ls[0]) != "Open,Delete" || ls[0].Meta != "shop · collect" {
+	if len(ls) != 1 || ls[0].Title != "site-waits" || labels(ls[0]) != "Open,Delete" || ls[0].Meta != "shop · collect · confirmed 1, read 0" {
 		t.Fatalf("a lesson opens and deletes: %+v", ls)
 	}
 	mods := map[string]line{}

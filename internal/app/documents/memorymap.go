@@ -83,6 +83,10 @@ type lessonRow struct {
 	Command     string `json:"command,omitempty"`
 	Source      string `json:"source"`
 	Changed     string `json:"changed"`
+	// Confirmed is how many times its situation came, Reads how many times a turn or a search used it; Counts says both.
+	Confirmed int    `json:"confirmed"`
+	Reads     int64  `json:"reads"`
+	Counts    string `json:"counts"`
 }
 
 // repeatRow is a command of a project that failed the same way more than once, trials and work handed on aside.
@@ -125,6 +129,22 @@ func (s *Service) memoryMap(ctx context.Context, act registry.Actor, in memoryMa
 		}
 		facts, lessons = facts+row.Facts, lessons+row.Lessons
 		out.Projects = append(out.Projects, row)
+	}
+	ids := make([]int64, len(out.Lessons))
+	for i, l := range out.Lessons {
+		ids[i] = l.Document
+	}
+	reads, err := s.St.Q.ListMemoryReads(ctx, ids)
+	if err != nil {
+		return out, err
+	}
+	readsOf := map[int64]int64{}
+	for _, r := range reads {
+		readsOf[r.DocumentID] = r.Reads
+	}
+	for i, l := range out.Lessons {
+		out.Lessons[i].Reads = readsOf[l.Document]
+		out.Lessons[i].Counts = say("confirmed %d, read %d", l.Confirmed, out.Lessons[i].Reads)
 	}
 	out.Projects = append([]memoryRow{owner}, out.Projects...)
 	for i, p := range out.Projects {
@@ -214,7 +234,7 @@ func (s *Service) projectMemory(ctx context.Context, p db.Project) (memoryRow, [
 		}
 		row.Lessons++
 		ls = append(ls, lessonRow{Document: r.ID, Project: p.Name, Name: f.Name, Description: untrusted.Line(f.Description, 200),
-			Command: f.Command, Source: f.Source, Changed: r.CreatedAt})
+			Command: f.Command, Source: f.Source, Changed: r.CreatedAt, Confirmed: f.Times()})
 	}
 	return row, ls, nil
 }

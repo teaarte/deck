@@ -1250,6 +1250,7 @@
   "at %s, paused": "по расписанию %s, на паузе",
   "changes of facts and skills": "правки фактов и навыков",
   "chats, answers, yes": "чаты, ответы, «да»",
+  "confirmed %d, read %d": "подтверждён: %d, прочитан: %d",
   "deck has no command %s": "в deck нет команды %s",
   "every night: lessons, proposals": "каждую ночь: уроки, предложения",
   "facts, lessons, skills, summaries, episodes": "факты, уроки, навыки, сводки, эпизоды",

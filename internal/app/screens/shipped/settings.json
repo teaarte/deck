@@ -202,7 +202,7 @@
         {"type": "list", "title": "Lessons", "icon": "bulb", "span": "full", "source": {"from": "deck.memory_map", "rows": "lessons"}, "filter": ["project", "command"],
           "description": "What deck's agents concluded from their runs, not your words; delete what you do not want.",
           "empty": "No lessons yet",
-          "item": {"title": "name", "text": "description", "meta": "join(filter([project, command ?? ''], # != ''), ' · ')", "since": "changed", "details": "source", "icon": "'bulb'"},
+          "item": {"title": "name", "text": "description", "meta": "join(filter([project, command ?? '', counts], # != ''), ' · ')", "since": "changed", "details": "source", "icon": "'bulb'"},
           "actions": [
             {"verb": "open", "primary": true, "screen": "document", "project": "=project", "record": "=document"},
             {"verb": "delete", "confirm": true, "command": "deck.document_delete", "params": {"document": "=document"}}

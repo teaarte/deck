@@ -222,13 +222,12 @@ and bring the modules in line.
 - 2026-11-09: any module may have one trigger `{"on": "ask", "command": X}`: X starts once when a confirmation a
   process of this module asked the owner for closes, with the input `ask` (id), `answer` (`yes`, `no` or `expired`)
   and `process` (the one that asked), so its input declares those fields; a module never hears the asks of others.
-  A module that polled for the owner's answers on a schedule takes this trigger instead.
+  A module that polled for the owner's answers on a schedule takes this trigger instead. X is not external; an ask
+  deck closed itself (what it acts on changed) is `expired`, one closed while the module was paused is not heard.
 - 2026-11-09: `deck.model_delete` may stand in `allowed_external`: then a module removes without the owner a model its
   own call of `deck.model_set` added, free and named in no assignment, and the owner sees it among the changes made
   without them with an undo that brings the model back; any other removal by a module waits for the owner. deck no
   longer checks by itself a model in an agent that no assignment names; `deck.provider_check` still does.
-  A module that polled for the owner's answers on a schedule takes this trigger instead. X is not external; an ask
-  deck closed itself (what it acts on changed) is `expired`, one closed while the module was paused is not heard.
 - 2026-11-09: an agent of a module calls `deck.data_read` too, on its own project only; `deck.data_read` of a PNG,
   JPEG, GIF or WebP gives the picture to an agent as an image beside its answer (with `fields` too), whose `image`
   is `{type, url, width, height}`; a picture over 3.75 MB or 8000 pixels a side is refused with its size and the

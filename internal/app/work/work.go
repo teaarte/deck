@@ -47,6 +47,8 @@ type Service struct {
 	Exists func(ctx context.Context, workspace int64, name string) bool
 	// Free says a model of the workspace costs nothing.
 	Free func(ctx context.Context, workspace int64, name string) bool
+	// Spare says a module may remove a model without the owner.
+	Spare func(ctx context.Context, act registry.Actor, m db.Model) bool
 	// Installed says deck finds the program of an ACP agent.
 	Installed func(agent string) bool
 	// Node carries the calls of a connection over the connection of the node that serves it; Online says the node

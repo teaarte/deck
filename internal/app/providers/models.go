@@ -96,6 +96,12 @@ func (s *Service) spare(ctx context.Context, q *db.Queries, a registry.Actor, m 
 	return !used, err
 }
 
+// Spare says a module may remove a model without the owner, as deck.models_list shows it.
+func (s *Service) Spare(ctx context.Context, a registry.Actor, m db.Model) bool {
+	ok, err := s.spare(ctx, s.St.Q, a, m)
+	return err == nil && ok
+}
+
 // assigned says an assignment of a workspace names a model, on a node too.
 func assigned(ctx context.Context, q *db.Queries, workspace int64, name string) (bool, error) {
 	rows, err := q.ListAssignments(ctx, workspace)

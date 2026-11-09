@@ -41,7 +41,9 @@ type modelView struct {
 	TPM     int64 `json:"tpm,omitempty"`
 	Context int64 `json:"context,omitempty"`
 	// Builtin is a provider deck was started with; Status, Error, Verdict, Speed and Version are of its last self-check.
-	Builtin bool    `json:"builtin"`
+	Builtin bool `json:"builtin"`
+	// Spare says the calling module may remove it without the owner: its own call added it, free, in no assignment.
+	Spare   bool    `json:"spare,omitempty"`
 	Status  string  `json:"status,omitempty" enum:"ok|warning|error|checking|paused|needs_login|missing|off"`
 	Error   string  `json:"error,omitempty"`
 	Verdict string  `json:"verdict,omitempty"`
@@ -195,6 +197,9 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Options: s.shownOptions(ctx, m.Options),
 			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0,
 			Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context}
+		if act.Confined() {
+			v.Spare = s.Spare(ctx, act, m)
+		}
 		s.lastCheck(ctx, act.Workspace, &v)
 		s.offStatus(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Removes a model this module added to deck once it is broken and no work has used it for a week: deck.model_delete
-removes a free model the module's own call added that no assignment names, and the owner sees it with an undo.
-own.json in the data folder keeps the models the module asked deck to add and since when each lies broken and unused."""
+"""Removes a model this module added to deck once it has lain broken and spare for a week: deck.models_list marks
+spare a free model the module's own call added that no assignment names, which deck.model_delete removes without the
+owner, who sees it with an undo. idle.json in the data folder keeps since when each lies broken and spare."""
 import datetime, json, os, sys, traceback, urllib.error, urllib.request
 # --- deck helper (skills/module-builder/helpers/deck_helper.py) ---
 
@@ -45,82 +45,51 @@ def run(main):
 # --- end of the helper ---
 
 
-IDLE_DAYS = 7     # days a model of the module lies broken and unused before it is removed
-FORGET_DAYS = 30  # a model the owner never added is forgotten after this many days
-OWN = os.path.join(os.environ["DECK_DATA"], "own.json")
-
-
-def unhealthy(m):
-    return m.get("status") == "error" or (m.get("status") == "warning" and m.get("verdict") == "model")
-
-
-def free(m):
-    """Costs nothing: free, or with no price and no subscription, as deck counts it."""
-    return m.get("free") or not (m.get("subscription") or any(m.get(k) is not None for k in ("input_usd", "output_usd", "call_usd")))
-
-
-def in_use():
-    """Models some work or assignment names, of every project compare keeps in work.json: deck shows a module the
-    assignments of another project only when asked for that project."""
-    path = os.path.join(os.environ["DECK_DATA"], "work.json")
-    kept = []
-    if os.path.exists(path):
-        with open(path) as f:
-            kept = json.load(f)
-    used = set()
-    for p in sorted({r.get("project") for r in kept if r.get("project")}):
-        try:
-            got = call("deck.models_list", {"project": p, "fields": ["assignments", "work"]}) or {}
-            rows = (got.get("assignments") or []) + (got.get("work") or [])
-        except Failure:
-            rows = [r for r in kept if r.get("project") == p]
-        for r in rows:
-            used |= set(r.get("models") or []) | ({r["model"]} if r.get("model") else set())
-    return used
-
-
-def save(own):
-    tmp = f"{OWN}.{os.getpid()}.tmp"
-    with open(tmp, "w") as f:
-        json.dump(own, f, ensure_ascii=False)
-    os.replace(tmp, OWN)
+IDLE_DAYS = 7  # days a model of the module lies broken and spare before it is removed
+IDLE = os.path.join(os.environ["DECK_DATA"], "idle.json")
 
 
 def main(inp):
-    if not os.path.exists(OWN):
-        return {"removed": []}
-    with open(OWN) as f:
-        own = json.load(f)
-    today = datetime.date.today()
+    idle = {}
+    if os.path.exists(IDLE):
+        with open(IDLE) as f:
+            idle = json.load(f)
+    today = datetime.date.today().isoformat()
     deck = {m["name"]: m for m in (call("deck.models_list", {"fields": ["models"]}) or {}).get("models") or []}
-    trials = call("deck.records_list", {"collection": "trials", "where": "whole ?? false"}) or []
-    used = in_use()
-    failed = {x["data"]["model"] for x in trials if x["data"].get("until", "") >= today.isoformat()}
+    spare = {n: m for n, m in deck.items() if m.get("spare")}
+    latest = {}  # the last failed test of each model: whole when the model itself failed, not only one work
+    for x in call("deck.records_list", {"collection": "trials"}) or []:
+        d = x["data"]
+        if d.get("day", "") >= latest.get(d["model"], {}).get("day", ""):
+            latest[d["model"]] = d
+    passed = {}  # the last day a test of each model passed
+    for x in call("deck.records_list", {"collection": "proposals", "where": "test == 'ok'"}) or []:
+        d = x["data"]
+        if d.get("proposed") and d.get("day", "") > passed.get(d["proposed"], ""):
+            passed[d["proposed"]] = d["day"]
+    for name, since in list(idle.items()):
+        if name not in spare or passed.get(name, "") >= since:
+            del idle[name]
     removed, asked, refused = [], [], []
-    for name, o in list(own.items()):
-        m = deck.get(name)
-        if not m:
-            if (today - datetime.date.fromisoformat(o.get("asked") or today.isoformat())).days >= FORGET_DAYS:
-                del own[name]
+    for name, m in spare.items():
+        t = latest.get(name) or {}
+        broken = m.get("status") == "error" or (t.get("whole") and t.get("day", "") > passed.get(name, ""))
+        if not broken and name not in idle:
             continue
-        idle = free(m) and not m.get("used") and not m.get("projects") and name not in used and (unhealthy(m) or name in failed)
-        if not idle:
-            o.pop("idle_since", None)
-            continue
-        since = o.setdefault("idle_since", today.isoformat())
-        if (today - datetime.date.fromisoformat(since)).days < IDLE_DAYS:
+        since = idle.setdefault(name, today)
+        if (datetime.date.fromisoformat(today) - datetime.date.fromisoformat(since)).days < IDLE_DAYS:
             continue
         try:
             got = call("deck.model_delete", {"name": name}) or {}
         except Failure as e:
             refused.append(f"{name}: {str(e.details or e.error)[:160]}")  # changed meanwhile: tried again next run
             continue
-        if isinstance(got, dict) and got.get("waiting"):
-            asked.append(name)  # deck took it for no model of this module: the owner decides, the module asks no more
-        else:
-            removed.append(name)
-        del own[name]
-    save(own)
+        (asked if isinstance(got, dict) and got.get("waiting") else removed).append(name)
+        del idle[name]
+    tmp = f"{IDLE}.{os.getpid()}.tmp"
+    with open(tmp, "w") as f:
+        json.dump(idle, f, ensure_ascii=False)
+    os.replace(tmp, IDLE)
     return {"removed": removed, "asked": asked, "refused": refused}
 
 

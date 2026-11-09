@@ -812,6 +812,47 @@ func (q *Queries) LeaveRunning(ctx context.Context, arg LeaveRunningParams) (int
 	return result.RowsAffected()
 }
 
+const listBusyTopics = `-- name: ListBusyTopics :many
+SELECT CAST(json_extract(t.input, '$.topic') AS INTEGER) AS topic,
+    CAST(MIN(COALESCE(p.reopened_at, p.started_at)) AS TEXT) AS since,
+    CAST(MAX(EXISTS (SELECT 1 FROM ask a WHERE a.process_id = p.id AND a.state = 'open')) AS INTEGER) AS waits
+FROM process p JOIN process t ON t.id IN (p.id, p.parent_id)
+WHERE p.finished_at IS NULL AND p.state NOT IN ('done', 'error', 'stopped', 'interrupted')
+  AND t.project_id = ?1 AND json_extract(t.input, '$.topic') IS NOT NULL
+GROUP BY 1
+`
+
+type ListBusyTopicsRow struct {
+	Topic int64
+	Since string
+	Waits int64
+}
+
+// The topics of a master whose reply or a process a reply started has not ended: when the first of them began and
+// whether one waits for the owner.
+func (q *Queries) ListBusyTopics(ctx context.Context, masterID int64) ([]ListBusyTopicsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listBusyTopics, masterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListBusyTopicsRow
+	for rows.Next() {
+		var i ListBusyTopicsRow
+		if err := rows.Scan(&i.Topic, &i.Since, &i.Waits); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCeilingNear = `-- name: ListCeilingNear :many
 SELECT id, CAST(deadline_ms AS INTEGER) AS deadline_ms FROM process
 WHERE state = 'running' AND kind = 'agent' AND deadline_ms > CAST(?1 AS INTEGER) AND deadline_ms <= CAST(?2 AS INTEGER)
@@ -1677,6 +1718,95 @@ func (q *Queries) ListProjectProcessIDs(ctx context.Context, projectID int64) ([
 			return nil, err
 		}
 		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecentTopicProcesses = `-- name: ListRecentTopicProcesses :many
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, p.error_type, p.error_details, p.follows_id, p.again, p.allows, p.wrote, p.submitted_at, j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+WHERE p.parent_id IN (SELECT t.id FROM process t WHERE t.project_id = ?1 AND json_extract(t.input, '$.topic') = CAST(?2 AS INTEGER))
+  AND p.finished_at >= ?3
+ORDER BY p.finished_at DESC LIMIT ?4
+`
+
+type ListRecentTopicProcessesParams struct {
+	MasterID int64
+	Topic    int64
+	Since    sql.NullString
+	Lim      int64
+}
+
+type ListRecentTopicProcessesRow struct {
+	Process Process
+	Project string
+}
+
+// The processes the replies of a topic started that ended since a time, the last ended first.
+func (q *Queries) ListRecentTopicProcesses(ctx context.Context, arg ListRecentTopicProcessesParams) ([]ListRecentTopicProcessesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRecentTopicProcesses,
+		arg.MasterID,
+		arg.Topic,
+		arg.Since,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRecentTopicProcessesRow
+	for rows.Next() {
+		var i ListRecentTopicProcessesRow
+		if err := rows.Scan(
+			&i.Process.ID,
+			&i.Process.ProjectID,
+			&i.Process.Command,
+			&i.Process.Kind,
+			&i.Process.State,
+			&i.Process.Provider,
+			&i.Process.SessionID,
+			&i.Process.Input,
+			&i.Process.Result,
+			&i.Process.NotBySchema,
+			&i.Process.Error,
+			&i.Process.StartNote,
+			&i.Process.ParentID,
+			&i.Process.Depth,
+			&i.Process.TriggerID,
+			&i.Process.RetryKey,
+			&i.Process.ManifestRevision,
+			&i.Process.Trial,
+			&i.Process.Folder,
+			&i.Process.Pgid,
+			&i.Process.CeilingMs,
+			&i.Process.DeadlineMs,
+			&i.Process.OutputMs,
+			&i.Process.SilentSinceMs,
+			&i.Process.PauseUntilMs,
+			&i.Process.WaitMessage,
+			&i.Process.WaitFresh,
+			&i.Process.StartedAt,
+			&i.Process.FinishedAt,
+			&i.Process.Alone,
+			&i.Process.Dismissed,
+			&i.Process.ReopenedAt,
+			&i.Process.ErrorType,
+			&i.Process.ErrorDetails,
+			&i.Process.FollowsID,
+			&i.Process.Again,
+			&i.Process.Allows,
+			&i.Process.Wrote,
+			&i.Process.SubmittedAt,
+			&i.Project,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

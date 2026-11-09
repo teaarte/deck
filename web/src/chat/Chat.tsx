@@ -19,6 +19,7 @@ import { Composer } from './Composer';
 import { Feed } from './Feed';
 import { TopicBar } from './TopicBar';
 import { Turn } from './Turn';
+import { WorkStrip } from './WorkStrip';
 import { useAttachments } from './useAttachments';
 import { useInputHistory } from './useInputHistory';
 import { useChatSend } from './useChatSend';
@@ -135,6 +136,7 @@ export function Chat({ value, context }: { value: ChatData; context: ComponentCo
         {value.asks.map((d) => <DecisionCard key={d.id} d={d} />)}
       </Feed>
       {value.turn && <Turn turn={value.turn} />}
+      <WorkStrip running={value.running ?? []} recent={value.recent ?? []} iconOf={topics.iconOf} />
       <Composer text={text} setText={setText} files={files} busy={chat.busy} transcribe={value.transcribe} onNewTopic={() => topics.pick('new')}
         onSend={(detached) => { if (text.trim()) history.push(text.trim()); void chat.send(text, detached); }} onWalk={history.walk}
         onEdit={(v) => { setText(v); chat.forgetKey(); }} />

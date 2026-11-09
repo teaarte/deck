@@ -109,6 +109,13 @@ export function formatted(v: unknown, s: Shown, now = Date.now()): string {
   return show(v);
 }
 
+// clock is seconds as m:ss, past an hour as h:mm:ss.
+export function clock(secs: number): string {
+  const n = Math.max(0, Math.floor(secs));
+  const ss = String(n % 60).padStart(2, '0');
+  return n < 3600 ? `${Math.floor(n / 60)}:${ss}` : `${Math.floor(n / 3600)}:${String(Math.floor(n / 60) % 60).padStart(2, '0')}:${ss}`;
+}
+
 // TONES are the colors of the tones a value takes.
 const TONES: Record<string, string> = { ok: 'green', warn: 'orange', error: 'red', muted: 'dimmed' };
 export const toneColor = (tone?: string | null) => (tone ? TONES[tone] : undefined);

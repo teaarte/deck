@@ -1,11 +1,16 @@
 package chat
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
+	"slices"
 	"time"
 
+	"deck2/internal/access"
+	"deck2/internal/ask"
 	"deck2/internal/process"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -31,6 +36,69 @@ type procView struct {
 	State   string `json:"state"`
 	Open    action `json:"open"`
 	process.Shown
+}
+
+// runningView is a work a reply of a topic started, with the model it goes on and the words of its mark.
+type runningView struct {
+	procView
+	Model      string `json:"model,omitempty"`
+	Logo       string `json:"logo,omitempty"`
+	StartedAt  string `json:"started_at"`
+	FinishedAt string `json:"finished_at,omitempty"`
+}
+
+// recentFor is how long a work that ended stays among the recent of its topic; recentMax how many of them it shows.
+const (
+	recentFor = time.Hour
+	recentMax = 10
+)
+
+// running is the work the replies of a topic started that goes on, one that waits for the owner saying so, and that
+// ended within the hour.
+func (s *Service) running(ctx context.Context, workspace, topic int64, tr func(string) string) ([]runningView, []runningView) {
+	open, recent := []runningView{}, []runningView{}
+	m, err := access.Master(ctx, s.St.Q, workspace)
+	if err != nil {
+		return open, recent
+	}
+	facts := s.Facts(ctx, workspace, registry.Lang(ctx))
+	view := func(p db.Process, project string) runningView {
+		v := runningView{procView: procView{ID: p.ID, Project: project, Command: p.Command, State: p.State, Open: openProcess(p.ID),
+			Shown: process.Show(p, "", false, tr)}, Model: p.Provider, StartedAt: cmp.Or(p.ReopenedAt.String, p.StartedAt), FinishedAt: p.FinishedAt.String}
+		if p.Provider != "" {
+			_, v.Logo = facts(p.Provider)
+		}
+		return v
+	}
+	rows, _ := s.St.Q.ListOpenTopicProcesses(ctx, db.ListOpenTopicProcessesParams{MasterID: m.ID, Topic: topic, Lim: openLook})
+	for _, r := range rows {
+		v := view(r.Process, r.Project)
+		asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, r.Process.ID)
+		if slices.ContainsFunc(asks, func(a db.Ask) bool { return a.State == ask.StateOpen }) {
+			v.Waits, v.Word, v.Tone = true, tr("waits for you"), "warn"
+		}
+		open = append(open, v)
+	}
+	ended, _ := s.St.Q.ListRecentTopicProcesses(ctx, db.ListRecentTopicProcessesParams{MasterID: m.ID, Topic: topic,
+		Since: sql.NullString{String: store.Time(s.Now().Add(-recentFor)), Valid: true}, Lim: recentMax})
+	for _, r := range ended {
+		recent = append(recent, view(r.Process, r.Project))
+	}
+	return open, recent
+}
+
+// busy are the topics of a workspace whose reply or work it started goes on, by id.
+func (s *Service) busy(ctx context.Context, workspace int64) map[int64]db.ListBusyTopicsRow {
+	out := map[int64]db.ListBusyTopicsRow{}
+	m, err := access.Master(ctx, s.St.Q, workspace)
+	if err != nil {
+		return out
+	}
+	rows, _ := s.St.Q.ListBusyTopics(ctx, m.ID)
+	for _, r := range rows {
+		out[r.Topic] = r
+	}
+	return out
 }
 
 // workLines is how many lines of the log of a finished reply count its steps.

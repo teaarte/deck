@@ -49,6 +49,11 @@ type topicView struct {
 	Tokens    int64  `json:"tokens"`
 	RepliedOn string `json:"replied_on,omitempty"`
 	Logo      string `json:"logo,omitempty"`
+	// Busy is that its reply or a process a reply started has not ended, since Since; Waits that one waits for the
+	// owner.
+	Busy  bool   `json:"busy,omitempty"`
+	Waits bool   `json:"waits,omitempty"`
+	Since string `json:"since,omitempty"`
 }
 
 // replyView is the process that answers a message, with its state and a button that opens it.
@@ -167,6 +172,9 @@ type turnPartView struct {
 	Turn      *turnView      `json:"turn,omitempty"`
 	Questions []questionView `json:"questions"`
 	Asks      any            `json:"asks"`
+	// Running is the work the replies of the topic started that goes on, Recent what of it ended within the hour.
+	Running []runningView `json:"running"`
+	Recent  []runningView `json:"recent"`
 }
 
 // suggestView is a command of a module as a text to put in the field.
@@ -351,10 +359,14 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 	}
 	v.Models, v.Model = s.models(ctx, act.Workspace)
 	facts := s.Facts(ctx, act.Workspace, registry.Lang(ctx))
+	busy := s.busy(ctx, act.Workspace)
 	for _, ts := range [][]topicView{v.Topics, v.Archived} {
 		for i := range ts {
 			_, ts[i].Logo = facts(cmp.Or(ts[i].RepliedOn, ts[i].Model, v.Model))
 			ts[i].Tokens, _ = s.St.Q.TopicTokens(ctx, ts[i].ID)
+			if b, ok := busy[ts[i].ID]; ok {
+				ts[i].Busy, ts[i].Waits, ts[i].Since = true, b.Waits == 1, b.Since
+			}
 		}
 	}
 	v.Notes, v.Logos = map[string]string{}, map[string]string{}
@@ -373,11 +385,15 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 
 // chatTurn is the turn going on in the topic picked.
 func (s *Service) chatTurn(ctx context.Context, act registry.Actor, in chatGetIn) (turnPartView, error) {
-	v := turnPartView{Questions: []questionView{}, Asks: []any{}}
+	v := turnPartView{Questions: []questionView{}, Asks: []any{}, Running: []runningView{}, Recent: []runningView{}}
 	tr := s.words(registry.Lang(ctx))
 	t, err := s.picked(ctx, act.Workspace, in.Topic, tr)
-	if err != nil || t == nil || t.Reply == nil {
+	if err != nil || t == nil {
 		return v, err
+	}
+	v.Running, v.Recent = s.running(ctx, act.Workspace, t.ID, tr)
+	if t.Reply == nil {
+		return v, nil
 	}
 	open := t.Reply
 	v.Turn = &turnView{Process: open.Process, State: open.State, Provider: open.Provider, Processes: s.children(ctx, open.Process, false, tr),
@@ -509,9 +525,9 @@ func (s *Service) viewsCommands() []*registry.Command {
 			registry.OwnerOnly, s.chat).On("chat", "processes", "feed", "collection", "models"),
 		registry.Read("chat_topics_list", "Chat topics",
 			"Gives the topics of the chat with the master, the archived apart, with the models its replies may go on.",
-			registry.OwnerOnly, s.chatTopics).On("chat", "processes", "models", "assignments", "health"),
+			registry.OwnerOnly, s.chatTopics).On("chat", "processes", "asks", "models", "assignments", "health"),
 		registry.Read("chat_turn_get", "Chat turn",
-			"Gives the turn going on in a topic of the chat with the master: the lines of its log, the processes it started, its questions and what it waits for the owner to decide.",
+			"Gives the turn going on in a topic of the chat with the master: the lines of its log, the processes it started, its questions and what it waits for the owner to decide; and the work the replies of the topic started that goes on or ended within the hour.",
 			registry.OwnerOnly, s.chatTurn).On("log", "asks", "processes"),
 	}
 }

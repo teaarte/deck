@@ -99,6 +99,26 @@ WHERE p.parent_id IN (SELECT t.id FROM process t WHERE t.project_id = sqlc.arg(m
 ORDER BY p.id DESC LIMIT sqlc.arg(lim);
 
 
+-- name: ListRecentTopicProcesses :many
+-- The processes the replies of a topic started that ended since a time, the last ended first.
+SELECT sqlc.embed(p), j.name AS project FROM process p JOIN project j ON j.id = p.project_id
+WHERE p.parent_id IN (SELECT t.id FROM process t WHERE t.project_id = sqlc.arg(master_id) AND json_extract(t.input, '$.topic') = CAST(sqlc.arg(topic) AS INTEGER))
+  AND p.finished_at >= sqlc.arg(since)
+ORDER BY p.finished_at DESC LIMIT sqlc.arg(lim);
+
+
+-- name: ListBusyTopics :many
+-- The topics of a master whose reply or a process a reply started has not ended: when the first of them began and
+-- whether one waits for the owner.
+SELECT CAST(json_extract(t.input, '$.topic') AS INTEGER) AS topic,
+    CAST(MIN(COALESCE(p.reopened_at, p.started_at)) AS TEXT) AS since,
+    CAST(MAX(EXISTS (SELECT 1 FROM ask a WHERE a.process_id = p.id AND a.state = 'open')) AS INTEGER) AS waits
+FROM process p JOIN process t ON t.id IN (p.id, p.parent_id)
+WHERE p.finished_at IS NULL AND p.state NOT IN ('done', 'error', 'stopped', 'interrupted')
+  AND t.project_id = sqlc.arg(master_id) AND json_extract(t.input, '$.topic') IS NOT NULL
+GROUP BY 1;
+
+
 -- name: ClaimProcess :execrows
 UPDATE process SET state = sqlc.arg(to_state) WHERE id = sqlc.arg(id) AND state = sqlc.arg(from_state);
 

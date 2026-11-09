@@ -443,3 +443,135 @@
 .shownBody {
   margin-top: 8px;
 }
+
+/* A dot that pulses green while work goes on, amber while something waits for the owner. */
+.busyDot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: var(--mantine-radius-xl);
+  background: var(--mantine-color-green-6);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--mantine-color-green-6) 60%, transparent);
+  animation: pulse 1.6s ease-out infinite;
+}
+
+.busyDot[data-waits] {
+  background: var(--mantine-color-orange-6);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--mantine-color-orange-6) 60%, transparent);
+}
+
+@keyframes pulse {
+  70% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .busyDot {
+    animation: none;
+  }
+}
+
+/* The dot of a busy topic on the corner of its icon. */
+.topicIcon {
+  position: relative;
+}
+
+.topicIcon .busyDot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  outline: 2px solid var(--mantine-color-body);
+}
+
+/* The work of the topic above the input: pills that wrap, one line that scrolls sideways when narrow. */
+.workBox {
+  container-type: inline-size;
+}
+
+.work {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.workCount {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  padding-inline: 2px;
+}
+
+.pill {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+  max-width: 100%;
+  padding: 0 2px 0 8px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-xl);
+  background: var(--mantine-color-default);
+}
+
+.pill[data-waits] {
+  border-color: var(--mantine-color-orange-light-color);
+  background: var(--mantine-color-orange-light);
+  color: var(--mantine-color-orange-light-color);
+}
+
+.pill[data-ended] {
+  opacity: 0.75;
+}
+
+.pillName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pillFact {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.workRecent {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  align-items: center;
+  min-height: 28px;
+  padding-inline: 4px;
+}
+
+@container (max-width: 380px) {
+  .work {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .workLabel {
+    display: none;
+  }
+}
+
+/* The icon of the topic picked in the closed choice, with its dot on the corner. */
+.pickedIcon {
+  position: relative;
+  display: inline-flex;
+}
+
+.pickedIcon .busyDot {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+}

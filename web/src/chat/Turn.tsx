@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { Action } from '../lib/catalog.gen';
 import type { ChatData } from './chatData';
 import { useClock } from '../hooks/useClock';
-import { toneColor } from '../lib/format';
+import { clock, toneColor } from '../lib/format';
 import { ActionIconButton } from '../ui/actions/ActionIconButton';
 import { Deki, DekiHead, turnPose, useMascot } from '../ui/deki/Deki';
 import { Glyph } from '../ui/Glyph';
@@ -38,9 +38,6 @@ function calling(lines: TurnValue['lines']): TurnValue['lines'][number] | undefi
 
 // said are the first lines of what the agent said on the way, its steps in words.
 const said = (lines: TurnValue['lines']) => lines.filter((l) => l.kind === 'message').map((l) => firstLine(l.text)).filter(Boolean);
-
-// clock is seconds as m:ss.
-const clock = (secs: number) => `${Math.floor(secs / 60)}:${String(Math.floor(secs % 60)).padStart(2, '0')}`;
 
 // Processes are the processes a reply started, each with its state in the color of its tone, and the button that
 // opens its log.

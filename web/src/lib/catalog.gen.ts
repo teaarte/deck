@@ -23,6 +23,7 @@ export interface Catalog {
   tone?: Tone;
   action?: Action;
   topic?: Topic;
+  running?: Running;
   question?: Question;
   reply?: Reply;
   data?: Data;
@@ -263,6 +264,18 @@ export interface Topic {
    */
   logo?: string;
   reply?: Reply;
+  /**
+   * its reply or a process a reply started has not ended
+   */
+  busy?: boolean;
+  /**
+   * of a busy topic: one of them waits for the owner
+   */
+  waits?: boolean;
+  /**
+   * of a busy topic: when the first of them began
+   */
+  since?: string;
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema
@@ -316,6 +329,38 @@ export interface Reply {
      */
     retry: Action[];
   };
+}
+/**
+ * a process a reply of the topic started
+ *
+ * This interface was referenced by `Catalog`'s JSON-Schema
+ * via the `definition` "running".
+ */
+export interface Running {
+  id: number;
+  project: string;
+  command: string;
+  state: string;
+  open: Action;
+  /**
+   * the state in the owner's words
+   */
+  word?: string;
+  tone?: Tone;
+  /**
+   * it waits for the owner or its provider rather than works
+   */
+  waits?: boolean;
+  model?: string;
+  /**
+   * words naming the provider and model it goes on, whose mark the client draws
+   */
+  logo?: string;
+  /**
+   * when it last started work
+   */
+  started_at: string;
+  finished_at?: string;
 }
 /**
  * a question of an agent to the owner
@@ -1264,6 +1309,14 @@ export interface ChatValue {
    * the master's own model, which a topic without one takes
    */
   model?: string;
+  /**
+   * the processes the replies of the topic picked started that go on
+   */
+  running?: Running[];
+  /**
+   * the processes the replies of the topic picked started that ended within the hour, the last ended first
+   */
+  recent?: Running[];
   choose?: Action;
   transcribe?: Action9;
   /**

@@ -45,7 +45,7 @@ func (s *Service) File(ctx context.Context, p db.Project, ref any) (map[string]a
 		}
 		defer f.Close()
 		fi, _ := f.Stat()
-		at, sep := "/api/files/data/"+url.PathEscape(p.Name)+"/"+escapePath(path), "?"
+		at, sep := dataAt(p.Name, path), "?"
 		if version != "" {
 			at, sep = at+"?v="+url.QueryEscape(version), "&"
 		}
@@ -89,6 +89,11 @@ func fileID(ref any) (int64, bool) {
 		return n, err == nil
 	}
 	return 0, false
+}
+
+// dataAt is the address of a file of the data folder of a project.
+func dataAt(project, path string) string {
+	return "/api/files/data/" + url.PathEscape(project) + "/" + escapePath(path)
 }
 
 func escapePath(p string) string {

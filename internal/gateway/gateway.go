@@ -385,6 +385,11 @@ func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json
 	}
 	b, _ := json.Marshal(out)
 	res := &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}
+	if p, ok := out.(registry.Pictured); ok {
+		for _, pic := range p.Pictures() {
+			res.Content = append(res.Content, &mcp.ImageContent{MIMEType: pic.Type, Data: pic.Data})
+		}
+	}
 	if !read || s.Token != 0 {
 		s.again("", "")
 	} else if warn := s.again(name+"\x00"+Canonical(args), string(b)); warn {

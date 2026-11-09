@@ -1,6 +1,7 @@
 package runs
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -11,6 +12,8 @@ import (
 
 	"deck2/internal/provider"
 	"deck2/tests/harness"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // TestAProcessDeletesOnlyTheFilesOfItsOwnRun: an agent sent back for rework deletes the drafts its run made, as one
@@ -77,5 +80,72 @@ func TestAProcessDeletesOnlyTheFilesOfItsOwnRun(t *testing.T) {
 	e.Must("deck.feed_undo", map[string]any{"entry": feed[0].ID}, nil)
 	if got := files(mine); len(got) != 3 {
 		t.Fatalf("the undo brings both back: %v", got)
+	}
+}
+
+// TestAnAgentSeesAPictureOfItsDataFolder: data_read gives a picture of the module's own data folder to its agent as an
+// image; a picture over the limit is refused with its size, one of another project is refused, .. stays inside.
+func TestAnAgentSeesAPictureOfItsDataFolder(t *testing.T) {
+	t.Parallel()
+	png := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{7}, 100)...)
+	got := make(chan []*mcp.CallToolResult, 1)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		var outs []*mcp.CallToolResult
+		for _, in := range []map[string]any{
+			{"project": "draw", "path": "dom/16/plan.png"}, {"project": "draw", "path": "big.png"}, {"project": "house", "path": "plan.png"},
+			{"project": "draw", "path": "../secret.png"},
+		} {
+			res, err := c.Session.CallTool(ctx, &mcp.CallToolParams{Name: "data_read", Arguments: in})
+			if err != nil {
+				res = &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}
+			}
+			outs = append(outs, res)
+		}
+		got <- outs
+		return provider.Result{Text: "seen"}
+	}))
+	p, house := e.Project("draw", harness.PlainManifest), e.Project("house", harness.PlainManifest)
+	data := e.App.Home.Data(p)
+	_ = os.MkdirAll(filepath.Join(data, "dom", "16"), 0o700)
+	_ = os.WriteFile(filepath.Join(data, "dom", "16", "plan.png"), png, 0o600)
+	_ = os.WriteFile(filepath.Join(data, "big.png"), append(png, make([]byte, 4<<20)...), 0o600)
+	_ = os.WriteFile(filepath.Join(filepath.Dir(data), "secret.png"), png, 0o600)
+	_ = os.MkdirAll(e.App.Home.Data(house), 0o700)
+	_ = os.WriteFile(filepath.Join(e.App.Home.Data(house), "plan.png"), png, 0o600)
+	e.WaitState(e.Run(p, "work"), "done")
+	outs := <-got
+	text := func(r *mcp.CallToolResult) string {
+		var b strings.Builder
+		for _, c := range r.Content {
+			if t, ok := c.(*mcp.TextContent); ok {
+				b.WriteString(t.Text)
+			}
+		}
+		return b.String()
+	}
+	own := outs[0]
+	if own.IsError || len(own.Content) != 2 || !strings.Contains(text(own), `"url":"/api/files/data/draw/dom/16/plan.png"`) {
+		t.Fatalf("the picture comes with its address: %v %s", own.IsError, text(own))
+	}
+	if img, ok := own.Content[1].(*mcp.ImageContent); !ok || img.MIMEType != "image/png" || !bytes.Equal(img.Data, png) {
+		t.Fatalf("the picture comes as an image of its bytes: %#v", own.Content[1])
+	}
+	if big := outs[1]; !big.IsError || !strings.Contains(text(big), strconv.Itoa(len(png)+4<<20)) || !strings.Contains(text(big), "3932160") {
+		t.Fatalf("a picture over the limit is refused with its size and the limit: %s", text(big))
+	}
+	if other := outs[2]; !other.IsError || len(other.Content) != 1 || !strings.Contains(text(other), "another project") {
+		t.Fatalf("a picture of another project is refused: %s", text(other))
+	}
+	if out := outs[3]; !out.IsError || len(out.Content) != 1 || !strings.Contains(text(out), "no \"../secret.png\"") {
+		t.Fatalf("nothing outside the data folder is read: %s", text(out))
+	}
+	var owner struct{ Image struct{ Type, URL string } }
+	e.Must("deck.data_read", map[string]any{"project": "draw", "path": "dom/16/plan.png"}, &owner)
+	if owner.Image.Type != "image/png" || owner.Image.URL != "/api/files/data/draw/dom/16/plan.png" {
+		t.Fatalf("the owner's API names the picture by its address: %+v", owner)
+	}
+	_ = os.WriteFile(filepath.Join(data, "plan.pdf"), []byte("%PDF-1.7\n"), 0o600)
+	if code, out := e.Call("deck.data_read", map[string]any{"project": "draw", "path": "plan.pdf"}); code == 200 || !strings.Contains(string(out), "PDF") {
+		t.Fatalf("a PDF is refused with how to read it: %d %s", code, out)
 	}
 }

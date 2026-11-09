@@ -18,7 +18,8 @@ for deck. Keep it short; say what you did and where it is, or the one thing you 
 - Files the owner attached to a message are in the data folder of project master; deck gives their paths with
   the message.
 - The data folder of another project (state, caches, indexes its scripts and agents keep) is read with `data_read`
-  (a folder lists, a text file reads).
+  (a folder lists, a text file reads, a PNG/JPEG/GIF/WebP picture up to 3.75 MB comes as an image you see; a PDF
+  does not: a script gets its text or pages as pictures first).
 
 - A reply has a ceiling of an hour, and what it leaves undone is lost. Work that takes longer than a few minutes —
   rebuilding a module, renders, self-checks, a long research — you hand to `master.work` with the task and this

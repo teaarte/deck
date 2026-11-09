@@ -1,0 +1,33 @@
+.range {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.exact {
+  width: 120px;
+  flex: none;
+}
+
+.slider {
+  margin: 6px 4px 4px;
+}
+
+/* The names of the marks stand under the track. */
+.slider[data-named] {
+  margin-bottom: 26px;
+}
+
+/* A finger takes the thumb by more than it shows. */
+@media (pointer: coarse) {
+  .slider :global(.mantine-Slider-thumb)::after {
+    content: '';
+    position: absolute;
+    inset: -11px;
+  }
+}
+
+/* A value not given yet: the thumb waits at the start, faint. */
+.slider[data-empty] :global(.mantine-Slider-thumb) {
+  opacity: 0.45;
+}

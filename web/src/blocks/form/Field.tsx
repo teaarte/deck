@@ -1,6 +1,7 @@
 import { FileInput, MultiSelect, NumberInput, PasswordInput, Select, Switch, TagsInput, TextInput, Textarea } from '@mantine/core';
 import { text } from '../../lib/format';
 import { Mark, OptionLine } from '../../ui/OptionLine';
+import { Range, span } from './Range';
 import { fromLocal, isFile, kind, toLocal, type Schema } from './schema';
 
 export type Choice = { value: unknown; label: string; note?: string; logo?: string; icon?: string };
@@ -50,9 +51,13 @@ export function Field({ name, schema, value, files, readOnly, required, choices,
       return <Switch label={label} description={schema.description} disabled={readOnly} data-field={name} checked={value === true}
         onChange={(e) => onValue(e.currentTarget.checked)} />;
     case 'integer':
-    case 'number':
+    case 'number': {
+      // A number with both bounds slides.
+      const at = span(schema, t === 'integer');
+      if (at) return <Range name={name} schema={schema} label={label} value={value} readOnly={readOnly} required={required} at={at} onValue={onValue} />;
       return <NumberInput {...common} allowDecimal={t === 'number'} value={typeof value === 'number' ? value : ''}
         onChange={(v) => onValue(typeof v === 'number' ? v : v === '' ? undefined : Number(v))} />;
+    }
     case 'array': {
       const items = schema.items ?? {};
       const list = Array.isArray(value) ? value.map(String) : [];

@@ -247,3 +247,7 @@ and bring the modules in line.
   line of the description), the work of its topic still going with the asks it waits on, and the revision of the
   topic summary with the messages after it: `projects_list`, `processes_list` and `document_get` of the summary only
   for more. The skills of an agent's session keep their path from turn to turn while they do not change.
+- 2026-11-09: a number field of a command input (`integer` or `number`) with both `minimum` and `maximum` is a slider in
+  every form of deck, its exact value typed beside its label; `multipleOf` is its step, numbers of `examples` are
+  marks under the track that pull the thumb near them. Give a bounded number, such as a price, a term or a count,
+  both bounds and a few examples.

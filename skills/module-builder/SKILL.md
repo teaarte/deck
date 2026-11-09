@@ -155,6 +155,8 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   the owner signs in.
 - **Command input** is a flat object; a choice is `{"type": "string", "enum": [...]}` — an `enum` without
   `"type": "string"` is refused.
+- **A bounded number** (a price, a term, a count) has `minimum` and `maximum`: the form draws it as a slider with
+  its exact value beside it; `multipleOf` is the step, a few `examples` are marks the thumb is pulled to.
 - **Files of the input**: a command field with `"format": "file"` takes a file id (from a form upload, Share, or
   `files_list` of a record); scripts and agents get the path of a read-only copy, named `<file id>-<original name>`
   (cut the id to show the owner the name). For a trial, upload

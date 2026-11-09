@@ -165,7 +165,8 @@
 
 .deki[data-head] {
   top: calc(var(--mantine-spacing-md) - 6px);
-  right: var(--mantine-spacing-md);
+  /* Beside the settings, which keep the corner. */
+  right: calc(var(--mantine-spacing-md) + 30px);
   bottom: auto;
 }
 
@@ -475,8 +476,13 @@
 
 .todaySettings {
   display: inline-flex;
-  margin-left: auto;
-  padding: 4px;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  /* The press area is 32px; the icon keeps to the corner of the card's text. */
+  margin: -8px -8px -8px auto;
   border-radius: var(--mantine-radius-xl);
   color: inherit;
   opacity: 0.75;

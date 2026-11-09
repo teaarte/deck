@@ -12,6 +12,12 @@ export interface Schema {
   title?: string;
   writeOnly?: boolean;
   contentMediaType?: string;
+  minimum?: number;
+  maximum?: number;
+  exclusiveMinimum?: number;
+  exclusiveMaximum?: number;
+  multipleOf?: number;
+  examples?: unknown[];
 }
 
 export const kind = (s: Schema) => (Array.isArray(s.type) ? s.type.find((x) => x !== 'null') : s.type) ?? '';

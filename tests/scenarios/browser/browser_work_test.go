@@ -80,7 +80,10 @@ func TestRealBrowserTheWorkOfATopic(t *testing.T) {
 		b.eval(`(` + in + `.querySelector('[data-topics]').click(), '')`)
 		b.until(size.name+": the topics", `document.querySelector('[role=option] [data-topic-line]')`)
 		pick("do taskquick")
-		b.until(size.name+": the topic that works", in+`.querySelector('[data-topics]')?.value === 'do taskquick'`)
+		// A press while the list still settles may miss; the history opens and picks again until the topic is shown.
+		b.until(size.name+": the topic that works", `(() => { const s = `+in+`.querySelector('[data-topics]'); if (s?.value === 'do taskquick') return true;
+			const o = [...document.querySelectorAll('[role=option] [data-topic-line]')].find((x) => x.querySelector('[data-topic-title]').innerText === 'do taskquick');
+			if (o) o.closest('[role=option]').click(); else s?.click(); return false })()`)
 		b.until(size.name+": the strip says one work runs with its command, mark and timer", `(() => { const w = `+in+`.querySelector('[data-chat-work]'); if (!w) return false;
 			const p = w.querySelector('[data-chat-work-pill]'); return w.dataset.chatWork === '1' && p && !p.dataset.waits && p.innerText.includes('master.work')
 				&& p.querySelector('[data-logo], [data-logo-letter]') && /^\d+:\d\d$/.test(p.querySelector('[data-chat-work-fact]').innerText) && p.querySelector('[data-verb="open"]') })()`)

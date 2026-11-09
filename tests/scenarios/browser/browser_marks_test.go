@@ -44,8 +44,8 @@ func TestRealBrowserModelsWearTheirMakersMarkUnderTheirProvider(t *testing.T) {
 		b.eval(`(` + card + `.querySelector('[data-verb="model"]').click(), '')`)
 		b.until(size.name+": the picker of the model", `document.querySelector('[data-options]')`)
 		b.eval(`(document.querySelector('[data-options]').click(), '')`)
-		b.until(size.name+": a model through OpenRouter wears its maker's mark under OpenRouter, its name bare",
-			option("qwen3-coder")+`?.querySelector('[data-logo="qwen"]') && `+under+`(`+option("qwen3-coder")+`).startsWith('openrouter')
+		b.until(size.name+": a model through OpenRouter wears its maker's mark under OpenRouter, its name without the provider",
+			option("qwen3-coder-free")+`?.querySelector('[data-logo="qwen"]') && `+under+`(`+option("qwen3-coder-free")+`).startsWith('openrouter')
 			&& `+option("mimo-v2-flash")+`?.querySelector('[data-logo="xiaomi"]') && `+under+`(`+option("mimo-v2-flash")+`).startsWith('openrouter')
 			&& `+option("openai/gpt-oss-120b")+`?.querySelector('[data-logo="openai"]') && `+under+`(`+option("openai/gpt-oss-120b")+`).startsWith('groq')
 			&& !document.querySelector('[role=option] [data-logo="openrouter"]')`)
@@ -71,7 +71,7 @@ func TestRealBrowserModelsWearTheirMakersMarkUnderTheirProvider(t *testing.T) {
 		b.until(size.name+": the fallbacks of a work", `document.querySelector('[data-dialog="assign"] [data-field="models"]')`)
 		b.eval(`(document.querySelector('[data-dialog="assign"] [data-field="models"] input, [data-dialog="assign"] input[data-field="models"]').click(), '')`)
 		b.until(size.name+": the fallbacks under their providers, each with its maker's mark",
-			option("qwen3-coder")+`?.querySelector('[data-logo="qwen"]') && `+under+`(`+option("qwen3-coder")+`) === 'openrouter'`)
+			option("qwen3-coder-free")+`?.querySelector('[data-logo="qwen"]') && `+under+`(`+option("qwen3-coder-free")+`) === 'openrouter'`)
 		b.shot("f4-fallbacks-" + size.name)
 
 		b.Open(e, "#/deck/cockpit")

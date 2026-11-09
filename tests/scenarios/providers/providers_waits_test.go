@@ -44,8 +44,8 @@ func TestTheModelsTabSaysFirstWhatWaitsForTheOwner(t *testing.T) {
 	waits := harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Waiting for you", nil)["items"])
 	down := slices.IndexFunc(waits, func(w harness.ListItem) bool { return strings.HasPrefix(w.Title, "groq/busy") })
 	key := slices.IndexFunc(waits, func(w harness.ListItem) bool { return strings.Contains(w.Title, "key of claude") })
-	if down != 0 || key < 0 || waits[down].Tone != "error" || waits[down].Logo != "groq/busy" || !strings.Contains(waits[down].Text, "films") {
-		t.Fatalf("what waits says first the model that is down, with the work it leaves, then the connection without a key: %+v", waits)
+	if down != 0 || key < 0 || waits[down].Tone != "error" || waits[down].Logo != "busy groq" || !strings.Contains(waits[down].Text, "films") {
+		t.Fatalf("what waits says first the model that is down in its own mark, with the work it leaves, then the connection without a key: %+v", waits)
 	}
 	replace := harness.Verb(t, waits[down].Actions, "replace")
 	if replace["command"] != "deck.model_replace" || replace["primary"] != true ||

@@ -17,7 +17,7 @@ export function Field({ name, schema, value, files, readOnly, required, choices,
   const facts = new Map((choices ?? []).map((c) => [String(c.value), { ...c, via: c.group }]));
   // offered are the choices for a picker, under the headings of their groups.
   const offered = (cs: Choice[]) => grouped([...new Map(cs.map((c) => [String(c.value), { value: String(c.value), label: c.label }])).values()],
-    (o) => facts.get(o.value)?.group);
+    (o) => facts.get(o.value)?.group, cs.some((c) => c.logo));
   const option = ({ option: o }: { option: { value: string; label?: string } }) => <OptionLine label={o.label ?? o.value} facts={facts.get(o.value)} />;
   // A list of an enum takes the values offered by their labels; another list takes those and others typed, such as
   // project.*; a single value is one of those offered.

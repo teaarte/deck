@@ -80,7 +80,11 @@ func waits(out *modelsView, tr func(string) string) []waitView {
 			continue
 		}
 		down[k] = len(w)
-		w = append(w, waitView{Kind: "down", Title: fmt.Sprintf(tr("%s does not work"), model), Icon: "alert-triangle", Tone: "error", Logo: model,
+		logo := model
+		if i := slices.IndexFunc(out.Models, func(m modelView) bool { return m.Name == model }); i >= 0 {
+			logo = out.Models[i].Logo
+		}
+		w = append(w, waitView{Kind: "down", Title: fmt.Sprintf(tr("%s does not work"), model), Icon: "alert-triangle", Tone: "error", Logo: logo,
 			Model: model, Role: v.Role, Choices: slices.DeleteFunc(slices.Clone(v.Choices), func(n string) bool { return n == model }),
 			Why: v.Why, Places: []string{place}})
 		for i, n := range v.Choices {

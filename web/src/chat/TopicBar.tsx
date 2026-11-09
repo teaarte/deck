@@ -101,7 +101,7 @@ export function TopicBar({ value, topics, model, setModel }: {
         comboboxProps={{ width: 340, position: 'bottom-start', styles: { dropdown: { maxWidth: 'calc(100vw - 16px)' } } }} />
       {(value.models?.length ?? 0) > 0 && (
         <Menu position="bottom-end" shadow="md" withinPortal>
-          <Tooltip label={t('Model of this topic')}>
+          <Tooltip label={`${t('Model of this topic')}: ${shown}`}>
             <Menu.Target>
               <Button size="compact-xs" variant="light" maw={150}
                 leftSection={shown ? mark(shown, true) : <IconCpu size={13} />} aria-label={`${t('Model of this topic')}: ${shown}`} data-topic-model={shown} data-own={own ? true : undefined}>
@@ -118,7 +118,7 @@ export function TopicBar({ value, topics, model, setModel }: {
               <div key={g} data-model-group={g}>
                 {g && <Menu.Label><Group gap={6} wrap="nowrap"><Logo names={g} size={12} letter={false} />{g}</Group></Menu.Label>}
                 {ms.map((m) => (
-                  <Menu.Item key={m} leftSection={<Group gap={6} wrap="nowrap">{check(own === m)}{mark(m)}</Group>} onClick={() => choose(m)} data-model={m}>
+                  <Menu.Item key={m} leftSection={<Group gap={6} wrap="nowrap">{check(own === m)}{mark(m)}</Group>} onClick={() => choose(m)} title={m} data-model={m}>
                     {line(m, bare(m, g))}
                   </Menu.Item>
                 ))}

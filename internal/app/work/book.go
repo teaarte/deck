@@ -71,10 +71,16 @@ func thousands(n int64) string {
 	return strconv.FormatInt(n, 10)
 }
 
-// LogoOf are the words naming the model itself for its mark, its id at the provider else its name; its provider's
-// mark is that of its group.
+// LogoOf are the words naming the model for its mark: its id at the provider (else its name) first, so the maker's
+// mark wins, then its connection and agent for a model whose maker has none.
 func LogoOf(v modelView) string {
-	return cmp.Or(v.Model, v.Name)
+	words := []string{cmp.Or(v.Model, v.Name)}
+	for _, w := range []string{v.Connection, v.Agent} {
+		if w != "" && !slices.Contains(words, w) {
+			words = append(words, w)
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 // Roles are the kinds of work a model can take: the agent work for a model that runs agent turns, else its kind.

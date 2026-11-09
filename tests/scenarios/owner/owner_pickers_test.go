@@ -36,10 +36,10 @@ func TestAModelPickerOffersTheModelsOfItsWorkWithTheirMarkAndNote(t *testing.T) 
 		byName[m.Name] = i
 	}
 	qwen, voice, mimo := list.Models[byName["local-qwen"]], list.Models[byName["local-voice"]], list.Models[byName["openrouter-mimo-v2-flash-free"]]
-	if !slices.Equal(qwen.Roles, []string{"text"}) || qwen.Logo != "qwen3:8b" || qwen.Provider != "ollama" || qwen.Note != "free · context 131K" {
+	if !slices.Equal(qwen.Roles, []string{"text"}) || qwen.Logo != "qwen3:8b ollama" || qwen.Provider != "ollama" || qwen.Note != "free · context 131K" {
 		t.Fatalf("a model says the work it takes, the words of its own mark, its provider and its note: %+v", qwen)
 	}
-	if mimo.Logo != "xiaomi/mimo-v2-flash:free" || mimo.Provider != "openrouter" {
+	if mimo.Logo != "xiaomi/mimo-v2-flash:free openrouter" || mimo.Provider != "openrouter" {
 		t.Fatalf("a model through OpenRouter wears its maker's mark, OpenRouter is its provider: %+v", mimo)
 	}
 	if !slices.Equal(voice.Roles, []string{"tts"}) || voice.Note != "free" {
@@ -63,7 +63,7 @@ func TestAModelPickerOffersTheModelsOfItsWorkWithTheirMarkAndNote(t *testing.T) 
 		return out
 	}
 	tts := choices(`{"role": "tts"}`)
-	if len(tts) != 1 || tts["local-voice"] == nil || tts["local-voice"]["note"] != "free" || tts["local-voice"]["logo"] != "kokoro" || tts["local-voice"]["group"] != "ollama" {
+	if len(tts) != 1 || tts["local-voice"] == nil || tts["local-voice"]["note"] != "free" || tts["local-voice"]["logo"] != "kokoro ollama" || tts["local-voice"]["group"] != "ollama" {
 		t.Fatalf("the fallbacks of the voice offer only voices, each with its note and mark under its provider: %+v", tts)
 	}
 	if all := choices(`{}`); all["local-voice"] == nil || all["local-qwen"] == nil || all["openrouter-mimo-v2-flash-free"]["group"] != "openrouter" {

@@ -8,7 +8,7 @@ import { Mark, OptionLine, grouped, type Facts } from '../OptionLine';
 export const choices = (act: Action) => (act.options ?? []).map((value, i) => ({ value, label: act.labels?.[i] ?? value }));
 
 // choiceData are the choices under the heading of their group, when the button gives the groups.
-export const choiceData = (act: Action) => grouped(choices(act), (o) => act.groups?.[act.options!.indexOf(o.value)]);
+export const choiceData = (act: Action) => grouped(choices(act), (o) => act.groups?.[act.options!.indexOf(o.value)], !!act.logos?.length);
 
 // factsOf are the mark, note and group of each option of a button by its value, when the button gives them.
 export function factsOf(act: Action): Map<string, Facts> {

@@ -256,6 +256,7 @@ and bring the modules in line.
   `shown` of deck's catalog; a wrong block is refused with why. The owner's answer to options or a form comes as the
   owner's next message of the topic, and the block keeps it (`deck.chat_answer`).
 - 2026-11-09: `logo` of a model in `deck.models_list` (and `choice_logos`, the `logo` of work) names the model itself
-  — its id at the provider, else its name — so its mark is the maker's, not the provider's; the provider stands in
-  `provider` (`choice_groups`), whose words give its mark. A form's `choices` take `group`, the heading a value
+  first — its id at the provider, else its name — then its connection and agent, so its mark is the maker's, not the
+  provider's, and the provider's only for a maker deck has no mark of; the provider stands in `provider` (and starts
+  `choice_groups`), whose words give its mark. A form's `choices` take `group`, the heading a value
   stands under, such as `"group": "provider"` of models: the picker groups the values by it.

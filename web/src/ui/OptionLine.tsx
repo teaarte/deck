@@ -28,23 +28,23 @@ export function OptionLine({ label, facts, lead }: { label: string; facts?: Fact
 }
 
 // bare is the label of an option under the heading of its group: without the group's first word before it, such as
-// openrouter- or groq/, and without -free after it, which its note says.
+// openrouter- or groq/; -free stays, so twins of a model differ.
 export function bare(label: string, group?: string) {
   const by = group?.trim().split(/\s/)[0]?.toLowerCase();
   const out = by && label.toLowerCase().startsWith(by) && /[-/]/.test(label.charAt(by.length)) ? label.slice(by.length + 1) : label;
-  return out.replace(/[-:]free$/i, '') || label;
+  return out || label;
 }
 
 // grouped are options under the headings of their groups, each group where its first option stands; options of no
-// group stand alone before them.
-export function grouped<T extends { value: string; label: string }>(opts: T[], groupOf: (o: T) => string | undefined) {
+// group stand alone before them. Named options, such as models, lose the group's word before their label.
+export function grouped<T extends { value: string; label: string }>(opts: T[], groupOf: (o: T) => string | undefined, named = true) {
   if (!opts.some((o) => groupOf(o))) return opts;
   const loose: T[] = [];
   const groups = new Map<string, T[]>();
   for (const o of opts) {
     const g = groupOf(o);
     if (!g) loose.push(o);
-    else groups.set(g, [...(groups.get(g) ?? []), { ...o, label: bare(o.label, g) }]);
+    else groups.set(g, [...(groups.get(g) ?? []), { ...o, label: named ? bare(o.label, g) : o.label }]);
   }
   return [...loose, ...[...groups].map(([group, items]) => ({ group, items }))];
 }

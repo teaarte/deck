@@ -45,6 +45,20 @@ def run(main):
 # --- end of the helper ---
 
 
+def remember(name):
+    """Keeps a model this module asked deck to add in own.json, which prune reads."""
+    path = os.path.join(os.environ["DECK_DATA"], "own.json")
+    own = {}
+    if os.path.exists(path):
+        with open(path) as f:
+            own = json.load(f)
+    own.setdefault(name, {"asked": datetime.date.today().isoformat()})
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w") as f:
+        json.dump(own, f, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
 def main(inp):
     r = call("deck.record_get", {"record": inp["id"]}) or {}
     d = r.get("data") or {}
@@ -64,6 +78,7 @@ def main(inp):
     if d.get("model_id"):  # a model of the list: add it to deck
         kind = "text" if d.get("kind") in ("llm", "other", None) else d["kind"]
         got = call("deck.model_set", {"connection": d["source"], "model": d["model_id"], "kind": kind}) or {}
+        remember(f"{d['source']}/{d['model_id']}")
         return {"waiting": got.get("waiting")} if isinstance(got, dict) and got.get("waiting") else {"added": True}
     raise Failure("это не предложение и не модель", type="input.invalid", details={"record": inp["id"]})
 

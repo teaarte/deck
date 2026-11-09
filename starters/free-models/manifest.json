@@ -20,6 +20,9 @@
       "unpkg.com"
     ]
   },
+  "allowed_external": [
+    "deck.model_delete"
+  ],
   "collections": [
     {
       "name": "models",
@@ -500,6 +503,15 @@
         "python3"
       ],
       "timeout_minutes": 2
+    },
+    {
+      "name": "prune",
+      "file": "scripts/prune.py",
+      "runtime": "exec",
+      "programs": [
+        "python3"
+      ],
+      "timeout_minutes": 2
     }
   ],
   "commands": [
@@ -898,6 +910,23 @@
       "result": {
         "type": "object"
       }
+    },
+    {
+      "name": "prune",
+      "title": "Убрать сломанные модели",
+      "class": "internal",
+      "description": "Removes a model this module added to deck once it has been broken and in no assignment for a week: deck.model_delete without the owner, who sees it with an undo.",
+      "executor": {
+        "type": "script",
+        "script": "prune"
+      },
+      "input": {
+        "type": "object",
+        "properties": {}
+      },
+      "result": {
+        "type": "object"
+      }
     }
   ],
   "triggers": [
@@ -931,6 +960,11 @@
     {
       "command": "watch",
       "cron": "5 9 * * *",
+      "skip_missed": true
+    },
+    {
+      "command": "prune",
+      "cron": "15 9 * * *",
       "skip_missed": true
     },
     {

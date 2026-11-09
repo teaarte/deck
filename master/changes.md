@@ -238,3 +238,6 @@ and bring the modules in line.
   and of its data folder, not only those of their own run, and the owner sees each among the changes made without
   them with an undo for a day (`file_restore` with `owner_kind` `data` and `path`, never over a file there again), a
   file of the data folder in a draft too. The master names `project`; another project is refused.
+- 2026-11-09: the starter module free-models lists `deck.model_delete` in `allowed_external`: its new command `prune`
+  (daily) removes a free model the module asked deck to add (kept in `own.json` of its data folder) once it has been
+  broken and in no assignment for 7 days; the owner sees it among the changes made without them with an undo.

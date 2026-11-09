@@ -47,6 +47,20 @@ def run(main):
 # --- end of the helper ---
 
 
+def remember(name):
+    """Keeps a model this module asked deck to add in own.json, which prune reads."""
+    path = os.path.join(os.environ["DECK_DATA"], "own.json")
+    own = {}
+    if os.path.exists(path):
+        with open(path) as f:
+            own = json.load(f)
+    own.setdefault(name, {"asked": datetime.date.today().isoformat()})
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w") as f:
+        json.dump(own, f, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
 MAX_TESTS = 10
 MAX_ASKS = 2  # models proposed to deck in one run, so the owner's buttons do not pile up
 CLI = {"claude-code", "codex"}
@@ -300,6 +314,7 @@ def main(inp):
                     body["agent"] = "goose"
                 try:
                     call("deck.model_set", body)
+                    remember(f"{cand['connection']}/{cand['model_id']}")
                 except Failure as e:
                     row["test_note"] = "не удалось предложить модель: " + str(e.details)[:150]
                 asked.add(cand["id"])

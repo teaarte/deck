@@ -1,11 +1,16 @@
 package modules
 
 import (
+	"archive/zip"
+	"bytes"
 	"fmt"
+	"io"
+	"io/fs"
 	"slices"
 	"strings"
 	"testing"
 
+	shipped "deck2/starters"
 	"deck2/tests/harness"
 )
 
@@ -118,5 +123,38 @@ func TestWhatAModuleNeedsReadsInTheOwnersLanguage(t *testing.T) {
 	e.Must("deck.project_readiness_get", map[string]any{"project": "free-models"}, &needs)
 	if !has("read domain", "openrouter.ai") {
 		t.Fatalf("in English the rights stay as deck wrote them: %+v", needs)
+	}
+}
+
+// TestAStarterIsAsItsExport: a starter module is a folder as deck.project_export makes it, file by file.
+func TestAStarterIsAsItsExport(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Must("deck.project_import", map[string]any{"starter": "free-models"}, nil)
+	_, body := exportOf(t, e, "free-models")
+	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, f := range zr.File {
+		name := strings.TrimPrefix(f.Name, "free-models/")
+		names = append(names, name)
+		r, _ := f.Open()
+		got, _ := io.ReadAll(r)
+		want, err := fs.ReadFile(shipped.FS, "free-models/"+name)
+		if err != nil || string(got) != string(want) {
+			t.Fatalf("%s of the export is the starter's file as it is: %v\n%s", name, err, got)
+		}
+	}
+	files := 0
+	_ = fs.WalkDir(shipped.FS, "free-models", func(_ string, d fs.DirEntry, _ error) error {
+		if !d.IsDir() {
+			files++
+		}
+		return nil
+	})
+	if len(names) != files {
+		t.Fatalf("the export has every file of the starter: %v", names)
 	}
 }

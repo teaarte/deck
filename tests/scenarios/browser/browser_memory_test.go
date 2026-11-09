@@ -7,7 +7,7 @@ import (
 )
 
 // TestRealBrowserMemoryTab opens Settings → Memory: the picture of what feeds what in its frame and the cards of
-// memory with the lesson of a module, on a desktop and on a phone.
+// memory with the lesson of a module, on a desktop and on a phone, in English and in Russian.
 func TestRealBrowserMemoryTab(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()
@@ -29,4 +29,13 @@ func TestRealBrowserMemoryTab(t *testing.T) {
 	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
 	b.until("the picture on a phone", `!!document.querySelector('[data-media="frame"]')`)
 	b.shot("memory-phone")
+
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	b.call("browser_resize", map[string]any{"width": 1440, "height": 900})
+	b.Open(e, "#/deck/settings?tab=Memory")
+	b.until("the picture in Russian", `!!document.querySelector('[data-media="frame"]')?.srcdoc?.includes('Собственная')`)
+	b.shot("memory-desktop-ru")
+	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
+	b.until("the picture on a phone", `!!document.querySelector('[data-media="frame"]')`)
+	b.shot("memory-phone-ru")
 }

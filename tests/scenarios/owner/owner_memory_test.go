@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -110,8 +112,20 @@ func TestTheMemoryTabMapsMemoryWithAPictureAndButtons(t *testing.T) {
 	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	var ru struct{ Picture []struct{ File string } }
 	e.Must("deck.memory_map", nil, &ru)
-	if _, svg := e.Do("GET", "/api/files/data/"+ru.Picture[0].File, nil); !strings.Contains(string(svg), "Сон") {
-		t.Fatalf("the picture speaks the language of the workspace, whoever read it: %s", svg)
+	_, ruSVG := e.Do("GET", "/api/files/data/"+ru.Picture[0].File, nil)
+	if !strings.Contains(string(ruSVG), "Сон") {
+		t.Fatalf("the picture speaks the language of the workspace, whoever read it: %s", ruSVG)
+	}
+	for lang, pic := range map[string][]byte{"en": svg, "ru": ruSVG} {
+		widths := regexp.MustCompile(`data-w="(\d+)"`).FindAllSubmatch(pic, -1)
+		if len(widths) < 13 || strings.Contains(string(pic), "…") {
+			t.Fatalf("every line of the %s picture is whole: %s", lang, pic)
+		}
+		for _, w := range widths {
+			if n, _ := strconv.Atoi(string(w[1])); n > 180 {
+				t.Fatalf("a line of the %s picture is wider than its box, %d of 180: %s", lang, n, pic)
+			}
+		}
 	}
 	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "auto"}, nil)
 

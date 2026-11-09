@@ -37,6 +37,9 @@ type memoryMap struct {
 	Projects []memoryRow  `json:"projects"`
 	Lessons  []lessonRow  `json:"lessons"`
 	Repeats  []repeatRow  `json:"repeats"`
+	// summaries, skills and edited are counts the picture says in its own language.
+	summaries      int64
+	skills, edited int
 }
 
 // pictureRow is the picture of what feeds what, a file of the master a media block shows.
@@ -203,6 +206,7 @@ func (s *Service) memoryMap(ctx context.Context, act registry.Actor, in memoryMa
 		nodeRow{ID: "repeats", Title: manifest.Tr(ws, "Repeated failures"), Icon: "repeat",
 			Text: say("%d repeats in %d commands", repeats, len(rs)), Meta: say("last %d days", in.Days), Tone: tone(repeats > 0, "warn")},
 	)
+	out.summaries, out.skills, out.edited = sums.N, len(skills), edited
 	pic, err := s.picture(ctx, mp, out)
 	if err != nil {
 		return out, err

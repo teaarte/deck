@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"strings"
+	"unicode"
 
 	"deck2/internal/manifest"
 )
@@ -18,8 +19,10 @@ type box struct {
 // The grid of the picture: a cell's place and the size of a box in it.
 const (
 	cellW, cellH = 240, 110
-	boxW, boxH   = 204, 64
-	padX, padY   = 18, 20
+	boxW, boxH   = 204, 72
+	// textW is the room of a line of text in a box.
+	textW      = boxW - 24
+	padX, padY = 18, 20
 )
 
 func (b box) x() int { return padX + b.col*cellW }
@@ -66,9 +69,9 @@ func mapSVG(m memoryMap, ws map[string]string) string {
 		"runs":      {3, 1, tr("Runs of a command"), tr("get the lessons of the command"), false},
 		"proposals": {1, 2, tr("Proposals"), tr("changes of facts and skills"), false},
 		"yes":       {2, 2, tr("Your yes"), tr("saves a fact or a skill"), false},
-		"skills":    {3, 2, tr("Skills"), node["skills"].Text, false},
+		"skills":    {3, 2, tr("Skills"), say("%d skills, %d changed by you", m.skills, m.edited), false},
 		"search":    {0, 3, "memory_search", tr("facts, lessons, skills, summaries, episodes"), false},
-		"summaries": {1, 3, tr("Summaries of topics"), node["summaries"].Text, false},
+		"summaries": {1, 3, tr("Summaries of topics"), say("%d topics summed up", m.summaries), false},
 		"cli":       {3, 3, tr("Own memory of the agents"), tr("off"), true},
 	}
 	arrows := []struct {
@@ -101,18 +104,97 @@ func mapSVG(m memoryMap, ws map[string]string) string {
 			fill, stroke, ink = "#f1f5f9", "#94a3b8", "#64748b"
 		}
 		fmt.Fprintf(&b, `<g data-node="%s"><rect x="%d" y="%d" width="%d" height="%d" rx="10" fill="%s" stroke="%s"/>`, id, bx.x(), bx.y(), boxW, boxH, fill, stroke)
-		fmt.Fprintf(&b, `<text x="%d" y="%d" font-size="14" font-weight="600" fill="%s">%s</text>`, bx.x()+12, bx.y()+26, ink, html.EscapeString(fit(bx.title, 26)))
-		fmt.Fprintf(&b, `<text x="%d" y="%d" font-size="12" fill="%s">%s</text></g>`, bx.x()+12, bx.y()+46, ink, html.EscapeString(fit(bx.line, 32)))
+		title, ts := fitLines(bx.title, 14, 12, 2, true)
+		lines, ls := fitLines(bx.line, 12, 10, 3-len(title), false)
+		// The lines stand in the middle of the box, the title above the rest.
+		height := float64(len(title))*(ts+3) + 4 + float64(len(lines))*(ls+3)
+		y := float64(bx.y()) + (boxH-height)/2
+		for _, l := range title {
+			y += ts + 3
+			fmt.Fprintf(&b, `<text x="%d" y="%.0f" font-size="%g" font-weight="600" fill="%s" data-w="%.0f">%s</text>`,
+				bx.x()+12, y-3, ts, ink, textWidth(l, ts, true), html.EscapeString(l))
+		}
+		y += 4
+		for _, l := range lines {
+			y += ls + 3
+			fmt.Fprintf(&b, `<text x="%d" y="%.0f" font-size="%g" fill="%s" data-w="%.0f">%s</text>`,
+				bx.x()+12, y-3, ls, ink, textWidth(l, ls, false), html.EscapeString(l))
+		}
+		b.WriteString(`</g>`)
 	}
 	b.WriteString(`</svg>`)
 	return b.String()
 }
 
-// fit is s cut to n letters with an ellipsis.
-func fit(s string, n int) string {
-	r := []rune(s)
-	if len(r) <= n {
-		return s
+// textWidth is a generous guess of how wide s is drawn at a font size, by its letters: no font is at hand to measure.
+func textWidth(s string, size float64, bold bool) float64 {
+	em := 0.0
+	for _, r := range s {
+		switch {
+		case r == ' ':
+			em += 0.3
+		case strings.ContainsRune(".,:;'!|il«»()", r):
+			em += 0.34
+		case r >= '0' && r <= '9':
+			em += 0.58
+		case unicode.IsUpper(r):
+			em += 0.72
+		case r >= 'a' && r <= 'z':
+			em += 0.56
+		default:
+			em += 0.62
+		}
 	}
-	return string(r[:n-1]) + "…"
+	if bold {
+		em *= 1.07
+	}
+	return em * size
+}
+
+// fitLines lays s into one line of a box at most a size smaller, else into at most n lines at the largest size down to
+// least that holds it, by words; what still does not fit ends in an ellipsis.
+func fitLines(s string, size, least float64, n int, bold bool) ([]string, float64) {
+	// One line a size smaller reads better than two.
+	for at := size; at >= max(least, size-1); at -= 0.5 {
+		if lines, ok := wrap(s, at, 1, bold); ok {
+			return lines, at
+		}
+	}
+	for at := size; at >= least; at -= 0.5 {
+		if lines, ok := wrap(s, at, n, bold); ok {
+			return lines, at
+		}
+	}
+	lines, _ := wrap(s, least, n, bold)
+	last := []rune(lines[len(lines)-1])
+	for len(last) > 1 && textWidth(string(last)+"…", least, bold) > textW {
+		last = last[:len(last)-1]
+	}
+	if string(last) != lines[len(lines)-1] {
+		lines[len(lines)-1] = strings.TrimRight(string(last), " ,") + "…"
+	}
+	return lines, least
+}
+
+// wrap breaks s into lines of words that fit a box at a font size; ok when n lines hold all of it.
+func wrap(s string, size float64, n int, bold bool) ([]string, bool) {
+	var lines []string
+	cur := ""
+	for _, w := range strings.Fields(s) {
+		next := strings.TrimSpace(cur + " " + w)
+		if cur != "" && textWidth(next, size, bold) > textW {
+			lines, cur = append(lines, cur), w
+			continue
+		}
+		cur = next
+	}
+	lines = append(lines, cur)
+	ok := len(lines) <= n
+	for _, l := range lines {
+		ok = ok && textWidth(l, size, bold) <= textW
+	}
+	if len(lines) > n {
+		lines = append(lines[:n-1], strings.Join(lines[n-1:], " "))
+	}
+	return lines, ok
 }

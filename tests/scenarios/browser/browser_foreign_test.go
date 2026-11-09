@@ -56,7 +56,7 @@ func TestRealBrowserForeignRenderer(t *testing.T) {
 		`JSON.parse(document.querySelector('[data-foreign-actions]').innerText).some((a) => a.name === 'web.tell' && a.context.command === 'web.tell' && a.sourceComponentId === 'b1')`)
 
 	b.OpenVia(at, e, "&screen=settings")
-	b.until("deck's tabs as stock Tabs", `document.querySelectorAll('.a2ui-tab-button').length === 5 && !document.body.hasAttribute('data-foreign-error')`)
+	b.until("deck's tabs as stock Tabs", `document.querySelectorAll('.a2ui-tab-button').length === 6 && !document.body.hasAttribute('data-foreign-error')`)
 	b.eval(`(document.querySelectorAll('.a2ui-tab-button')[2].click(), '')`)
 	b.until("the third tab with its stats", `document.querySelector('[data-stat-block]')`)
 	b.shot("foreign-tabs")

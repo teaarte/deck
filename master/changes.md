@@ -230,6 +230,6 @@ and bring the modules in line.
   A module that polled for the owner's answers on a schedule takes this trigger instead. X is not external; an ask
   deck closed itself (what it acts on changed) is `expired`, one closed while the module was paused is not heard.
 - 2026-11-09: an agent of a module calls `deck.data_read` too, on its own project only; `deck.data_read` of a PNG,
-  JPEG, GIF or WebP gives the picture to an agent as an image beside its answer, whose `image` is `{type, url}`;
-  a picture over 3.75 MB is refused with its size and the limit, a PDF is refused (a script gets its text or its
-  pages as pictures into the data folder first).
+  JPEG, GIF or WebP gives the picture to an agent as an image beside its answer (with `fields` too), whose `image`
+  is `{type, url, width, height}`; a picture over 3.75 MB or 8000 pixels a side is refused with its size and the
+  limit, a PDF is refused (a script gets its text or its pages as pictures into the data folder first).

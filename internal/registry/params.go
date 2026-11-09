@@ -105,6 +105,9 @@ func Read[In, Out any](name, title, desc string, callers []string, h func(ctx co
 		if bad, names := sh.unknown(v, f.Fields); len(bad) > 0 {
 			return nil, Invalid("%s has no field %s; its fields are %s", c.Name, strings.Join(bad, ", "), strings.Join(names, ", "))
 		}
+		if p, ok := out.(Pictured); ok && len(p.Pictures()) > 0 {
+			return pictured{cut(v, sh.fields(f.Fields)), p.Pictures()}, nil
+		}
 		return cut(v, sh.fields(f.Fields)), nil
 	}
 	return c

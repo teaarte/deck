@@ -378,7 +378,7 @@ func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json
 	if s.Token == 0 && s.Run == "" && s.ProcessID != 0 {
 		ctx = context.WithValue(ctx, liveKey{}, true)
 	}
-	out, err := g.call(ctx, s.actor(), name, args)
+	out, err := g.call(registry.WithPictures(ctx), s.actor(), name, args)
 	if err != nil {
 		s.again("", "")
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}

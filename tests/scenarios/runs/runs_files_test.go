@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -87,13 +89,19 @@ func TestAProcessDeletesOnlyTheFilesOfItsOwnRun(t *testing.T) {
 // image; a picture over the limit is refused with its size, one of another project is refused, .. stays inside.
 func TestAnAgentSeesAPictureOfItsDataFolder(t *testing.T) {
 	t.Parallel()
-	png := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte{7}, 100)...)
+	picture := func(w, h int) []byte {
+		var b bytes.Buffer
+		_ = png.Encode(&b, image.NewGray(image.Rect(0, 0, w, h)))
+		return b.Bytes()
+	}
+	plan := picture(40, 30)
 	got := make(chan []*mcp.CallToolResult, 1)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		var outs []*mcp.CallToolResult
 		for _, in := range []map[string]any{
 			{"project": "draw", "path": "dom/16/plan.png"}, {"project": "draw", "path": "big.png"}, {"project": "house", "path": "plan.png"},
-			{"project": "draw", "path": "../secret.png"},
+			{"project": "draw", "path": "../secret.png"}, {"project": "draw", "path": "wide.png"},
+			{"project": "draw", "path": "dom/16/plan.png", "fields": []string{"name"}},
 		} {
 			res, err := c.Session.CallTool(ctx, &mcp.CallToolParams{Name: "data_read", Arguments: in})
 			if err != nil {
@@ -107,11 +115,12 @@ func TestAnAgentSeesAPictureOfItsDataFolder(t *testing.T) {
 	p, house := e.Project("draw", harness.PlainManifest), e.Project("house", harness.PlainManifest)
 	data := e.App.Home.Data(p)
 	_ = os.MkdirAll(filepath.Join(data, "dom", "16"), 0o700)
-	_ = os.WriteFile(filepath.Join(data, "dom", "16", "plan.png"), png, 0o600)
-	_ = os.WriteFile(filepath.Join(data, "big.png"), append(png, make([]byte, 4<<20)...), 0o600)
-	_ = os.WriteFile(filepath.Join(filepath.Dir(data), "secret.png"), png, 0o600)
+	_ = os.WriteFile(filepath.Join(data, "dom", "16", "plan.png"), plan, 0o600)
+	_ = os.WriteFile(filepath.Join(data, "big.png"), append(plan, make([]byte, 4<<20)...), 0o600)
+	_ = os.WriteFile(filepath.Join(data, "wide.png"), picture(8001, 1), 0o600)
+	_ = os.WriteFile(filepath.Join(filepath.Dir(data), "secret.png"), plan, 0o600)
 	_ = os.MkdirAll(e.App.Home.Data(house), 0o700)
-	_ = os.WriteFile(filepath.Join(e.App.Home.Data(house), "plan.png"), png, 0o600)
+	_ = os.WriteFile(filepath.Join(e.App.Home.Data(house), "plan.png"), plan, 0o600)
 	e.WaitState(e.Run(p, "work"), "done")
 	outs := <-got
 	text := func(r *mcp.CallToolResult) string {
@@ -127,10 +136,10 @@ func TestAnAgentSeesAPictureOfItsDataFolder(t *testing.T) {
 	if own.IsError || len(own.Content) != 2 || !strings.Contains(text(own), `"url":"/api/files/data/draw/dom/16/plan.png"`) {
 		t.Fatalf("the picture comes with its address: %v %s", own.IsError, text(own))
 	}
-	if img, ok := own.Content[1].(*mcp.ImageContent); !ok || img.MIMEType != "image/png" || !bytes.Equal(img.Data, png) {
+	if img, ok := own.Content[1].(*mcp.ImageContent); !ok || img.MIMEType != "image/png" || !bytes.Equal(img.Data, plan) {
 		t.Fatalf("the picture comes as an image of its bytes: %#v", own.Content[1])
 	}
-	if big := outs[1]; !big.IsError || !strings.Contains(text(big), strconv.Itoa(len(png)+4<<20)) || !strings.Contains(text(big), "3932160") {
+	if big := outs[1]; !big.IsError || !strings.Contains(text(big), strconv.Itoa(len(plan)+4<<20)) || !strings.Contains(text(big), "3932160") {
 		t.Fatalf("a picture over the limit is refused with its size and the limit: %s", text(big))
 	}
 	if other := outs[2]; !other.IsError || len(other.Content) != 1 || !strings.Contains(text(other), "another project") {
@@ -139,9 +148,20 @@ func TestAnAgentSeesAPictureOfItsDataFolder(t *testing.T) {
 	if out := outs[3]; !out.IsError || len(out.Content) != 1 || !strings.Contains(text(out), "no \"../secret.png\"") {
 		t.Fatalf("nothing outside the data folder is read: %s", text(out))
 	}
-	var owner struct{ Image struct{ Type, URL string } }
+	if wide := outs[4]; !wide.IsError || !strings.Contains(text(wide), "8001×1") || !strings.Contains(text(wide), "8000") {
+		t.Fatalf("a picture over the side limit is refused with its size and the limit: %s", text(wide))
+	}
+	if cut := outs[5]; cut.IsError || len(cut.Content) != 2 {
+		t.Fatalf("a read of some fields keeps the picture: %s", text(cut))
+	}
+	var owner struct {
+		Image struct {
+			Type, URL     string
+			Width, Height int
+		}
+	}
 	e.Must("deck.data_read", map[string]any{"project": "draw", "path": "dom/16/plan.png"}, &owner)
-	if owner.Image.Type != "image/png" || owner.Image.URL != "/api/files/data/draw/dom/16/plan.png" {
+	if owner.Image.Type != "image/png" || owner.Image.URL != "/api/files/data/draw/dom/16/plan.png" || owner.Image.Width != 40 || owner.Image.Height != 30 {
 		t.Fatalf("the owner's API names the picture by its address: %+v", owner)
 	}
 	_ = os.WriteFile(filepath.Join(data, "plan.pdf"), []byte("%PDF-1.7\n"), 0o600)

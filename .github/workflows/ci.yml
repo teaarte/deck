@@ -1,5 +1,6 @@
 # Every push of a branch and pull request from a fork: the checks, the tests with and without the race detector on Linux
-# a shard a package of scenarios, the tests in Linux containers; macOS runs nightly (macos.yml); a tag needs both green.
+# a shard a package of scenarios, the tests in Linux containers; a tag needs it green (release.yml); macOS runs
+# nightly and only tells (macos.yml).
 name: ci
 
 on:

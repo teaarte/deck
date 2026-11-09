@@ -1,5 +1,5 @@
-# The tests with the race detector on macOS, all in one job: nightly on master and by hand (gh workflow run macos.yml
-# --ref <branch or tag>); release.yml tags only a commit this made green. Every push runs Linux only (ci.yml).
+# The tests with the race detector on macOS, a shard a package of scenarios as in ci.yml: nightly on master and by
+# hand (gh workflow run macos.yml --ref <branch or tag>); it only tells, a release needs ci alone.
 name: macos
 
 on:
@@ -15,11 +15,16 @@ env:
 
 jobs:
   race:
+    name: race (macos ${{ matrix.areas }})
+    strategy:
+      fail-fast: false
+      matrix:
+        areas: [box, chat, egress, modules, owner, providers, runs, rest]
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: ./.github/actions/setup
         with:
           sandbox: true
-      - run: go test -race -count=1 -timeout 40m $(.github/shard.sh box chat egress modules owner providers runs rest)
+      - run: go test -race -count=1 -timeout 25m $(.github/shard.sh ${{ matrix.areas }})

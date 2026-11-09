@@ -20,7 +20,7 @@
         {"type": "dialog", "name": "assign", "title": "Fallbacks", "icon": "list-numbers", "blocks": [
           {"type": "form", "command": "deck.assignment_set", "description": "The first model does the work; the next ones take it while the first is down or refuses.",
             "values": {"role": "=param.role", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
-            "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models", "where": "(param.role ?? '') == '' || param.role in roles"}, "value": "name", "note": "note ?? nil", "logo": "logo"}}}]},
+            "choices": {"models": {"source": {"from": "deck.models_list", "rows": "models", "where": "(param.role ?? '') == '' || param.role in roles"}, "value": "name", "note": "note ?? nil", "logo": "logo", "group": "provider"}}}]},
         {"type": "list", "title": "Waiting for you", "icon": "bell", "source": {"from": "deck.models_list", "rows": "waits"},
           "empty": "All works: the models answer and the agents are signed in",
           "item": {"title": "title", "text": "text ?? ''", "icon": "icon", "tone": "tone", "logo": "logo ?? ''", "details": "why ?? nil"},
@@ -61,7 +61,7 @@
           "description": "By provider; a model's details say where it works.",
           "empty": "No model does any work yet",
           "item": {"title": "name", "text": "join(filter([used_in ?? '', price], # != ''), ' · ')", "meta": "agent != nil && agent != '' ? 'agent, with tools' : kind == 'text' ? 'text, one answer' : kind", "group": "provider",
-            "logo": "name + ' ' + (model ?? '') + ' ' + connection",
+            "logo": "logo",
             "details": "(error ?? '') != '' ? error : len(places ?? []) > 0 ? join(places, '; ') : status == nil ? 'No work has gone to it yet' : nil",
             "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == 'missing' || status == 'off' ? 'muted' : status != nil ? 'warn' : nil"},
           "actions": [
@@ -79,7 +79,7 @@
           "description": "No work goes to these: assign one in Who does what, or remove it. For agent work, add a text model again with the agent goose.",
           "empty": "Every model does some work",
           "item": {"title": "name", "text": "price", "meta": "agent != nil && agent != '' ? 'agent, with tools' : kind == 'text' ? 'text, one answer' : kind", "group": "provider",
-            "logo": "name + ' ' + (model ?? '') + ' ' + connection",
+            "logo": "logo",
             "details": "(error ?? '') != '' ? error : status == nil ? 'No work has gone to it yet' : nil",
             "tone": "status == 'error' ? 'error' : 'muted'"},
           "actions": [

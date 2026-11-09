@@ -10,20 +10,24 @@ import (
 )
 
 // TestAModelPickerOffersTheModelsOfItsWorkWithTheirMarkAndNote: a picker of models offers only those of its work,
-// each with the words of its mark, provider first, and a note of its price and context.
+// each with the words of the model's own mark, under its provider, and a note of its price and context.
 func TestAModelPickerOffersTheModelsOfItsWorkWithTheirMarkAndNote(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "ollama", "api": "openai", "url": "http://127.0.0.1:1/v1", "local": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "ollama", "model": "qwen3:8b", "name": "local-qwen", "kind": "text", "context": 131072}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "ollama", "model": "kokoro", "name": "local-voice", "kind": "tts"}, nil)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "http://127.0.0.1:1/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "xiaomi/mimo-v2-flash:free", "name": "openrouter-mimo-v2-flash-free",
+		"kind": "text", "free": true}, nil)
 
 	var list struct {
 		Models []struct {
-			Name  string   `json:"name"`
-			Roles []string `json:"roles"`
-			Note  string   `json:"note"`
-			Logo  string   `json:"logo"`
+			Name     string   `json:"name"`
+			Roles    []string `json:"roles"`
+			Note     string   `json:"note"`
+			Logo     string   `json:"logo"`
+			Provider string   `json:"provider"`
 		} `json:"models"`
 	}
 	e.Must("deck.models_list", nil, &list)
@@ -31,10 +35,12 @@ func TestAModelPickerOffersTheModelsOfItsWorkWithTheirMarkAndNote(t *testing.T) 
 	for i, m := range list.Models {
 		byName[m.Name] = i
 	}
-	qwen, voice := list.Models[byName["local-qwen"]], list.Models[byName["local-voice"]]
-	if !slices.Equal(qwen.Roles, []string{"text"}) || !strings.HasPrefix(qwen.Logo, "ollama local-qwen qwen3:8b") ||
-		qwen.Note != "free · context 131K" {
-		t.Fatalf("a model says the work it takes, its mark by provider first and its note: %+v", qwen)
+	qwen, voice, mimo := list.Models[byName["local-qwen"]], list.Models[byName["local-voice"]], list.Models[byName["openrouter-mimo-v2-flash-free"]]
+	if !slices.Equal(qwen.Roles, []string{"text"}) || qwen.Logo != "qwen3:8b" || qwen.Provider != "ollama" || qwen.Note != "free · context 131K" {
+		t.Fatalf("a model says the work it takes, the words of its own mark, its provider and its note: %+v", qwen)
+	}
+	if mimo.Logo != "xiaomi/mimo-v2-flash:free" || mimo.Provider != "openrouter" {
+		t.Fatalf("a model through OpenRouter wears its maker's mark, OpenRouter is its provider: %+v", mimo)
 	}
 	if !slices.Equal(voice.Roles, []string{"tts"}) || voice.Note != "free" {
 		t.Fatalf("a voice takes only the voice: %+v", voice)
@@ -57,11 +63,11 @@ func TestAModelPickerOffersTheModelsOfItsWorkWithTheirMarkAndNote(t *testing.T) 
 		return out
 	}
 	tts := choices(`{"role": "tts"}`)
-	if len(tts) != 1 || tts["local-voice"] == nil || tts["local-voice"]["note"] != "free" || !strings.HasPrefix(tts["local-voice"]["logo"].(string), "ollama") {
-		t.Fatalf("the fallbacks of the voice offer only voices, each with its note and mark: %+v", tts)
+	if len(tts) != 1 || tts["local-voice"] == nil || tts["local-voice"]["note"] != "free" || tts["local-voice"]["logo"] != "kokoro" || tts["local-voice"]["group"] != "ollama" {
+		t.Fatalf("the fallbacks of the voice offer only voices, each with its note and mark under its provider: %+v", tts)
 	}
-	if all := choices(`{}`); all["local-voice"] == nil || all["local-qwen"] == nil {
-		t.Fatalf("without a work every model is offered: %+v", all)
+	if all := choices(`{}`); all["local-voice"] == nil || all["local-qwen"] == nil || all["openrouter-mimo-v2-flash-free"]["group"] != "openrouter" {
+		t.Fatalf("without a work every model is offered, under its provider: %+v", all)
 	}
 
 	e.Must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"local-voice"}}, nil)

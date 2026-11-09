@@ -575,3 +575,11 @@
   width: 7px;
   height: 7px;
 }
+
+.modelLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: 16px;
+}

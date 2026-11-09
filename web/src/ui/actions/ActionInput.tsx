@@ -2,27 +2,17 @@ import { useState } from 'react';
 import { Button, Group, Select, TextInput } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { Action } from '../../lib/catalog.gen';
-import { Mark, OptionLine, type Facts } from '../OptionLine';
+import { Mark, OptionLine, grouped, type Facts } from '../OptionLine';
 
 // choices are the options of a button for a select: each value with its label in the owner's language.
 export const choices = (act: Action) => (act.options ?? []).map((value, i) => ({ value, label: act.labels?.[i] ?? value }));
 
 // choiceData are the choices under the heading of their group, when the button gives the groups.
-export function choiceData(act: Action) {
-  const flat = choices(act);
-  if (!act.groups) return flat;
-  const out: { group: string; items: typeof flat }[] = [];
-  flat.forEach((o, i) => {
-    const group = act.groups![i] ?? '';
-    if (out.at(-1)?.group !== group) out.push({ group, items: [] });
-    out.at(-1)!.items.push(o);
-  });
-  return out;
-}
+export const choiceData = (act: Action) => grouped(choices(act), (o) => act.groups?.[act.options!.indexOf(o.value)]);
 
-// factsOf are the mark and note of each option of a button by its value, when the button gives them.
+// factsOf are the mark, note and group of each option of a button by its value, when the button gives them.
 export function factsOf(act: Action): Map<string, Facts> {
-  return new Map((act.options ?? []).map((o, i) => [o, { logo: act.logos?.[i] || undefined, note: act.notes?.[i] || undefined }]));
+  return new Map((act.options ?? []).map((o, i) => [o, { logo: act.logos?.[i] || undefined, note: act.notes?.[i] || undefined, via: act.groups?.[i] || undefined }]));
 }
 
 // HINTS are the words of the field a button asks for, by its param.

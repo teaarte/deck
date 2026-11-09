@@ -474,10 +474,11 @@ type Choice struct {
 	Value  string `json:"value"`
 	Label  string `json:"label,omitempty"`
 	// Note is a short note of each value; Logo the words naming its model or provider, for its mark; Icon the name
-	// of a Tabler icon of it, such as a module's.
-	Note string `json:"note,omitempty"`
-	Logo string `json:"logo,omitempty"`
-	Icon string `json:"icon,omitempty"`
+	// of a Tabler icon of it, such as a module's; Group the heading it stands under, such as a model's provider.
+	Note  string `json:"note,omitempty"`
+	Logo  string `json:"logo,omitempty"`
+	Icon  string `json:"icon,omitempty"`
+	Group string `json:"group,omitempty"`
 }
 
 // Item binds the lines of a list block.

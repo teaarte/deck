@@ -850,6 +850,15 @@ func TestTheHistorySaysTheModuleModelAndTokensOfEachTopic(t *testing.T) {
 	if n.Project != "" || n.Tokens != 0 || n.RepliedOn != "fake" {
 		t.Fatalf("a topic without a module or model calls says so: %+v", n)
 	}
+	var marks struct {
+		Models []string          `json:"models"`
+		Logos  map[string]string `json:"logos"`
+		Groups map[string]string `json:"groups"`
+	}
+	e.Must("deck.chat_topics_list", nil, &marks)
+	if len(marks.Models) == 0 || marks.Logos["fake"] != "fake" || marks.Groups["fake"] != "fake" {
+		t.Fatalf("each model of the topics says the words of its mark and the provider it stands under: %+v", marks)
+	}
 	for i := 0; i < 3; i++ {
 		e.MasterSaid(e.Say(0, fmt.Sprintf("more %d", i)), 1)
 	}

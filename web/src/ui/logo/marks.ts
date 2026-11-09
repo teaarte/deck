@@ -2,11 +2,14 @@
 // A word of a name takes the mark of the first rule it starts with, followed by no letter.
 
 import ai21 from '@lobehub/icons-static-svg/icons/ai21.svg?raw';
+import ai2_color from '@lobehub/icons-static-svg/icons/ai2-color.svg?raw';
 import alibaba_color from '@lobehub/icons-static-svg/icons/alibaba-color.svg?raw';
 import anthropic from '@lobehub/icons-static-svg/icons/anthropic.svg?raw';
+import arcee_color from '@lobehub/icons-static-svg/icons/arcee-color.svg?raw';
 import aws_color from '@lobehub/icons-static-svg/icons/aws-color.svg?raw';
 import azure_color from '@lobehub/icons-static-svg/icons/azure-color.svg?raw';
 import baichuan_color from '@lobehub/icons-static-svg/icons/baichuan-color.svg?raw';
+import baidu_color from '@lobehub/icons-static-svg/icons/baidu-color.svg?raw';
 import bedrock_color from '@lobehub/icons-static-svg/icons/bedrock-color.svg?raw';
 import bfl from '@lobehub/icons-static-svg/icons/bfl.svg?raw';
 import bytedance_color from '@lobehub/icons-static-svg/icons/bytedance-color.svg?raw';
@@ -34,11 +37,15 @@ import huggingface_color from '@lobehub/icons-static-svg/icons/huggingface-color
 import hunyuan_color from '@lobehub/icons-static-svg/icons/hunyuan-color.svg?raw';
 import ibm from '@lobehub/icons-static-svg/icons/ibm.svg?raw';
 import ideogram from '@lobehub/icons-static-svg/icons/ideogram.svg?raw';
+import inception from '@lobehub/icons-static-svg/icons/inception.svg?raw';
 import internlm_color from '@lobehub/icons-static-svg/icons/internlm-color.svg?raw';
 import kimi_color from '@lobehub/icons-static-svg/icons/kimi-color.svg?raw';
 import kling_color from '@lobehub/icons-static-svg/icons/kling-color.svg?raw';
+import kwaipilot_color from '@lobehub/icons-static-svg/icons/kwaipilot-color.svg?raw';
+import ling_color from '@lobehub/icons-static-svg/icons/ling-color.svg?raw';
 import liquid from '@lobehub/icons-static-svg/icons/liquid.svg?raw';
 import lmstudio from '@lobehub/icons-static-svg/icons/lmstudio.svg?raw';
+import longcat_color from '@lobehub/icons-static-svg/icons/longcat-color.svg?raw';
 import luma_color from '@lobehub/icons-static-svg/icons/luma-color.svg?raw';
 import meta_color from '@lobehub/icons-static-svg/icons/meta-color.svg?raw';
 import microsoft_color from '@lobehub/icons-static-svg/icons/microsoft-color.svg?raw';
@@ -46,6 +53,7 @@ import midjourney from '@lobehub/icons-static-svg/icons/midjourney.svg?raw';
 import minimax_color from '@lobehub/icons-static-svg/icons/minimax-color.svg?raw';
 import mistral_color from '@lobehub/icons-static-svg/icons/mistral-color.svg?raw';
 import moonshot from '@lobehub/icons-static-svg/icons/moonshot.svg?raw';
+import nousresearch from '@lobehub/icons-static-svg/icons/nousresearch.svg?raw';
 import novita_color from '@lobehub/icons-static-svg/icons/novita-color.svg?raw';
 import nvidia_color from '@lobehub/icons-static-svg/icons/nvidia-color.svg?raw';
 import ollama from '@lobehub/icons-static-svg/icons/ollama.svg?raw';
@@ -58,10 +66,15 @@ import runway from '@lobehub/icons-static-svg/icons/runway.svg?raw';
 import sambanova_color from '@lobehub/icons-static-svg/icons/sambanova-color.svg?raw';
 import siliconcloud_color from '@lobehub/icons-static-svg/icons/siliconcloud-color.svg?raw';
 import stability_color from '@lobehub/icons-static-svg/icons/stability-color.svg?raw';
+import stepfun_color from '@lobehub/icons-static-svg/icons/stepfun-color.svg?raw';
 import suno from '@lobehub/icons-static-svg/icons/suno.svg?raw';
+import tencent_color from '@lobehub/icons-static-svg/icons/tencent-color.svg?raw';
 import together_color from '@lobehub/icons-static-svg/icons/together-color.svg?raw';
+import upstage_color from '@lobehub/icons-static-svg/icons/upstage-color.svg?raw';
+import venice_color from '@lobehub/icons-static-svg/icons/venice-color.svg?raw';
 import vertexai_color from '@lobehub/icons-static-svg/icons/vertexai-color.svg?raw';
 import xai from '@lobehub/icons-static-svg/icons/xai.svg?raw';
+import xiaomimimo from '@lobehub/icons-static-svg/icons/xiaomimimo.svg?raw';
 import yi_color from '@lobehub/icons-static-svg/icons/yi-color.svg?raw';
 import zhipu_color from '@lobehub/icons-static-svg/icons/zhipu-color.svg?raw';
 
@@ -92,4 +105,11 @@ export const rules: [string, string][] = [
   ['midjourney', midjourney], ['yi', yi_color], ['baichuan', baichuan_color], ['internlm', internlm_color],
   ['granite', ibm], ['ibm', ibm], ['liquid', liquid], ['lfm', liquid], ['aws', aws_color],
   ['bedrock', bedrock_color], ['nova', aws_color], ['ai21', ai21], ['jamba', ai21], ['fish', fishaudio],
+  ['xiaomi', xiaomimimo], ['mimo', xiaomimimo], ['arcee', arcee_color], ['trinity', arcee_color],
+  ['nousresearch', nousresearch], ['nous', nousresearch], ['hermes', nousresearch], ['tencent', tencent_color],
+  ['baidu', baidu_color], ['ernie', baidu_color], ['stepfun', stepfun_color], ['step', stepfun_color],
+  ['longcat', longcat_color], ['meituan', longcat_color], ['inclusionai', ling_color], ['ling', ling_color],
+  ['inception', inception], ['mercury', inception], ['upstage', upstage_color],
+  ['solar', upstage_color], ['allenai', ai2_color], ['olmo', ai2_color], ['molmo', ai2_color],
+  ['venice', venice_color], ['kwaipilot', kwaipilot_color],
 ];

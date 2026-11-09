@@ -155,9 +155,11 @@ type topicsView struct {
 	Modules []moduleView `json:"modules"`
 	Models  []string     `json:"models"`
 	Model   string       `json:"model,omitempty"`
-	// Notes say each model in short, such as its price and speed; Logos are the words naming its provider and model.
-	Notes map[string]string `json:"notes"`
-	Logos map[string]string `json:"logos"`
+	// Notes say each model in short, such as its price and speed; Logos are the words naming the model for its mark,
+	// Groups the provider it stands under, whose mark is the provider's.
+	Notes  map[string]string `json:"notes"`
+	Logos  map[string]string `json:"logos"`
+	Groups map[string]string `json:"groups"`
 }
 
 // moduleView is a module the topics are about and its newest topic.
@@ -362,23 +364,26 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 	busy := s.busy(ctx, act.Workspace)
 	for _, ts := range [][]topicView{v.Topics, v.Archived} {
 		for i := range ts {
-			_, ts[i].Logo = facts(cmp.Or(ts[i].RepliedOn, ts[i].Model, v.Model))
+			_, ts[i].Logo, _ = facts(cmp.Or(ts[i].RepliedOn, ts[i].Model, v.Model))
 			ts[i].Tokens, _ = s.St.Q.TopicTokens(ctx, ts[i].ID)
 			if b, ok := busy[ts[i].ID]; ok {
 				ts[i].Busy, ts[i].Waits, ts[i].Since = true, b.Waits == 1, b.Since
 			}
 		}
 	}
-	v.Notes, v.Logos = map[string]string{}, map[string]string{}
+	v.Notes, v.Logos, v.Groups = map[string]string{}, map[string]string{}, map[string]string{}
 	for _, m := range append([]string{v.Model}, v.Models...) {
 		if m == "" {
 			continue
 		}
-		note, logo := facts(m)
+		note, logo, group := facts(m)
 		if note != "" {
 			v.Notes[m] = note
 		}
 		v.Logos[m] = logo
+		if group != "" {
+			v.Groups[m] = group
+		}
 	}
 	return v, nil
 }

@@ -228,7 +228,7 @@ func (r *renderer) choices(b manifest.Block, cmd map[string]any) (map[string]any
 				label = fmt.Sprint(l)
 			}
 			opt := map[string]any{"value": v, "label": label}
-			for key, e := range map[string]string{"note": ch.Note, "logo": ch.Logo, "icon": ch.Icon} {
+			for key, e := range map[string]string{"note": ch.Note, "logo": ch.Logo, "icon": ch.Icon, "group": ch.Group} {
 				if e == "" {
 					continue
 				}

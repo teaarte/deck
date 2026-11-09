@@ -71,15 +71,10 @@ func thousands(n int64) string {
 	return strconv.FormatInt(n, 10)
 }
 
-// LogoOf are the words that name a model's provider first, then the model, for the client to draw its mark.
+// LogoOf are the words naming the model itself for its mark, its id at the provider else its name; its provider's
+// mark is that of its group.
 func LogoOf(v modelView) string {
-	var out []string
-	for _, w := range []string{v.Connection, v.Name, v.Model, v.Agent} {
-		if w != "" && !slices.Contains(out, w) {
-			out = append(out, w)
-		}
-	}
-	return strings.Join(out, " ")
+	return cmp.Or(v.Model, v.Name)
 }
 
 // Roles are the kinds of work a model can take: the agent work for a model that runs agent turns, else its kind.
@@ -281,11 +276,14 @@ func (s *Service) Works(ctx context.Context, workspace int64, lang string) func(
 	return func(projectID int64, command string) provider.Work { return s.commandWork(ctx, b, projectID, command) }
 }
 
-// Facts say each model of a workspace in short in a language, and the words naming its provider and model.
-func (s *Service) Facts(ctx context.Context, workspace int64, lang string) func(model string) (note, logo string) {
+// Facts say each model of a workspace in short in a language, the words naming it for its mark and the group of its
+// provider.
+func (s *Service) Facts(ctx context.Context, workspace int64, lang string) func(model string) (note, logo, group string) {
 	ws := words.In(lang)
 	b := s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) })
-	return func(model string) (string, string) { return b.Note(model), b.Logo(model) }
+	return func(model string) (string, string, string) {
+		return b.Note(model), b.Logo(model), b.models[model].Provider
+	}
 }
 
 // Agents are the models of the book that run agent turns: the built-in providers and the models in an agent.

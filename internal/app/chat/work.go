@@ -66,7 +66,7 @@ func (s *Service) running(ctx context.Context, workspace, topic int64, tr func(s
 		v := runningView{procView: procView{ID: p.ID, Project: project, Command: p.Command, State: p.State, Open: openProcess(p.ID),
 			Shown: process.Show(p, "", false, tr)}, Model: p.Provider, StartedAt: cmp.Or(p.ReopenedAt.String, p.StartedAt), FinishedAt: p.FinishedAt.String}
 		if p.Provider != "" {
-			_, v.Logo = facts(p.Provider)
+			_, v.Logo, _ = facts(p.Provider)
 		}
 		return v
 	}

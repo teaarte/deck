@@ -9,12 +9,12 @@ type Work struct {
 	Choices []string `json:"choices,omitempty"`
 	// ChoiceGroups are the group of each choice, in its order.
 	ChoiceGroups []string `json:"choice_groups,omitempty"`
-	// ChoiceNotes say each choice in short, such as its price and speed; ChoiceLogos are words naming its provider
-	// and model, for its mark.
+	// ChoiceNotes say each choice in short, such as its price and speed; ChoiceLogos are words naming its model,
+	// for its mark; its provider's mark is that of its group.
 	ChoiceNotes []string `json:"choice_notes,omitempty"`
 	ChoiceLogos []string `json:"choice_logos,omitempty"`
 	Price       string   `json:"price,omitempty"`
-	// Logo are the words naming the provider and model of Model, for its mark.
+	// Logo are the words naming the model of Model, for its mark.
 	Logo string `json:"logo,omitempty"`
 	// Why is one line of the health of the first model that is down, when the work goes to another.
 	Why string `json:"why,omitempty"`

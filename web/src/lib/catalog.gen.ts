@@ -793,6 +793,10 @@ export interface FormValue {
        * the name of a Tabler icon of the value
        */
       icon?: string;
+      /**
+       * the heading the value stands under
+       */
+      group?: string;
     }[];
   };
 }
@@ -1300,9 +1304,15 @@ export interface ChatValue {
     [k: string]: string;
   };
   /**
-   * the words naming the provider and model of each model, whose mark the client draws
+   * the words naming each model, whose mark the client draws
    */
   logos?: {
+    [k: string]: string;
+  };
+  /**
+   * the provider each model stands under, whose words give its mark
+   */
+  groups?: {
     [k: string]: string;
   };
   /**

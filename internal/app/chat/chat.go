@@ -52,8 +52,8 @@ type Service struct {
 	Fits  func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
 	// Able are the providers that have what a command requires, the models a topic may keep.
 	Able func(ctx context.Context, workspace int64, cmd *manifest.Command) []string
-	// Facts say each model in short in a language, and the words naming its provider and model for its mark.
-	Facts func(ctx context.Context, workspace int64, lang string) func(model string) (note, logo string)
+	// Facts say each model in short in a language, the words naming it for its mark and the group of its provider.
+	Facts func(ctx context.Context, workspace int64, lang string) func(model string) (note, logo, group string)
 	// Go runs work beside the calls unless deck stops; the replies it leaves go at the next start.
 	Go func(func(context.Context)) bool
 	// Language is the language of the interface the workspace picked: auto, en or ru.

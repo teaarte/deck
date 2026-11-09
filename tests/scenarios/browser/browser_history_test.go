@@ -90,7 +90,7 @@ func TestRealBrowserTheHistoryAndThePickersOfModels(t *testing.T) {
 		b.Open(e, "#/deck/settings?tab=Models&dialog=assign&role=text")
 		b.until(size.name+": the fallbacks of a work", `document.querySelector('[data-dialog="assign"] [data-field="models"]')`)
 		b.eval(`(document.querySelector('[data-dialog="assign"] [data-field="models"] input, [data-dialog="assign"] input[data-field="models"]').click(), '')`)
-		b.until(size.name+": only the models of the work, with mark and note", `[...document.querySelectorAll('[role=option] [data-option]')].some((x) => x.dataset.option === 'groq/qwen3-fact'
+		b.until(size.name+": only the models of the work, with mark and note", `[...document.querySelectorAll('[role=option] [data-option]')].some((x) => x.dataset.option === 'qwen3-fact'
 			&& x.querySelector('[data-logo], [data-logo-letter]') && x.querySelector('[data-option-note]')?.innerText.includes('131K'))
 			&& ![...document.querySelectorAll('[role=option] [data-option]')].some((x) => x.dataset.option === 'fake')`)
 		b.shot("f9-fallbacks-" + size.name)

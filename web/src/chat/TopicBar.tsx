@@ -7,6 +7,7 @@ import { notifyError } from '../lib/notify';
 import { ActionsMenu } from '../ui/actions/ActionsMenu';
 import { Logo } from '../ui/logo/Logo';
 import { NamedIcon } from '../ui/NamedIcon';
+import { bare } from '../ui/OptionLine';
 import { press, useBlockContext } from '../screen/press';
 import { MORE, type useTopics } from './useTopics';
 import type { Topic } from '../lib/catalog.gen';
@@ -66,9 +67,21 @@ export function TopicBar({ value, topics, model, setModel }: {
   const others = [...value.topics, ...value.archived].filter((x) => x.busy && x.id !== topic?.id);
   const shown = own || value.model || '';
   const ctx = useBlockContext();
-  // note is a model in short, such as its price and speed, beside its name; mark the mark of its provider.
-  const note = (m?: string) => (m && value.notes?.[m] ? <Text size="xs" c="dimmed" data-model-note>{value.notes[m]}</Text> : undefined);
-  const mark = (m?: string) => (m ? <Logo names={value.logos?.[m] ?? m} size={14} /> : undefined);
+  // line is a model by its name and its note in short, such as its price and speed, which goes under the name where
+  // both do not fit; mark is the mark of the model, with its provider's small in the corner when via.
+  const line = (m: string, name: string) => (
+    <span className={s.modelLine}>
+      <span>{name}</span>
+      {value.notes?.[m] && <Text component="span" size="xs" c="dimmed" data-model-note>{value.notes[m]}</Text>}
+    </span>
+  );
+  const mark = (m?: string, via = false) => (m ? <Logo names={value.logos?.[m] ?? m} via={via ? value.groups?.[m] : undefined} size={14} /> : undefined);
+  // groups are the models of the menu under their providers, each group where its first model stands.
+  const groups = new Map<string, string[]>();
+  for (const m of (value.models ?? []).filter((x) => x !== value.model || own === x)) {
+    const g = value.groups?.[m] ?? '';
+    groups.set(g, [...(groups.get(g) ?? []), m]);
+  }
   const choose = (m: string) => {
     if (!topic) return setModel(m);
     if (value.choose) void press(ctx, value.choose, { model: m }).then((r) => { if (r.error) notifyError(new Error(r.error), t('The model was not changed')); });
@@ -91,16 +104,25 @@ export function TopicBar({ value, topics, model, setModel }: {
           <Tooltip label={t('Model of this topic')}>
             <Menu.Target>
               <Button size="compact-xs" variant="light" maw={150}
-                leftSection={shown ? mark(shown) : <IconCpu size={13} />} aria-label={`${t('Model of this topic')}: ${shown}`} data-topic-model={shown} data-own={own ? true : undefined}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{shown}</span>
+                leftSection={shown ? mark(shown, true) : <IconCpu size={13} />} aria-label={`${t('Model of this topic')}: ${shown}`} data-topic-model={shown} data-own={own ? true : undefined}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{bare(shown, value.groups?.[shown])}</span>
               </Button>
             </Menu.Target>
           </Tooltip>
-          <Menu.Dropdown data-topic-models>
+          <Menu.Dropdown data-topic-models maw="calc(100vw - 16px)">
             <Menu.Label>{t('Model of this topic')}</Menu.Label>
-            <Menu.Item leftSection={<Group gap={6} wrap="nowrap">{check(!own)}{mark(value.model)}</Group>} onClick={() => choose('')} data-model="" rightSection={note(value.model)}>{t("The master's own ({{model}})", { model: value.model ?? '' })}</Menu.Item>
-            {value.models!.filter((m) => m !== value.model || own === m).map((m) => (
-              <Menu.Item key={m} leftSection={<Group gap={6} wrap="nowrap">{check(own === m)}{mark(m)}</Group>} onClick={() => choose(m)} data-model={m} rightSection={note(m)}>{m}</Menu.Item>
+            <Menu.Item leftSection={<Group gap={6} wrap="nowrap">{check(!own)}{mark(value.model, true)}</Group>} onClick={() => choose('')} data-model="">
+              {line(value.model ?? '', t("The master's own ({{model}})", { model: value.model ?? '' }))}
+            </Menu.Item>
+            {[...groups].map(([g, ms]) => (
+              <div key={g} data-model-group={g}>
+                {g && <Menu.Label><Group gap={6} wrap="nowrap"><Logo names={g} size={12} letter={false} />{g}</Group></Menu.Label>}
+                {ms.map((m) => (
+                  <Menu.Item key={m} leftSection={<Group gap={6} wrap="nowrap">{check(own === m)}{mark(m)}</Group>} onClick={() => choose(m)} data-model={m}>
+                    {line(m, bare(m, g))}
+                  </Menu.Item>
+                ))}
+              </div>
             ))}
           </Menu.Dropdown>
         </Menu>

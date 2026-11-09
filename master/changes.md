@@ -255,3 +255,7 @@ and bring the modules in line.
   options to pick, a form (a bounded number slides), a table, a chart or a card, its data in place, by the schema
   `shown` of deck's catalog; a wrong block is refused with why. The owner's answer to options or a form comes as the
   owner's next message of the topic, and the block keeps it (`deck.chat_answer`).
+- 2026-11-09: `logo` of a model in `deck.models_list` (and `choice_logos`, the `logo` of work) names the model itself
+  — its id at the provider, else its name — so its mark is the maker's, not the provider's; the provider stands in
+  `provider` (`choice_groups`), whose words give its mark. A form's `choices` take `group`, the heading a value
+  stands under, such as `"group": "provider"` of models: the picker groups the values by it.

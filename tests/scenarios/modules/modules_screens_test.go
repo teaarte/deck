@@ -355,10 +355,15 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 			t.Fatalf("%s reads the lists of Today that show it, which stay on it while empty: %v", topic, got)
 		}
 	}
+	memory := []string{"/b0-3-0", "/b0-3-1", "/b0-3-2", "/b0-3-3", "/b0-3-4", "/b0-3-5"}
 	for topic, signIns := range map[string][]string{"health": {"/b0-0-4"}, "models": nil} {
-		want := slices.Concat([]string{"/b0-0-3"}, signIns, []string{"/b0-0-5", "/b0-2-0", "/b0-2-1", "/b0-4-0", "/b0-4-3"})
+		mem := memory
+		if topic == "health" {
+			mem = []string{"/b0-3-2"}
+		}
+		want := slices.Concat([]string{"/b0-0-3"}, signIns, []string{"/b0-0-5", "/b0-2-0", "/b0-2-1"}, mem, []string{"/b0-5-0", "/b0-5-3"})
 		if got := paths("", "settings", topic); !slices.Equal(got, want) {
-			t.Fatalf("%s reads what is broken and passes, the work, the sign-ins and the models, the version and the agents: %v", topic, got)
+			t.Fatalf("%s reads what is broken and passes, the work, the sign-ins and the models, the memory, the version and the agents: %v", topic, got)
 		}
 		if got := paths("", "settings", topic, "Health", "checks"); !slices.Contains(got, "/b0-2-2-0") {
 			t.Fatalf("%s reads every check in its open dialog: %v", topic, got)

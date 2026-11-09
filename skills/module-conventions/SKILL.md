@@ -69,6 +69,8 @@ Style:
 - Write for a small model too: the shape of the result without sample values, every check a pattern can do left
   to a script whose findings come in the input, and the script, not the verdict, decides what reaches the owner.
 - An agent that reads what strangers wrote gets `calls`, the list of commands it may call.
+- An agent command that changes records, documents or files declares in its result schema `changes`, an array of
+  strings, and its prompt says to fill it: one short line each, what changed, where and why.
 
 ## Check and try
 
@@ -94,6 +96,7 @@ each with the file, the line and the case that fails:
 - the manifest: an expression that breaks on a record without a field, a text without `i18n`, a right wider
   than the work needs (`external` tools that only read, `"*"` domains);
 - a prompt that leaves the result shape or the tools to guess, or asks a small model to check what a script can;
+- an agent command that changes records, documents or files without `changes` in its result schema and prompt;
 - a trial that was not run, or that ended `done` without what the owner will see.
 
 Do not report style that is a matter of taste, nor what the change did not touch.

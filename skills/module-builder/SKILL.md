@@ -604,7 +604,9 @@ models that fit it (`choices`; `commands_list` only when `fields` asks for them)
 name — routine judgement suits a local model in an ACP agent (the name the owner gave it, from
 `models_list`), heavy reasoning Claude Code or Codex. Write the
 prompt so it works on a small model too: say which deck tool to call for what, and that the result is handed in
-at the end; a provider without output by schema gets the `result_submit` tool for it. A small model copies
+at the end; a provider without output by schema gets the `result_submit` tool for it. An agent command that changes
+records, documents or files gives in its result `changes`, an array of strings, one short line each: what changed,
+where and why (the module-conventions skill). A small model copies
 examples from the prompt word for word and misses checks that are plain in the text: give it the shape of the
 result without sample values, let the script do every check a pattern can do and pass the findings in the
 input, and let the script, not the model's verdict, decide what reaches the owner. An agent that judges many

@@ -216,3 +216,6 @@ and bring the modules in line.
   started still work (running or waiting for a slot or its turn) fails as `agent.left` (whose: model) instead of
   done; the master's reply, on_error and on_incident are as before. A work of
   a topic handed on to the next model tells the topic `restarted as #N on <model>`.
+- 2026-11-09: an agent command that changes records, documents or files declares `changes` in its result schema,
+  an array of strings, one short line each: what changed, where and why; a review of a module checks it, and the
+  master compares it with the task it gave. deck does not check it.

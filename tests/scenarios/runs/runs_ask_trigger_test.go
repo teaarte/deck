@@ -53,6 +53,10 @@ func TestAModuleHearsTheOwnersAnswerToItsConfirmation(t *testing.T) {
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "bare", "manifest": bare}); code != 422 || !strings.Contains(string(out), `"ask"`) {
 		t.Fatalf("a command a trigger on ask starts declares the field ask: %d %s", code, out)
 	}
+	outward := strings.Replace(askModule(true), `"description": "Hears the owner's answer.", "class": "internal"`, `"description": "Hears the owner's answer.", "class": "external"`, 1)
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "outward", "manifest": outward}); code != 422 || !strings.Contains(string(out), "external") {
+		t.Fatalf("a trigger on ask starts no external command, which would go without the owner: %d %s", code, out)
+	}
 	for _, name := range []string{"jobs", "other"} {
 		e.Project(name, askModule(name == "jobs"))
 		e.SaveScript(name, "scripts/main.py", harness.PythonLib+fmt.Sprintf(`
@@ -87,6 +91,7 @@ print(json.dumps(json.load(sys.stdin)))
 	others, _ := ask("other")
 	e.Answer(others, "deny")
 	late, lateBy := ask("jobs")
+	e.Until("the module to hear yes and no", func() bool { return len(heardRuns(e, "jobs")) == 2 })
 	e.Clock.Add(25 * time.Hour)
 	e.App.Sweep(context.Background(), e.Clock.Now())
 

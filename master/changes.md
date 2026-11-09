@@ -227,3 +227,5 @@ and bring the modules in line.
   own call of `deck.model_set` added, free and named in no assignment, and the owner sees it among the changes made
   without them with an undo that brings the model back; any other removal by a module waits for the owner. deck no
   longer checks by itself a model in an agent that no assignment names; `deck.provider_check` still does.
+  A module that polled for the owner's answers on a schedule takes this trigger instead. X is not external; an ask
+  deck closed itself (what it acts on changed) is `expired`, one closed while the module was paused is not heard.

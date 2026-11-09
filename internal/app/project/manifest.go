@@ -154,6 +154,9 @@ func parseManifest(raw []byte, builtin bool) (parsed, error) {
 		if t.On != "" && t.On != manifest.OnAsk && !builtin {
 			return parsed{}, registry.Invalid("a trigger on %s belongs to the built-in project %s", t.On, master.Name)
 		}
+		if c := m.Command(t.Command); t.On == manifest.OnAsk && c != nil && c.Class == registry.External {
+			return parsed{}, registry.Invalid("a trigger on ask starts a command without the owner, so not %s, which is external", t.Command)
+		}
 	}
 	return parsed{m: m, text: []byte(manifest.Canonical(string(m.Text())))}, nil
 }

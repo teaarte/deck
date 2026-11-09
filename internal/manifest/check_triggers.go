@@ -24,7 +24,7 @@ func (m *Manifest) checkTriggers(fail func(string, ...any)) {
 				fail("%s: command %q cannot be called by triggers", where, t.Command)
 			}
 			in := TriggerInput(t, 1)
-			for _, f := range []string{"process", "topic"} {
+			for _, f := range []string{"process", "topic", "ask", "answer"} {
 				if _, ok := in[f]; ok && !slices.Contains(ObjectOf(c.Input).Fields(), f) {
 					fail("%s: command %q must declare input field %q to be triggered this way", where, t.Command, f)
 				}
@@ -72,8 +72,8 @@ func triggerSource(t Trigger) string {
 	}
 }
 
-// TriggerInput is the command input a trigger passes: its params, plus the finished process for after triggers;
-// deck adds the record of that process when the command takes one.
+// TriggerInput is the command input a trigger passes: its params, plus the finished process for after triggers,
+// the ask with its answer (yes here) for one on ask; deck adds the record of that process when the command takes one.
 func TriggerInput(t Trigger, ref int64) map[string]any {
 	in := map[string]any{}
 	for k, v := range t.Params {
@@ -84,6 +84,8 @@ func TriggerInput(t Trigger, ref int64) map[string]any {
 		in["process"] = ref
 	case t.On == OnMessage:
 		in["topic"] = ref
+	case t.On == OnAsk:
+		in["ask"], in["answer"], in["process"] = ref, AskYes, ref
 	}
 	return in
 }

@@ -75,13 +75,26 @@ func Check(kind, answer string) error {
 
 // New stores an ask a process waits on in the caller's transaction; a zero expires is no deadline.
 func New(ctx context.Context, q *db.Queries, processID int64, kind, text, payload string, expires time.Time) (db.Ask, error) {
-	return q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})
+	a, err := q.CreateAsk(ctx, db.CreateAskParams{ProcessID: processID, Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})
+	return heard(ctx, q, a, err)
 }
 
 // ForProject stores an ask of a project that no process, or the given one, waits on.
 func ForProject(ctx context.Context, q *db.Queries, workspace, project, processID int64, kind, text, payload string, expires time.Time) (db.Ask, error) {
-	return q.CreateProjectAsk(ctx, db.CreateProjectAskParams{ProcessID: sql.NullInt64{Int64: processID, Valid: processID != 0},
+	a, err := q.CreateProjectAsk(ctx, db.CreateProjectAskParams{ProcessID: sql.NullInt64{Int64: processID, Valid: processID != 0},
 		WorkspaceID: workspace, ProjectID: store.ID(project), Kind: kind, Text: text, Payload: payload, ExpiresAt: At(expires)})
+	return heard(ctx, q, a, err)
+}
+
+// Confirmations are the kinds of ask whose close the module of the process that asked hears.
+var Confirmations = []string{KindCall, KindConfirm, KindGrant}
+
+// heard keeps a new confirmation of a process for its module to hear how it closes.
+func heard(ctx context.Context, q *db.Queries, a db.Ask, err error) (db.Ask, error) {
+	if err != nil || !a.ProcessID.Valid || !slices.Contains(Confirmations, a.Kind) {
+		return a, err
+	}
+	return a, q.AddUnheardAsk(ctx, a.ID)
 }
 
 // Remark keeps a message of the owner for an open process; sql.ErrNoRows when the process has finished.

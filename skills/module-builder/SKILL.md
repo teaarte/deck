@@ -184,6 +184,9 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   step that needs an earlier result
   reads it with `process_get`, so keep what the chain needs in records rather than passing it along. Cycles are refused. A chain runs at most five steps deep, counted from the call that started it (a button, a schedule or a trial): a sixth `after` step does not start, and a note of the feed says so. Keep chains short — two `after` triggers on the same step run side by side, so a step that only prepares something can run beside the next one instead of before it. After the Mac slept, each missed schedule runs once; `"skip_missed":
   true` drops the missed run instead (a morning digest that is stale by noon).
+  `{"on": "ask", "command": X}` (one a module) starts X once when a confirmation a process of the module asked the
+  owner for closes, with `ask` (id), `answer` (`yes`, `no` or `expired`) and `process` (the one that asked) — the way
+  to act on the owner's answer instead of polling for it.
 - **Stages** the owner acts on are a `status` field of the record (an `enum`), shown as a board (`"board":
   "status"` on a `list`), where the owner drags an item to its next stage; the other fields of a record the owner
   edits on its page (a `form` of `deck.record_update`), and a command takes the records of its status with

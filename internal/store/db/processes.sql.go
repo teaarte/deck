@@ -391,6 +391,64 @@ func (q *Queries) FindActiveProcess(ctx context.Context, arg FindActiveProcessPa
 	return i, err
 }
 
+const findKeyedProcess = `-- name: FindKeyedProcess :one
+SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id, again, allows, wrote, submitted_at FROM process WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' ORDER BY id LIMIT 1
+`
+
+type FindKeyedProcessParams struct {
+	ProjectID int64
+	Command   string
+	RetryKey  string
+}
+
+// A process of a command started under a key, open or finished.
+func (q *Queries) FindKeyedProcess(ctx context.Context, arg FindKeyedProcessParams) (Process, error) {
+	row := q.db.QueryRowContext(ctx, findKeyedProcess, arg.ProjectID, arg.Command, arg.RetryKey)
+	var i Process
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Command,
+		&i.Kind,
+		&i.State,
+		&i.Provider,
+		&i.SessionID,
+		&i.Input,
+		&i.Result,
+		&i.NotBySchema,
+		&i.Error,
+		&i.StartNote,
+		&i.ParentID,
+		&i.Depth,
+		&i.TriggerID,
+		&i.RetryKey,
+		&i.ManifestRevision,
+		&i.Trial,
+		&i.Folder,
+		&i.Pgid,
+		&i.CeilingMs,
+		&i.DeadlineMs,
+		&i.OutputMs,
+		&i.SilentSinceMs,
+		&i.PauseUntilMs,
+		&i.WaitMessage,
+		&i.WaitFresh,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Alone,
+		&i.Dismissed,
+		&i.ReopenedAt,
+		&i.ErrorType,
+		&i.ErrorDetails,
+		&i.FollowsID,
+		&i.Again,
+		&i.Allows,
+		&i.Wrote,
+		&i.SubmittedAt,
+	)
+	return i, err
+}
+
 const findRecordProcess = `-- name: FindRecordProcess :one
 SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id, again, allows, wrote, submitted_at FROM process p
 WHERE p.project_id = ? AND p.command = ? AND p.trial = ?

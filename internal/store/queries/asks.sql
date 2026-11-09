@@ -154,3 +154,18 @@ DELETE FROM process_remark WHERE id = ? AND process_id = ? AND delivered_at IS N
 
 -- name: ListAnsweredAsksOfProcess :many
 SELECT kind, text, answer FROM ask WHERE process_id = ? AND state IN ('answered', 'used') AND answer != '' ORDER BY id;
+
+
+-- name: AddUnheardAsk :exec
+INSERT OR IGNORE INTO ask_unheard (ask_id) VALUES (?);
+
+
+-- name: ListUnheardAsks :many
+-- The closed confirmations whose module has not heard how they closed; a call deck is still making is not closed yet.
+SELECT a.* FROM ask_unheard u JOIN ask a ON a.id = u.ask_id
+WHERE a.state != 'open' AND NOT EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')
+ORDER BY a.id;
+
+
+-- name: HearAsk :exec
+DELETE FROM ask_unheard WHERE ask_id = ?;

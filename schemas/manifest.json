@@ -153,7 +153,7 @@
         "command": {"$ref": "#/$defs/name"},
         "cron": {"type": "string", "minLength": 1, "description": "Five-field cron in local time."},
         "after": {"$ref": "#/$defs/name", "description": "Runs when this command of the project finishes with a non-null result; the command gets the finished process id as input field process."},
-        "on": {"enum": ["message", "failure", "incident"], "description": "Only in the built-in project master: message runs when the owner writes in a chat topic (input field topic), failure when a process of another project fails (input field process), incident when deck notices something went wrong around a process of another project (input fields process, incident, text)."},
+        "on": {"enum": ["message", "failure", "incident", "ask"], "description": "ask, in any project: runs when a confirmation a process of this project asked the owner for closes (input fields ask, answer — yes, no or expired — and process, the one that asked). Only in the built-in project master: message runs when the owner writes in a chat topic (input field topic), failure when a process of another project fails (input field process), incident when deck notices something went wrong around a process of another project (input fields process, incident, text)."},
         "params": {"type": "object", "description": "Fixed input fields for the command."},
         "skip_missed": {"type": "boolean", "default": false}
       },

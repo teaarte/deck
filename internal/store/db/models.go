@@ -25,6 +25,10 @@ type Ask struct {
 	UnheardAt   sql.NullString
 }
 
+type AskUnheard struct {
+	AskID int64
+}
+
 type Assignment struct {
 	ID          int64
 	WorkspaceID int64

@@ -5,10 +5,13 @@ package asks
 import (
 	"context"
 	"slices"
+	"sync"
 	"time"
 
 	"deck2/internal/ask"
 	"deck2/internal/gateway"
+	"deck2/internal/manifest"
+	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -30,6 +33,10 @@ type Service struct {
 	Said func(processID int64) string
 	// Go runs work beside the calls unless deck stops.
 	Go func(func(context.Context)) bool
+	// Start starts a command of a project, the one a trigger on ask names.
+	Start func(ctx context.Context, project int64, m *manifest.Manifest, command string, input map[string]any, o process.Origin) (int64, error)
+	// hearing keeps one Heard at a time.
+	hearing sync.Mutex
 }
 
 // Commands are the commands of asks.

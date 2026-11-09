@@ -219,3 +219,7 @@ and bring the modules in line.
 - 2026-11-09: an agent command that changes records, documents or files declares `changes` in its result schema,
   an array of strings, one short line each: what changed, where and why; a review of a module checks it, and the
   master compares it with the task it gave. deck does not check it.
+- 2026-11-09: any module may have one trigger `{"on": "ask", "command": X}`: X starts once when a confirmation a
+  process of this module asked the owner for closes, with the input `ask` (id), `answer` (`yes`, `no` or `expired`)
+  and `process` (the one that asked), so its input declares those fields; a module never hears the asks of others.
+  A module that polled for the owner's answers on a schedule takes this trigger instead.

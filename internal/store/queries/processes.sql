@@ -470,3 +470,8 @@ WHERE m.workspace_id = sqlc.arg(workspace_id) AND m.name LIKE 'incident:%'
   AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR m.project_id = CAST(sqlc.arg(project_id) AS INTEGER))
   AND m.value >= sqlc.arg(since) AND m.value < sqlc.arg(until)
 ORDER BY m.value, m.name LIMIT sqlc.arg(lim);
+
+
+-- name: FindKeyedProcess :one
+-- A process of a command started under a key, open or finished.
+SELECT * FROM process WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' ORDER BY id LIMIT 1;

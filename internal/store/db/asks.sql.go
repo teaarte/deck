@@ -10,6 +10,15 @@ import (
 	"database/sql"
 )
 
+const addUnheardAsk = `-- name: AddUnheardAsk :exec
+INSERT OR IGNORE INTO ask_unheard (ask_id) VALUES (?)
+`
+
+func (q *Queries) AddUnheardAsk(ctx context.Context, askID int64) error {
+	_, err := q.db.ExecContext(ctx, addUnheardAsk, askID)
+	return err
+}
+
 const answerAsk = `-- name: AnswerAsk :execrows
 UPDATE ask SET answer = ?, state = 'answered'
 WHERE id = ? AND state = 'open'
@@ -452,6 +461,15 @@ func (q *Queries) GetAsk(ctx context.Context, id int64) (Ask, error) {
 	return i, err
 }
 
+const hearAsk = `-- name: HearAsk :exec
+DELETE FROM ask_unheard WHERE ask_id = ?
+`
+
+func (q *Queries) HearAsk(ctx context.Context, askID int64) error {
+	_, err := q.db.ExecContext(ctx, hearAsk, askID)
+	return err
+}
+
 const lastAskOfProcess = `-- name: LastAskOfProcess :one
 SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask WHERE process_id = ? ORDER BY id DESC LIMIT 1
 `
@@ -747,6 +765,51 @@ func (q *Queries) ListUndeliveredRemarks(ctx context.Context, processID int64) (
 			&i.CreatedAt,
 			&i.DeliveredAt,
 			&i.Author,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnheardAsks = `-- name: ListUnheardAsks :many
+SELECT a.id, a.workspace_id, a.project_id, a.process_id, a.kind, a.text, a.payload, a.answer, a.state, a.created_at, a.answered_at, a.expires_at, a.delivered_at, a.unheard_at FROM ask_unheard u JOIN ask a ON a.id = u.ask_id
+WHERE a.state != 'open' AND NOT EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')
+ORDER BY a.id
+`
+
+// The closed confirmations whose module has not heard how they closed; a call deck is still making is not closed yet.
+func (q *Queries) ListUnheardAsks(ctx context.Context) ([]Ask, error) {
+	rows, err := q.db.QueryContext(ctx, listUnheardAsks)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Ask
+	for rows.Next() {
+		var i Ask
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.ProcessID,
+			&i.Kind,
+			&i.Text,
+			&i.Payload,
+			&i.Answer,
+			&i.State,
+			&i.CreatedAt,
+			&i.AnsweredAt,
+			&i.ExpiresAt,
+			&i.DeliveredAt,
+			&i.UnheardAt,
 		); err != nil {
 			return nil, err
 		}

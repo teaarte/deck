@@ -141,7 +141,7 @@ type parsed struct {
 }
 
 // parseManifest validates a manifest and returns the text to store, upgraded to the current format in the one stored
-// form (manifest.Canonical); only the built-in project answers events of deck.
+// form (manifest.Canonical); only the built-in project answers events of deck other than an ask.
 func parseManifest(raw []byte, builtin bool) (parsed, error) {
 	m, err := manifest.Parse(raw)
 	if err != nil {
@@ -151,7 +151,7 @@ func parseManifest(raw []byte, builtin bool) (parsed, error) {
 		return parsed{}, registry.Invalid("%s", strings.Join(w, "\n"))
 	}
 	for _, t := range m.Triggers {
-		if t.On != "" && !builtin {
+		if t.On != "" && t.On != manifest.OnAsk && !builtin {
 			return parsed{}, registry.Invalid("a trigger on %s belongs to the built-in project %s", t.On, master.Name)
 		}
 	}

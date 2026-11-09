@@ -192,7 +192,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Installed: a.Providers.Installed, Node: a.nodeTransport,
 		Online: func(device int64) bool { return a.Nodes.State(device).Online }, FolderNodes: a.Folders.Nodes, Go: a.bg.Go}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
-		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Said: a.Runner.Said, Go: a.bg.Go}
+		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP,
 		Agent: a.Providers.Agent, Check: a.Providers.Check, Emit: a.Bus.Emit, Go: a.bg.Go}
 	a.Chats = chat.Service{St: st, Emit: a.Bus.Emit, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Work.For,
@@ -247,6 +247,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Work.Follow(a.Bus)
 	a.Health.Follow(a.Bus)
 	a.Answers.Follow(a.Bus)
+	a.Answers.FollowClosed(a.Bus)
 	a.Files.Follow(a.Bus)
 	a.Owners.FollowNodes(a.Bus)
 	a.Health.Derive(a.ctx, 0, nil)
@@ -358,6 +359,7 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Answers.ExpireConfirms(ctx, now)
 	a.Answers.Settle(ctx)
+	a.Answers.Heard(ctx)
 	a.Runner.Due(ctx, now)
 	a.Processes.Due(ctx, now)
 	a.Files.Drain(ctx)

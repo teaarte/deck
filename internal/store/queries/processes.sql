@@ -53,6 +53,14 @@ WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND t
 ORDER BY id DESC LIMIT 1;
 
 
+-- name: FindSameWork :one
+-- The newest open process of a command without a result handed in, of the same topic when topic is not 0.
+SELECT * FROM process
+WHERE project_id = ? AND command = ? AND trial = ? AND finished_at IS NULL AND submitted_at IS NULL
+  AND (CAST(sqlc.arg(topic) AS INTEGER) = 0 OR json_extract(input, '$.topic') = CAST(sqlc.arg(topic) AS INTEGER))
+ORDER BY id DESC LIMIT 1;
+
+
 -- name: FindRecordProcess :one
 -- The newest process of a command for a record that is open without a result handed in, or closed with a run after
 -- it still to start.
@@ -160,7 +168,7 @@ WHERE state = 'running' AND kind = 'agent' AND deadline_ms > CAST(sqlc.arg(now) 
 
 
 -- name: ListRunningChildren :many
-SELECT id, command FROM process WHERE parent_id = ? AND finished_at IS NULL ORDER BY id;
+SELECT id, command, state FROM process WHERE parent_id = ? AND finished_at IS NULL ORDER BY id;
 
 
 -- name: SetProcessGroup :exec

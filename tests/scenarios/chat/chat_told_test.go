@@ -219,3 +219,31 @@ func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
 		t.Fatalf("the same work goes on in its session: %+v", done)
 	}
 }
+
+// TestAWorkHandedOnTellsItsTopicWhereItWentOn: a work of a topic whose model refused it tells the topic it restarted
+// as which process on which model, and then how that one ended.
+func TestAWorkHandedOnTellsItsTopicWhereItWentOn(t *testing.T) {
+	t.Parallel()
+	var from atomic.Int64
+	main := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() != "work" {
+			return harness.HandOver(ctx, c, &from)
+		}
+		return harness.Limited(harness.T0)
+	}}
+	backup := &harness.Fake{ProviderName: "backup", Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		return provider.Result{Text: "Counted: 3 records."}
+	}}
+	e := harness.New(t, harness.WithProvider(main, backup))
+	e.UseModels("master.work", "fake", "backup")
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	topic := e.Say(0, "count the records")
+	failed := e.Told(topic, "error", "ru")
+	next := e.Following(failed.Process)
+	if want := fmt.Sprintf("перезапущена как #%d на модели backup", next); !strings.Contains(failed.Told.Error, want) {
+		t.Fatalf("the topic reads where the work went on: %q, want %q", failed.Told.Error, want)
+	}
+	if done := e.Told(topic, "done", "ru"); done.Process != next || done.Text != "Counted: 3 records." {
+		t.Fatalf("then how the work that went on ended: %+v", done)
+	}
+}

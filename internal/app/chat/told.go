@@ -62,6 +62,10 @@ func (s *Service) tell(ctx context.Context, p db.Process) {
 		return
 	case p.State == process.StateError || p.State == process.StateInterrupted:
 		text = p.Error
+		if fs, err := s.St.Q.ListFollowers(ctx, store.ID(p.ID)); err == nil && len(fs) > 0 {
+			next := fs[len(fs)-1]
+			text = fmt.Sprintf("restarted as #%d on %s: %s", next.ID, next.Provider, p.Error)
+		}
 	case !p.FinishedAt.Valid:
 		asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
 		if len(asks) == 0 {

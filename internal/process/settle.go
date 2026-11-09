@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"deck2/internal/fault"
 	"deck2/internal/gateway"
+	"deck2/internal/manifest"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -82,6 +85,11 @@ func (r *Runner) settle(ctx context.Context, u *run, result string, f *fault.F) 
 		}
 		return
 	}
+	if left := r.leftWork(ctx, u, result); left != nil {
+		clear()
+		r.finish(ctx, u.process, StateError, result, false, left)
+		return
+	}
 	if verr := validate(u.cmd, []byte(result)); verr != nil {
 		clear()
 		r.finish(ctx, u.process, StateDone, result, true, nil)
@@ -126,4 +134,39 @@ func (r *Runner) kept(ctx context.Context, u *run, result string) (string, error
 		results = frozen
 	}
 	return r.keepFiles(ctx, u.project, u.process, results, result)
+}
+
+// leftWork is the failure of an agent turn that ended without a result while processes it started still work, as
+// one that says it waits for them; a turn with a result handed in or by its schema ends done.
+func (r *Runner) leftWork(ctx context.Context, u *run, result string) *fault.F {
+	if !u.agent {
+		return nil
+	}
+	// The master's reply and its answers to failures and incidents start work and end by design.
+	for _, on := range []string{manifest.OnMessage, manifest.OnFailure, manifest.OnIncident} {
+		if u.cmd.Name == u.m.EventCommand(on) {
+			return nil
+		}
+	}
+	if p, err := r.st.Q.GetProcess(ctx, u.process); err != nil || p.SubmittedAt.Valid {
+		return nil
+	}
+	if len(u.cmd.Result) > 0 && validate(u.cmd, []byte(result)) == nil {
+		return nil
+	}
+	kids, err := r.st.Q.ListRunningChildren(ctx, store.ID(u.process))
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, k := range kids {
+		if k.State == StateRunning || k.State == StateWaitingSlot || k.State == StateWaitingRun {
+			names = append(names, fmt.Sprintf("#%d %s", k.ID, k.Command))
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	const left = "the turn ended without a result while the processes it started still run: %s; to wait for a process, call process_get with wait"
+	return fault.New(fault.AgentLeft, fmt.Sprintf(left, strings.Join(names, ", ")))
 }

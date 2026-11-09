@@ -1,6 +1,7 @@
 package docs
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 const (
@@ -264,4 +266,24 @@ func RevertReason(n int64, reason string) string {
 func Description(prompt string) string {
 	line, _, _ := strings.Cut(strings.TrimSpace(prompt), "\n")
 	return strings.TrimSpace(strings.TrimLeft(line, "# "))
+}
+
+// Since refuses a whole text of d from revision base, the one its writer read, when others saved after it: it names
+// their revisions, who saved them and why.
+func Since(ctx context.Context, q *db.Queries, d db.Document, base int64) error {
+	if base == 0 || d.Current <= base {
+		return nil
+	}
+	revs, err := q.ListRevisions(ctx, d.ID)
+	if err != nil {
+		return err
+	}
+	var after []string
+	for _, r := range slices.Backward(revs) {
+		if r.N > base {
+			after = append(after, fmt.Sprintf("revision %d by %s at %s (%s)", r.N, r.Author, r.CreatedAt, untrusted.Line(cmp.Or(r.Reason, "no reason given"), 200)))
+		}
+	}
+	return registry.Conflict("%s changed since you read revision %d: %s. Read it again and make your change on top of it, with old "+
+		"and new parts or the whole text with if_revision=%d", d.Name, base, strings.Join(after, "; "), d.Current)
 }

@@ -32,6 +32,7 @@ func (r *Runner) Due(ctx context.Context, now time.Time) {
 	r.Wake(ctx)
 	r.markSilent(ctx, now)
 	r.purgeEmpty(ctx, now)
+	r.forgetSeen(ctx)
 }
 
 func (r *Runner) stopAtCeiling(ctx context.Context, now time.Time) {

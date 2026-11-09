@@ -203,3 +203,16 @@ and bring the modules in line.
   give `{process}` at once. `process_get` without `wait` of an open process from a turn gives `hint`, how to wait; the
   same look again without `wait` waits up to a minute itself. The third same read in a row with the same answer gets
   one warning after its answer; the turn stops as a loop only if the reads go on.
+- 2026-11-09: a turn that calls an agent command while a process of it goes in the same topic (input `topic`) gets
+  that process back (`running`, `note`) instead of a second one: the same input as it is, another input given to it
+  as a message it takes into its run; a command that runs one at a time gives the one going for the same input. A
+  retry key of its own (retry_key) starts another beside it. The owner's and triggers' calls, and a script's, are as
+  before.
+- 2026-11-09: `document_save` with a whole `text` and `manifest_save` with a whole `manifest`, from a turn, without
+  `if_revision`, are refused as a conflict when others saved the document after the revision the turn read: the
+  refusal names each revision after it, who saved it and why; read it again and change it on top (old and new parts,
+  or the whole text with `if_revision`).
+- 2026-11-09: an agent turn that ends without a result (none handed in, none by its schema) while processes it
+  started still work (running or waiting for a slot or its turn) fails as `agent.left` (whose: model) instead of
+  done; the master's reply, on_error and on_incident are as before. A work of
+  a topic handed on to the next model tells the topic `restarted as #N on <model>`.

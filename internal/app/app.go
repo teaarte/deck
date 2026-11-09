@@ -163,7 +163,8 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Keep: a.Files.Keep, Thumb: a.Files.Thumb, Drop: a.Files.Drop}
 	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Work.Works, Incident: a.Processes.Incident, IsFailure: a.Processes.IsFailure}
 	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Missing: a.missingPrograms, Go: a.bg.Go,
-		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted, Home: h, Fits: a.Work.Fits, Language: a.Settings.Language}
+		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted, Home: h, Fits: a.Work.Fits, Language: a.Settings.Language,
+		Saw: a.Runner.Saw, Seen: a.Runner.Seen}
 	a.Snapshots = snapshots.Service{St: st, Emit: a.Bus.Emit, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, Still: a.Files.Still,
 		Expire: a.Records.Expire}
 	a.Nodes = node.NewHub(cfg.Now, func(device int64, online bool) {
@@ -222,7 +223,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Gateway: a.Gateway, Scheduler: a.Scheduler, Scripts: a.Scripts, LogPath: a.Runner.LogPath, StopServer: a.Host.Stop, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
 		PrepareLater: a.Documents.PrepareLater, Noted: a.Feed.Noted, CheckScreens: a.Screens.CheckScreens,
 		Unassigned: a.Work.Unassigned, Missing: a.missingPrograms, Secret: a.Secrets.Has, DropSecrets: a.Secrets.Drop,
-		Theme: a.Themes.Current}
+		Theme: a.Themes.Current, Saw: a.Runner.Saw, Seen: a.Runner.Seen}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Asks.OnLateAnswer(a.Answers.LateAnswer)

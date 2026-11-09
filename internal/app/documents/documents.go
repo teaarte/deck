@@ -13,6 +13,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -39,6 +40,9 @@ type Service struct {
 	Fits func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
 	// Language is the language of the interface of a workspace, the picture's.
 	Language func(ctx context.Context, workspace int64) string
+	// Saw notes the revision of a document a running turn read or saved; Seen gives it back, 0 when none.
+	Saw  func(turn, doc, revision int64)
+	Seen func(turn, doc int64) int64
 }
 
 type documentView struct {
@@ -238,6 +242,9 @@ func (s *Service) documentGet(ctx context.Context, act registry.Actor, in docume
 	}
 	v := s.docView(ctx, d)
 	v.Revision, v.Text = r.N, r.Text
+	if r.N == d.Current && gateway.Live(ctx) && act.ProcessID != 0 {
+		s.Saw(act.ProcessID, d.ID, r.N)
+	}
 	if r.N == d.Current {
 		if err := docs.CheckMemory(d.Kind, d.Name, r.Text); err != nil {
 			v.Warning = "this text would not save as it is: " + err.Error()
@@ -275,6 +282,7 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 		return nil, err
 	}
 	var d db.Document
+	var saved int64
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		ref := docs.Ref{Scope: sc, Name: in.Name}
 		if in.Record != 0 {
@@ -303,6 +311,9 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 		if err := mayWrite(ctx, q, act, sc, in.Kind, in.Name); err != nil {
 			return err
 		}
+		if err := s.behind(ctx, q, act, ref, in); err != nil {
+			return err
+		}
 		if err := editText(ctx, q, ref, &in); err != nil {
 			return err
 		}
@@ -315,15 +326,17 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 				return err
 			}
 		}
-		var n int64
 		var changed bool
-		if d, n, changed, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil || !changed {
+		if d, saved, changed, err = docs.Save(ctx, q, ref, in.Kind, in.Text, act.Author(), in.Reason); err != nil || !changed {
 			return err
 		}
-		return s.docChanged(ctx, q, act, d, n, in.Reason)
+		return s.docChanged(ctx, q, act, d, saved, in.Reason)
 	})
 	if err != nil {
 		return nil, err
+	}
+	if gateway.Live(ctx) && act.ProcessID != 0 && saved != 0 {
+		s.Saw(act.ProcessID, d.ID, saved)
 	}
 	v := s.docView(ctx, d)
 	v.Warning = lessonWarning(ctx, s.St.Q, d, in.Text)
@@ -429,6 +442,21 @@ func unattended(ctx context.Context, q *db.Queries, act registry.Actor) (bool, e
 		id = p.ParentID.Int64
 	}
 	return false, nil
+}
+
+// behind refuses a whole text a turn saves without if_revision over what others saved after the revision it read.
+func (s *Service) behind(ctx context.Context, q *db.Queries, act registry.Actor, ref docs.Ref, in documentSaveIn) error {
+	if !gateway.Live(ctx) || act.ProcessID == 0 || in.Text == "" || len(in.Old) > 0 || in.IfRevision != 0 {
+		return nil
+	}
+	d, err := docs.Find(ctx, q, ref)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	return docs.Since(ctx, q, d, s.Seen(act.ProcessID, d.ID))
 }
 
 // editText checks if_revision and, for old and new parts, makes the text of the save from the current one.

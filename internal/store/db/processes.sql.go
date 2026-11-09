@@ -460,6 +460,73 @@ func (q *Queries) FindRecordProcess(ctx context.Context, arg FindRecordProcessPa
 	return i, err
 }
 
+const findSameWork = `-- name: FindSameWork :one
+SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, pause_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id, again, allows, wrote, submitted_at FROM process
+WHERE project_id = ? AND command = ? AND trial = ? AND finished_at IS NULL AND submitted_at IS NULL
+  AND (CAST(?4 AS INTEGER) = 0 OR json_extract(input, '$.topic') = CAST(?4 AS INTEGER))
+ORDER BY id DESC LIMIT 1
+`
+
+type FindSameWorkParams struct {
+	ProjectID int64
+	Command   string
+	Trial     int64
+	Topic     int64
+}
+
+// The newest open process of a command without a result handed in, of the same topic when topic is not 0.
+func (q *Queries) FindSameWork(ctx context.Context, arg FindSameWorkParams) (Process, error) {
+	row := q.db.QueryRowContext(ctx, findSameWork,
+		arg.ProjectID,
+		arg.Command,
+		arg.Trial,
+		arg.Topic,
+	)
+	var i Process
+	err := row.Scan(
+		&i.ID,
+		&i.ProjectID,
+		&i.Command,
+		&i.Kind,
+		&i.State,
+		&i.Provider,
+		&i.SessionID,
+		&i.Input,
+		&i.Result,
+		&i.NotBySchema,
+		&i.Error,
+		&i.StartNote,
+		&i.ParentID,
+		&i.Depth,
+		&i.TriggerID,
+		&i.RetryKey,
+		&i.ManifestRevision,
+		&i.Trial,
+		&i.Folder,
+		&i.Pgid,
+		&i.CeilingMs,
+		&i.DeadlineMs,
+		&i.OutputMs,
+		&i.SilentSinceMs,
+		&i.PauseUntilMs,
+		&i.WaitMessage,
+		&i.WaitFresh,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.Alone,
+		&i.Dismissed,
+		&i.ReopenedAt,
+		&i.ErrorType,
+		&i.ErrorDetails,
+		&i.FollowsID,
+		&i.Again,
+		&i.Allows,
+		&i.Wrote,
+		&i.SubmittedAt,
+	)
+	return i, err
+}
+
 const findTriggeredChild = `-- name: FindTriggeredChild :one
 SELECT c.id, c.project_id, c.command, c.kind, c.state, c.provider, c.session_id, c.input, c.result, c.not_by_schema, c.error, c.start_note, c.parent_id, c.depth, c.trigger_id, c.retry_key, c.manifest_revision, c.trial, c.folder, c.pgid, c.ceiling_ms, c.deadline_ms, c.output_ms, c.silent_since_ms, c.pause_until_ms, c.wait_message, c.wait_fresh, c.started_at, c.finished_at, c.alone, c.dismissed, c.reopened_at, c.error_type, c.error_details, c.follows_id, c.again, c.allows, c.wrote, c.submitted_at FROM process c JOIN process p ON p.id = c.parent_id
 WHERE c.parent_id = ? AND c.trigger_id = ? AND c.started_at >= COALESCE(p.submitted_at, p.finished_at) ORDER BY c.id LIMIT 1
@@ -1553,12 +1620,13 @@ func (q *Queries) ListRecordProcesses(ctx context.Context, arg ListRecordProcess
 }
 
 const listRunningChildren = `-- name: ListRunningChildren :many
-SELECT id, command FROM process WHERE parent_id = ? AND finished_at IS NULL ORDER BY id
+SELECT id, command, state FROM process WHERE parent_id = ? AND finished_at IS NULL ORDER BY id
 `
 
 type ListRunningChildrenRow struct {
 	ID      int64
 	Command string
+	State   string
 }
 
 func (q *Queries) ListRunningChildren(ctx context.Context, parentID sql.NullInt64) ([]ListRunningChildrenRow, error) {
@@ -1570,7 +1638,7 @@ func (q *Queries) ListRunningChildren(ctx context.Context, parentID sql.NullInt6
 	var items []ListRunningChildrenRow
 	for rows.Next() {
 		var i ListRunningChildrenRow
-		if err := rows.Scan(&i.ID, &i.Command); err != nil {
+		if err := rows.Scan(&i.ID, &i.Command, &i.State); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

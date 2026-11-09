@@ -117,6 +117,18 @@ func RecordOf(input string) int64 {
 	return id
 }
 
+// TopicOf is the chat topic the input of a process names, or 0.
+func TopicOf(input string) int64 {
+	var in struct {
+		Topic json.Number `json:"topic"`
+	}
+	if json.Unmarshal([]byte(input), &in) != nil {
+		return 0
+	}
+	id, _ := in.Topic.Int64()
+	return id
+}
+
 // thread is what the processes of the record of p did before it, the latest last; empty without a record.
 func (r *Runner) thread(ctx context.Context, p db.Process) string {
 	record := RecordOf(p.Input)

@@ -3,6 +3,7 @@ package process
 import (
 	"cmp"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"slices"
@@ -209,4 +210,38 @@ func (r *Runner) Polled(turn, at int64, waits bool) int {
 		lt.polls++
 	}
 	return lt.polls
+}
+
+// Saw notes the revision of a document an open process read or saved; it stays through the turns of the process.
+func (r *Runner) Saw(process, doc, revision int64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.seen[process] == nil {
+		r.seen[process] = map[int64]int64{}
+	}
+	r.seen[process][doc] = revision
+}
+
+// Seen is the revision of a document an open process read or saved last, 0 when none.
+func (r *Runner) Seen(process, doc int64) int64 {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.seen[process][doc]
+}
+
+// forgetSeen drops what the processes that ended read.
+func (r *Runner) forgetSeen(ctx context.Context) {
+	r.mu.Lock()
+	ids := make([]int64, 0, len(r.seen))
+	for id := range r.seen {
+		ids = append(ids, id)
+	}
+	r.mu.Unlock()
+	for _, id := range ids {
+		if p, err := r.st.Q.GetProcess(ctx, id); err == nil && p.FinishedAt.Valid || errors.Is(err, sql.ErrNoRows) {
+			r.mu.Lock()
+			delete(r.seen, id)
+			r.mu.Unlock()
+		}
+	}
 }

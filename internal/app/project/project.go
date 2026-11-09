@@ -39,6 +39,9 @@ type Service struct {
 	Keep func(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error)
 	// PrepareLater records the health of the script commands of a project in the background.
 	PrepareLater func(projectID int64)
+	// Saw notes the revision of a document a running turn read or saved; Seen gives it back, 0 when none.
+	Saw  func(turn, doc, revision int64)
+	Seen func(turn, doc int64) int64
 	// Noted lists a change made without the owner.
 	Noted func(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, what, reason string) error
 	// CheckScreens names the blocks of the screens of a saved manifest that fail on the data there is now.

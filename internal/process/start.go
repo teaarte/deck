@@ -27,6 +27,8 @@ import (
 type Started struct {
 	Process int64 `json:"process"`
 	Running bool  `json:"running,omitempty"`
+	// Note tells a turn that called the same work again what to do with the one going.
+	Note string `json:"note,omitempty"`
 }
 
 // Origin is who started a process: the process that called or triggered it, the trigger, the retry key;
@@ -55,6 +57,9 @@ type Origin struct {
 	Provider string
 	// Follows is the failed process this one repeats or continues.
 	Follows int64
+	// Same joins an agent command a turn calls to its process going in the same topic, or to any going of a command
+	// that runs one at a time, instead of starting another.
+	Same bool
 	// Allows are the calls the owner's press named, as gateway.Allows keeps them: the run makes them without asking.
 	Allows string
 	// again is the one run after Follows with the last call that came for its record while it ran.
@@ -129,7 +134,7 @@ func (r *Runner) Begin(ctx context.Context, projectID int64, m *manifest.Manifes
 		return Started{}, err
 	}
 	id, err := r.launch(ctx, projectID, m, cmd, at, a, o)
-	return Started{Process: id, Running: a.reused && id != 0}, err
+	return Started{Process: id, Running: a.reused && id != 0, Note: a.same}, err
 }
 
 // placed is where a command runs: its kind, the provider of an agent, its session and folder.
@@ -190,6 +195,7 @@ type admitted struct {
 	p       db.Process
 	refused error
 	reused  bool
+	same    string
 	joined  string
 	remark  int64
 	in      []byte
@@ -292,6 +298,39 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
+		}
+	}
+	if o.Same && o.Key == "" && o.Follows == 0 && at.kind == KindAgent && RecordOf(string(a.in)) == 0 {
+		if topic := TopicOf(string(a.in)); topic != 0 || cmd.Runs == manifest.RunsOne {
+			old, err := q.FindSameWork(ctx, db.FindSameWorkParams{ProjectID: projectID, Command: command, Trial: store.Bool(trial), Topic: topic})
+			mine := false
+			if err == nil {
+				mine, err = ancestor(ctx, q, o.Parent, old.ID)
+			}
+			// Another call of a topic goes to the work of the topic as a message; another input of a command that
+			// runs one at a time waits its turn.
+			if err == nil && !mine && (topic != 0 || old.Input == string(a.in)) {
+				a.p, a.reused = old, true
+				a.same = fmt.Sprintf("process %d of %s is already going, so deck did not start another", old.ID, command)
+				if old.Input == string(a.in) {
+					a.same += ". Read what it does with process_chat_get, wait for it with process_get and wait, or call again with a retry_key of your own to run another beside it"
+					return nil
+				}
+				a.same = fmt.Sprintf("process %d of %s is already going in this topic, so deck gave it your call as a message and it does that too. "+
+					"Read what it does with process_chat_get or wait for it with process_get and wait", old.ID, command)
+				if err := bindInput(ctx, q, cmd, projectID, old.ID, a.input); err != nil {
+					return err
+				}
+				if err := q.SetAgain(ctx, db.SetAgainParams{Again: string(a.in), ID: old.ID}); err != nil {
+					return err
+				}
+				a.joined = topicText(cmd, a.in, o)
+				a.remark, err = q.CreateDeckRemark(ctx, db.CreateDeckRemarkParams{ProcessID: old.ID, Text: a.joined, CreatedAt: r.stamp().String})
+				return err
+			}
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return err
+			}
 		}
 	}
 	depth := int64(1)

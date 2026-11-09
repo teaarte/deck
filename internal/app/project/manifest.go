@@ -9,6 +9,7 @@ import (
 	"deck2/internal/access"
 	"deck2/internal/docs"
 	"deck2/internal/events"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -45,6 +46,9 @@ func (s *Service) manifestGet(ctx context.Context, act registry.Actor, in manife
 	if err != nil {
 		return manifestView{}, err
 	}
+	if gateway.Live(ctx) && act.ProcessID != 0 {
+		s.Saw(act.ProcessID, d.ID, d.Current)
+	}
 	v := manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: r.Text}
 	v.Warnings = append(v.Warnings, s.problems(ctx, p)...)
 	if m, err := docs.ManifestAt(ctx, s.St.Q, p.ID, d.Current); err == nil {
@@ -67,10 +71,27 @@ func (s *Service) manifestSave(ctx context.Context, act registry.Actor, in manif
 	if err != nil {
 		return nil, err
 	}
+	whole := len(in.Old) == 0 && in.IfRevision == 0
 	if err := s.edited(ctx, p, &in); err != nil {
 		return nil, err
 	}
-	return s.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision)
+	d, err := docs.Find(ctx, s.St.Q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName})
+	if err != nil {
+		return nil, err
+	}
+	if whole && gateway.Live(ctx) && act.ProcessID != 0 {
+		// A whole manifest of a turn goes only over the revision the turn read.
+		base := s.Seen(act.ProcessID, d.ID)
+		if err := docs.Since(ctx, s.St.Q, d, base); err != nil {
+			return nil, err
+		}
+		in.IfRevision = base
+	}
+	saved, err := s.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision)
+	if err == nil && gateway.Live(ctx) && act.ProcessID != 0 && saved.Revision != 0 {
+		s.Saw(act.ProcessID, d.ID, saved.Revision)
+	}
+	return saved, err
 }
 
 // edited puts the whole manifest a save gives in in.Manifest: as it came, or the current one with its old parts

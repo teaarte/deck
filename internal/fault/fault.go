@@ -15,7 +15,9 @@ const (
 	ModelUnavailable = "model.unavailable"
 	ModelLogin       = "model.login"
 	// AgentLoop is an agent that made the same call of a tool with the same answer again and again.
-	AgentLoop    = "agent.loop"
+	AgentLoop = "agent.loop"
+	// AgentLeft is an agent whose turn ended without a result while the processes it started still worked.
+	AgentLeft    = "agent.left"
 	DeckTools    = "deck.tools"
 	DeckRestart  = "deck.restart"
 	DeckInternal = "deck.internal"
@@ -44,7 +46,7 @@ const (
 )
 
 var whose = map[string]string{
-	ModelLimit: OfModel, ModelUnavailable: OfModel, ModelLogin: OfModel, AgentLoop: OfModel,
+	ModelLimit: OfModel, ModelUnavailable: OfModel, ModelLogin: OfModel, AgentLoop: OfModel, AgentLeft: OfModel,
 	DeckTools: OfDeck, DeckRestart: OfDeck, DeckInternal: OfDeck, DeckStopped: OfDeck,
 	Timeout: OfModule, ScriptFailed: OfModule, ResultInvalid: OfModule, TaskFailed: OfModule, InputInvalid: OfModule,
 	ProgramMissing: OfEnvironment, Network: OfEnvironment, Killed: OfEnvironment,
@@ -203,7 +205,7 @@ func FromScript(t string) string {
 // said is a failure by its type in the owner's words, a phrase of deck to translate.
 var said = map[string]string{
 	ModelLimit: "the model's usage limit", ModelUnavailable: "the model did not answer", ModelLogin: "the model wants a login",
-	AgentLoop: "the agent went round in circles", DeckTools: "deck's tools failed", DeckRestart: "deck restarted",
+	AgentLoop: "the agent went round in circles", AgentLeft: "the agent did not wait for the work it started", DeckTools: "deck's tools failed", DeckRestart: "deck restarted",
 	DeckInternal: "an error of deck", DeckStopped: "deck stopped it", Timeout: "it ran out of time", Network: "the network failed",
 	RightsDenied: "a right was refused", Stopped: "you stopped it", TaskFailed: "the agent reported an error",
 	Killed: "a signal from outside deck killed it",

@@ -23,6 +23,16 @@ func joinText(cmd *manifest.Command, in []byte, o Origin) string {
 		"its input adds to your task, then give one result for both.\n%s", cmd.Name, RecordOf(string(in)), by, inputData(string(in)))
 }
 
+// topicText is what a running agent process of a topic reads of another call of its command in that topic.
+func topicText(cmd *manifest.Command, in []byte, o Origin) string {
+	by := ""
+	if o.Parent != 0 {
+		by = fmt.Sprintf(" by process #%d", o.Parent)
+	}
+	return fmt.Sprintf("deck: %s was called again in your topic while you work%s. Take this call into this run: do what "+
+		"its input adds to your task, then give one result for both.\n%s", cmd.Name, by, inputData(string(in)))
+}
+
 // join gives a running agent process the message of another call for its record, kept as remark: in its turn when
 // the provider takes it, else right after the turn; the files of the call come with it.
 func (r *Runner) join(ctx context.Context, processID, remark int64, text string, cmd *manifest.Command, input map[string]any) {

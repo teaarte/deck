@@ -37,6 +37,8 @@ type Service struct {
 	// Home is where the picture of the memory map is written; Fits are the models a command starts on, in order.
 	Home home.Layout
 	Fits func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
+	// Language is the language of the interface of a workspace, the picture's.
+	Language func(ctx context.Context, workspace int64) string
 }
 
 type documentView struct {

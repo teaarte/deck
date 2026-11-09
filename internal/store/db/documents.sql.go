@@ -637,15 +637,16 @@ func (q *Queries) SetDocumentCurrent(ctx context.Context, arg SetDocumentCurrent
 }
 
 const skillAuthors = `-- name: SkillAuthors :many
-SELECT d.name, r.author FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+SELECT d.name, CAST(EXISTS (SELECT 1 FROM document_revision r WHERE r.document_id = d.id AND r.author = 'owner') AS INTEGER) AS owned
+FROM document d
 WHERE d.workspace_id = ?1 AND d.project_id IS NULL AND d.kind = 'skill' AND d.deleted_at IS NULL
   AND d.name LIKE '%/SKILL.md'
 ORDER BY d.name
 `
 
 type SkillAuthorsRow struct {
-	Name   string
-	Author string
+	Name  string
+	Owned int64
 }
 
 func (q *Queries) SkillAuthors(ctx context.Context, workspaceID int64) ([]SkillAuthorsRow, error) {
@@ -657,7 +658,7 @@ func (q *Queries) SkillAuthors(ctx context.Context, workspaceID int64) ([]SkillA
 	var items []SkillAuthorsRow
 	for rows.Next() {
 		var i SkillAuthorsRow
-		if err := rows.Scan(&i.Name, &i.Author); err != nil {
+		if err := rows.Scan(&i.Name, &i.Owned); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

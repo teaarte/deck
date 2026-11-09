@@ -194,4 +194,6 @@ and bring the modules in line.
   command, source), `nodes` (the owner's memory, modules, summaries of topics, skills, sleep, review, on_error,
   on_incident with models, schedule and last run, the agents' own memory: off, repeated failures), `repeats` (the
   commands that failed the same way more than once in `days`, 30 by default, trials and runs handed on aside) and
-  `picture`, a drawing of what feeds what in the master's data folder. Settings has a tab Memory of it.
+  `picture`, a drawing of what feeds what in the master's data folder, in the language of the workspace. Settings has
+  a tab Memory of it. A path of a data folder in `item.file` of a media block may end with `?v=<version>`: the file
+  is the same, its address changes with the version, so the client reads it again.

@@ -1,10 +1,14 @@
 package documents
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -136,7 +140,7 @@ func (s *Service) memoryMap(ctx context.Context, act registry.Actor, in memoryMa
 	}
 	edited := 0
 	for _, sk := range skills {
-		if sk.Author == registry.Owner {
+		if sk.Owned == 1 {
 			edited++
 		}
 	}
@@ -179,7 +183,7 @@ func (s *Service) memoryMap(ctx context.Context, act registry.Actor, in memoryMa
 		nodeRow{ID: "repeats", Title: manifest.Tr(ws, "Repeated failures"), Icon: "repeat",
 			Text: say("%d repeats in %d commands", repeats, len(rs)), Meta: say("last %d days", in.Days), Tone: tone(repeats > 0, "warn")},
 	)
-	pic, err := s.picture(mp, out, ws)
+	pic, err := s.picture(ctx, mp, out)
 	if err != nil {
 		return out, err
 	}
@@ -286,12 +290,22 @@ func tone(on bool, t string) string {
 	return ""
 }
 
-// picture writes the picture of what feeds what in the data folder of the master; its name.
-func (s *Service) picture(mp db.Project, m memoryMap, ws map[string]string) (string, error) {
-	if s.Home.Work() == "" {
-		return MapPicture, nil
+// picture writes the picture of what feeds what in the data folder of the master when it changed, in the language of
+// the workspace; its name with the version of its text.
+func (s *Service) picture(ctx context.Context, mp db.Project, m memoryMap) (string, error) {
+	lang := ""
+	if s.Language != nil {
+		lang = s.Language(ctx, mp.WorkspaceID)
 	}
-	return MapPicture, home.WriteFile(filepath.Join(s.Home.Data(mp.ID), MapPicture), []byte(mapSVG(m, ws)))
+	svg := []byte(mapSVG(m, words.In(lang)))
+	sum := sha256.Sum256(svg)
+	path := filepath.Join(s.Home.Data(mp.ID), MapPicture)
+	if old, err := os.ReadFile(path); err != nil || !bytes.Equal(old, svg) {
+		if err := home.WriteFile(path, svg); err != nil {
+			return "", err
+		}
+	}
+	return MapPicture + "?v=" + hex.EncodeToString(sum[:6]), nil
 }
 
 func (s *Service) mapCommands() []*registry.Command {

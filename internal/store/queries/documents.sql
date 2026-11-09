@@ -107,7 +107,8 @@ JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
 WHERE d.workspace_id = sqlc.arg(workspace_id) AND d.name LIKE 'topics/%/summary.md' AND d.deleted_at IS NULL;
 
 -- name: SkillAuthors :many
-SELECT d.name, r.author FROM document d JOIN document_revision r ON r.document_id = d.id AND r.n = d.current
+SELECT d.name, CAST(EXISTS (SELECT 1 FROM document_revision r WHERE r.document_id = d.id AND r.author = 'owner') AS INTEGER) AS owned
+FROM document d
 WHERE d.workspace_id = sqlc.arg(workspace_id) AND d.project_id IS NULL AND d.kind = 'skill' AND d.deleted_at IS NULL
   AND d.name LIKE '%/SKILL.md'
 ORDER BY d.name;

@@ -163,7 +163,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Keep: a.Files.Keep, Thumb: a.Files.Thumb, Drop: a.Files.Drop}
 	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Work.Works, Incident: a.Processes.Incident, IsFailure: a.Processes.IsFailure}
 	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Missing: a.missingPrograms, Go: a.bg.Go,
-		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted, Home: h, Fits: a.Work.Fits}
+		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted, Home: h, Fits: a.Work.Fits, Language: a.Settings.Language}
 	a.Snapshots = snapshots.Service{St: st, Emit: a.Bus.Emit, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, Still: a.Files.Still,
 		Expire: a.Records.Expire}
 	a.Nodes = node.NewHub(cfg.Now, func(device int64, online bool) {

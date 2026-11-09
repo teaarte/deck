@@ -37,16 +37,21 @@ func (s *Service) File(ctx context.Context, p db.Project, ref any) (map[string]a
 			}
 			return s.File(ctx, owner, rest)
 		}
+		// A version after the path, ?v=<it>, changes the address of a file whose text changed.
+		path, version, _ := strings.Cut(path, "?v=")
 		f, err := s.dataFile(p.ID, path)
 		if err != nil {
 			return nil, fmt.Errorf("no file %q in the data folder of %s; a stored file is named by its id", path, p.Name)
 		}
 		defer f.Close()
 		fi, _ := f.Stat()
-		at := "/api/files/data/" + url.PathEscape(p.Name) + "/" + escapePath(path)
+		at, sep := "/api/files/data/"+url.PathEscape(p.Name)+"/"+escapePath(path), "?"
+		if version != "" {
+			at, sep = at+"?v="+url.QueryEscape(version), "&"
+		}
 		out := map[string]any{"name": fi.Name(), "type": fileType(fi.Name()), "size": fi.Size(), "url": at}
 		if w, h := lightOf(f); w > 0 {
-			out["thumb"], out["width"], out["height"] = at+"?thumb=1", w, h
+			out["thumb"], out["width"], out["height"] = at+sep+"thumb=1", w, h
 		}
 		return out, nil
 	}

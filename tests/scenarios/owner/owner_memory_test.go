@@ -3,9 +3,14 @@ package owner
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"deck2/internal/home"
+	"deck2/internal/store/db"
 	"deck2/tests/harness"
 )
 
@@ -42,8 +47,23 @@ func TestTheMemoryTabMapsMemoryWithAPictureAndButtons(t *testing.T) {
 
 	var files []struct{ Title, Type, URL, Error string }
 	_ = json.Unmarshal(e.SettingsBlock("What feeds what", map[string]any{"tab": "Memory"})["files"], &files)
-	if len(files) != 1 || files[0].Error != "" || files[0].URL != "/api/files/data/master/memory-map.svg" {
-		t.Fatalf("the picture is a file of the master: %+v", files)
+	if len(files) != 1 || files[0].Error != "" || !strings.HasPrefix(files[0].URL, "/api/files/data/master/memory-map.svg?v=") {
+		t.Fatalf("the picture is a file of the master with the version of its text: %+v", files)
+	}
+	mp, err := e.App.Store.Q.GetProjectByName(t.Context(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	picture := filepath.Join(home.Layout(e.Home).Data(mp.ID), "memory-map.svg")
+	before, err := os.Stat(picture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	var again struct{ Picture []struct{ File string } }
+	e.Must("deck.memory_map", nil, &again)
+	if after, _ := os.Stat(picture); !after.ModTime().Equal(before.ModTime()) || !strings.HasSuffix(files[0].URL, strings.TrimPrefix(again.Picture[0].File, "master/memory-map.svg")) {
+		t.Fatalf("a read of memory that did not change writes no picture and keeps its address: %v %v %+v", before.ModTime(), after.ModTime(), again)
 	}
 	code, svg := e.Do("GET", files[0].URL, nil)
 	if code != 200 || !strings.HasPrefix(string(svg), "<svg") || !strings.Contains(string(svg), `data-node="sleep"`) ||
@@ -64,6 +84,36 @@ func TestTheMemoryTabMapsMemoryWithAPictureAndButtons(t *testing.T) {
 	if p := parts["Own memory of the agents"]; !strings.HasPrefix(p.Text, "Off") {
 		t.Fatalf("the agents keep no memory of their own: %+v", p)
 	}
+
+	e.Must("deck.document_save", map[string]any{"name": "memory/likes-coffee.md", "kind": "memory",
+		"text": harness.Fact("likes-coffee", "user", "The owner drinks coffee after lunch")}, nil)
+	var changed struct{ Picture []struct{ File string } }
+	e.Must("deck.memory_map", nil, &changed)
+	if changed.Picture[0].File == again.Picture[0].File {
+		t.Fatalf("a number that changed gives the picture another address: %+v", changed)
+	}
+	if _, svg := e.Do("GET", "/api/files/data/"+changed.Picture[0].File, nil); !strings.Contains(string(svg), "2 facts") {
+		t.Fatalf("the picture has the new number: %s", svg)
+	}
+
+	var skill struct{ Text string }
+	e.Must("deck.document_get", map[string]any{"name": "skills/memory/SKILL.md"}, &skill)
+	e.Must("deck.document_save", map[string]any{"name": "skills/memory/SKILL.md", "text": skill.Text + "\nThe owner's own line.\n"}, nil)
+	// A revision of deck after the owner's, as Ship leaves one when it merges what it ships.
+	e.PlantRevision("", "skills/memory/SKILL.md", skill.Text+"\nThe owner's own line.\nDeck's new line.\n")
+	for _, l := range lines("Parts of memory") {
+		if l.Title == "Skills" && !strings.HasSuffix(l.Text, "1 changed by you") {
+			t.Fatalf("a skill the owner edited counts while deck wrote after them: %+v", l)
+		}
+	}
+
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	var ru struct{ Picture []struct{ File string } }
+	e.Must("deck.memory_map", nil, &ru)
+	if _, svg := e.Do("GET", "/api/files/data/"+ru.Picture[0].File, nil); !strings.Contains(string(svg), "Сон") {
+		t.Fatalf("the picture speaks the language of the workspace, whoever read it: %s", svg)
+	}
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "auto"}, nil)
 
 	ls := lines("Lessons")
 	if len(ls) != 1 || ls[0].Title != "site-waits" || labels(ls[0]) != "Open,Delete" || ls[0].Meta != "shop · collect" {

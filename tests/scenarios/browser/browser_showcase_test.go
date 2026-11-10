@@ -52,6 +52,17 @@ var pricesManifest = harness.Manifest(`{"title": "Price watch",
       "series": [{"label": "Price", "y": "price"}], "format": "money", "currency": "USD"}]}],
   "menu": ["main"]}`)
 
+// mailerManifest is a demo module that comes as a draft: a schedule, a command that sends mail out and a site it reads.
+var mailerManifest = harness.Manifest(`{"title": "Weekly mailer",
+  "commands": [
+    {"name": "collect", "title": "Collect", "description": "Collects the week's links.", "class": "internal", "input": {"type": "object", "properties": {}},
+     "executor": {"type": "agent", "prompt": "Collect the week's links."}, "result": {"type": "object"}},
+    {"name": "send", "title": "Send", "description": "Mails the week's links to the owner.", "class": "external",
+     "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
+     "executor": {"type": "agent", "prompt": "Mail the links."}, "result": {"type": "object"}}],
+  "triggers": [{"command": "collect", "cron": "0 9 * * 1"}, {"command": "send", "after": "collect"}],
+  "domains": {"read": ["news.ycombinator.com"]}}`)
+
 // digestManifest is a demo module of the morning's news: a list widget.
 var digestManifest = harness.Manifest(`{"title": "Morning digest",
   "collections": [{"name": "items", "description": "A story.", "key": "title", "display": "title",
@@ -67,7 +78,7 @@ func showcaseAgent(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: []byte(`{}`)}
 	}
 	if c.Command() == "share" {
-		c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"question": "What goes into this week's digest?",
+		c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{"header": "This week's digest", "question": "What goes into this week's digest?",
 			"options": []map[string]any{{"label": "Everything read", "description": "five articles"}, {"label": "Only the best two"}, {"label": "Skip this week"}}}}})
 		return provider.Result{Structured: []byte(`{}`)}
 	}
@@ -82,11 +93,11 @@ func showcaseAgent(ctx context.Context, c *harness.Call) provider.Result {
 }
 
 // TestRealBrowserShowcase: deck on demo modules as the README shows it: the tiles with live widgets, Today with one
-// decision, a module screen, Deki answering with a chart beside it, and the tiles on a phone.
+// decision, the tiles on a phone, Deki answering with a chart beside a module screen, and a draft before enabling.
 func TestRealBrowserShowcase(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()
-	e := harness.New(t, harness.WithAgent(showcaseAgent))
+	e := harness.New(t, harness.WithProvider(&harness.Fake{ProviderName: "claude-code", Script: showcaseAgent}))
 	reading := e.Project("reading", readingManifest)
 	e.Project("prices", pricesManifest)
 	e.Project("digest", digestManifest)
@@ -124,15 +135,22 @@ func TestRealBrowserShowcase(t *testing.T) {
 	b.call("browser_resize", map[string]any{"width": 1440, "height": 540})
 	b.until("the widgets kept in a lower window", `document.querySelector('[data-cell="prices"] [data-widget="2x1"] svg')`)
 	b.shot("readme-tiles")
-	b.call("browser_resize", map[string]any{"width": 1440, "height": 960})
 
-	b.open(b.base + "/#/deck/cockpit")
+	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
+	b.open(b.base + "/?reload=2#/")
+	b.until("the tiles on a phone", `document.querySelector('[data-phone-tabs]') && document.querySelector('[data-cell="reading"] [data-widget]')`)
+	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
+		t.Fatalf("the tiles fit the phone: %s", got)
+	}
+	b.call("browser_take_screenshot", map[string]any{"filename": "web-readme-phone.png"})
+
+	b.call("browser_resize", map[string]any{"width": 1440, "height": 960})
+	b.open(b.base + "/?reload=3#/deck/cockpit")
 	b.until("one decision on Today", `document.querySelector('[data-focus]')?.dataset.left === '1'`)
 	b.shot("readme-today")
 
 	b.open(b.base + "/#/p/reading/list")
 	b.until("the module screen with its panel, chart and table", `document.querySelector('[data-side]') && document.querySelector('[data-block] svg') && document.querySelectorAll('[data-grid] tbody tr').length === 6`)
-	b.shot("readme-module")
 
 	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
 	b.until("the chat", `document.querySelector('[data-chat-input]')`)
@@ -143,11 +161,14 @@ func TestRealBrowserShowcase(t *testing.T) {
 	b.eval(`(document.querySelector('[data-chat-close]').click(), '')`)
 	b.until("the chat closed", `!document.querySelector('[data-chat-input]')?.checkVisibility()`)
 
-	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
-	b.open(b.base + "/?reload=2#/")
-	b.until("the tiles on a phone", `document.querySelector('[data-phone-tabs]') && document.querySelector('[data-cell="reading"] [data-widget]')`)
-	if got := b.eval(`String(document.documentElement.scrollWidth <= innerWidth + 1)`); got != "true" {
-		t.Fatalf("the tiles fit the phone: %s", got)
+	_, tok := e.Token("import", "deck.*")
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "mailer", "manifest": mailerManifest}); code != 200 {
+		t.Fatalf("the mailer comes as a draft: %d %s", code, out)
 	}
-	b.call("browser_take_screenshot", map[string]any{"filename": "web-readme-phone.png"})
+	b.call("browser_resize", map[string]any{"width": 1440, "height": 540})
+	b.open(b.base + "/#/deck/settings?tab=Modules")
+	b.until("the draft in the modules", itemOf("Weekly mailer", "draft"))
+	b.eval(pressIn(itemOf("Weekly mailer", "draft"), "review"))
+	b.until("the page of what the draft may do", `location.hash.startsWith('#/deck/draft') && document.querySelector('[data-verb="enable"]') && document.body.innerText.includes('What it may do once enabled')`)
+	b.shot("readme-draft")
 }

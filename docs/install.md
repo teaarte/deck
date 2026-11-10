@@ -6,15 +6,18 @@ container needs, Windows, moving a deck that ran without Docker, and deck withou
 ## A server with a domain
 
 On a Linux server (amd64 or arm64) with a domain name pointing at it and ports 80, 443 and 8443 open, put two lines in
-`.env` before `docker compose up -d`; Caddy in the same compose then gets the HTTPS certificate and serves deck at that
-name, with no Tailscale:
+`.env` beside `compose.yaml` (`~/deck/.env`); Caddy in the same compose then gets the HTTPS certificate and serves deck
+at that name, with no Tailscale:
 
 ```bash
+cd ~/deck
 printf 'DECK_DOMAIN=deck.example.com\nCOMPOSE_PROFILES=domain\n' > .env
+docker compose up -d
+docker compose exec deck deck pair     # the https link first; the deck.localhost one opens only on the server
 ```
 
-A server set up before Caddy came under the profile has only `DECK_DOMAIN` in `.env`: add `COMPOSE_PROFILES=domain`
-when you download the new `compose.yaml`, or Caddy no longer starts (deck says so in its log).
+The install line keeps an existing `.env`, so these lines may also come before it, and the link it prints is then the
+https one first. Without `COMPOSE_PROFILES=domain` Caddy does not start (deck says so in its log).
 
 ## What the container needs
 
@@ -37,7 +40,7 @@ tried yet.
 Not tried yet: GitHub's Windows runners do not run Linux containers, so no test covers it. Install Docker Desktop
 with the WSL 2 backend, download the files of the README's install by hand into a folder (`curl.exe` in PowerShell, or
 in WSL) and run `docker compose up -d` there, skipping the AppArmor step. deck works when Settings → Health shows the
-box `ok`, a script of a starter module runs, and the link of `docker compose logs deck` pairs at
+box `ok`, a script of a starter module runs, and the link of `docker compose exec deck deck pair` pairs at
 http://deck.localhost:7700 in Edge or Chrome.
 
 ## Moving from deck without Docker

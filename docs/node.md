@@ -10,11 +10,22 @@ port; it reaches nothing of its network but its own loopback, and its key opens 
 
 1. On deck's machine run `deck pair --node --name Mac` (in Docker: `docker compose exec deck deck pair --node --name
    Mac`), or pair a node in Settings → Devices. It prints a command with a code that works once, within ten minutes.
-2. On the node's machine, with the binary of [the release](https://github.com/teaarte/deck/releases) for it, run that
-   command: `deck -join https://deck.example.com <code> --install` (for deck on the same Mac,
-   `deck -join http://127.0.0.1:7700 <code> --install`), with `--allow` and what deck may use there: the ports of its
-   models, its agents and folders, such as `--allow 8178,8190,claude-code,~/code/repo`.
-3. In Settings → Models → Connections set **Node** of each connection the node's machine serves, its address as on
+2. On the node's machine, download the plain binary of [the release](https://github.com/teaarte/deck/releases) for
+   it (`deck-darwin-arm64`, `deck-linux-amd64` or `deck-linux-arm64`, not the `-tailnet` one) into a folder it stays
+   in, since the service runs it from there, and make it executable:
+
+   ```bash
+   mkdir -p ~/.local/bin && cd ~/.local/bin
+   curl -fsSLo deck https://github.com/teaarte/deck/releases/latest/download/deck-darwin-arm64 && chmod +x deck
+   ```
+
+   The binary is not signed by Apple: downloaded with `curl` it runs; downloaded in a browser, macOS blocks it until
+   `xattr -d com.apple.quarantine deck`.
+3. Run the command of step 1 with that binary, adding `--allow` and what deck may use there: the ports of its models,
+   its agents and folders, such as
+   `./deck -join https://deck.example.com <code> --install --allow 8178,8190,claude-code,~/code/repo`
+   (for deck on the same Mac, `./deck -join http://127.0.0.1:7700 <code> --install …`).
+4. In Settings → Models → Connections set **Node** of each connection the node's machine serves, its address as on
    that machine, such as `http://127.0.0.1:8178` for whisper.
 
 The node keeps the list of what it allows itself, in `~/.deck2-node/state/node/allowed` (an edit there holds at once);

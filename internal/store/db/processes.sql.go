@@ -955,7 +955,7 @@ SELECT p.id, j.name AS project, p.command, p.state, p.error_type, p.error, p.pro
     CAST(p.finished_at AS TEXT) AS finished_at,
     CAST(COALESCE((SELECT group_concat(DISTINCT c.gen_ai_provider_name) FROM llm_call c WHERE c.process_id = p.id), '') AS TEXT) AS models,
     CAST(COALESCE(json_extract(p.input, '$.topic'), 0) AS INTEGER) AS topic
-FROM process p JOIN project j ON j.id = p.project_id
+FROM process p CROSS JOIN project j ON j.id = p.project_id
 WHERE j.workspace_id = ?1
   AND (CAST(?2 AS INTEGER) = 0 OR p.project_id = CAST(?2 AS INTEGER))
   AND p.trial = 0 AND p.finished_at >= CAST(?3 AS TEXT) AND p.finished_at < CAST(?4 AS TEXT)
@@ -986,6 +986,7 @@ type ListEpisodeProcessesRow struct {
 }
 
 // The processes of a workspace that finished in a period, not trials nor done with nothing, oldest first.
+// CROSS JOIN keeps process outer, so the period reads process_episode in order.
 func (q *Queries) ListEpisodeProcesses(ctx context.Context, arg ListEpisodeProcessesParams) ([]ListEpisodeProcessesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listEpisodeProcesses,
 		arg.WorkspaceID,

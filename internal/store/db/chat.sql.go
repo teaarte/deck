@@ -422,7 +422,7 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]C
 }
 
 const listOwnerMessagesIn = `-- name: ListOwnerMessagesIn :many
-SELECT m.topic_id, t.title, m.text, m.created_at FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
+SELECT m.topic_id, t.title, m.text, m.created_at FROM chat_message m CROSS JOIN chat_topic t ON t.id = m.topic_id
 WHERE t.workspace_id = ?1 AND t.deleted_at IS NULL AND m.role = 'owner'
   AND m.created_at >= ?2 AND m.created_at < ?3
 ORDER BY m.created_at, m.id LIMIT ?4
@@ -443,6 +443,7 @@ type ListOwnerMessagesInRow struct {
 }
 
 // The messages of the owner in the topics of a workspace in a period, oldest first.
+// CROSS JOIN keeps chat_message outer, so the period reads chat_message_owner in order.
 func (q *Queries) ListOwnerMessagesIn(ctx context.Context, arg ListOwnerMessagesInParams) ([]ListOwnerMessagesInRow, error) {
 	rows, err := q.db.QueryContext(ctx, listOwnerMessagesIn,
 		arg.WorkspaceID,

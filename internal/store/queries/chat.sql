@@ -180,7 +180,8 @@ ORDER BY p;
 
 -- name: ListOwnerMessagesIn :many
 -- The messages of the owner in the topics of a workspace in a period, oldest first.
-SELECT m.topic_id, t.title, m.text, m.created_at FROM chat_message m JOIN chat_topic t ON t.id = m.topic_id
+-- CROSS JOIN keeps chat_message outer, so the period reads chat_message_owner in order.
+SELECT m.topic_id, t.title, m.text, m.created_at FROM chat_message m CROSS JOIN chat_topic t ON t.id = m.topic_id
 WHERE t.workspace_id = sqlc.arg(workspace_id) AND t.deleted_at IS NULL AND m.role = 'owner'
   AND m.created_at >= sqlc.arg(since) AND m.created_at < sqlc.arg(until)
 ORDER BY m.created_at, m.id LIMIT sqlc.arg(lim);

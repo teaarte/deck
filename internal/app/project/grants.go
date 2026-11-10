@@ -168,7 +168,7 @@ func outdate(ctx context.Context, q *db.Queries, p db.Project, revision int64, n
 		}
 		text := fmt.Sprintf("A request for rights of %s is outdated at revision %d of the manifest: %v; whoever asked asks again if it still needs them. It was: %s",
 			p.Name, revision, why, a.Text)
-		if err := q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(now), ProjectID: p.ID, Text: text}); err != nil {
+		if err := store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(now), ProjectID: p.ID, Text: text}); err != nil {
 			return nil, err
 		}
 		old = append(old, a)

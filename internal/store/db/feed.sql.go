@@ -10,28 +10,6 @@ import (
 	"database/sql"
 )
 
-const addDeckNote = `-- name: AddDeckNote :exec
-INSERT INTO feed (workspace_id, project_id, kind, author, text, created_at, cause)
-SELECT j.workspace_id, j.id, 'note', 'deck', ?1, ?2, ?3 FROM project j WHERE j.id = ?4
-`
-
-type AddDeckNoteParams struct {
-	Text      string
-	CreatedAt string
-	Cause     string
-	ProjectID int64
-}
-
-func (q *Queries) AddDeckNote(ctx context.Context, arg AddDeckNoteParams) error {
-	_, err := q.db.ExecContext(ctx, addDeckNote,
-		arg.Text,
-		arg.CreatedAt,
-		arg.Cause,
-		arg.ProjectID,
-	)
-	return err
-}
-
 const addFeed = `-- name: AddFeed :one
 INSERT INTO feed (workspace_id, project_id, kind, author, text, screen, record_id, actions, command, params, document_id, revision, created_at, process_id,
     cause, what, line_id)
@@ -251,6 +229,34 @@ type HandChangeLineParams struct {
 // The first change after the head leads the line of the others.
 func (q *Queries) HandChangeLine(ctx context.Context, arg HandChangeLineParams) error {
 	_, err := q.db.ExecContext(ctx, handChangeLine, arg.Heir, arg.Repeats, arg.ID)
+	return err
+}
+
+const joinCauseNote = `-- name: JoinCauseNote :exec
+UPDATE feed SET repeats = repeats + 1, created_at = ?1,
+    parts = CASE WHEN text = ?2 AND project_id = ?3 OR EXISTS (SELECT 1 FROM json_each(parts) j
+        WHERE json_extract(j.value, '$.text') = ?2 AND json_extract(j.value, '$.project_id') = ?3)
+        THEN parts ELSE json_insert(parts, '$[#]', json_object('project_id', ?3, 'author', CAST(?4 AS TEXT), 'text', ?2)) END
+WHERE id = ?5
+`
+
+type JoinCauseNoteParams struct {
+	CreatedAt string
+	Text      string
+	ProjectID int64
+	Author    string
+	ID        int64
+}
+
+// A part of the same text and project as the note or one of its parts is not listed twice.
+func (q *Queries) JoinCauseNote(ctx context.Context, arg JoinCauseNoteParams) error {
+	_, err := q.db.ExecContext(ctx, joinCauseNote,
+		arg.CreatedAt,
+		arg.Text,
+		arg.ProjectID,
+		arg.Author,
+		arg.ID,
+	)
 	return err
 }
 
@@ -508,4 +514,40 @@ WHERE process_id = ?1 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
 func (q *Queries) ReadNotesOfProcess(ctx context.Context, processID sql.NullInt64) error {
 	_, err := q.db.ExecContext(ctx, readNotesOfProcess, processID)
 	return err
+}
+
+const repeatDeckNote = `-- name: RepeatDeckNote :many
+UPDATE feed SET repeats = repeats + 1, created_at = ?1
+WHERE project_id = ?2 AND author = 'deck' AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+  AND text = ?3
+RETURNING id
+`
+
+type RepeatDeckNoteParams struct {
+	CreatedAt string
+	ProjectID int64
+	Text      string
+}
+
+func (q *Queries) RepeatDeckNote(ctx context.Context, arg RepeatDeckNoteParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, repeatDeckNote, arg.CreatedAt, arg.ProjectID, arg.Text)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

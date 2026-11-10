@@ -18,6 +18,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
+	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -201,7 +202,7 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 			r.parts(f, names, ws)
 		}
 		if f.Kind == FeedChange && f.Repeats > 1 {
-			parts, undo, err := store.Line(ctx, s.St.Q, f)
+			parts, undo, err := process.ChangeLine(ctx, s.St.Q, f)
 			if err != nil {
 				return nil, err
 			}

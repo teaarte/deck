@@ -33,6 +33,20 @@ SELECT id FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND cause = sqlc
     AND read_at IS NULL AND substr(created_at, 1, 10) = substr(CAST(sqlc.arg(created_at) AS TEXT), 1, 10)
 ORDER BY id LIMIT 1;
 
+-- name: JoinCauseNote :exec
+-- A part of the same text and project as the note or one of its parts is not listed twice.
+UPDATE feed SET repeats = repeats + 1, created_at = sqlc.arg(created_at),
+    parts = CASE WHEN text = sqlc.arg(text) AND project_id = sqlc.arg(project_id) OR EXISTS (SELECT 1 FROM json_each(parts) j
+        WHERE json_extract(j.value, '$.text') = sqlc.arg(text) AND json_extract(j.value, '$.project_id') = sqlc.arg(project_id))
+        THEN parts ELSE json_insert(parts, '$[#]', json_object('project_id', sqlc.arg(project_id), 'author', CAST(sqlc.arg(author) AS TEXT), 'text', sqlc.arg(text))) END
+WHERE id = sqlc.arg(id);
+
+-- name: RepeatDeckNote :many
+UPDATE feed SET repeats = repeats + 1, created_at = sqlc.arg(created_at)
+WHERE project_id = sqlc.arg(project_id) AND author = 'deck' AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+  AND text = sqlc.arg(text)
+RETURNING id;
+
 -- name: ListFeed :many
 SELECT * FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR project_id = CAST(sqlc.arg(project_id) AS INTEGER))
   AND (CAST(sqlc.arg(kind) AS TEXT) = '' OR kind = CAST(sqlc.arg(kind) AS TEXT)) AND for_master = 0 AND (CAST(sqlc.arg(unread) AS INTEGER) = 0 OR kind = 'note' AND read_at IS NULL)
@@ -57,10 +71,6 @@ SELECT * FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id;
 
 -- name: DeleteMasterNotes :exec
 DELETE FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND for_master = 1 AND id <= sqlc.arg(through);
-
--- name: AddDeckNote :exec
-INSERT INTO feed (workspace_id, project_id, kind, author, text, created_at, cause)
-SELECT j.workspace_id, j.id, 'note', 'deck', sqlc.arg(text), sqlc.arg(created_at), sqlc.arg(cause) FROM project j WHERE j.id = sqlc.arg(project_id);
 
 -- name: ReadNotesOfProcess :exec
 UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')

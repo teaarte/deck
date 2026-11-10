@@ -94,7 +94,7 @@ func (s *Service) toMaster(ctx context.Context, p db.Process) {
 	input := map[string]any{"process": p.ID, "type": p.ErrorType, "whose": fault.Whose(p.ErrorType)}
 	// The master's own failure goes to the owner's feed instead.
 	s.handOver(ctx, proj, manifest.OnFailure, key, 24*time.Hour, input, func(ctx context.Context, q *db.Queries) error {
-		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ProjectID,
+		return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: p.ProjectID,
 			Text: fmt.Sprintf("The master's command %s failed: %s", p.Command, untrusted.Cut(p.Error, 500))})
 	})
 }

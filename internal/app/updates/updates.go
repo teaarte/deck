@@ -210,7 +210,7 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 			if err != nil {
 				continue
 			}
-			if _, err := q.AddFeed(ctx, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: ws, ProjectID: m.ID, Kind: store.FeedNote,
+			if _, err := store.AddNote(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: ws, ProjectID: m.ID,
 				Author: "deck", Text: text, Actions: string(buttons), Params: "{}", Cause: Subject}); err != nil {
 				return err
 			}

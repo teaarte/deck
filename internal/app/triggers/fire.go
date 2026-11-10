@@ -94,7 +94,7 @@ func (s *Service) after(ctx context.Context, done db.Process) {
 			slog.Error("after trigger", "project", p.Name, "command", t.Command, "after", done.ID, "err", err)
 			text := fmt.Sprintf("deck did not start %s after process #%d of %s: %v", t.Command, done.ID, done.Command, err)
 			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-				return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: text})
+				return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: text})
 			})
 			s.Incident(ctx, done, process.IncidentAfter, text)
 		}

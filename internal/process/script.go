@@ -156,7 +156,7 @@ func (r *Runner) warnOf(ctx context.Context, processID int64, text, cause string
 		if err != nil {
 			return err
 		}
-		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(r.now()), ProjectID: p.ProjectID, Text: text, Cause: cause})
+		return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(r.now()), ProjectID: p.ProjectID, Text: text, Cause: cause})
 	})
 }
 

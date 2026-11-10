@@ -106,7 +106,7 @@ func (s *Service) tell(ctx context.Context, a db.Ask, answer string) bool {
 		slog.Error("trigger on ask", "project", proj.Name, "command", t.Command, "ask", a.ID, "err", err)
 		text := fmt.Sprintf("deck did not start %s after ask #%d of process #%d closed: %v", t.Command, a.ID, p.ID, err)
 		_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: proj.ID, Text: text})
+			return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: proj.ID, Text: text})
 		})
 	}
 	return true

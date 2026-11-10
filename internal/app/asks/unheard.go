@@ -63,7 +63,7 @@ func (s *Service) unheard(ctx context.Context, p db.Process, a db.Ask, why strin
 		if err != nil {
 			return err
 		}
-		return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: proj.ID,
+		return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: proj.ID,
 			Text: fmt.Sprintf("%s ended with nothing after your answer %q; the master has it on its next turn.", who, untrusted.Cut(answer, 200))})
 	})
 }

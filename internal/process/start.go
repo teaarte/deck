@@ -348,7 +348,7 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 			text := fmt.Sprintf("deck stopped a chain of %d steps: %s.%s was not started after %s (process %d).",
 				MaxDepth, proj.Name, command, chain, parent.ID)
 			a.refused = registry.Refuse("%s was not started: a chain may be at most %d steps long: %s", command, MaxDepth, chain)
-			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(r.now()), ProjectID: proj.ID, Text: text})
+			return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(r.now()), ProjectID: proj.ID, Text: text})
 		}
 	}
 	// A call the owner allowed later may come from a trigger its manifest dropped by then.

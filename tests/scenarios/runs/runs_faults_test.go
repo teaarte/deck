@@ -325,3 +325,71 @@ func TestNotesOfOneCauseOfADayAreOneNote(t *testing.T) {
 		t.Fatalf("a note of the cause on another day is its own: %+v", notes)
 	}
 }
+
+// TestABaseWithTheTriggersOfTheFeedJoinsItsNotesInDeck: a base a deck before left, whose triggers joined notes, loses
+// them and keeps its notes; a note of the same cause still joins its unread one, deck's same note still counts.
+func TestABaseWithTheTriggersOfTheFeedJoinsItsNotesInDeck(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	for _, name := range []string{"films", "coin"} {
+		e.Project(name, harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
+	}
+	e.Project("work", harness.ScriptManifest("run", `{"type": "object", "required": ["ok"]}`, ""))
+	e.SaveScript("work", "scripts/main.py", "print('{}')\n")
+	var first struct{ Notification int64 }
+	e.Must("deck.owner_notify", map[string]any{"project": "films", "text": "Groq does not answer; move films to nemotron", "cause": "provider:groq"}, &first)
+	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 75`)
+	e.SQL(`CREATE TRIGGER feed_repeat BEFORE INSERT ON feed
+WHEN NEW.author = 'deck' AND NEW.kind = 'note' AND NEW.for_master = 0 AND EXISTS (SELECT 1 FROM feed f
+    WHERE f.project_id = NEW.project_id AND f.author = 'deck' AND f.kind = 'note' AND f.for_master = 0
+      AND f.read_at IS NULL AND f.text = NEW.text)
+BEGIN
+    UPDATE feed SET repeats = repeats + 1, created_at = NEW.created_at
+    WHERE project_id = NEW.project_id AND author = 'deck' AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+      AND text = NEW.text;
+    SELECT RAISE(IGNORE);
+END`)
+	e.SQL(`CREATE TRIGGER feed_cause BEFORE INSERT ON feed
+WHEN NEW.cause != '' AND NEW.kind = 'note' AND NEW.for_master = 0 AND NEW.screen = '' AND NEW.actions IN ('[]', 'null') AND EXISTS (SELECT 1 FROM feed f
+    WHERE f.workspace_id = NEW.workspace_id AND f.cause = NEW.cause AND f.kind = 'note' AND f.for_master = 0
+      AND f.read_at IS NULL AND substr(f.created_at, 1, 10) = substr(NEW.created_at, 1, 10))
+BEGIN
+    UPDATE feed SET repeats = repeats + 1, created_at = NEW.created_at,
+        parts = CASE WHEN text = NEW.text AND project_id = NEW.project_id OR EXISTS (SELECT 1 FROM json_each(parts) j
+            WHERE json_extract(j.value, '$.text') = NEW.text AND json_extract(j.value, '$.project_id') = NEW.project_id)
+            THEN parts ELSE json_insert(parts, '$[#]', json_object('project_id', NEW.project_id, 'author', NEW.author, 'text', NEW.text)) END
+    WHERE id = (SELECT f.id FROM feed f WHERE f.workspace_id = NEW.workspace_id AND f.cause = NEW.cause AND f.kind = 'note'
+        AND f.for_master = 0 AND f.read_at IS NULL AND substr(f.created_at, 1, 10) = substr(NEW.created_at, 1, 10)
+        ORDER BY f.id LIMIT 1);
+    SELECT RAISE(IGNORE);
+END`)
+	e = e.Restart()
+	var triggers int
+	if err := e.SQLRow(`SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'feed'`).Scan(&triggers); err != nil || triggers != 0 {
+		t.Fatalf("the triggers of the feed are gone: %d %v", triggers, err)
+	}
+	var joined struct{ Notification int64 }
+	e.Must("deck.owner_notify", map[string]any{"project": "coin", "text": "Groq refuses with 413; move coin to local-qwen", "cause": "provider:groq"}, &joined)
+	if joined.Notification != first.Notification {
+		t.Fatalf("a note of the cause is the unread note of its cause: %d, not %d", joined.Notification, first.Notification)
+	}
+	var notes []struct {
+		ID       int64
+		Text     string
+		Cause    string
+		Repeats  int64
+		Projects []string
+		Parts    []struct{ Project, Text string }
+	}
+	e.Must("deck.feed_list", map[string]any{"kind": "note", "unread": true}, &notes)
+	if len(notes) != 1 || notes[0].ID != first.Notification || notes[0].Repeats != 2 || !slices.Equal(notes[0].Projects, []string{"films", "coin"}) {
+		t.Fatalf("the note before the update holds the part after it: %+v", notes)
+	}
+	for range 2 {
+		e.WaitState(e.Start("work", "run", nil), "done")
+	}
+	e.Until("deck's same note counted twice", func() bool {
+		e.Must("deck.feed_list", map[string]any{"kind": "note", "project": "work"}, &notes)
+		return len(notes) == 1 && notes[0].Repeats == 2 && strings.Contains(notes[0].Text, "does not match its schema")
+	})
+}

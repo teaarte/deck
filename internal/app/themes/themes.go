@@ -435,7 +435,7 @@ func (s *Service) Settle(ctx context.Context) {
 			if err := q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: ws, Key: key, Value: theme.Default}); err != nil {
 				return err
 			}
-			return q.AddDeckNote(ctx, db.AddDeckNoteParams{CreatedAt: store.Time(s.Now()), ProjectID: m.ID,
+			return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: m.ID,
 				Text: fmt.Sprintf("The theme %s is gone from deck, so deck wears %s now; ask Deki to make %s again from its example.", name, theme.Default, name)})
 		})
 		if err != nil {

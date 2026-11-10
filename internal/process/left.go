@@ -38,7 +38,7 @@ func LeftBy(ctx context.Context, q *db.Queries, id int64) ([]Left, error) {
 		return out, err
 	}
 	for _, f := range changes {
-		parts, undo, err := store.Line(ctx, q, f)
+		parts, undo, err := ChangeLine(ctx, q, f)
 		if err != nil {
 			return out, err
 		}
@@ -59,4 +59,32 @@ func LeftBy(ctx context.Context, q *db.Queries, id int64) ([]Left, error) {
 		out = append(out, Left{Kind: LeftFile, ID: f.ID, Text: fmt.Sprintf("file %s of %s, %d bytes", untrusted.Line(f.Name, 80), f.Project, f.Size)})
 	}
 	return out, nil
+}
+
+// ChangeLine is what a line of changes of a run says, in deck's words for the dictionary, a sentence for each kind of
+// change with how many times, and whether one of its changes can be undone.
+func ChangeLine(ctx context.Context, q *db.Queries, f db.Feed) ([]string, bool, error) {
+	whats, undo, err := store.Line(ctx, q, f)
+	if err != nil {
+		return nil, false, err
+	}
+	if f.Repeats <= 1 {
+		return []string{f.Text}, undo, nil
+	}
+	out := make([]string, len(whats))
+	for i, w := range whats {
+		switch of, ok := strings.CutPrefix(w.What, "deleted records of "); {
+		case ok:
+			out[i] = fmt.Sprintf("deleted records of %s: %d", of, w.Times)
+		case w.What == "deleted files":
+			out[i] = fmt.Sprintf("deleted files: %d", w.Times)
+		case w.What == "deleted models":
+			out[i] = fmt.Sprintf("deleted models: %d", w.Times)
+		case w.Times > 1:
+			out[i] = fmt.Sprintf("%s ×%d", w.What, w.Times)
+		default:
+			out[i] = w.What
+		}
+	}
+	return out, undo, nil
 }

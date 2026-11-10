@@ -2,9 +2,11 @@ package process
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -48,6 +50,12 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	bg := context.WithoutCancel(ctx)
 	defer func() { t.slot.release(bg) }()
 	p, err := r.st.Q.GetProcess(bg, t.process)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		// A failed read ends the process with it: none stays running with no turn.
+		slog.Error("read the process of a turn", "process", t.process, "err", err)
+		r.finish(bg, t.process, StateError, "", false, fault.Of(err))
+		return
+	}
 	if err != nil || p.State != StateRunning {
 		return
 	}

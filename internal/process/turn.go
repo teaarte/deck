@@ -241,7 +241,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 	bg := context.WithoutCancel(ctx)
 	processID, pv, req := t.process, t.pv, a.req
 	asks := t.asks
-	for retried, revived := false, false; ; {
+	for retried, revived, rejoined := false, false, false; ; {
 		a.listen(true)
 		stop := r.watchCall(processID, a.proj.WorkspaceID, pv)
 		res, err := pv.Run(ctx, req)
@@ -269,6 +269,14 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 				return
 			}
 			req.Prompt += r.remarksText(bg, processID, asks.Remarks)
+			continue
+		}
+		if err != nil && res.Is(fault.DeckTools) && res.Begun && !rejoined {
+			// The session began before deck's tools reached it: it goes on in its session once, deck's tools with it.
+			rejoined = true
+			req.Emit(provider.Event{Kind: provider.EventStderr, Text: "deck: the agent began without deck's tools; the turn goes on in its session"})
+			req.Resume = true
+			req.Prompt = master.Text("again", again{Why: "tools", Submit: a.sub != nil})
 			continue
 		}
 		if err != nil && res.Is(fault.DeckTools) {

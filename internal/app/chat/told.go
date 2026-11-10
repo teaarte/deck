@@ -123,10 +123,18 @@ func (s *Service) told(ctx context.Context, m db.ChatMessage, ws map[string]stri
 	}
 	var it toldState
 	_ = json.Unmarshal([]byte(m.Context), &it)
+	live := slices.Contains(process.Final, it.State) && p.ReopenedAt.Valid && p.ReopenedAt.String >= m.CreatedAt &&
+		!slices.Contains(process.Final, p.State)
+	if live {
+		// The work went on after the end this message told: it tells how the work stands now until its next end.
+		it = toldState{State: p.State}
+	}
 	at := p
 	at.State = cmp.Or(it.State, p.State)
 	question := ""
-	if !slices.Contains(process.Final, at.State) {
+	if live {
+		at.FinishedAt = sql.NullString{}
+	} else if !slices.Contains(process.Final, at.State) {
 		at.FinishedAt, question = sql.NullString{}, m.Text
 	} else {
 		at.FinishedAt = sql.NullString{String: cmp.Or(p.FinishedAt.String, m.CreatedAt), Valid: true}

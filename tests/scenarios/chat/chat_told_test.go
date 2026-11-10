@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -246,5 +248,108 @@ func TestAWorkHandedOnTellsItsTopicWhereItWentOn(t *testing.T) {
 	}
 	if done := e.Told(topic, "done", "ru"); done.Process != next || done.Text != "Counted: 3 records." {
 		t.Fatalf("then how the work that went on ended: %+v", done)
+	}
+}
+
+// An agent whose CLI began its session before deck's MCP server answered fails its first call that needs the owner's
+// leave and exits; the work goes on in its session, and its topic tells no failure while it lives.
+func TestAWorkWhoseAgentBeganWithoutDecksToolsGoesOnAndItsTopicTellsNoFailure(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	c.Before(`
+if [ -n "$session" ] && [ ! -f "$d/began" ]; then
+  : > "$d/began"
+  sed "s/{{session}}/$session/g" <<'L'
+{"type":"system","subtype":"init","session_id":"{{session}}","model":"claude-opus-5-5","mcp_servers":[{"name":"deck","status":"failed"}]}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"command":"ls"}}]},"session_id":"{{session}}"}
+{"type":"user","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","is_error":true,"content":"<tool_use_error>Error calling tool (Bash): Error: MCP tool mcp__deck__approve (passed via --permission-prompt-tool) not found. Available MCP tools: none</tool_use_error>"}]},"session_id":"{{session}}"}
+L
+  echo "Error: MCP tool mcp__deck__approve (passed via --permission-prompt-tool) not found. Available MCP tools: none" >&2
+  exit 1
+fi
+if [ -n "$session" ]; then
+  i=0
+  while [ ! -f "$d/go" ] && [ $i -lt 1200 ]; do sleep 0.1; i=$((i+1)); done
+fi`)
+	var from atomic.Int64
+	home := t.TempDir()
+	reply := &harness.Fake{Script: func(ctx context.Context, call *harness.Call) provider.Result {
+		return harness.HandOver(ctx, call, &from)
+	}}
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(reply, c.Adapter(home)))
+	e.UseModels("master.reply", "fake")
+	e.UseModels("master.work", "claude-code")
+	topic := e.Say(0, "count the records")
+	var id int64
+	e.Until("the work runs again in its session", func() bool {
+		if runs := e.RunsOf("master", "work"); len(runs) == 1 {
+			id = runs[0].ID
+		}
+		return id != 0 && c.Calls() >= 2 && strings.Contains(c.Call(2).Stdin, `"type":"user"`)
+	})
+	if p := e.Proc(id); p.State != "running" {
+		t.Fatalf("the work lives on: %+v", p)
+	}
+	again := c.Call(2)
+	if sid, ok := harness.Flag(again.Args, "--resume"); !ok || sid != e.Session(id) {
+		t.Fatalf("the work goes on in the session it began: %q", again.Args)
+	}
+	if !strings.Contains(again.Stdin, "deck's tools reached your session late") {
+		t.Fatalf("the agent is told why its call failed: %s", again.Stdin)
+	}
+	var view struct{ Messages []harness.ToldMessage }
+	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	for _, m := range view.Messages {
+		if m.Role == "deck" {
+			t.Fatalf("a work that lives tells its topic no end: %+v", m)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(c.Dir, "go"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if done := e.Told(topic, "done", "en"); done.Process != id {
+		t.Fatalf("then how it ended: %+v", done)
+	}
+	if runs := e.RunsOf("master", "on_error"); len(runs) != 0 {
+		t.Fatalf("no failure reached the master: %+v", runs)
+	}
+}
+
+// A work that failed and was sent on in its session tells its topic how it stands now, not the failure, until it ends
+// again.
+func TestAFailedWorkSentOnTellsItsTopicItRunsAgain(t *testing.T) {
+	t.Parallel()
+	var from atomic.Int64
+	release := make(chan struct{})
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		switch {
+		case c.Req.Resume:
+		case c.Command() != "work" && from.Load() != 0:
+			return provider.Result{Text: "ok"}
+		case c.Command() != "work":
+			return harness.HandOver(ctx, c, &from)
+		default:
+			return provider.Fail(fault.TaskFailed, "the site is down")
+		}
+		select {
+		case <-release:
+		case <-ctx.Done():
+		}
+		return provider.Result{Text: "Counted: 3 records."}
+	}))
+	topic := e.Say(0, "count the records")
+	failed := e.Told(topic, "error", "en")
+	e.Must("deck.process_rework", map[string]any{"process": failed.Process}, nil)
+	e.WaitState(failed.Process, "running")
+	if again := e.Told(topic, "running", "en"); again.Text != failed.Text || again.Told.Tone == "error" || !strings.HasPrefix(again.Told.Word, "runs on") {
+		t.Fatalf("the message of the failure tells the work runs again: %+v %+v", again, again.Told)
+	}
+	close(release)
+	if done := e.Told(topic, "done", "en"); done.Process != failed.Process || done.Text != "Counted: 3 records." {
+		t.Fatalf("then a message of its new end: %+v", done)
+	}
+	if was := e.Told(topic, "error", "en"); was.Text != failed.Text {
+		t.Fatalf("and the first message tells its failure again: %+v", was)
 	}
 }

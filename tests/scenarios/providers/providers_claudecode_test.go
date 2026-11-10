@@ -38,7 +38,7 @@ func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
 			t.Errorf("%s reached the CLI", k)
 		}
 	}
-	kept := []string{"PATH", "HOME", "LC_ALL", "MCP_TOOL_TIMEOUT"}
+	kept := []string{"PATH", "HOME", "LC_ALL", "MCP_TOOL_TIMEOUT", "MCP_TIMEOUT"}
 	if !sandbox.Homed() {
 		kept = append(kept, "NODE_OPTIONS")
 	}

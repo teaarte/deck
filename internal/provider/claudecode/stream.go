@@ -212,8 +212,11 @@ func (t *turn) finish(waitErr error, stderr string, promptErr error) (provider.R
 	case res.SessionMissing:
 		return res, nil
 	case t.results == 0:
-		if !t.started && strings.Contains(stderr, "(passed via --permission-prompt-tool) not found") {
+		// deck's MCP server answered the CLI late or not at all: the CLI goes on without it until its first call that
+		// needs the owner's leave, then exits.
+		if strings.Contains(stderr, "(passed via --permission-prompt-tool) not found") {
 			res.Fail(fault.DeckTools)
+			res.Begun = t.started
 		}
 		// Deck signals claude only once it has a result or the turn was cancelled, so a signal now came from outside.
 		if sig, ok := provider.KilledBy(waitErr); ok && !res.Is(fault.DeckTools) {

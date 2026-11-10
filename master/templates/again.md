@@ -1,5 +1,7 @@
 {{if eq .Why "killed"}}deck: a signal from outside deck killed your turn mid-work. What you did so far stays: check it, do not redo it, and go on where you stopped.
 {{if .Submit}}When you are done, hand in the whole final result with the result_submit tool of the deck MCP server, then end your turn.
+{{end}}{{else if eq .Why "tools"}}deck: deck's tools reached your session late, so your last tool call failed for that alone. They are there now: check what you did, do not redo it, and go on where you stopped; call again a tool that failed.
+{{if .Submit}}When you are done, hand in the whole final result with the result_submit tool of the deck MCP server, then end your turn.
 {{end}}{{else if eq .Why "resume"}}
 When you are done, hand in the whole final result with the result_submit tool of the deck MCP server, then end your turn.
 {{else if .Submit}}You ended your turn without handing in the result with the result_submit tool: {{.Error}}

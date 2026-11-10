@@ -96,8 +96,10 @@ type Result struct {
 	Structured json.RawMessage
 	Text       string
 	// Fault is how a turn failed, nil when it ended well: task.failed, model.login, model.limit, model.unavailable, or
-	// deck.tools for an agent that stopped before its first model call because deck's tools did not reach it.
+	// deck.tools for an agent that stopped because deck's tools did not reach it.
 	Fault *fault.F
+	// Begun is a turn without deck's tools whose session the CLI had opened, so it goes on by a resume.
+	Begun bool
 	// SessionMissing is a resume that found no stored session, so the session starts over.
 	SessionMissing bool
 	// ResetsAt is when a usage limit ends, in unix seconds.

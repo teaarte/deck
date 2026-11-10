@@ -196,7 +196,9 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	b.Files = map[string]string{filepath.Join(dir, "mcp.json"): string(mcp)}
 	b.Argv = append([]string{a.Binary}, a.args(req, filepath.Join(dir, "mcp.json"), setFile, plugin)...)
 	b.Mark, b.Dir, b.Deck, b.GPU = a.Sandbox.Mark(sandbox.KindAgent, req.SessionID), req.Cwd, side, req.GPU
-	b.Env = append(b.Env, "MCP_TOOL_TIMEOUT=2400000")
+	// The CLI waits for deck's MCP server 30 s by default and starts without it after; deck takes a CLI silent for
+	// 5 minutes for a quiet model.
+	b.Env = append(b.Env, "MCP_TOOL_TIMEOUT=2400000", "MCP_TIMEOUT=240000")
 	b.Read, b.Write = append(append(slices.Clone(req.Read), dir), b.Read...), append(append([]string{req.Cwd}, req.Dirs...), b.Write...)
 	if plugin != "" {
 		b.Read = append(b.Read, plugin)

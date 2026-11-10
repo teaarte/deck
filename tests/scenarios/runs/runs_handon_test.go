@@ -230,7 +230,7 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 	})
 }
 
-// TestAnAgentInALoopLeavesItsModel: the same call of a tool with the same answer three times in a row is a loop of
+// TestAnAgentInALoopLeavesItsModel: the same call of a tool with the same answer six times in a row is a loop of
 // the agent; the turn goes on on the next model.
 func TestAnAgentInALoopLeavesItsModel(t *testing.T) {
 	t.Parallel()
@@ -242,7 +242,7 @@ func TestAnAgentInALoopLeavesItsModel(t *testing.T) {
 			c.Req.Emit(provider.Event{Kind: provider.EventTool, ID: "b" + id, Title: "mcp__deck__records_list", Text: `{"collection": "listings"}`})
 			c.Req.Emit(provider.Event{Kind: provider.EventToolUpdate, ID: "b" + id, Status: "completed", Text: `{"items": []}`})
 		}
-		for i := range 3 {
+		for i := range 6 {
 			id := "c" + harness.Itoa(int64(i))
 			c.Req.Emit(provider.Event{Kind: provider.EventTool, ID: id, Title: "mcp__deck__records_list", Text: `{"collection": "searches"}`})
 			c.Req.Emit(provider.Event{Kind: provider.EventToolUpdate, ID: id, Status: "completed", Text: `{"items": []}`})
@@ -252,7 +252,7 @@ func TestAnAgentInALoopLeavesItsModel(t *testing.T) {
 	}, harness.Ok)
 	id := e.StartWork(1)
 	e.WaitState(id, "error")
-	if got := e.Fault(id); got.ErrorType != "agent.loop" || got.Whose != "model" || !strings.Contains(got.Error, "mcp__deck__records_list 3 times in a row") {
+	if got := e.Fault(id); got.ErrorType != "agent.loop" || got.Whose != "model" || !strings.Contains(got.Error, "mcp__deck__records_list 6 times in a row") {
 		t.Fatalf("a loop is the model's failure of its own type: %+v", got)
 	}
 	if got := e.WaitState(e.Following(id), "done", "error"); got.State != "done" || len(backup.Calls()) != 1 {

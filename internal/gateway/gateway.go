@@ -419,8 +419,20 @@ func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json
 // that its turn stops as a loop if it goes on.
 const sameReads = 3
 
-const readLoop = "deck: you called %s %d times in a row with the same input and got the same answer. To wait for a process, " +
+const readLoop = loopWarned + "%s %d times in a row with the same input and got the same answer. To wait for a process, " +
 	"call process_get with wait=600 instead of asking again; to wait for the owner, end your turn. If you go on, deck stops your turn as a loop."
+
+// Unwarned is the answer of a call without deck's warning of a loop of reads, and whether it had one.
+func Unwarned(answer string) (string, bool) {
+	i := strings.Index(answer, loopWarned)
+	if i < 0 {
+		return answer, false
+	}
+	return answer[:i], true
+}
+
+// loopWarned begins deck's warning of a loop of reads.
+const loopWarned = "deck: you called "
 
 // again notes a call of the session, a read by its key and answer, and says whether to warn of a loop of reads now.
 func (s *Session) again(key, answer string) bool {

@@ -6,11 +6,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
 
 	"deck2/internal/fault"
+	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/provider"
 	"deck2/internal/untrusted"
@@ -21,9 +23,18 @@ const (
 	// quietLocal for a model on the owner's hardware, which may load first.
 	quietAfter = 5 * time.Minute
 	quietLocal = 15 * time.Minute
-	// loopAfter is how many calls of a tool in a row with the same input and the same answer are a loop.
-	loopAfter = 3
+	// loopWarn is how many calls of a tool in a row with the same input and answer, numbers aside, get the agent a
+	// warning; loopAfter how many are a loop.
+	loopWarn  = 3
+	loopAfter = 6
 )
+
+// loopWarning is what deck tells an agent that took live input when it repeats a call.
+const loopWarning = "deck: you called %s %d times in a row with the same input and got the same answer. Change what you do " +
+	"or end your turn; if you go on, deck stops your turn as a loop."
+
+// digits are the numbers a loop of calls may change, such as a counter in a command.
+var digits = regexp.MustCompile(`[0-9]+`)
 
 // watch is what deck sees of a provider call of a running turn: when it began, whether its model gave a sign, the
 // tool calls under way and the last one done.
@@ -36,6 +47,7 @@ type watch struct {
 	last      string
 	title     string
 	same      int
+	warned    bool
 }
 
 // leaving is why deck took a turn from its model: the failure and, for a provider that went down, its health.
@@ -64,8 +76,8 @@ func (r *Runner) watchCall(processID, workspace int64, pv provider.Provider) (st
 	}
 }
 
-// sign notes an event of the model of a running turn; the same call of a tool with the same answer loopAfter times in
-// a row takes the turn from the model.
+// sign notes an event of the model of a running turn; the same call of a tool with the same answer, numbers aside,
+// warns the agent at loopWarn calls in a row and takes the turn from the model at loopAfter.
 func (r *Runner) sign(processID int64, e provider.Event) {
 	if e.Kind == provider.EventStderr || e.Kind == provider.EventRateLimit {
 		return
@@ -87,19 +99,34 @@ func (r *Runner) sign(processID int64, e provider.Event) {
 			return
 		}
 		delete(w.open, e.ID)
-		done := call + "\x00" + e.Status + "\x00" + e.Text
-		if strings.TrimSpace(e.Text) == "" {
+		answer, warned := gateway.Unwarned(e.Text)
+		if strings.TrimSpace(answer) == "" {
 			// An empty answer, such as that of an edit, tells nothing of what the agent got back.
 			w.last, w.same = "", 0
 			return
 		}
-		if done != w.last {
-			w.last, w.title, w.same = done, strings.SplitN(call, "\x00", 2)[0], 0
+		done := call + "\x00" + e.Status + "\x00" + answer
+		if key := digits.ReplaceAllString(done, "#"); key != w.last {
+			w.last, w.title, w.same, w.warned = key, strings.SplitN(call, "\x00", 2)[0], 0, false
 		}
-		if w.same++; w.same >= loopAfter {
+		w.warned = w.warned || warned
+		w.same++
+		switch {
+		case w.same >= loopAfter:
 			lt.cancel(&leaving{f: fault.With(fault.AgentLoop, fmt.Sprintf("%s called %s %d times in a row with the same input and got the same answer",
 				w.pv.Name(), w.title, w.same), untrusted.Cut(strings.ReplaceAll(done, "\x00", "\n"), 2000))})
+		case w.same >= loopWarn && !w.warned && lt.input != nil:
+			w.warned = true
+			go tell(lt.input, fmt.Sprintf(loopWarning, w.title, w.same))
 		}
+	}
+}
+
+// tell hands deck's message to a turn that takes live input, unless it does not take it soon.
+func tell(in chan provider.Message, text string) {
+	select {
+	case in <- provider.Message{Text: text, Taken: make(chan bool, 1)}:
+	case <-time.After(time.Second):
 	}
 }
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"deck2/internal/ask"
@@ -32,7 +34,8 @@ func (r *Runner) Say(ctx context.Context, processID int64, text string) Said {
 	r.mu.Lock()
 	lt := r.live[processID]
 	var in chan provider.Message
-	if lt != nil {
+	// Files given while a turn on a node runs do not reach it: they come with its next turn.
+	if lt != nil && !(lt.node && strings.Contains(text, filepath.Join(r.runDir(processID), "input"))) {
 		in = lt.input
 	}
 	r.mu.Unlock()

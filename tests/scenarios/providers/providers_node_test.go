@@ -1,10 +1,12 @@
 package providers
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -273,5 +275,49 @@ func TestFilesFromANodeNeverGoThroughALinkOnDeck(t *testing.T) {
 	}
 	if !said {
 		t.Fatalf("the turn says which file did not come back: %v", e.Log(id))
+	}
+}
+
+// TestAMastersTurnOnANodeSeesTheFilesOfAMessage: a picture the owner attaches to a message goes to the node with the
+// turn, at the path the prompt names there.
+func TestAMastersTurnOnANodeSeesTheFilesOfAMessage(t *testing.T) {
+	own, onNode := harness.NewCodex(t), harness.NewCodex(t)
+	t.Setenv("CODEX_HOME", t.TempDir())
+	e := harness.New(t, harness.WithCodex(own))
+	n := e.PairNode("Mac")
+	n.RunAgents(func(spec remote.Spec, home string, _ func(provider.ModelHooks) http.Handler) provider.Provider {
+		return onNode.Adapter(home)
+	})
+	n.Allow("codex")
+	n.Start()
+	e.Until("codex@Mac among the agents", func() bool { return hasModel(e, "codex@Mac") })
+	e.UseModels("master.reply", "codex@Mac")
+	shot := "\x89PNG\r\n\x1a\n a screenshot"
+	id := e.Upload("master", "image.png", "image/png", shot)
+	raw, err := os.ReadFile(harness.Testdata("codex/reply.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	last := lines[len(lines)-1]
+	lines = append(lines[:len(lines)-1:len(lines)-1], fmt.Sprintf(`{"shell": "wc -c < ../input/%d-image.png > seen.txt"}`, id), last)
+	onNode.StreamText(1, strings.Join(lines, "\n"))
+	topic := e.Say(0, "look at this", map[string]any{"files": []string{fmt.Sprint(id)}})
+	e.MasterSaid(topic, 1)
+	cc := onNode.Call(1)
+	var input []struct{ Text string }
+	_ = json.Unmarshal(cc.Request("turn/start")["input"], &input)
+	at := filepath.Join(filepath.Dir(strings.TrimSpace(cc.Cwd)), "input", fmt.Sprintf("%d-image.png", id))
+	named := regexp.MustCompile(`read-only: (\S+?\.png)`).FindStringSubmatch(fmt.Sprint(input))
+	if named == nil {
+		t.Fatalf("the prompt names the picture: %+v", input)
+	}
+	nodeHome, _ := filepath.EvalSymlinks(n.Home)
+	if told, _ := filepath.Rel(n.Home, named[1]); filepath.Join(nodeHome, told) != at {
+		t.Fatalf("the prompt on the node names the picture where it is there, %s: %s", at, named[1])
+	}
+	pid := e.RunsOf("master", "reply")[0].ID
+	if b, err := os.ReadFile(filepath.Join(deckhome.Layout(e.Home).RunWork(pid), "seen.txt")); err != nil || strings.TrimSpace(string(b)) != fmt.Sprint(len(shot)) {
+		t.Fatalf("the turn on the node read the picture: %q %v", b, err)
 	}
 }

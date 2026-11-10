@@ -298,3 +298,6 @@ and bring the modules in line.
   most in numbers the answer echoes, is warned at the third call (an agent that takes live input hears it, the journal
   shows it) and stopped as a loop at the sixth (`agent.loop`, in health and the feed). The key of a box's door and a
   script's token are masked (`[secret]`) in everything its programs print.
+- 2026-11-11: files the owner attaches to a chat message or to a message of a process are in the box of the turn, read-only,
+  at the path deck names with the message (the input folder of the run, and those of the runs it continues); a turn
+  on a node gets them as its turn starts there.

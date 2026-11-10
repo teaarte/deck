@@ -92,6 +92,32 @@ func (r *Runner) inputFiles(ctx context.Context, cmd *manifest.Command, projectI
 	return string(out), dir, nil
 }
 
+// inputDirs are the input folders a turn of process p holds: its own, made now so files given while it runs come
+// into its box, and those of the processes it continues, which their messages name.
+func (r *Runner) inputDirs(ctx context.Context, p db.Process) ([]string, error) {
+	own := filepath.Join(r.runDir(p.ID), "input")
+	if err := os.MkdirAll(own, 0o700); err != nil {
+		return nil, err
+	}
+	dirs := []string{own}
+	for of, n := p.FollowsID.Int64, 0; of != 0 && n < 2*MaxDepth+2; n++ {
+		if dir := filepath.Join(r.runDir(of), "input"); isDir(dir) {
+			dirs = append(dirs, dir)
+		}
+		was, err := r.st.Q.GetProcess(ctx, of)
+		if err != nil {
+			break
+		}
+		of = was.FollowsID.Int64
+	}
+	return dirs, nil
+}
+
+func isDir(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && fi.IsDir()
+}
+
 // Give puts read-only copies of stored files of the project of a process into its input folder and says where
 // they are, a line for the agent's next message.
 func (r *Runner) Give(ctx context.Context, processID int64, files []int64) (string, error) {

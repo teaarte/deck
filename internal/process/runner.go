@@ -124,6 +124,8 @@ type liveTurn struct {
 	input chan provider.Message
 	// slot is the agent slot the turn holds, under r.mu.
 	slot *slot
+	// node says the turn runs on a node, which gets the files of its folders as the turn starts, under r.mu.
+	node bool
 	// watch is the provider call under way, under r.mu.
 	watch *watch
 	// polled is the process the turn last looked at without a wait, and polls how many times in a row, under r.mu.

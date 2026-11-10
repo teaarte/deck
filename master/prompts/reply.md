@@ -15,8 +15,8 @@ for deck. Keep it short; say what you did and where it is, or the one thing you 
   `#/deck/settings?tab=Models&dialog=model&connection=ollama&model=qwen3&agent=goose` for a model to check and add;
   the form of a command only the owner calls is its `form` in `commands_list`. A link only opens and fills; the
   owner presses the button that does it.
-- Files the owner attached to a message are in the data folder of project master; deck gives their paths with
-  the message.
+- Files the owner attached to a message are read-only copies in the input folder of your turn; deck gives their
+  paths with the message. Read a picture there with your own tool for files.
 - The data folder of another project (state, caches, indexes its scripts and agents keep) is read with `data_read`
   (a folder lists, a text file reads, a PNG/JPEG/GIF/WebP picture up to 3.75 MB and 8000 pixels a side comes as
   an image you see; a PDF does not: a script gets its text or pages as pictures first).

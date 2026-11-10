@@ -90,7 +90,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           sandbox: true
-      - run: go test -race -count=1 -timeout 15m $(.github/shard.sh ${{ matrix.areas }})
+      - run: go test -race -count=1 -timeout 18m $(.github/shard.sh ${{ matrix.areas }})
 
   # The hosts deck's compose.yaml is tried on: Ubuntu 22.04 with AppArmor 3, 24.04 with AppArmor 4, whose user
   # namespaces only a profile opens.

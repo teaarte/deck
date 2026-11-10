@@ -122,7 +122,7 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 			if ready && !once {
 				once = true
 				close(shown)
-				s.Emit(events.Event{Topic: "health"})
+				s.Emit(events.Event{Topic: events.Health})
 			}
 			if err != nil {
 				break
@@ -152,7 +152,7 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 			l.Error = fmt.Sprintf("%s sign-in ended: %s", in.Provider, untrusted.Line(err.Error()+": "+strings.Join(lastLines(tail, 3), " "), 600))
 		}
 		s.mu.Unlock()
-		s.Emit(events.Event{Topic: "health"})
+		s.Emit(events.Event{Topic: events.Health})
 		if err == nil {
 			s.Check(in.Provider)
 		}
@@ -237,6 +237,6 @@ func (s *Service) agentLoginCommands() []*registry.Command {
 			registry.OwnerOnly, s.agentLoginFinish),
 		registry.Read("agent_logins_list", "Sign-ins",
 			"Lists the sign-ins of CLI agents started from deck that wait for the owner, with their link and code, and those that failed.",
-			registry.OwnerOnly, s.agentLoginsList).On("health"),
+			registry.OwnerOnly, s.agentLoginsList).On(events.Health),
 	}
 }

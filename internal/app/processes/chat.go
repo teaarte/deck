@@ -2,6 +2,7 @@ package processes
 
 import (
 	"context"
+	"deck2/internal/events"
 	"encoding/json"
 	"slices"
 
@@ -120,7 +121,7 @@ func (s *Service) chatCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("process_chat_get", "Process chat",
 			"Gives the log of a process with the owner's messages among its lines, newest first, while it runs when it started and how to write to it.",
-			registry.OwnerSide, s.processChat).On("log", "processes"),
+			registry.OwnerSide, s.processChat).On(events.Log, events.Processes),
 		registry.Def("process_message_delete", "Delete message to a process",
 			"Deletes a message of the owner to a process while its agent has not taken it.",
 			registry.OwnerOnly, s.processMessageDelete),

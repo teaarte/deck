@@ -5,6 +5,7 @@ package owners
 import (
 	"context"
 	"crypto/sha256"
+	"deck2/internal/events"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -159,7 +160,7 @@ func (s *Service) tokenCommands() []*registry.Command {
 			registry.OwnerOnly, s.tokenCreate),
 		registry.Read("tokens_list", "Automation tokens",
 			"Lists automation tokens by name with their commands, never the tokens themselves; revoked ones too.",
-			registry.OwnerSide, s.tokensList).On("devices").NoTokens(),
+			registry.OwnerSide, s.tokensList).On(events.Devices).NoTokens(),
 		registry.Def("token_revoke", "Revoke token",
 			"Revokes an automation token; calls with it are refused from then on.",
 			registry.OwnerOnly, s.tokenRevoke).As(registry.External),

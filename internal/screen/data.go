@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/master"
@@ -649,7 +650,7 @@ func (r *renderer) chat(id string, b manifest.Block) {
 	maps.Copy(parts, manifest.ChatParts)
 	for _, part := range slices.Sorted(maps.Keys(parts)) {
 		from := parts[part]
-		if t := r.req.Topic; t != "" && (!slices.Contains(readTopics(from), t) || t == "log" && r.req.Changed != "" && r.req.Changed != master.Name) {
+		if t := r.req.Topic; t != "" && (!slices.Contains(readTopics(from), t) || t == events.Log && r.req.Changed != "" && r.req.Changed != master.Name) {
 			continue
 		}
 		path := strings.TrimSuffix(id+"-"+part, "-")

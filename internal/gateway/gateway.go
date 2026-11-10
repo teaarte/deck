@@ -126,7 +126,7 @@ func New(cfg Config, deps Deps) *Gateway {
 		sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
 	bus := deps.Bus
 	g.handler = stateful(g.serverFor)
-	bus.Follow(cfg.Go, []string{"projects", "tools"}, func(ctx context.Context, _ int64, _ []string) { g.renew(ctx) })
+	bus.Follow(cfg.Go, []string{events.Projects, events.Tools}, func(ctx context.Context, _ int64, _ []string) { g.renew(ctx) })
 	return g
 }
 

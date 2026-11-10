@@ -126,12 +126,10 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a := &App{}
 	a.Cfg, a.Home, a.Store, a.Bus, a.Scripts = cfg, h, st, events.NewBus(), script.New(cfg.Sandbox, h)
 	a.Scripts.Image = cfg.Image
-	registry.Declare(cfg.Commands, store.Topics())
+	registry.Declare(cfg.Commands, events.Topics)
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.bg.ctx = a.ctx
-	st.Changed = func(c store.Change) {
-		a.Bus.Emit(events.Event{Workspace: c.Workspace, Topic: c.Topic, Project: c.Project})
-	}
+	st.Changed = a.Bus.Emit
 	a.Asks = ask.NewBroker(st, cfg.Now, a.bg.Go)
 	a.mods.a = a
 	a.Registry = registry.New(a.mods.commands)

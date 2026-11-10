@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"deck2/internal/events"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -385,6 +386,6 @@ func (s *Service) partsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("record_parts_list", "What a record takes along",
 			"Lists what deleting a record takes with it: the record, the records of collections whose parent it is, their files, the files of the processes whose input field record names them, their folders of the data folder no other record holds, and the processes it stops.",
-			registry.OwnerSide, s.recordParts).On("collection", "files", "processes"),
+			registry.OwnerSide, s.recordParts).On(events.Collection, events.Files, events.Processes),
 	}
 }

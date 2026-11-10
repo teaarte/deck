@@ -20,7 +20,7 @@ import (
 
 // FollowClosed lets the module of a process hear how a confirmation it asked for closed, in the background.
 func (s *Service) FollowClosed(bus *events.Bus) {
-	bus.Follow(s.Go, []string{"asks", "calls"}, func(ctx context.Context, _ int64, _ []string) { s.Heard(ctx) })
+	bus.Follow(s.Go, []string{events.Asks, events.Calls}, func(ctx context.Context, _ int64, _ []string) { s.Heard(ctx) })
 }
 
 // Heard starts the trigger on ask of the module of each confirmation of a process closed since, once an ask.

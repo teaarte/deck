@@ -128,7 +128,7 @@ func (r *Runner) logged(ctx context.Context, processID int64) {
 			}
 		}
 	}
-	e.Topic = "log"
+	e.Topic = events.Log
 	r.bus.Emit(e)
 }
 

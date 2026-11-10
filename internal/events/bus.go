@@ -60,9 +60,6 @@ func (s *Sub) add(e Event) {
 	}
 }
 
-// Outbox is the topic of a row put in the outbox: deck's own, never published to a client.
-const Outbox = "outbox"
-
 func (b *Bus) Emit(e Event) {
 	b.mu.Lock()
 	for s := range b.subs {

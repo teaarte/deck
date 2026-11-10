@@ -4,6 +4,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 )
@@ -133,7 +134,7 @@ func screenTopics(bs []manifest.Block, record string, deck bool) []string {
 		add(readTopics(pageRead(deck, record))...)
 	}
 	if !deck {
-		add("projects")
+		add(events.Projects)
 	}
 	slices.Sort(out)
 	return out

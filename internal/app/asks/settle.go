@@ -7,16 +7,15 @@ import (
 
 	"deck2/internal/events"
 	"deck2/internal/gateway"
-	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
 // quiet are the topics no subject of a frozen call follows; the rest may change one.
-var quiet = []string{"processes", "log", "usage", "health", "feed", "chat", "collection", "files", "calls"}
+var quiet = []string{events.Processes, events.Log, events.Usage, events.Health, events.Feed, events.Chat, events.Collection, events.Files, events.Calls}
 
 // Follow settles the calls waiting for the owner after any change their subjects may follow, in the background.
 func (s *Service) Follow(bus *events.Bus) {
-	topics := slices.DeleteFunc(store.Topics(), func(t string) bool { return slices.Contains(quiet, t) })
+	topics := slices.DeleteFunc(slices.Clone(events.Topics), func(t string) bool { return slices.Contains(quiet, t) })
 	bus.Follow(s.Go, topics, func(ctx context.Context, _ int64, _ []string) { s.Settle(ctx) })
 }
 

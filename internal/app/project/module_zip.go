@@ -3,6 +3,7 @@ package project
 import (
 	"archive/zip"
 	"context"
+	"deck2/internal/events"
 	"io"
 	"os"
 	"path"
@@ -277,6 +278,6 @@ func (s *Service) moduleZipCommands() []*registry.Command {
 			registry.OwnerOnly, s.projectExport),
 		registry.Read("project_rights_list", "List what a draft may do",
 			"Lists what enabling a draft lets it do beyond its own records, such as the web, secrets, folders and models, and the calls that will wait for the owner each time.",
-			registry.OwnerSide, s.projectRights).On("projects", "documents"),
+			registry.OwnerSide, s.projectRights).On(events.Projects, events.Documents),
 	}
 }

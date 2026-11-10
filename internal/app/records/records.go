@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"deck2/internal/events"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -256,10 +257,10 @@ func (s *Service) recordsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("records_list", "List records",
 			"Lists records of a collection, newest last.",
-			registry.Everyone, s.recordsList).On("collection"),
+			registry.Everyone, s.recordsList).On(events.Collection),
 		registry.Read("record_get", "Get record",
 			"Returns one record by its id.",
-			registry.Everyone, s.recordGet).On("collection"),
+			registry.Everyone, s.recordGet).On(events.Collection),
 		registry.Def("record_delete", "Delete record",
 			"Deletes a record with what belongs to it, as record_parts_list lists, for good, and stops its open processes; outside a draft the owner, an agent or script of the record's own project, and the master the records its own processes wrote: what else the master did not make waits for the owner's yes. The owner may undo a deletion that was not theirs.",
 			registry.Everyone, s.recordDelete),

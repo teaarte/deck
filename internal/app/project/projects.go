@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"deck2/internal/events"
 	"fmt"
 	"maps"
 	"slices"
@@ -159,7 +160,7 @@ func (s *Service) projectsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("projects_list", "List projects",
 			"Lists projects with their description (the first line of the md prompt), screens, folders and what enabling a draft grants.",
-			registry.OwnerSide, s.projectsList).On("projects", "folders", "documents", "files", "settings"),
+			registry.OwnerSide, s.projectsList).On(events.Projects, events.Folders, events.Documents, events.Files, events.Settings),
 		registry.Def("project_create", "Create module",
 			"Creates a project from its name, an md prompt and a manifest; without a manifest it is empty.",
 			registry.OwnerSide, s.projectCreate),

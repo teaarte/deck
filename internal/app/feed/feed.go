@@ -4,6 +4,7 @@ package feed
 import (
 	"cmp"
 	"context"
+	"deck2/internal/events"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -467,7 +468,7 @@ func (s *Service) feedCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("feed_list", "Feed",
 			"Lists the owner's feed, newest first: notes written with owner_notify, with the screen each opens and its buttons, changes made without the owner, with whether they can be undone, and with failures the open failures.",
-			registry.OwnerSide, s.feedList).On("feed", "processes", "asks", "projects", "documents", "health", "secrets", "models", "assignments", "triggers"),
+			registry.OwnerSide, s.feedList).On(events.Feed, events.Processes, events.Asks, events.Projects, events.Documents, events.Health, events.Secrets, events.Models, events.Assignments, events.Triggers),
 		registry.Def("feed_undo", "Undo",
 			"Undoes a change made without the owner, unless the document changed since.",
 			registry.OwnerOnly, s.feedUndo),

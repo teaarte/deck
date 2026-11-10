@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"deck2/internal/events"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -167,10 +168,10 @@ func (s *Service) startersCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("starters_list", "Starter modules",
 			"Lists the modules deck offers on its first run while it has none of the owner's, and one imported as a draft until the owner enables it.",
-			registry.OwnerSide, s.startersList).On("projects", "documents"),
+			registry.OwnerSide, s.startersList).On(events.Projects, events.Documents),
 		registry.Read("project_readiness_get", "What a module needs",
 			"Sums up what a module needs to work: the rights enabling it grants, the secrets it names and whether they are set, the programs its scripts miss with how to install them, and its work no model of deck takes.",
-			registry.OwnerSide, s.projectNeeds).On("projects", "documents", "secrets", "models", "assignments"),
+			registry.OwnerSide, s.projectNeeds).On(events.Projects, events.Documents, events.Secrets, events.Models, events.Assignments),
 	}
 }
 

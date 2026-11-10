@@ -3,6 +3,7 @@ package asks
 import (
 	"cmp"
 	"context"
+	"deck2/internal/events"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -283,6 +284,6 @@ func (s *Service) listCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("asks_list", "Waiting for you",
 			"Lists what waits for the owner, oldest first: questions, confirmations, requests for rights and sign-ins, with who asks, what and where, and the link of the screen that answers them; a request for rights gives what it widens and why. Confirmations that expired stay until the owner clears them.",
-			registry.OwnerSide, s.asksList).On("asks"),
+			registry.OwnerSide, s.asksList).On(events.Asks),
 	}
 }

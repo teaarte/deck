@@ -40,13 +40,22 @@ var rules = []rule{
 		[]string{"internal/home/"}, fileWrite},
 	{"env", "the environment of deck read outside cmd/deck: take it from the config", []string{"internal/", "cmd/"},
 		[]string{"cmd/deck/"}, envRead},
+	{"topic", "a topic of events written out: take its constant of internal/events", []string{"internal/", "cmd/"},
+		[]string{"internal/events/"}, topicLit},
 }
+
+// topics are the topics of events, read from internal/events/topics.go of the root the rules check.
+var topics []string
 
 // Rules finds what breaks the conventions of the Go code under root outside the exceptions, and the exceptions
 // that break nothing any more.
 func Rules(root string) ([]Violation, error) {
+	var err error
+	if topics, err = readTopics(filepath.Join(root, "internal", "events", "topics.go")); err != nil {
+		return nil, err
+	}
 	found := map[string][]string{}
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -268,6 +277,117 @@ func calls(f *ast.File, fset *token.FileSet, path string, names ...string) []int
 		if s, ok := n.(*ast.SelectorExpr); ok && slices.Contains(names, s.Sel.Name) {
 			if x, ok := s.X.(*ast.Ident); ok && x.Name == pkg && x.Obj == nil {
 				out = append(out, fset.Position(s.Pos()).Line)
+			}
+		}
+		return true
+	})
+	return out
+}
+
+// readTopics are the values of the string constants of the file of topics.
+func readTopics(path string) ([]string, error) {
+	f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		return nil, err
+	}
+	var out []string
+	for _, d := range f.Decls {
+		if g, ok := d.(*ast.GenDecl); ok && g.Tok == token.CONST {
+			for _, sp := range g.Specs {
+				for _, v := range sp.(*ast.ValueSpec).Values {
+					if v, ok := topicOf(v); ok {
+						out = append(out, v)
+					}
+				}
+			}
+		}
+	}
+	return out, nil
+}
+
+// topicOf is the value of a string literal.
+func topicOf(e ast.Expr) (string, bool) {
+	l, ok := e.(*ast.BasicLit)
+	if !ok || l.Kind != token.STRING {
+		return "", false
+	}
+	v, err := strconv.Unquote(l.Value)
+	return v, err == nil
+}
+
+// topicLit are the lines of topics written out where a topic goes: the topics of a read, the topic of an event, the
+// topics a follower follows, a comparison with a topic and a list of topics.
+func topicLit(f *ast.File, fset *token.FileSet) []int {
+	var out []int
+	add := func(e ast.Expr) {
+		if v, ok := topicOf(e); ok && slices.Contains(topics, v) {
+			out = append(out, fset.Position(e.Pos()).Line)
+		}
+	}
+	isTopic := func(e ast.Expr) bool {
+		switch x := e.(type) {
+		case *ast.SelectorExpr:
+			return x.Sel.Name == "Topic"
+		case *ast.Ident:
+			return x.Name == "topic"
+		}
+		return false
+	}
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.CallExpr:
+			name := ""
+			switch fn := x.Fun.(type) {
+			case *ast.SelectorExpr:
+				name = fn.Sel.Name
+			case *ast.Ident:
+				name = fn.Name
+			}
+			if slices.Contains([]string{"On", "Follow", "Emit"}, name) {
+				for _, a := range x.Args {
+					ast.Inspect(a, func(n ast.Node) bool {
+						if e, ok := n.(ast.Expr); ok {
+							add(e)
+						}
+						return true
+					})
+				}
+				return false
+			}
+		case *ast.KeyValueExpr:
+			if k, ok := x.Key.(*ast.Ident); ok && k.Name == "Topic" {
+				add(x.Value)
+			}
+		case *ast.AssignStmt:
+			for i, l := range x.Lhs {
+				if isTopic(l) && i < len(x.Rhs) {
+					add(x.Rhs[i])
+				}
+			}
+		case *ast.BinaryExpr:
+			if x.Op == token.EQL || x.Op == token.NEQ {
+				if isTopic(x.X) {
+					add(x.Y)
+				} else if isTopic(x.Y) {
+					add(x.X)
+				}
+			}
+		case *ast.SwitchStmt:
+			if x.Tag != nil && isTopic(x.Tag) {
+				for _, c := range x.Body.List {
+					for _, e := range c.(*ast.CaseClause).List {
+						add(e)
+					}
+				}
+			}
+		case *ast.CompositeLit:
+			if len(x.Elts) > 1 && !slices.ContainsFunc(x.Elts, func(e ast.Expr) bool {
+				v, ok := topicOf(e)
+				return !ok || !slices.Contains(topics, v)
+			}) {
+				for _, e := range x.Elts {
+					add(e)
+				}
 			}
 		}
 		return true

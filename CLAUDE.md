@@ -55,7 +55,8 @@ hold; look inside a package for the rest.
   publishes the topic of its table (`changes.go`; a table is in a scope or `silent`); goose migrations from the base
   `00043_base.sql`; sqlc queries one file per area (`db/` is generated).
 - `internal/events` — the bus: a topic with the project and workspace it changed in; no event is dropped. deck's own
-  observers only `Follow` it: beside the commits, merged by workspace with the projects changed.
+  observers only `Follow` it: beside the commits, merged by workspace with the projects changed. Topics are its
+  constants (`topics.go`); a topic written out elsewhere fails `tests/lint`; the store hands it `Changed` events.
 - `internal/manifest` — the manifest of a module (one format, `version.go`): types, parsing, checks of screens by
   part, expressions (`Where`, `Resolve`), the table of rights (`grants.go`: `Widens` and `Clip` by one table), the
   structural merge of a grant (`merge.go`), texts and their translation (`words.go`); one ordered JSON (`json.go`),

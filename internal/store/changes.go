@@ -13,14 +13,6 @@ import (
 	sqlite3 "modernc.org/sqlite/lib"
 )
 
-// Change is a topic of event a committed write brings: readers of the topic in the project re-read. Workspace
-// zero and an empty project are every workspace and every project.
-type Change struct {
-	Topic     string
-	Workspace int64
-	Project   string
-}
-
 // table is what a write of a table changes: the topic its readers follow and the column of the row that leads to
 // its project or workspace; quiet are columns whose change no reader shows.
 type table struct {
@@ -66,51 +58,41 @@ func (s scope) column() string {
 }
 
 var tables = map[string]table{
-	"project":           {"projects", ofSelf, nil},
-	"project_folder":    {"folders", ofProject, nil},
-	"assignment":        {"assignments", ofProject, nil},
-	"connection":        {"models", ofWorkspace, nil},
-	"model":             {"models", ofWorkspace, nil},
-	"mcp_tool":          {"tools", ofProject, nil},
-	"trigger":           {"triggers", ofProject, nil},
-	"process":           {"processes", ofProject, []string{"output_ms"}},
-	"process_remark":    {"processes", ofProcess, nil},
-	"record":            {"collection", ofProject, nil},
-	"document":          {"documents", ofProject, nil},
-	"document_revision": {"documents", ofDocument, nil},
-	"file":              {"files", ofProject, nil},
-	"picture":           {"files", ofProject, nil},
-	"ask":               {"asks", ofProject, nil},
-	"tool_call":         {"calls", ofProject, nil},
-	"llm_call":          {"usage", ofProject, nil},
-	"health":            {"health", ofProject, nil},
-	"feed":              {"feed", ofProject, nil},
-	"setting":           {"settings", ofWorkspace, nil},
-	"layout":            {"settings", ofWorkspace, nil},
-	"automation_token":  {"devices", ofWorkspace, nil},
-	"device":            {"devices", ofWorkspace, []string{"seen_at", "mark"}},
-	"passkey":           {"devices", ofWorkspace, []string{"seen_at", "credential"}},
-	"chat_topic":        {"chat", ofWorkspace, nil},
-	"chat_message":      {"chat", ofTopic, nil},
-	"outbox":            {Outbox, ofDeck, []string{"tries", "error"}},
+	"project":           {events.Projects, ofSelf, nil},
+	"project_folder":    {events.Folders, ofProject, nil},
+	"assignment":        {events.Assignments, ofProject, nil},
+	"connection":        {events.Models, ofWorkspace, nil},
+	"model":             {events.Models, ofWorkspace, nil},
+	"mcp_tool":          {events.Tools, ofProject, nil},
+	"trigger":           {events.Triggers, ofProject, nil},
+	"process":           {events.Processes, ofProject, []string{"output_ms"}},
+	"process_remark":    {events.Processes, ofProcess, nil},
+	"record":            {events.Collection, ofProject, nil},
+	"document":          {events.Documents, ofProject, nil},
+	"document_revision": {events.Documents, ofDocument, nil},
+	"file":              {events.Files, ofProject, nil},
+	"picture":           {events.Files, ofProject, nil},
+	"ask":               {events.Asks, ofProject, nil},
+	"tool_call":         {events.Calls, ofProject, nil},
+	"llm_call":          {events.Usage, ofProject, nil},
+	"health":            {events.Health, ofProject, nil},
+	"feed":              {events.Feed, ofProject, nil},
+	"setting":           {events.Settings, ofWorkspace, nil},
+	"layout":            {events.Settings, ofWorkspace, nil},
+	"automation_token":  {events.Devices, ofWorkspace, nil},
+	"device":            {events.Devices, ofWorkspace, []string{"seen_at", "mark"}},
+	"passkey":           {events.Devices, ofWorkspace, []string{"seen_at", "credential"}},
+	"chat_topic":        {events.Chat, ofWorkspace, nil},
+	"chat_message":      {events.Chat, ofTopic, nil},
+	"outbox":            {events.Outbox, ofDeck, []string{"tries", "error"}},
 }
 
-// Outbox is the topic of a row put in the outbox.
-const Outbox = events.Outbox
-
-// apart are the topics deck publishes by hand: of what it keeps in files or streams, not in tables.
-var apart = []string{"log", "secrets", "snapshots"}
-
-// Topics are every topic deck publishes: those of its tables and those it publishes apart.
-func Topics() []string {
-	out := slices.Clone(apart)
-	for _, t := range tables {
-		if t.topic != Outbox && !slices.Contains(out, t.topic) {
-			out = append(out, t.topic)
+func init() {
+	for name, t := range tables {
+		if t.topic != events.Outbox && !slices.Contains(events.Topics, t.topic) {
+			panic(fmt.Sprintf("store: table %s publishes %s, not a topic of events", name, t.topic))
 		}
 	}
-	slices.Sort(out)
-	return out
 }
 
 // silent are the tables no screen shows, so their writes publish nothing; every other table is in tables.
@@ -346,9 +328,9 @@ type query func(ctx context.Context, q string, args ...any) *sql.Row
 
 // resolve turns writes into changes: a row's project by name with its workspace, or the workspace the row keeps; a row
 // whose project deck cannot find changes every project of the topic in its workspace.
-func resolve(ctx context.Context, one query, ws []rowWrite, places map[string]map[int64]place) []Change {
-	var out []Change
-	add := func(c Change) {
+func resolve(ctx context.Context, one query, ws []rowWrite, places map[string]map[int64]place) []events.Event {
+	var out []events.Event
+	add := func(c events.Event) {
 		if !slices.Contains(out, c) {
 			out = append(out, c)
 		}
@@ -368,7 +350,7 @@ func resolve(ctx context.Context, one query, ws []rowWrite, places map[string]ma
 	for _, w := range ws {
 		t := tables[w.table]
 		for _, sc := range w.scopes {
-			c := Change{Topic: t.topic, Workspace: sc.workspace}
+			c := events.Event{Topic: t.topic, Workspace: sc.workspace}
 			project := int64(0)
 			switch t.scope {
 			case ofDeck:

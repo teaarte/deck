@@ -263,7 +263,7 @@ func TestTheTopicsOfReadsAreTheOnesDeckPublishes(t *testing.T) {
 		t.Fatal(err)
 	}
 	slices.Sort(catalog.Topics)
-	if got := store.Topics(); !slices.Equal(got, catalog.Topics) {
+	if got := events.Topics; !slices.Equal(got, catalog.Topics) {
 		t.Fatalf("the catalog names the topics deck publishes:\n%v\n%v", got, catalog.Topics)
 	}
 	typo := registry.Read("typo", "Typo", "Follows a topic deck does not publish.", registry.OwnerSide,

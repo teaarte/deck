@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"deck2/internal/events"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -372,10 +373,10 @@ func (s *Service) themeCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("themes_list", "Themes",
 			"Lists the themes of deck: the shipped ones and the owner's, which one is in use and what a check refuses in each.",
-			registry.Everyone, s.list).On("documents", "settings"),
+			registry.Everyone, s.list).On(events.Documents, events.Settings),
 		registry.Read("theme_get", "Theme",
 			"Returns a theme as the client applies it: its CSS, fonts, radius, density, mood and pictures; the one in use without a name.",
-			registry.Everyone, s.theme).On("documents", "settings", "files"),
+			registry.Everyone, s.theme).On(events.Documents, events.Settings, events.Files),
 		registry.Read("theme_format_get", "Theme format",
 			"Returns the JSON Schema of a theme with the catalog of its tokens, variables and classes.",
 			registry.Everyone, func(context.Context, registry.Actor, struct{}) (json.RawMessage, error) { return Format(), nil }).On(registry.Static),

@@ -3,6 +3,7 @@ package screens
 import (
 	"cmp"
 	"context"
+	"deck2/internal/events"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -225,10 +226,10 @@ func (s *Service) commandsListCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("commands_list", "Commands",
 			"Lists the commands the caller may call, deck's and those of projects, with their file fields and what runs them; to the master also those only the owner calls, with the address of their form. project deck selects built-in commands; omit project for all commands. The model of a command, its choices and price, its schedule and the document of its script or prompt only by fields (model, models, choices, choice_groups, price, why, role, cron, trigger, own_paused, document); command_describe gives its input.",
-			registry.OwnerSide, s.commandsList).On("projects", "tools", "assignments", "models", "triggers", "health", "documents").
+			registry.OwnerSide, s.commandsList).On(events.Projects, events.Tools, events.Assignments, events.Models, events.Triggers, events.Health, events.Documents).
 			Brief("name", "title", "description", "project", "files", "executor", "tool", "owner_only", "form", "form_params"),
 		registry.Read("command_describe", "Describe command",
 			"Gives the parameters of any command of the workspace, also of one only the owner calls, such as the forms of Settings: its input and result schemas, class and callers; of an agent or a model command also the model of its work, the models it could take (choices, choice_groups) and the price.",
-			registry.OwnerSide, s.commandDescribe).On("projects", "documents", "assignments", "models", "health"),
+			registry.OwnerSide, s.commandDescribe).On(events.Projects, events.Documents, events.Assignments, events.Models, events.Health),
 	}
 }

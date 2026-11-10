@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"database/sql"
+	"deck2/internal/events"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -336,6 +337,6 @@ func (s *Service) mapCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("memory_map", "Memory map",
 			"The parts of deck's memory and what feeds what: the memory of the owner and of each project (facts of the owner's words, lessons, lines of its index of 150, its last change) with its lessons, summaries of topics, skills, the master's sleep, review and analysis of failures (models, schedule, last run), the agents' own memory (off), the commands that failed the same way more than once lately, and a picture of it all.",
-			registry.OwnerSide, s.memoryMap).On("documents", "processes", "projects", "triggers", "assignments", "models"),
+			registry.OwnerSide, s.memoryMap).On(events.Documents, events.Processes, events.Projects, events.Triggers, events.Assignments, events.Models),
 	}
 }

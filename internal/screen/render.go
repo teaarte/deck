@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/store/db"
 	"deck2/schemas"
@@ -107,7 +108,7 @@ func Render(ctx context.Context, src Sources, req Request) (Drawn, error) {
 	if req.Topic != "" && changesWhen(req.Screen.All(), req.Screen.Record, req.Project.ID == 0, req.Project.Name, req.Changed, req.Topic) {
 		req.Topic = ""
 	}
-	if req.Topic == "projects" && req.Project.ID != 0 && (req.Changed == "" || req.Changed == req.Project.Name) {
+	if req.Topic == events.Projects && req.Project.ID != 0 && (req.Changed == "" || req.Changed == req.Project.Name) {
 		req.Topic = ""
 	}
 	// What a widget shows depends on all its blocks, so it is read whole.

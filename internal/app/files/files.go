@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"deck2/internal/events"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -263,7 +264,7 @@ func (s *Service) filesCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("files_list", "List files",
 			"Lists the files of a record or a process, or the newest files of a project.",
-			registry.Everyone, s.filesList).On("files"),
+			registry.Everyone, s.filesList).On(events.Files),
 		registry.Def("file_upload", "Upload file",
 			"Uploads a file for a project from base64 text and returns its id for a command input.",
 			registry.OwnerSide, s.fileUpload),

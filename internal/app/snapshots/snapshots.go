@@ -44,6 +44,6 @@ func (s *Service) Commands() []*registry.Command {
 			"Lists the snapshots of the base and files deck keeps, newest first.",
 			registry.OwnerOnly, func(context.Context, registry.Actor, struct{}) ([]snapshot, error) {
 				return list(s.Home.Backups()), nil
-			}).On("snapshots"),
+			}).On(events.Snapshots),
 	}
 }

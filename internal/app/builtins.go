@@ -5,13 +5,13 @@ import (
 	"encoding/json"
 
 	"deck2/internal/app/screens"
+	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
-	"deck2/internal/store"
 )
 
 // init declares deck's reads before anything parses a manifest: they are the same commands in every deck.
-func init() { registry.Declare((&App{}).builtins(), store.Topics()) }
+func init() { registry.Declare((&App{}).builtins(), events.Topics) }
 
 func (a *App) addBuiltins() {
 	for _, c := range a.builtins() {

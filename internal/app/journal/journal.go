@@ -4,6 +4,7 @@ package journal
 import (
 	"cmp"
 	"context"
+	"deck2/internal/events"
 	"fmt"
 	"maps"
 	"math"
@@ -380,12 +381,12 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("calls_list", "Journal of calls",
 			"Lists the calls of the gateway, newest first: tool, who, project, process, class, outcome, external id and error; params only of external and waiting calls.",
-			registry.OwnerOnly, s.callsList).On("calls"),
+			registry.OwnerOnly, s.callsList).On(events.Calls),
 		registry.Read("spend_list", "Spend",
 			"Lists the tokens and cost of model calls by project, command, provider and model, the largest first.",
-			registry.OwnerOnly, s.spendList).On("usage"),
+			registry.OwnerOnly, s.spendList).On(events.Usage),
 		registry.Read("spend_days_list", "Spend by day",
 			"Gives the tokens, calls and cost of model calls of the last days: a row for every day, or the totals of each provider or project with their share; by provider also the runs each model did.",
-			registry.OwnerOnly, s.spendDaily).On("usage", "processes"),
+			registry.OwnerOnly, s.spendDaily).On(events.Usage, events.Processes),
 	}
 }

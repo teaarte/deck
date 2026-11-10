@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"deck2/internal/events"
 	"errors"
 	"log/slog"
 	"slices"
@@ -279,6 +280,6 @@ func (s *Service) pictureCommands() []*registry.Command {
 			registry.OwnerSide, s.themeImage),
 		registry.Read("project_covers_list", "Covers",
 			"Lists the covers of a module's card: the theme each is for, empty for every theme, its scheme and picture, and which ones the card shows in the theme in use.",
-			registry.Everyone, s.covers).On("files", "documents", "settings"),
+			registry.Everyone, s.covers).On(events.Files, events.Documents, events.Settings),
 	}
 }

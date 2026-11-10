@@ -4,6 +4,7 @@ package folders
 
 import (
 	"context"
+	"deck2/internal/events"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -395,7 +396,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("folders_list", "Folders",
 			"Lists the folders on disk a project's agent commands work in, each on deck's machine or on that of a node.",
-			registry.OwnerOnly, s.foldersList).On("folders"),
+			registry.OwnerOnly, s.foldersList).On(events.Folders),
 		registry.Def("folder_add", "Add a folder",
 			"Gives a project a folder on disk: its agent commands with folder work in it, its scripts and MCP servers read it; only the owner, since it lets agents write there. A folder of a node is on its machine: the turns and scripts that use it run there, and the node allows the folder with deck -join --allow.",
 			registry.OwnerOnly, s.folderAdd),

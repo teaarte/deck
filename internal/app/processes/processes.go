@@ -5,6 +5,7 @@ package processes
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/events"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -548,13 +549,13 @@ func (s *Service) processCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("processes_list", "List processes",
 			"Lists recent processes, newest first, or only the open ones.",
-			registry.Everyone, s.processesList).On("processes", "asks", "projects", "documents"),
+			registry.Everyone, s.processesList).On(events.Processes, events.Asks, events.Projects, events.Documents),
 		registry.Read("process_get", "Process status",
 			"Returns the state and result of a process, the models it called and their cost_usd; with wait, once it finishes or waits for the owner, and an agent's slot is free for others meanwhile; a process waiting for an agent slot names in slot_ahead how many wait before it.",
-			registry.Everyone, s.processGet).On("processes", "usage", "asks"),
+			registry.Everyone, s.processGet).On(events.Processes, events.Usage, events.Asks),
 		registry.Read("process_left_list", "Left by a process",
 			"Lists what a process and the processes it started left: the changes of documents of an enabled project with whether they can be undone, the records and the files of deck they made; not what was written into the data folder.",
-			registry.Everyone, s.processLeft).On("collection", "files", "feed", "processes"),
+			registry.Everyone, s.processLeft).On(events.Collection, events.Files, events.Feed, events.Processes),
 		registry.Def("process_stop", "Stop process",
 			"Stops a process; a running agent is killed and what it did so far stays; one that handed in its result ends done with it.",
 			registry.OwnerSide, s.processStop),
@@ -563,10 +564,10 @@ func (s *Service) processCommands() []*registry.Command {
 			registry.OwnerSide, s.processRework),
 		registry.Read("process_log_get", "Process log",
 			"Gives a page of the events of a process, oldest first, each with its number n: the last ones, or those before or after a number; only errors, tool calls or messages; a text longer than 1000 bytes is cut, and a page of one event gives it whole. While it runs and for a week after it ended.",
-			registry.Everyone, s.processLog).On("log"),
+			registry.Everyone, s.processLog).On(events.Log),
 		registry.Read("episodes_list", "Episodes",
 			"Lists what happened in a period, oldest first: the processes that finished (not trials nor done with nothing) with their failure, models and duration, the incidents deck handed to the master, the owner's messages in chat topics and the topics whose summary changed; long texts cut. more names a part cut at the limit: call again with since the last time of that part (finished_at or at) for the rest; rows of that very time may come again. A process stays listed for good, its full log a week (process_log_get).",
-			registry.OwnerSide, s.episodesList).On("processes", "chat", "documents").NoTokens(),
+			registry.OwnerSide, s.episodesList).On(events.Processes, events.Chat, events.Documents).NoTokens(),
 	}
 }
 

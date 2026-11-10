@@ -15,7 +15,7 @@ import (
 )
 
 // derivedFrom are the topics of what the derived rows of health are worked out of.
-var derivedFrom = []string{"projects", "documents", "assignments", "models", "secrets"}
+var derivedFrom = []string{events.Projects, events.Documents, events.Assignments, events.Models, events.Secrets}
 
 // Follow derives the rows of health of the projects whose rows are worked out of what changed, beside the commits.
 func (s *Service) Follow(bus *events.Bus) {

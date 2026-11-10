@@ -101,7 +101,7 @@ func (s *Service) write(workspace int64, path, value string) error {
 	}
 	err := home.WriteFile(path, []byte(value))
 	if err == nil {
-		s.Emit(events.Event{Workspace: workspace, Topic: "secrets"})
+		s.Emit(events.Event{Workspace: workspace, Topic: events.Secrets})
 	}
 	return err
 }
@@ -184,7 +184,7 @@ func (s *Service) secretDelete(ctx context.Context, act registry.Actor, in secre
 	if err != nil {
 		return nil, err
 	}
-	s.Emit(events.Event{Workspace: act.Workspace, Topic: "secrets"})
+	s.Emit(events.Event{Workspace: act.Workspace, Topic: events.Secrets})
 	return map[string]any{"deleted": in.Name}, nil
 }
 
@@ -267,6 +267,6 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, s.secretDelete),
 		registry.Read("secrets_list", "Secrets",
 			"Lists the secrets of a module, or of every module: those its manifest names and whether each is set, and those set it does not name; never their values.",
-			registry.OwnerSide, s.secretsList).On("secrets").NoTokens(),
+			registry.OwnerSide, s.secretsList).On(events.Secrets).NoTokens(),
 	}
 }

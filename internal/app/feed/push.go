@@ -5,6 +5,7 @@ package feed
 import (
 	"cmp"
 	"context"
+	"deck2/internal/events"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -352,7 +353,7 @@ func (s *Service) pushCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("push_key_get", "Push key",
 			"Returns the public key a device subscribes to the pushes of deck with.",
-			registry.OwnerOnly, s.pushKey).On("settings"),
+			registry.OwnerOnly, s.pushKey).On(events.Settings),
 		registry.Def("push_key_reset", "Reset the push key",
 			"Makes a new key for pushes; every device subscribed with the old one has to subscribe again.",
 			registry.OwnerOnly, s.pushReset),

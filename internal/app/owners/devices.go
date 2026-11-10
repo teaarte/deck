@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/events"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -238,14 +239,14 @@ func (s *Service) deviceCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("devices_list", "Devices",
 			"Lists the owner's devices: each browser with the passkey it signed in with and each node, the one the call came from marked; revoked ones too.",
-			registry.OwnerOnly, s.devicesList).On("devices"),
+			registry.OwnerOnly, s.devicesList).On(events.Devices),
 		registry.Def("device_rename", "Rename device", "Renames a device of the owner.", registry.OwnerOnly, s.deviceRename),
 		registry.Def("device_revoke", "Revoke device",
 			"Signs a device of the owner out for good: its sessions, pushes and open pages end; its passkey signs that browser in again only as a new device.",
 			registry.OwnerOnly, s.deviceRevoke).As(registry.External),
 		registry.Read("passkeys_list", "Passkeys",
 			"Lists the owner's passkeys: one synced to many browsers signs each in as a device of its own; revoked ones too.",
-			registry.OwnerOnly, s.passkeysList).On("devices"),
+			registry.OwnerOnly, s.passkeysList).On(events.Devices),
 		registry.Def("passkey_rename", "Rename passkey", "Renames a passkey of the owner.", registry.OwnerOnly, s.passkeyRename),
 		registry.Def("passkey_revoke", "Revoke passkey",
 			"Refuses a passkey of the owner from now on and signs out every device it signed in.",

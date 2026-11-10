@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"deck2/internal/events"
 	"fmt"
 	"strings"
 
@@ -96,6 +97,6 @@ func (s *Service) draftCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("project_draft_list", "A draft on one card",
 			"Gives a module on one card to enable it: what it does, what enabling it lets it do, the models it takes, what it still lacks and the revision enabling grants.",
-			registry.OwnerSide, s.projectDraft).On("projects", "documents", "secrets", "models", "assignments"),
+			registry.OwnerSide, s.projectDraft).On(events.Projects, events.Documents, events.Secrets, events.Models, events.Assignments),
 	}
 }

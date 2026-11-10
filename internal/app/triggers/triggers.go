@@ -4,6 +4,7 @@ package triggers
 import (
 	"cmp"
 	"context"
+	"deck2/internal/events"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -338,7 +339,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("triggers_list", "Schedule",
 			"Lists triggers with their next run, pause, the state of their last run and the model an agent command starts on.",
-			registry.Everyone, s.triggersList).On("triggers", "processes", "models", "assignments", "projects", "documents", "health"),
+			registry.Everyone, s.triggersList).On(events.Triggers, events.Processes, events.Models, events.Assignments, events.Projects, events.Documents, events.Health),
 		registry.Def("trigger_pause", "Pause trigger",
 			"Pauses or resumes one trigger; a resumed schedule does not catch up its pause.",
 			registry.OwnerSide, s.triggerPause),

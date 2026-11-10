@@ -15,7 +15,7 @@ import (
 
 // Follow prunes the assignments of commands a manifest no longer has whenever a manifest or a project changes.
 func (s *Service) Follow(bus *events.Bus) {
-	bus.Follow(s.Go, []string{"documents", "projects"}, s.Prune)
+	bus.Follow(s.Go, []string{events.Documents, events.Projects}, s.Prune)
 }
 
 // Prune removes the assignments of commands gone or no longer of an agent, every workspace for zero and of the

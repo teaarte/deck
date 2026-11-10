@@ -5,6 +5,7 @@ package documents
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/events"
 	"errors"
 	"fmt"
 	"slices"
@@ -599,10 +600,10 @@ func (s *Service) documentsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("documents_list", "List documents",
 			"Lists documents of a project, or workspace documents when no project is given; deleted ones for the owner when asked. A memory document says how many times it reached a turn of an agent or a search (reads) and when it last did: the lessons a turn got, a fact an agent or the master read with document_get or found with memory_search.",
-			registry.Everyone, s.documentsList).Enum("kind", docs.Kinds...).On("documents"),
+			registry.Everyone, s.documentsList).Enum("kind", docs.Kinds...).On(events.Documents),
 		registry.Read("document_get", "Get document",
 			"Returns a document by id, or by project and name; the current revision unless one is given.",
-			registry.Everyone, s.documentGet).On("documents"),
+			registry.Everyone, s.documentGet).On(events.Documents),
 		registry.Def("document_save", "Save document",
 			"Writes a new revision of a document, creating it on first save.",
 			registry.Everyone, s.documentSave).Enum("kind", docs.Kinds...),
@@ -614,6 +615,6 @@ func (s *Service) documentsCommands() []*registry.Command {
 			registry.OwnerOnly, s.documentRestore),
 		registry.Read("memory_search", "Search memory",
 			"Finds words in memory, the summaries of the master's topics, skills and finished processes, those the caller reads; what an index does not list is found here. A memory document says how many times it reached a turn of an agent or a search before (reads) and when it last did; a hit of an agent or the master counts as one.",
-			registry.Everyone, s.memorySearch).On("documents", "processes"),
+			registry.Everyone, s.memorySearch).On(events.Documents, events.Processes),
 	}
 }

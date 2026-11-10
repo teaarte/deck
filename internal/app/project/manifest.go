@@ -129,7 +129,7 @@ func (s *Service) manifestCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("manifest_get", "Get manifest",
 			"Returns the current manifest of a project as text; with fields such as manifest.writes, manifest.commands.<name> or manifest.screens.<name>, only that part of it, as text in the same form.",
-			registry.Everyone, s.manifestGet).On("projects"),
+			registry.Everyone, s.manifestGet).On(events.Projects),
 		registry.Def("manifest_save", "Save manifest",
 			"Validates a manifest and stores it as a new revision: the whole manifest, or old parts of the current one replaced with new ones.",
 			registry.OwnerSide, s.manifestSave),
@@ -262,7 +262,7 @@ func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pro
 		s.Gateway.Record(ctx, a, "expired", "the manifest changed after this request")
 	}
 	if changed {
-		s.Emit(events.Event{Workspace: p.WorkspaceID, Topic: "projects", Project: p.Name})
+		s.Emit(events.Event{Workspace: p.WorkspaceID, Topic: events.Projects, Project: p.Name})
 		s.PrepareLater(p.ID)
 	}
 	saved.Screens = s.CheckScreens(ctx, act, p, pm.m)

@@ -15,6 +15,7 @@ import (
 	"github.com/pressly/goose/v3"
 	"modernc.org/sqlite"
 
+	"deck2/internal/events"
 	"deck2/internal/store/db"
 )
 
@@ -29,7 +30,7 @@ type Store struct {
 	reads *sql.DB
 	uri   string
 	// Changed hears what each committed transaction changed, once it committed.
-	Changed func(Change)
+	Changed func(events.Event)
 	// Wait is how long a transaction waits for the base before it fails.
 	Wait    time.Duration
 	changes *changes

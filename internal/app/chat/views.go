@@ -3,6 +3,7 @@ package chat
 import (
 	"cmp"
 	"context"
+	"deck2/internal/events"
 	"encoding/json"
 	"slices"
 	"strconv"
@@ -531,12 +532,12 @@ func (s *Service) viewsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("chat_get", "Chat",
 			"Gives the topic picked of the chat with the master as a chat block shows it: its messages, the replies they got and how they went, and its buttons; a topic without messages suggests what to ask.",
-			registry.OwnerOnly, s.chat).On("chat", "processes", "feed", "collection", "models"),
+			registry.OwnerOnly, s.chat).On(events.Chat, events.Processes, events.Feed, events.Collection, events.Models),
 		registry.Read("chat_topics_list", "Chat topics",
 			"Gives the topics of the chat with the master, the archived apart, with the models its replies may go on.",
-			registry.OwnerOnly, s.chatTopics).On("chat", "processes", "asks", "models", "assignments", "health"),
+			registry.OwnerOnly, s.chatTopics).On(events.Chat, events.Processes, events.Asks, events.Models, events.Assignments, events.Health),
 		registry.Read("chat_turn_get", "Chat turn",
 			"Gives the turn going on in a topic of the chat with the master: the lines of its log, the processes it started, its questions and what it waits for the owner to decide; and the work the replies of the topic started that goes on or ended within the hour.",
-			registry.OwnerOnly, s.chatTurn).On("log", "asks", "processes"),
+			registry.OwnerOnly, s.chatTurn).On(events.Log, events.Asks, events.Processes),
 	}
 }

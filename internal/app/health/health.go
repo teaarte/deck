@@ -3,6 +3,7 @@ package health
 
 import (
 	"context"
+	"deck2/internal/events"
 	"slices"
 	"strings"
 	"sync"
@@ -192,7 +193,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("health_list", "Health",
 			"Lists the health of providers and other dependencies with the last error, worst first.",
-			registry.OwnerSide, s.shown).On("health", "secrets", "projects", "models", "assignments", "triggers", "documents"),
+			registry.OwnerSide, s.shown).On(events.Health, events.Secrets, events.Projects, events.Models, events.Assignments, events.Triggers, events.Documents),
 		registry.Def("health_mark_seen", "Mark a failing check read",
 			"Marks a failing check read: it stops counting among the failing until its status or error changes.",
 			registry.OwnerOnly, s.seen),

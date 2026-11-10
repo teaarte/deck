@@ -28,7 +28,7 @@ func (s *Service) NodeChanged(device int64, _ bool) {
 
 // FollowNodes writes the rows of the nodes again as their connections or names change, and of the nodes revoked.
 func (s *Service) FollowNodes(bus *events.Bus) {
-	bus.Follow(s.Go, []string{"models", "devices"}, func(ctx context.Context, workspace int64, _ []string) {
+	bus.Follow(s.Go, []string{events.Models, events.Devices}, func(ctx context.Context, workspace int64, _ []string) {
 		nodes, err := s.St.Q.ListNodes(ctx)
 		if err != nil {
 			return

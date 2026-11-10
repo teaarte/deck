@@ -5,6 +5,7 @@ package settings
 import (
 	"cmp"
 	"context"
+	"deck2/internal/events"
 	"fmt"
 	"slices"
 	"strconv"
@@ -162,7 +163,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("settings_list", "Settings",
 			"Lists the settings of the workspace with their values and defaults.",
-			registry.OwnerSide, s.settingsList).On("settings"),
+			registry.OwnerSide, s.settingsList).On(events.Settings),
 		registry.Def("setting_set", "Change setting",
 			"Sets one setting of the workspace to a value.",
 			registry.OwnerOnly, s.settingsSet).Enum("name", names()...),

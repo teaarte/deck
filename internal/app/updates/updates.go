@@ -7,6 +7,7 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"database/sql"
+	"deck2/internal/events"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -403,7 +404,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("version_get", "Version of deck",
 			"Gives the version, commit and build of deck, the latest release deck found and whether it is newer.",
-			registry.OwnerSide, s.version).On("health"),
+			registry.OwnerSide, s.version).On(events.Health),
 		registry.Def("update_check", "Look for an update",
 			"Reads the latest release of deck now and tells the owner when it is newer.",
 			registry.OwnerOnly, s.checkNow),

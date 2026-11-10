@@ -66,3 +66,7 @@ ORDER BY l.id DESC LIMIT 20;
 SELECT CAST(COALESCE(SUM(gen_ai_usage_output_tokens), 0) AS INTEGER) AS tokens, CAST(COALESCE(SUM(duration_ms), 0) AS INTEGER) AS ms,
     COUNT(*) AS calls
 FROM llm_call WHERE process_id = ? AND connection_id IS NOT NULL AND duration_ms > 0 AND gen_ai_usage_output_tokens > 0;
+
+
+-- name: PurgeOldLLMCalls :exec
+DELETE FROM llm_call WHERE created_at < CAST(sqlc.arg(before) AS TEXT);

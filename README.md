@@ -162,14 +162,28 @@ anew, pulls the image and restarts deck (it asks before replacing a running deck
 `docker compose pull && docker compose up -d` in `~/deck` updates only the image. When a release is out, Settings →
 Advanced and the feed say so. On start, deck migrates its database and the stored manifests.
 
-**From v0.2.** Just update either way: since v0.2 the files beside `compose.yaml` changed only in comments.
+### Updating from v0.1 and v0.2 (Обновление с v0.1 и v0.2)
 
-**From v0.1.** v0.1 ran agents as a user `agent` with their logins in a volume `agents`. Update the image first, with
-the old `compose.yaml`: on its first start the new image copies the logins into deck's volume. deck then starts no
-foreign program and says why; download the files of the install above, load the profile and run
-`docker compose up -d` again. The volume `deck_agents` is no longer used: `docker volume rm deck_agents`. A new
-`compose.yaml` before the new image leaves the logins behind, and the agents need to sign in again. A v0.1 server with
-a domain has only `DECK_DOMAIN` in `.env`: add `COMPOSE_PROFILES=domain`, or Caddy no longer starts.
+Every release from v0.1.1 on updates to this one with its data: modules and their records, secrets, documents, the
+logins of the CLIs and paired devices (a test updates each released image and the v0.2.2 binary). Before updating, keep
+a copy of the volume or a snapshot (Settings → Advanced): an older deck is not tested on a database a newer one
+migrated.
+
+- **The image, from v0.2.** Just update either way above: since v0.2 the files beside `compose.yaml` changed only in
+  comments.
+- **The image, from v0.1.** v0.1 ran agents as a user `agent` with their logins in a volume `agents`. Update the image
+  first, with the old `compose.yaml`: on its first start the new image copies the logins into deck's volume. deck then
+  starts no foreign program and says why; download the files of the install above, load the profile and run
+  `docker compose up -d` again. The volume `deck_agents` is no longer used: `docker volume rm deck_agents`. A new
+  `compose.yaml` before the new image leaves the logins behind, and the agents need to sign in again. A v0.1 server
+  with a domain has only `DECK_DOMAIN` in `.env`: add `COMPOSE_PROFILES=domain`, or Caddy no longer starts.
+- **The image `deck:local`, built from a checkout.** `sh install.sh` in the checkout: it pulls master, builds
+  `deck:local` and restarts deck with it (Settings → Health, the row `update`, says the same).
+- **A released binary.** Settings → Advanced → **Update**: deck checks the signed `release.json`, takes the same build
+  (`-tailnet` stays `-tailnet`) and restarts ([docs/install.md](docs/install.md#without-docker)).
+- **The former deck.app or the installer without Docker.** By hand: stop it, keep a copy of `~/.deck2`, install as
+  above and move its folder into the volume with `sh move-to-docker.sh ~/.deck2`
+  ([docs/install.md](docs/install.md#moving-from-deck-without-docker)).
 
 **Moving off the built-in Tailscale.** `DECK_TAILSCALE=deck` (deck joins your tailnet itself) goes away in a coming
 release; deck warns in its log and in Settings → Health. Its machine `deck` on the tailnet keeps serving until the

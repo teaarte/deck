@@ -99,7 +99,7 @@ func (n *Node) serve() *remote.Server {
 }
 
 // Allow sets what the owner of the node allows, as an edit of its file: URLs by their ports, folders by their paths,
-// and agents.
+// and agents, which deck learns only when the node connects next.
 func (n *Node) Allow(allow ...string) {
 	var a node.Allowed
 	for _, s := range allow {

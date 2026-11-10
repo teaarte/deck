@@ -10,13 +10,15 @@ import (
 	"deck2/tests/harness"
 )
 
-// codexNode is the node Mac that runs the agents its owner allows on a fake Codex.
-func codexNode(t *testing.T, e *harness.Env) *harness.Node {
+// codexNode is the node Mac that runs the agents its owner allows on a fake Codex; allow comes before the start,
+// since a node tells its agents when it connects.
+func codexNode(t *testing.T, e *harness.Env, allow ...string) *harness.Node {
 	onNode := harness.NewCodex(t)
 	n := e.PairNode("Mac")
 	n.RunAgents(func(spec remote.Spec, home string, _ func(provider.ModelHooks) http.Handler) provider.Provider {
 		return onNode.Adapter(home)
 	})
+	n.Allow(allow...)
 	n.Start()
 	return n
 }
@@ -52,8 +54,7 @@ func TestAnAgentOnANodeIsAModelDeckHas(t *testing.T) {
 func TestWorkWhoseNodeIsAwaySaysSo(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithCodex(harness.NewCodex(t)))
-	n := codexNode(t, e)
-	n.Allow("codex")
+	n := codexNode(t, e, "codex")
 	e.Until("codex@Mac among the agents", func() bool { return hasModel(e, "codex@Mac") })
 	e.Project("paint", harness.ColorManifest)
 	e.UseModels("paint.work", "codex@Mac", "codex")

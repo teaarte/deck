@@ -36,7 +36,7 @@ func (s *Service) agentRow(ctx context.Context, name, version string, failed err
 		version, status, text = "", "error", failed.Error()
 	}
 	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := health.Set(ctx, q, health.Of{}, health.Agent(name), status, text); err != nil {
+		if _, err := health.Set(ctx, q, s.Now(), health.Of{}, health.Agent(name), status, text); err != nil {
 			return err
 		}
 		return q.SetHealthVersion(ctx, db.SetHealthVersionParams{Version: version, Subject: health.Agent(name)})

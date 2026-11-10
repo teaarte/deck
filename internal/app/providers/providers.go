@@ -36,6 +36,9 @@ type Service struct {
 	// WriteKey keeps the API key of a connection.
 	WriteKey func(workspace int64, connection, key string) error
 	Wake     func(ctx context.Context)
+	// TurnedOff says the owner turned a built-in provider of a workspace off; TurnOff turns it off or on again.
+	TurnedOff func(ctx context.Context, workspace int64, provider string) bool
+	TurnOff   func(ctx context.Context, q *db.Queries, workspace int64, provider string, off bool) error
 	// Builtin are the providers deck was started with, the main one first; the owner adds ACP ones per workspace.
 	Builtin []provider.Provider
 	Ctx     context.Context

@@ -209,7 +209,7 @@ func TestAChangeOfAnotherWorkspaceStaysThere(t *testing.T) {
 	live := e.Events(ctx)
 	// Health and a project of workspace 2, which no command of this owner reaches.
 	err := e.App.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(2), Subject: "push", Status: "error", Error: "their pushes"})
+		_, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(2), Subject: "push", Status: "error", Error: "their pushes", Now: store.Time(e.App.Store.Now())})
 		return err
 	})
 	if err == nil {

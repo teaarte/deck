@@ -24,9 +24,9 @@ import (
 // masterErrorPrefix keys the day a failed command of a project last went to the master; screenErrorPrefix, a
 // block of a screen that failed on a revision of its manifest; incidentPrefix, an incident of a process.
 const (
-	masterErrorPrefix = "master_error:"
-	screenErrorPrefix = "screen_error:"
-	incidentPrefix    = "incident:"
+	masterErrorPrefix = "processes:master_error:"
+	screenErrorPrefix = "processes:screen_error:"
+	incidentPrefix    = "processes:incident:"
 )
 
 // Hook hands the failed processes of projects to the master.
@@ -58,7 +58,7 @@ func (s *Service) Incident(ctx context.Context, p db.Process, kind, text string)
 
 // Due hands the master the processes that handed in their result and still run long after.
 func (s *Service) Due(ctx context.Context, now time.Time) {
-	ps, err := s.St.Q.ListSubmittedRunning(ctx, sql.NullString{String: store.Time(now.Add(-process.SubmittedLinger)), Valid: true})
+	ps, err := s.St.Q.ListSubmittedRunning(ctx, store.At(now.Add(-process.SubmittedLinger)))
 	if err != nil {
 		slog.Error("processes running with their result in", "err", err)
 		return
@@ -120,7 +120,7 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 			if _, err := health.Get(ctx, q, health.Project(p), subject); !errors.Is(err, sql.ErrNoRows) {
 				return err
 			}
-			_, err := health.Set(ctx, q, health.Project(p), subject, health.Error, e)
+			_, err := health.Set(ctx, q, s.Now(), health.Project(p), subject, health.Error, e)
 			return err
 		})
 		if err != nil {
@@ -183,7 +183,7 @@ func (s *Service) handOver(ctx context.Context, proj db.Project, on, key string,
 	}
 	now := s.Now()
 	if last, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: proj.WorkspaceID, Name: key}); err == nil {
-		if t, err := time.Parse(store.TimeLayout, last); err == nil && (every == 0 || now.Sub(t) < every) {
+		if t, err := store.ParseTime(last); err == nil && (every == 0 || now.Sub(t) < every) {
 			return
 		}
 	}

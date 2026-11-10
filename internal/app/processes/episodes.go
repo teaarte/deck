@@ -109,8 +109,8 @@ func (s *Service) episodesList(ctx context.Context, act registry.Actor, in episo
 		if p.Models != "" {
 			v.Models = strings.Split(p.Models, ",")
 		}
-		start, err1 := time.Parse(store.TimeLayout, p.StartedAt)
-		end, err2 := time.Parse(store.TimeLayout, p.FinishedAt)
+		start, err1 := store.ParseTime(p.StartedAt)
+		end, err2 := store.ParseTime(p.FinishedAt)
 		if err1 == nil && err2 == nil {
 			v.DurationMs = end.Sub(start).Milliseconds()
 		}

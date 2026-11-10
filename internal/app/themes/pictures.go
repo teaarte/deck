@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/events"
+	"deck2/internal/store"
 	"errors"
 	"log/slog"
 	"slices"
@@ -94,7 +95,7 @@ func (s *Service) putPicture(ctx context.Context, act registry.Actor, p db.Proje
 			return err
 		}
 		pic, err := q.PutPicture(ctx, db.PutPictureParams{ProjectID: p.ID, Slot: slot, Theme: theme, Scheme: scheme,
-			FileID: id, ThumbID: thumb, Color: light.Color, DrawnIn: cur})
+			FileID: id, ThumbID: thumb, Color: light.Color, DrawnIn: cur, Now: store.Time(s.Now())})
 		if err != nil {
 			return err
 		}

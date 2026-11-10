@@ -139,7 +139,7 @@ func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending untold) 
 	if ok, err := r.claim(ctx, p.ID, StateWaitingAnswer); err != nil || !ok {
 		return err
 	}
-	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return pending.ids().mark(ctx, q) })
+	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return pending.ids().mark(ctx, q, r.now()) })
 	m, err := docs.ManifestAt(ctx, r.st.Q, p.ProjectID, p.ManifestRevision)
 	var cmd *manifest.Command
 	if err == nil {

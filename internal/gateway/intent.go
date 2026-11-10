@@ -135,7 +135,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 			if lost[fmt.Sprint(a.ProjectID.Int64, f.Call.Command, string(f.Call.Input))] {
 				continue
 			}
-			if _, err := q.DeliverAsk(ctx, a.ID); err != nil {
+			if _, err := q.DeliverAsk(ctx, db.DeliverAskParams{ID: a.ID, Now: store.Time(g.cfg.Now())}); err != nil {
 				return err
 			}
 			text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped while making this allowed call; "+

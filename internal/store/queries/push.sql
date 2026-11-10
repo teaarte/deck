@@ -39,6 +39,10 @@ UPDATE device SET push_endpoint = NULL, push_p256dh = '', push_auth = '' WHERE w
 
 
 -- name: DeleteStalePushMarks :exec
-DELETE FROM mark WHERE mark.workspace_id = sqlc.arg(workspace_id) AND mark.name LIKE 'push:%' AND (NOT EXISTS (
-    SELECT 1 FROM device s WHERE s.workspace_id = mark.workspace_id AND s.push_endpoint IS NOT NULL AND mark.name LIKE 'push:' || s.id || ':%')
-  OR mark.name NOT LIKE 'push:%:ask' AND mark.name NOT LIKE 'push:%:notify');
+DELETE FROM mark WHERE mark.workspace_id = sqlc.arg(workspace_id) AND mark.name GLOB 'feed:push:*' AND (NOT EXISTS (
+    SELECT 1 FROM device s WHERE s.workspace_id = mark.workspace_id AND s.push_endpoint IS NOT NULL AND mark.name GLOB 'feed:push:' || s.id || ':*')
+  OR mark.name NOT GLOB 'feed:push:*:ask' AND mark.name NOT GLOB 'feed:push:*:notify');
+
+
+-- name: DeletePushMarks :exec
+DELETE FROM mark WHERE workspace_id = ? AND name GLOB 'feed:push:*';

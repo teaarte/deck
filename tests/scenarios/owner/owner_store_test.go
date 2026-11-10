@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/health"
 	deckhome "deck2/internal/home"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
 )
@@ -195,5 +197,91 @@ func TestNewLeavesNoServiceHalfBuilt(t *testing.T) {
 	}
 	if len(missing) > 0 {
 		t.Fatalf("New leaves dependencies of services unset: %v", missing)
+	}
+}
+
+// TestTheTimesDeckWritesAreOfItsClock: a note read, a failing check and its reading, and a revoked token carry the
+// time of deck's clock, not that of the base.
+func TestTheTimesDeckWritesAreOfItsClock(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithClock())
+	at := store.Time(e.Clock.Add(time.Hour))
+	// A note of the master for the owner to read.
+	e.SQL(`INSERT INTO feed (workspace_id, project_id, kind, author, text, created_at)
+		SELECT workspace_id, id, 'note', 'deck', 'by the clock', ? FROM project WHERE builtin = 1`, at)
+	var note int64
+	// The note just written.
+	if err := e.SQLRow(`SELECT id FROM feed WHERE text = 'by the clock'`).Scan(&note); err != nil {
+		t.Fatal(err)
+	}
+	e.Must("deck.feed_mark_read", map[string]any{"entry": note}, nil)
+	if err := health.Write(t.Context(), e.App.Store, health.Of{}, "tool:web.fetch", health.Error, "the server exited: 1"); err != nil {
+		t.Fatal(err)
+	}
+	e.Must("deck.health_mark_seen", map[string]any{"subject": "tool:web.fetch"}, nil)
+	token, _ := e.Token("terminal", "deck.projects_list")
+	e.Must("deck.token_revoke", map[string]any{"token": token}, nil)
+	var read, updated, seen, revoked string
+	// The times deck wrote.
+	err := e.SQLRow(`SELECT (SELECT read_at FROM feed WHERE id = ?), (SELECT updated_at FROM health WHERE subject = 'tool:web.fetch'),
+		(SELECT seen_at FROM health WHERE subject = 'tool:web.fetch'), (SELECT revoked_at FROM automation_token WHERE id = ?)`, note, token).
+		Scan(&read, &updated, &seen, &revoked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if read != at || updated != at || seen != at || revoked != at {
+		t.Fatalf("the times are of deck's clock %s: read %s, updated %s, seen %s, revoked %s", at, read, updated, seen, revoked)
+	}
+}
+
+// TestTheMarksOfAnOlderDeckBeginWithTheirDomain: a mark an older deck kept comes through the update under the name of
+// its domain, with its value and project.
+func TestTheMarksOfAnOlderDeckBeginWithTheirDomain(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "deck.db")
+	st, err := store.Open(path, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := map[string]string{"moved:secrets": "secrets:moved", "moved:sessions": "providers:sessions_moved",
+		"master_error:1.work.task_failed": "processes:master_error:1.work.task_failed", "screen_error:1.screen:main:b0@3": "processes:screen_error:1.screen:main:b0@3",
+		"incident:7.running": "processes:incident:7.running", "manifest_problems:1": "project:manifest_problems:1",
+		"widened:1": "project:widened:1", "push:2:ask": "feed:push:2:ask"}
+	// The marks under the names of an older deck, and the base before the update.
+	for _, q := range []string{`INSERT INTO project (workspace_id, name) VALUES (1, 'alpha')`, `DELETE FROM goose_db_version WHERE version_id >= 76`} {
+		if _, err := st.DB.Exec(q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	for name := range old {
+		// A mark of the project, its value its old name.
+		if _, err := st.DB.Exec(`INSERT INTO mark (workspace_id, project_id, name, value) SELECT 1, id, ?, ? FROM project WHERE name = 'alpha'`, name, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	st.Close()
+	if st, err = store.Open(path, time.Now); err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	// The marks after the update.
+	rows, err := st.DB.Query(`SELECT m.name, m.value, j.name FROM mark m JOIN project j ON j.id = m.project_id WHERE m.workspace_id = 1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	got := map[string]string{}
+	for rows.Next() {
+		var name, value, project string
+		if err := rows.Scan(&name, &value, &project); err != nil {
+			t.Fatal(err)
+		}
+		if project != "alpha" || old[value] != name {
+			t.Fatalf("the mark %s keeps its value and project under the name of its domain: %s of %s", value, name, project)
+		}
+		got[name] = value
+	}
+	if len(got) != len(old) {
+		t.Fatalf("every mark comes through: %v", got)
 	}
 }

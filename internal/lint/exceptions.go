@@ -26,6 +26,10 @@ var exceptions = map[string][]string{
 		"cmd/deck-release/main.go:33", "internal/provider/codex/config.go:30",
 		"internal/sandbox/env.go:15", "internal/sandbox/refused.go:32",
 	},
+	// Only migrations already applied: a migration runs once, by SQLite's clock.
+	"sql_now": {
+		"internal/store/migrations/00050_layout.sql:15",
+	},
 	"layers": {
 		"internal/tsnet/config.go:3", "internal/tsnet/off.go:3", "internal/tsnet/tsnet.go:3",
 	},

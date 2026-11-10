@@ -551,7 +551,7 @@ func (s *Service) documentDelete(ctx context.Context, act registry.Actor, in doc
 		}
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: d.ID})
+		_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: store.At(s.Now()), ID: d.ID})
 		return err
 	})
 	if err != nil {

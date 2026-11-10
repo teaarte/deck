@@ -25,7 +25,7 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 		if n, err = r.leaveRunning(ctx, q, processID, StateRateLimited, w, false, sql.NullInt64{Int64: next, Valid: true}); err != nil || n == 0 {
 			return err
 		}
-		return setHealth(ctx, q, pv, "paused", limitText(next, text))
+		return setHealth(ctx, q, r.now(), pv, "paused", limitText(next, text))
 	})
 	if err != nil {
 		r.finish(ctx, processID, StateError, "", false, fault.Wrap("pause on the usage limit", err))
@@ -40,7 +40,7 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 func (r *Runner) limited(ctx context.Context, pv provider.Provider, resetsAt int64, text string) {
 	next := r.resetOf(resetsAt)
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return setHealth(ctx, q, pv, "paused", limitText(next, text))
+		return setHealth(ctx, q, r.now(), pv, "paused", limitText(next, text))
 	})
 	if err == nil {
 		r.deps.Recheck(pv.Name(), time.UnixMilli(next))

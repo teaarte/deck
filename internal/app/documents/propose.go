@@ -196,7 +196,7 @@ func (s *Service) documentPropose(ctx context.Context, act registry.Actor, in do
 		}
 		if in.Delete {
 			changed = true
-			_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: d.ID})
+			_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: store.At(s.Now()), ID: d.ID})
 			return err
 		}
 		_, n, changed, err = docs.Save(ctx, q, ref, d.Kind, in.Text, act.Author(), in.Reason)

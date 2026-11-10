@@ -29,10 +29,19 @@ func (q *Queries) DeletePush(ctx context.Context, arg DeletePushParams) (int64, 
 	return result.RowsAffected()
 }
 
+const deletePushMarks = `-- name: DeletePushMarks :exec
+DELETE FROM mark WHERE workspace_id = ? AND name GLOB 'feed:push:*'
+`
+
+func (q *Queries) DeletePushMarks(ctx context.Context, workspaceID int64) error {
+	_, err := q.db.ExecContext(ctx, deletePushMarks, workspaceID)
+	return err
+}
+
 const deleteStalePushMarks = `-- name: DeleteStalePushMarks :exec
-DELETE FROM mark WHERE mark.workspace_id = ?1 AND mark.name LIKE 'push:%' AND (NOT EXISTS (
-    SELECT 1 FROM device s WHERE s.workspace_id = mark.workspace_id AND s.push_endpoint IS NOT NULL AND mark.name LIKE 'push:' || s.id || ':%')
-  OR mark.name NOT LIKE 'push:%:ask' AND mark.name NOT LIKE 'push:%:notify')
+DELETE FROM mark WHERE mark.workspace_id = ?1 AND mark.name GLOB 'feed:push:*' AND (NOT EXISTS (
+    SELECT 1 FROM device s WHERE s.workspace_id = mark.workspace_id AND s.push_endpoint IS NOT NULL AND mark.name GLOB 'feed:push:' || s.id || ':*')
+  OR mark.name NOT GLOB 'feed:push:*:ask' AND mark.name NOT GLOB 'feed:push:*:notify')
 `
 
 func (q *Queries) DeleteStalePushMarks(ctx context.Context, workspaceID int64) error {

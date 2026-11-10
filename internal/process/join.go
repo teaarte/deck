@@ -72,7 +72,9 @@ func (r *Runner) join(ctx context.Context, processID, remark int64, text string,
 			_ = r.Deliver(bg, processID)
 			return
 		}
-		err := r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error { return q.MarkRemarkDelivered(ctx, remark) })
+		err := r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error {
+			return q.MarkRemarkDelivered(ctx, db.MarkRemarkDeliveredParams{ID: remark, Now: store.Time(r.now())})
+		})
 		if err != nil {
 			slog.Error("join a call to its running process", "process", processID, "err", err)
 		}

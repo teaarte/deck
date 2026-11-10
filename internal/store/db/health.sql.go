@@ -123,30 +123,41 @@ func (q *Queries) ListHealth(ctx context.Context, workspaceID sql.NullInt64) ([]
 }
 
 const markHealthy = `-- name: MarkHealthy :exec
-INSERT INTO health (subject, status, error) VALUES (?1, 'ok', '')
-ON CONFLICT (coalesce(workspace_id, 0), subject) DO UPDATE SET status = 'ok', error = '', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+INSERT INTO health (subject, status, error, updated_at) VALUES (?1, 'ok', '', CAST(?2 AS TEXT))
+ON CONFLICT (coalesce(workspace_id, 0), subject) DO UPDATE SET status = 'ok', error = '', updated_at = excluded.updated_at
 WHERE health.status IN ('needs_login', 'paused')
 `
 
-func (q *Queries) MarkHealthy(ctx context.Context, subject string) error {
-	_, err := q.db.ExecContext(ctx, markHealthy, subject)
+type MarkHealthyParams struct {
+	Subject string
+	Now     string
+}
+
+func (q *Queries) MarkHealthy(ctx context.Context, arg MarkHealthyParams) error {
+	_, err := q.db.ExecContext(ctx, markHealthy, arg.Subject, arg.Now)
 	return err
 }
 
 const seeHealth = `-- name: SeeHealth :execrows
-UPDATE health SET seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE subject = ?1 AND (workspace_id IS NULL OR workspace_id = ?2)
-  AND project_id IS ?3 AND status = 'error'
+UPDATE health SET seen_at = CAST(?1 AS TEXT)
+WHERE subject = ?2 AND (workspace_id IS NULL OR workspace_id = ?3)
+  AND project_id IS ?4 AND status = 'error'
 `
 
 type SeeHealthParams struct {
+	Now         string
 	Subject     string
 	WorkspaceID sql.NullInt64
 	ProjectID   sql.NullInt64
 }
 
 func (q *Queries) SeeHealth(ctx context.Context, arg SeeHealthParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, seeHealth, arg.Subject, arg.WorkspaceID, arg.ProjectID)
+	result, err := q.db.ExecContext(ctx, seeHealth,
+		arg.Now,
+		arg.Subject,
+		arg.WorkspaceID,
+		arg.ProjectID,
+	)
 	if err != nil {
 		return 0, err
 	}
@@ -154,10 +165,10 @@ func (q *Queries) SeeHealth(ctx context.Context, arg SeeHealthParams) (int64, er
 }
 
 const setHealth = `-- name: SetHealth :execrows
-INSERT INTO health (workspace_id, project_id, subject, status, error)
-VALUES (?1, ?2, ?3, ?4, ?5)
+INSERT INTO health (workspace_id, project_id, subject, status, error, updated_at)
+VALUES (?1, ?2, ?3, ?4, ?5, CAST(?6 AS TEXT))
 ON CONFLICT (coalesce(workspace_id, 0), subject) DO UPDATE SET status = excluded.status, error = excluded.error,
-    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    updated_at = excluded.updated_at
 WHERE health.status != excluded.status OR health.error != excluded.error
 `
 
@@ -167,6 +178,7 @@ type SetHealthParams struct {
 	Subject     string
 	Status      string
 	Error       string
+	Now         string
 }
 
 func (q *Queries) SetHealth(ctx context.Context, arg SetHealthParams) (int64, error) {
@@ -176,6 +188,7 @@ func (q *Queries) SetHealth(ctx context.Context, arg SetHealthParams) (int64, er
 		arg.Subject,
 		arg.Status,
 		arg.Error,
+		arg.Now,
 	)
 	if err != nil {
 		return 0, err

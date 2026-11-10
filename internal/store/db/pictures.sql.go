@@ -252,10 +252,11 @@ func (q *Queries) ListWorkspacePictures(ctx context.Context, arg ListWorkspacePi
 }
 
 const putPicture = `-- name: PutPicture :one
-INSERT INTO picture (project_id, slot, theme, scheme, file_id, thumb_id, color, drawn_in)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+INSERT INTO picture (project_id, slot, theme, scheme, file_id, thumb_id, color, drawn_in, created_at)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8,
+    CAST(?9 AS TEXT))
 ON CONFLICT (project_id, slot, theme, scheme) DO UPDATE SET file_id = excluded.file_id, thumb_id = excluded.thumb_id,
-    color = excluded.color, drawn_in = excluded.drawn_in, created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    color = excluded.color, drawn_in = excluded.drawn_in, created_at = excluded.created_at
 RETURNING id, project_id, slot, theme, scheme, file_id, thumb_id, color, created_at, drawn_in
 `
 
@@ -268,6 +269,7 @@ type PutPictureParams struct {
 	ThumbID   sql.NullInt64
 	Color     string
 	DrawnIn   string
+	Now       string
 }
 
 func (q *Queries) PutPicture(ctx context.Context, arg PutPictureParams) (Picture, error) {
@@ -280,6 +282,7 @@ func (q *Queries) PutPicture(ctx context.Context, arg PutPictureParams) (Picture
 		arg.ThumbID,
 		arg.Color,
 		arg.DrawnIn,
+		arg.Now,
 	)
 	var i Picture
 	err := row.Scan(

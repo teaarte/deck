@@ -105,8 +105,8 @@ func (a *Auth) Session(ctx context.Context, raw string) (Principal, bool) {
 		return Principal{}, false
 	}
 	now := a.cfg.Now()
-	seen, err1 := time.Parse(store.TimeLayout, row.SeenAt)
-	made, err2 := time.Parse(store.TimeLayout, row.CreatedAt)
+	seen, err1 := store.ParseTime(row.SeenAt)
+	made, err2 := store.ParseTime(row.CreatedAt)
 	// The key of a node lasts until the node is revoked.
 	if row.Device.Kind != Node && (err1 != nil || err2 != nil || now.Sub(seen) > Idle || now.Sub(made) > Longest) {
 		_ = a.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteSession(ctx, hash(raw)) })
@@ -134,8 +134,8 @@ func (a *Auth) Alive(ctx context.Context, raw string) bool {
 		return false
 	}
 	now := a.cfg.Now()
-	seen, err1 := time.Parse(store.TimeLayout, row.SeenAt)
-	made, err2 := time.Parse(store.TimeLayout, row.CreatedAt)
+	seen, err1 := store.ParseTime(row.SeenAt)
+	made, err2 := store.ParseTime(row.CreatedAt)
 	return err1 == nil && err2 == nil && now.Sub(seen) <= Idle && now.Sub(made) <= Longest
 }
 

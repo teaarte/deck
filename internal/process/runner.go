@@ -225,7 +225,7 @@ func (r *Runner) Wait() { r.wg.Wait() }
 func (r *Runner) now() time.Time { return r.cfg.Now() }
 
 func (r *Runner) stamp() sql.NullString {
-	return sql.NullString{String: store.Time(r.now()), Valid: true}
+	return store.At(r.now())
 }
 
 // spawn starts a turn unless deck is closing; the process then stays running and resumes on the next start,
@@ -305,7 +305,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 			return err
 		}
 		// A frozen call outlives its process unless the owner stops it.
-		if _, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID}); err != nil {
+		if _, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, Now: store.Time(r.now())}); err != nil {
 			return err
 		}
 		return q.ReleaseFolderLocks(ctx, processID)

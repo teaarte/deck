@@ -203,13 +203,13 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 	e.UseModels("plain.work", "fake")
 	// The model back, as its self-check would find it; no command sets the health of a model.
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		return process.ProviderHealth(ctx, q, "fake", "ok", "")
+		return process.ProviderHealth(ctx, q, e.App.Store.Now(), "fake", "ok", "")
 	})
 	alone := e.StartWork(3)
 	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 3 })
 	// The model at its limit, as another turn would find it.
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		return process.ProviderHealth(ctx, q, "fake", "paused", "usage limit reached")
+		return process.ProviderHealth(ctx, q, e.App.Store.Now(), "fake", "paused", "usage limit reached")
 	})
 	e.Sweep()
 	if got := e.WaitState(alone, "waiting_provider", "error"); got.State != "waiting_provider" {
@@ -274,7 +274,7 @@ func TestAProcessThatWaitsForItsModelGoesToTheModelTheOwnerAssigns(t *testing.T)
 	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 1 })
 	// The model at its limit, as another turn would find it.
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
-		return process.ProviderHealth(ctx, q, "fake", "paused", "usage limit reached")
+		return process.ProviderHealth(ctx, q, e.App.Store.Now(), "fake", "paused", "usage limit reached")
 	})
 	e.Sweep()
 	if got := e.WaitState(id, "waiting_provider", "error"); got.State != "waiting_provider" {

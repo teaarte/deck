@@ -136,7 +136,7 @@ type tokenRevokeIn struct {
 
 func (s *Service) tokenRevoke(ctx context.Context, act registry.Actor, in tokenRevokeIn) (any, error) {
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		return q.RevokeToken(ctx, db.RevokeTokenParams{ID: in.Token, WorkspaceID: act.Workspace})
+		return q.RevokeToken(ctx, db.RevokeTokenParams{ID: in.Token, WorkspaceID: act.Workspace, Now: store.Time(s.Now())})
 	})
 	if err != nil {
 		return nil, err

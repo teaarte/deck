@@ -419,7 +419,7 @@ func (s *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndoI
 		}
 		if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			for _, id := range u.ids {
-				if _, err := q.MarkFeedUndone(ctx, id); err != nil {
+				if _, err := q.MarkFeedUndone(ctx, db.MarkFeedUndoneParams{ID: id, Now: store.Time(s.Now())}); err != nil {
 					return err
 				}
 			}
@@ -429,7 +429,7 @@ func (s *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndoI
 		}
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.MarkFeedUndone(ctx, r.ID)
+		_, err := q.MarkFeedUndone(ctx, db.MarkFeedUndoneParams{ID: r.ID, Now: store.Time(s.Now())})
 		return err
 	})
 	return out, err
@@ -447,9 +447,9 @@ func (s *Service) feedRead(ctx context.Context, act registry.Actor, in feedMarkR
 	}
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
 		if in.All {
-			return q.MarkAllFeedRead(ctx, act.Workspace)
+			return q.MarkAllFeedRead(ctx, db.MarkAllFeedReadParams{WorkspaceID: act.Workspace, Now: store.Time(s.Now())})
 		}
-		return q.MarkFeedRead(ctx, db.MarkFeedReadParams{ID: in.Entry, WorkspaceID: act.Workspace})
+		return q.MarkFeedRead(ctx, db.MarkFeedReadParams{ID: in.Entry, WorkspaceID: act.Workspace, Now: store.Time(s.Now())})
 	})
 	if err != nil {
 		return nil, err

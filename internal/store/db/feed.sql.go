@@ -454,12 +454,17 @@ func (q *Queries) ListMasterNotes(ctx context.Context, workspaceID int64) ([]Fee
 }
 
 const markAllFeedRead = `-- name: MarkAllFeedRead :execrows
-UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE workspace_id = ?1 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+UPDATE feed SET read_at = CAST(?1 AS TEXT)
+WHERE workspace_id = ?2 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
 `
 
-func (q *Queries) MarkAllFeedRead(ctx context.Context, workspaceID int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, markAllFeedRead, workspaceID)
+type MarkAllFeedReadParams struct {
+	Now         string
+	WorkspaceID int64
+}
+
+func (q *Queries) MarkAllFeedRead(ctx context.Context, arg MarkAllFeedReadParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markAllFeedRead, arg.Now, arg.WorkspaceID)
 	if err != nil {
 		return 0, err
 	}
@@ -467,17 +472,18 @@ func (q *Queries) MarkAllFeedRead(ctx context.Context, workspaceID int64) (int64
 }
 
 const markFeedRead = `-- name: MarkFeedRead :execrows
-UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE id = ?1 AND workspace_id = ?2 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+UPDATE feed SET read_at = CAST(?1 AS TEXT)
+WHERE id = ?2 AND workspace_id = ?3 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
 `
 
 type MarkFeedReadParams struct {
+	Now         string
 	ID          int64
 	WorkspaceID int64
 }
 
 func (q *Queries) MarkFeedRead(ctx context.Context, arg MarkFeedReadParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, markFeedRead, arg.ID, arg.WorkspaceID)
+	result, err := q.db.ExecContext(ctx, markFeedRead, arg.Now, arg.ID, arg.WorkspaceID)
 	if err != nil {
 		return 0, err
 	}
@@ -485,11 +491,16 @@ func (q *Queries) MarkFeedRead(ctx context.Context, arg MarkFeedReadParams) (int
 }
 
 const markFeedUndone = `-- name: MarkFeedUndone :execrows
-UPDATE feed SET undone_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND undone_at IS NULL
+UPDATE feed SET undone_at = CAST(?1 AS TEXT) WHERE id = ?2 AND undone_at IS NULL
 `
 
-func (q *Queries) MarkFeedUndone(ctx context.Context, id int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, markFeedUndone, id)
+type MarkFeedUndoneParams struct {
+	Now string
+	ID  int64
+}
+
+func (q *Queries) MarkFeedUndone(ctx context.Context, arg MarkFeedUndoneParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markFeedUndone, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -507,12 +518,17 @@ func (q *Queries) PurgeOldNotes(ctx context.Context, before string) error {
 }
 
 const readNotesOfProcess = `-- name: ReadNotesOfProcess :exec
-UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE process_id = ?1 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
+UPDATE feed SET read_at = CAST(?1 AS TEXT)
+WHERE process_id = ?2 AND kind = 'note' AND for_master = 0 AND read_at IS NULL
 `
 
-func (q *Queries) ReadNotesOfProcess(ctx context.Context, processID sql.NullInt64) error {
-	_, err := q.db.ExecContext(ctx, readNotesOfProcess, processID)
+type ReadNotesOfProcessParams struct {
+	Now       string
+	ProcessID sql.NullInt64
+}
+
+func (q *Queries) ReadNotesOfProcess(ctx context.Context, arg ReadNotesOfProcessParams) error {
+	_, err := q.db.ExecContext(ctx, readNotesOfProcess, arg.Now, arg.ProcessID)
 	return err
 }
 

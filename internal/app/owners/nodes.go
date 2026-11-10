@@ -223,7 +223,7 @@ func hostPort(address string) string {
 }
 
 func parsed(t string) time.Time {
-	at, _ := time.Parse(store.TimeLayout, t)
+	at, _ := store.ParseTime(t)
 	return at
 }
 

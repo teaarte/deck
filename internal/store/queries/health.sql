@@ -1,13 +1,13 @@
 -- name: SetHealth :execrows
-INSERT INTO health (workspace_id, project_id, subject, status, error)
-VALUES (sqlc.narg(workspace_id), sqlc.narg(project_id), sqlc.arg(subject), sqlc.arg(status), sqlc.arg(error))
+INSERT INTO health (workspace_id, project_id, subject, status, error, updated_at)
+VALUES (sqlc.narg(workspace_id), sqlc.narg(project_id), sqlc.arg(subject), sqlc.arg(status), sqlc.arg(error), CAST(sqlc.arg(now) AS TEXT))
 ON CONFLICT (coalesce(workspace_id, 0), subject) DO UPDATE SET status = excluded.status, error = excluded.error,
-    updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    updated_at = excluded.updated_at
 WHERE health.status != excluded.status OR health.error != excluded.error;
 
 
 -- name: SeeHealth :execrows
-UPDATE health SET seen_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+UPDATE health SET seen_at = CAST(sqlc.arg(now) AS TEXT)
 WHERE subject = sqlc.arg(subject) AND (workspace_id IS NULL OR workspace_id = sqlc.arg(workspace_id))
   AND project_id IS sqlc.narg(project_id) AND status = 'error';
 
@@ -19,8 +19,8 @@ ORDER BY h.subject;
 
 
 -- name: MarkHealthy :exec
-INSERT INTO health (subject, status, error) VALUES (sqlc.arg(subject), 'ok', '')
-ON CONFLICT (coalesce(workspace_id, 0), subject) DO UPDATE SET status = 'ok', error = '', updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+INSERT INTO health (subject, status, error, updated_at) VALUES (sqlc.arg(subject), 'ok', '', CAST(sqlc.arg(now) AS TEXT))
+ON CONFLICT (coalesce(workspace_id, 0), subject) DO UPDATE SET status = 'ok', error = '', updated_at = excluded.updated_at
 WHERE health.status IN ('needs_login', 'paused');
 
 

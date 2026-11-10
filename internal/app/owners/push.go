@@ -34,7 +34,7 @@ func (s *Service) pushSubscribe(ctx context.Context, act registry.Actor, in push
 		}
 		if len(before) == 0 {
 			// The first device starts from now, not from whatever came while no device listened.
-			if err := q.DeleteMarksWithPrefix(ctx, db.DeleteMarksWithPrefixParams{WorkspaceID: act.Workspace, Prefix: "push:"}); err != nil {
+			if err := q.DeletePushMarks(ctx, act.Workspace); err != nil {
 				return err
 			}
 		}

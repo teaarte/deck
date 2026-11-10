@@ -129,7 +129,7 @@ func (r *Runner) wake(ctx context.Context) {
 			continue
 		}
 		if p.State == StateRateLimited {
-			_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return unpause(ctx, q, p.Provider) })
+			_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return unpause(ctx, q, r.now(), p.Provider) })
 		}
 		t, err := r.heldTurn(ctx, p)
 		if err != nil {

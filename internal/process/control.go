@@ -61,7 +61,7 @@ func (r *Runner) end(ctx context.Context, processID int64, state string, f *faul
 				return err
 			}
 		}
-		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: store.Bool(drop)})
+		closedCalls, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, CallsToo: store.Bool(drop), Now: store.Time(r.now())})
 		return err
 	})
 	if err != nil || n == 0 {

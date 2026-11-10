@@ -3,6 +3,7 @@ package health
 
 import (
 	"context"
+	"time"
 
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -42,16 +43,16 @@ type Of struct{ Workspace, Project int64 }
 func Project(p db.Project) Of { return Of{Workspace: p.WorkspaceID, Project: p.ID} }
 
 // Set writes a health row in a transaction; changed says its status or text is new.
-func Set(ctx context.Context, q *db.Queries, of Of, subject, status, text string) (changed bool, err error) {
+func Set(ctx context.Context, q *db.Queries, now time.Time, of Of, subject, status, text string) (changed bool, err error) {
 	n, err := q.SetHealth(ctx, db.SetHealthParams{WorkspaceID: store.ID(of.Workspace), ProjectID: store.ID(of.Project), Subject: subject,
-		Status: status, Error: untrusted.Cut(text, limit)})
+		Status: status, Error: untrusted.Cut(text, limit), Now: store.Time(now)})
 	return n > 0, err
 }
 
 // Write sets a health row in a transaction of its own.
 func Write(ctx context.Context, st *store.Store, of Of, subject, status, text string) error {
 	return st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		_, err := Set(ctx, q, of, subject, status, text)
+		_, err := Set(ctx, q, st.Now(), of, subject, status, text)
 		return err
 	})
 }

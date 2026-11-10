@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"deck2/internal/health"
 	deckhome "deck2/internal/home"
@@ -24,7 +25,7 @@ import (
 func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "deck.db")
-	st, err := store.Open(path)
+	st, err := store.Open(path, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +54,7 @@ func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
 		}
 	}
 	st.Close()
-	if st, err = store.Open(path); err != nil {
+	if st, err = store.Open(path, time.Now); err != nil {
 		t.Fatal(err)
 	}
 	defer st.Close()

@@ -67,11 +67,11 @@ func (s *Service) answered(ctx context.Context, m db.Model, next string, status 
 	subject, of := health.Model(m.Name), health.Of{Workspace: m.WorkspaceID}
 	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		if failed {
-			_, err := health.Set(ctx, q, of, subject, health.Error, text)
+			_, err := health.Set(ctx, q, s.Now(), of, subject, health.Error, text)
 			return err
 		}
 		if h, err := health.Get(ctx, q, of, subject); errors.Is(err, sql.ErrNoRows) || err == nil && h.Status == health.Error {
-			_, err = health.Set(ctx, q, of, subject, health.OK, "")
+			_, err = health.Set(ctx, q, s.Now(), of, subject, health.OK, "")
 			return err
 		}
 		return nil

@@ -41,20 +41,6 @@ func (q *Queries) DeleteMarksOfOtherRevisions(ctx context.Context, arg DeleteMar
 	return err
 }
 
-const deleteMarksWithPrefix = `-- name: DeleteMarksWithPrefix :exec
-DELETE FROM mark WHERE workspace_id = ?1 AND substr(name, 1, length(CAST(?2 AS TEXT))) = CAST(?2 AS TEXT)
-`
-
-type DeleteMarksWithPrefixParams struct {
-	WorkspaceID int64
-	Prefix      string
-}
-
-func (q *Queries) DeleteMarksWithPrefix(ctx context.Context, arg DeleteMarksWithPrefixParams) error {
-	_, err := q.db.ExecContext(ctx, deleteMarksWithPrefix, arg.WorkspaceID, arg.Prefix)
-	return err
-}
-
 const getMark = `-- name: GetMark :one
 SELECT value FROM mark WHERE workspace_id = ? AND name = ?
 `
@@ -85,38 +71,6 @@ func (q *Queries) GetSetting(ctx context.Context, arg GetSettingParams) (string,
 	var value string
 	err := row.Scan(&value)
 	return value, err
-}
-
-const listMarksWithPrefix = `-- name: ListMarksWithPrefix :many
-SELECT name FROM mark WHERE workspace_id = ?1 AND substr(name, 1, length(CAST(?2 AS TEXT))) = CAST(?2 AS TEXT)
-`
-
-type ListMarksWithPrefixParams struct {
-	WorkspaceID int64
-	Prefix      string
-}
-
-func (q *Queries) ListMarksWithPrefix(ctx context.Context, arg ListMarksWithPrefixParams) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listMarksWithPrefix, arg.WorkspaceID, arg.Prefix)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		items = append(items, name)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const setMark = `-- name: SetMark :exec

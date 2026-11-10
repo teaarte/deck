@@ -66,7 +66,7 @@ ORDER BY a.id;
 
 
 -- name: CloseOpenAsksOfProcess :many
-UPDATE ask SET state = 'expired', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+UPDATE ask SET state = 'expired', delivered_at = CAST(sqlc.arg(now) AS TEXT)
 WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND kind != 'unknown'
   AND (CAST(sqlc.arg(calls_too) AS INTEGER) = 1 OR kind != 'call')
 RETURNING *;
@@ -77,7 +77,7 @@ UPDATE ask SET state = 'expired' WHERE kind IN ('confirm', 'call') AND state = '
 
 
 -- name: ConsumeApproval :one
-UPDATE ask SET state = 'used', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+UPDATE ask SET state = 'used', delivered_at = CAST(sqlc.arg(now) AS TEXT)
 WHERE id = (
     SELECT a.id FROM ask a
     WHERE a.process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND a.kind = 'confirm' AND a.state = 'answered' AND a.answer = 'allow'
@@ -88,7 +88,7 @@ RETURNING *;
 
 
 -- name: UseApproval :execrows
-UPDATE ask SET state = 'used', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND state = 'answered';
+UPDATE ask SET state = 'used', delivered_at = CAST(sqlc.arg(now) AS TEXT) WHERE id = sqlc.arg(id) AND state = 'answered';
 
 
 -- name: FindOpenCallAsk :one
@@ -130,7 +130,7 @@ SELECT * FROM process_remark WHERE process_id = ? AND delivered_at IS NULL ORDER
 
 
 -- name: MarkRemarkDelivered :exec
-UPDATE process_remark SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL;
+UPDATE process_remark SET delivered_at = CAST(sqlc.arg(now) AS TEXT) WHERE id = sqlc.arg(id) AND delivered_at IS NULL;
 
 
 -- name: LastAskOfProcess :one
@@ -138,7 +138,7 @@ SELECT * FROM ask WHERE process_id = ? ORDER BY id DESC LIMIT 1;
 
 
 -- name: DeliverAsk :execrows
-UPDATE ask SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL;
+UPDATE ask SET delivered_at = CAST(sqlc.arg(now) AS TEXT) WHERE id = sqlc.arg(id) AND delivered_at IS NULL;
 
 
 -- name: ListOpenGrantAsks :many
@@ -150,7 +150,7 @@ UPDATE ask SET state = 'expired' WHERE id = ? AND state = 'open';
 
 
 -- name: TellUnheard :execrows
-UPDATE ask SET unheard_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND unheard_at IS NULL;
+UPDATE ask SET unheard_at = CAST(sqlc.arg(now) AS TEXT) WHERE id = sqlc.arg(id) AND unheard_at IS NULL;
 
 -- name: CreateTakenRemark :exec
 INSERT INTO process_remark (process_id, text, created_at, delivered_at) VALUES (?, ?, ?, ?);

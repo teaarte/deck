@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bufio"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -292,7 +291,7 @@ func (s *Service) projectReset(ctx context.Context, act registry.Actor, in proje
 		if err := q.DeleteProjectRecordSnapshots(ctx, p.ID); err != nil {
 			return err
 		}
-		if err := q.DropProjectMemory(ctx, db.DropProjectMemoryParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ProjectID: store.ID(p.ID)}); err != nil {
+		if err := q.DropProjectMemory(ctx, db.DropProjectMemoryParams{DeletedAt: store.At(s.Now()), ProjectID: store.ID(p.ID)}); err != nil {
 			return err
 		}
 		return q.DeleteProjectFiles(ctx, p.ID)

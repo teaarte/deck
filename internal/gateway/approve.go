@@ -118,7 +118,7 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 		return decision{Behavior: "deny", Message: TrialRefusal}
 	}
 	consumed := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.ConsumeApproval(ctx, db.ConsumeApprovalParams{ProcessID: s.ProcessID, Payload: payload})
+		_, err := q.ConsumeApproval(ctx, db.ConsumeApprovalParams{ProcessID: s.ProcessID, Payload: payload, Now: store.Time(g.cfg.Now())})
 		return err
 	})
 	if consumed == nil {
@@ -143,7 +143,7 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	}
 	if answer == "allow" {
 		n, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-			return q.UseApproval(ctx, a.ID)
+			return q.UseApproval(ctx, db.UseApprovalParams{ID: a.ID, Now: store.Time(g.cfg.Now())})
 		})
 		if err != nil || n == 0 {
 			return decision{Behavior: "deny", Message: "deck: this approval was already used by an identical call."}
@@ -189,7 +189,7 @@ func (g *Gateway) ceiling(ctx context.Context, processID int64, run bool) {
 
 func (g *Gateway) delivered(ctx context.Context, ask int64) {
 	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.DeliverAsk(ctx, ask)
+		_, err := q.DeliverAsk(ctx, db.DeliverAskParams{ID: ask, Now: store.Time(g.cfg.Now())})
 		return err
 	})
 }

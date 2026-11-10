@@ -116,7 +116,7 @@ func (s *Service) derive(ctx context.Context, ws int64, projects []string) error
 					continue
 				}
 			}
-			if _, err := health.Set(ctx, q, d.of, subject, d.status, d.text); err != nil {
+			if _, err := health.Set(ctx, q, s.St.Now(), d.of, subject, d.status, d.text); err != nil {
 				return err
 			}
 		}

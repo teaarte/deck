@@ -197,7 +197,7 @@ func At(t time.Time) sql.NullString {
 	if t.IsZero() {
 		return sql.NullString{}
 	}
-	return sql.NullString{String: store.Time(t), Valid: true}
+	return store.At(t)
 }
 
 func (b *Broker) drop(id int64) {

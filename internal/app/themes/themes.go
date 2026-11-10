@@ -32,7 +32,10 @@ type Service struct {
 	// Invoke calls a command of deck: the master is told through deck.chat_send.
 	Invoke   func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	Language func(ctx context.Context, workspace int64) string
-	Home     home.Layout
+	// Picked is the theme the owner put on a workspace, empty for none; Pick puts one on it.
+	Picked func(ctx context.Context, workspace int64) string
+	Pick   func(ctx context.Context, q *db.Queries, workspace int64, name string) error
+	Home   home.Layout
 	// Keep stores a file for a project as an upload; Thumb stores the light copy of a stored picture with its size
 	// and main color; Drop deletes the uploads a picture did not take.
 	Keep  func(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error)
@@ -42,9 +45,6 @@ type Service struct {
 
 // Format is the schema of a theme.
 func Format() json.RawMessage { return schemas.Theme }
-
-// key is the setting of the theme a workspace wears.
-const key = "theme"
 
 func scope(act registry.Actor) docs.Scope { return docs.Scope{Workspace: act.Workspace} }
 
@@ -62,8 +62,8 @@ func (s *Service) text(ctx context.Context, q *db.Queries, ws int64, name string
 
 // Current is the name of the theme a workspace wears; a deleted one gives way to the default.
 func (s *Service) Current(ctx context.Context, ws int64) string {
-	name, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: ws, Key: key})
-	if err != nil || name == "" {
+	name := s.Picked(ctx, ws)
+	if name == "" {
 		return theme.Default
 	}
 	if t, _, err := s.text(ctx, s.St.Q, ws, name); err != nil || t == nil {
@@ -324,7 +324,7 @@ func (s *Service) remove(ctx context.Context, act registry.Actor, in themeNameIn
 		case d.Kind != docs.KindTheme:
 			return registry.Invalid("%s is no theme", d.Name)
 		}
-		if _, err = q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: d.ID}); err != nil {
+		if _, err = q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: store.At(s.Now()), ID: d.ID}); err != nil {
 			return err
 		}
 		return q.DeleteThemePictures(ctx, db.DeleteThemePicturesParams{WorkspaceID: act.Workspace, Theme: in.Name})
@@ -352,7 +352,7 @@ func (s *Service) use(ctx context.Context, act registry.Actor, in themeNameIn) (
 		return nil, registry.Invalid("%v", err)
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: key, Value: in.Name})
+		return s.Pick(ctx, q, act.Workspace, in.Name)
 	})
 	if err != nil {
 		return nil, err
@@ -423,8 +423,8 @@ func (s *Service) Settle(ctx context.Context) {
 		return
 	}
 	for _, ws := range wss {
-		name, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: ws, Key: key})
-		if err != nil || name == "" || s.Exists(ctx, ws, name) {
+		name := s.Picked(ctx, ws)
+		if name == "" || s.Exists(ctx, ws, name) {
 			continue
 		}
 		m, err := access.Master(ctx, s.St.Q, ws)
@@ -432,7 +432,7 @@ func (s *Service) Settle(ctx context.Context) {
 			continue
 		}
 		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			if err := q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: ws, Key: key, Value: theme.Default}); err != nil {
+			if err := s.Pick(ctx, q, ws, theme.Default); err != nil {
 				return err
 			}
 			return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: m.ID,

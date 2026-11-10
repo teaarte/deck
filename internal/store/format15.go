@@ -14,7 +14,7 @@ import (
 
 // Widened begins the mark of a project whose agents format 15 let reach the domains of its scripts, the domains its
 // value.
-const Widened = "widened:"
+const Widened = "project:widened:"
 
 // format15 raises the stored manifests and the manifests open asks would save to format 15: the network of a
 // module is only its rights, so no_network and the requirement local_browser are gone.

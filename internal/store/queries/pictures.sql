@@ -1,8 +1,9 @@
 -- name: PutPicture :one
-INSERT INTO picture (project_id, slot, theme, scheme, file_id, thumb_id, color, drawn_in)
-VALUES (sqlc.arg(project_id), sqlc.arg(slot), sqlc.arg(theme), sqlc.arg(scheme), sqlc.arg(file_id), sqlc.narg(thumb_id), sqlc.arg(color), sqlc.arg(drawn_in))
+INSERT INTO picture (project_id, slot, theme, scheme, file_id, thumb_id, color, drawn_in, created_at)
+VALUES (sqlc.arg(project_id), sqlc.arg(slot), sqlc.arg(theme), sqlc.arg(scheme), sqlc.arg(file_id), sqlc.narg(thumb_id), sqlc.arg(color), sqlc.arg(drawn_in),
+    CAST(sqlc.arg(now) AS TEXT))
 ON CONFLICT (project_id, slot, theme, scheme) DO UPDATE SET file_id = excluded.file_id, thumb_id = excluded.thumb_id,
-    color = excluded.color, drawn_in = excluded.drawn_in, created_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    color = excluded.color, drawn_in = excluded.drawn_in, created_at = excluded.created_at
 RETURNING *;
 
 

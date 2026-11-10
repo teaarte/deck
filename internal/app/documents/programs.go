@@ -72,7 +72,7 @@ func (s *Service) Programs(ctx context.Context, projectID int64) error {
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		status, text := s.Box()
-		if _, err := health.Set(ctx, q, health.Of{}, health.Sandbox, status, text); err != nil {
+		if _, err := health.Set(ctx, q, s.Now(), health.Of{}, health.Sandbox, status, text); err != nil {
 			return err
 		}
 		keep := map[string]bool{}
@@ -83,7 +83,7 @@ func (s *Service) Programs(ctx context.Context, projectID int64) error {
 			subject := health.Command(p.Name, c.Name)
 			keep[subject] = true
 			status, text := scriptHealth(&c, problems, sbErr)
-			if _, err := health.Set(ctx, q, health.Project(p), subject, status, text); err != nil {
+			if _, err := health.Set(ctx, q, s.Now(), health.Project(p), subject, status, text); err != nil {
 				return err
 			}
 		}

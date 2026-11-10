@@ -38,7 +38,7 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 		if _, err := ask.New(ctx, q, processID, ask.KindLogin, msg, string(payload), time.Time{}); err != nil {
 			return err
 		}
-		return setHealth(ctx, q, pv, health.NeedsLogin, text)
+		return setHealth(ctx, q, r.now(), pv, health.NeedsLogin, text)
 	})
 	if err != nil {
 		r.finish(ctx, processID, StateError, "", false, fault.New(fault.ModelLogin, fmt.Sprintf("needs login: %s", text)))
@@ -69,7 +69,7 @@ func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, er
 	}
 	text := "the agent started without deck's tools, so deck holds the turns of " + pv.Name() + " until its self-check passes: " + err.Error()
 	txErr := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := ProviderHealth(ctx, q, pv.Name(), health.Error, untrusted.Cut(text, 1000)); err != nil {
+		if err := ProviderHealth(ctx, q, r.now(), pv.Name(), health.Error, untrusted.Cut(text, 1000)); err != nil {
 			return err
 		}
 		if err := q.SetHealthCheck(ctx, db.SetHealthCheckParams{Verdict: "adapter", Subject: health.Provider(pv.Name())}); err != nil {

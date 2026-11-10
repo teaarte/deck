@@ -213,7 +213,7 @@ func (s *Service) PushNew(ctx context.Context, workspace int64) {
 	for _, sub := range subs {
 	sources:
 		for _, src := range s.pushSources(say, hidden) {
-			name := fmt.Sprintf("push:%d:%s", sub.ID, src.key)
+			name := fmt.Sprintf("feed:push:%d:%s", sub.ID, src.key)
 			cursor, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: name})
 			if err != nil {
 				set(name, src.start(ctx, workspace))
@@ -253,7 +253,7 @@ func (s *Service) PushNew(ctx context.Context, workspace int64) {
 		err := s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 			prev, err := health.Get(ctx, q, health.Of{Workspace: workspace}, health.Push)
 			stopped = lasting && (err != nil || prev.Status != health.Error)
-			_, err = health.Set(ctx, q, health.Of{Workspace: workspace}, health.Push, status, text)
+			_, err = health.Set(ctx, q, s.Now(), health.Of{Workspace: workspace}, health.Push, status, text)
 			return err
 		})
 		if err != nil {

@@ -250,7 +250,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			if c.Api == models.APICLI {
 				err = health.Clear(ctx, q, health.Of{}, health.Provider(in.Name))
 			} else {
-				err = process.ProviderHealth(ctx, q, in.Name, health.Checking, "the self-check of the model in its agent is about to run")
+				err = process.ProviderHealth(ctx, q, s.Now(), in.Name, health.Checking, "the self-check of the model in its agent is about to run")
 			}
 			if err != nil {
 				return err

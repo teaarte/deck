@@ -92,7 +92,7 @@ func (s *Service) tell(ctx context.Context, p db.Process) {
 		if !p.FinishedAt.Valid {
 			return nil
 		}
-		return q.ReadNotesOfProcess(ctx, store.ID(p.ID))
+		return q.ReadNotesOfProcess(ctx, db.ReadNotesOfProcessParams{ProcessID: store.ID(p.ID), Now: store.Time(s.Now())})
 	})
 	if err != nil {
 		slog.Error("tell the topic of a work", "process", p.ID, "err", err)

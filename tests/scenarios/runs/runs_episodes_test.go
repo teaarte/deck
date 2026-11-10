@@ -98,7 +98,7 @@ func TestEpisodesListWhatHappenedInAPeriod(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The mark deck leaves when it hands an incident to the master.
-	e.SQL(`INSERT INTO mark (workspace_id, project_id, name, value) VALUES (1, ?, ?, ?)`, plain, fmt.Sprintf("incident:%d.running", oldID), old)
+	e.SQL(`INSERT INTO mark (workspace_id, project_id, name, value) VALUES (1, ?, ?, ?)`, plain, fmt.Sprintf("processes:incident:%d.running", oldID), old)
 
 	id := e.Run(plain, "work")
 	e.WaitState(id, "error")
@@ -110,9 +110,9 @@ func TestEpisodesListWhatHappenedInAPeriod(t *testing.T) {
 	other := e.Run(spare.Load(), "work")
 	e.WaitState(other, "done")
 	// The marks of incidents of today.
-	e.SQL(`INSERT INTO mark (workspace_id, project_id, name, value) VALUES (1, ?, ?, ?)`, plain, fmt.Sprintf("incident:%d.not_done", id), store.Time(time.Now()))
+	e.SQL(`INSERT INTO mark (workspace_id, project_id, name, value) VALUES (1, ?, ?, ?)`, plain, fmt.Sprintf("processes:incident:%d.not_done", id), store.Time(time.Now()))
 	// The same.
-	e.SQL(`INSERT INTO mark (workspace_id, project_id, name, value) VALUES (1, ?, ?, ?)`, spare.Load(), fmt.Sprintf("incident:%d.running", other), store.Time(time.Now().Add(time.Millisecond)))
+	e.SQL(`INSERT INTO mark (workspace_id, project_id, name, value) VALUES (1, ?, ?, ?)`, spare.Load(), fmt.Sprintf("processes:incident:%d.running", other), store.Time(time.Now().Add(time.Millisecond)))
 	title := "hello, what broke today" + strings.Repeat(" and why", 30)
 	topic := e.Say(0, title)
 	// The summary a turn of the master writes.

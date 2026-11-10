@@ -51,10 +51,10 @@ func (s *Service) unheard(ctx context.Context, p db.Process, a db.Ask, why strin
 	answer := answered(a.Answer)
 	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		// A close heard again after a crash tells the master once.
-		if n, err := q.TellUnheard(ctx, a.ID); err != nil || n == 0 {
+		if n, err := q.TellUnheard(ctx, db.TellUnheardParams{ID: a.ID, Now: store.Time(s.Now())}); err != nil || n == 0 {
 			return err
 		}
-		if n, err := q.DeliverAsk(ctx, a.ID); err != nil || n == 0 && !a.DeliveredAt.Valid {
+		if n, err := q.DeliverAsk(ctx, db.DeliverAskParams{ID: a.ID, Now: store.Time(s.Now())}); err != nil || n == 0 && !a.DeliveredAt.Valid {
 			return err
 		}
 		err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.Now()), WorkspaceID: proj.WorkspaceID, ProjectID: mp.ID,

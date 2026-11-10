@@ -6,8 +6,10 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -44,11 +46,21 @@ var rules = []rule{
 		[]string{"internal/events/"}, topicLit},
 }
 
+// sqlRules are the conventions of the SQL of the store, by line.
+var sqlRules = []struct {
+	name, text string
+	in         []string
+	find       func(src string) []int
+}{
+	{"sql_now", "'now' outside the DEFAULT of a column: pass the time of deck's clock as sqlc.arg(now)",
+		[]string{"internal/store/queries/", "internal/store/migrations/"}, sqlNow},
+}
+
 // topics are the topics of events, read from internal/events/topics.go of the root the rules check.
 var topics []string
 
-// Rules finds what breaks the conventions of the Go code under root outside the exceptions, and the exceptions
-// that break nothing any more.
+// Rules finds what breaks the conventions of the Go code and the SQL of the store under root outside the
+// exceptions, and the exceptions that break nothing any more.
 func Rules(root string) ([]Violation, error) {
 	var err error
 	if topics, err = readTopics(filepath.Join(root, "internal", "events", "topics.go")); err != nil {
@@ -67,6 +79,9 @@ func Rules(root string) ([]Violation, error) {
 		}
 		rel, _ := filepath.Rel(root, path)
 		rel = filepath.ToSlash(rel)
+		if filepath.Ext(path) == ".sql" {
+			return findSQL(path, rel, found)
+		}
 		if filepath.Ext(path) != ".go" || strings.HasSuffix(rel, "_test.go") {
 			return nil
 		}
@@ -93,20 +108,61 @@ func Rules(root string) ([]Violation, error) {
 	if err != nil {
 		return nil, err
 	}
-	var out []Violation
+	named := map[string]string{}
 	for _, r := range rules {
-		for _, at := range found[r.name] {
-			if !slices.Contains(exceptions[r.name], at) {
-				out = append(out, violationAt(at, r.text))
+		named[r.name] = r.text
+	}
+	for _, r := range sqlRules {
+		named[r.name] = r.text
+	}
+	var out []Violation
+	for _, name := range slices.Sorted(maps.Keys(named)) {
+		for _, at := range found[name] {
+			if !slices.Contains(exceptions[name], at) {
+				out = append(out, violationAt(at, named[name]))
 			}
 		}
-		for _, at := range exceptions[r.name] {
-			if !slices.Contains(found[r.name], at) {
-				out = append(out, violationAt(at, fmt.Sprintf("an exception of rule %q that breaks nothing: take it out of the list", r.name)))
+		for _, at := range exceptions[name] {
+			if !slices.Contains(found[name], at) {
+				out = append(out, violationAt(at, fmt.Sprintf("an exception of rule %q that breaks nothing: take it out of the list", name)))
 			}
 		}
 	}
 	return out, nil
+}
+
+// findSQL adds to found what the rules of SQL find in a file.
+func findSQL(path, rel string, found map[string][]string) error {
+	var src []byte
+	for _, r := range sqlRules {
+		if !slices.ContainsFunc(r.in, func(p string) bool { return strings.HasPrefix(rel, p) }) {
+			continue
+		}
+		if src == nil {
+			var err error
+			if src, err = os.ReadFile(path); err != nil {
+				return err
+			}
+		}
+		for _, line := range r.find(string(src)) {
+			found[r.name] = append(found[r.name], rel+":"+strconv.Itoa(line))
+		}
+	}
+	return nil
+}
+
+var defaultNow = regexp.MustCompile(`DEFAULT \(strftime\('[^']*', 'now'\)\)`)
+
+// sqlNow are the lines that read 'now' anywhere but in the DEFAULT of a column.
+func sqlNow(src string) []int {
+	var out []int
+	for i, line := range strings.Split(src, "\n") {
+		line, _, _ = strings.Cut(line, "--")
+		if strings.Contains(defaultNow.ReplaceAllString(line, ""), "'now'") {
+			out = append(out, i+1)
+		}
+	}
+	return out
 }
 
 func violationAt(at, text string) Violation {

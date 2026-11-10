@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"deck2/internal/fault"
 	"deck2/internal/provider"
@@ -177,7 +178,7 @@ func TestDekiDrawsAViewForTheSizeOfACard(t *testing.T) {
 func TestTheOrderOfTheMenuBecomesALayout(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "deck.db")
-	st, err := store.Open(path)
+	st, err := store.Open(path, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +198,7 @@ func TestTheOrderOfTheMenuBecomesALayout(t *testing.T) {
 		}
 	}
 	st.Close()
-	if st, err = store.Open(path); err != nil {
+	if st, err = store.Open(path, time.Now); err != nil {
 		t.Fatal(err)
 	}
 	defer st.Close()

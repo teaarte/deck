@@ -118,7 +118,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		return nil, err
 	}
 	cfg.Sandbox.Reap()
-	st, err := store.Open(h.DB())
+	st, err := store.Open(h.DB(), cfg.Now)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +159,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Journal = journal.Service{St: st, Now: cfg.Now, Groups: a.Work.Groups}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
 	a.Themes = themes.Service{St: st, Now: cfg.Now, Home: h, Invoke: a.Registry.Invoke, Language: a.Settings.Language,
-		Keep: a.Files.Keep, Thumb: a.Files.Thumb, Drop: a.Files.Drop}
+		Picked: a.Settings.Theme, Pick: a.Settings.SetTheme, Keep: a.Files.Keep, Thumb: a.Files.Thumb, Drop: a.Files.Drop}
 	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Work.Works, Incident: a.Processes.Incident, IsFailure: a.Processes.IsFailure}
 	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Missing: a.missingPrograms, Go: a.bg.Go,
 		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted, Home: h, Fits: a.Work.Fits, Language: a.Settings.Language,
@@ -182,6 +182,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			}
 		},
 		ACPCallLimit: cfg.ACPCallLimit, SelfCheckCeiling: cfg.SelfCheckCeiling, WriteKey: a.Secrets.WriteKey, Wake: a.Runner.Wake,
+		TurnedOff: a.Settings.ProviderOff, TurnOff: a.Settings.SetProviderOff,
 		Reach:   func(ctx context.Context) error { return a.Gateway.Reach(ctx, cfg.MCPBase) },
 		Builtin: builtin, Ctx: a.ctx, Go: a.bg.Go, TurnModel: a.Work.TurnModel, Catalog: a.Work.Catalog, CheckFiles: a.Work.CheckFiles,
 		KeepBig: a.Work.KeepBig, View: a.Work.ModelView, Unassign: a.Work.Unassign}

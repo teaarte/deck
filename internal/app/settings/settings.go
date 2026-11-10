@@ -87,6 +87,38 @@ func (s *Service) ConfirmTTL(ctx context.Context, workspace int64) time.Duration
 	return time.Duration(s.setting(ctx, workspace, "confirm_hours").(int64)) * time.Hour
 }
 
+// The owner's choices kept beside the settings of the list: the theme a workspace wears and the built-in providers
+// it turned off.
+const themeKey = "theme"
+
+func offKey(provider string) string { return "off:" + provider }
+
+// Theme is the name of the theme the workspace picked; empty when it picked none.
+func (s *Service) Theme(ctx context.Context, workspace int64) string {
+	v, _ := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: themeKey})
+	return v
+}
+
+// SetTheme puts a theme on the workspace.
+func (s *Service) SetTheme(ctx context.Context, q *db.Queries, workspace int64, name string) error {
+	return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: workspace, Key: themeKey, Value: name})
+}
+
+// ProviderOff says the owner turned a built-in provider of the workspace off.
+func (s *Service) ProviderOff(ctx context.Context, workspace int64, provider string) bool {
+	v, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: offKey(provider)})
+	return err == nil && v == "1"
+}
+
+// SetProviderOff turns a built-in provider of the workspace off or on again.
+func (s *Service) SetProviderOff(ctx context.Context, q *db.Queries, workspace int64, provider string, off bool) error {
+	value := ""
+	if off {
+		value = "1"
+	}
+	return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: workspace, Key: offKey(provider), Value: value})
+}
+
 // value is the stored text of a setting given as text; empty when it is not given.
 func (d settingDef) value(text string) (string, error) {
 	text = strings.TrimSpace(text)

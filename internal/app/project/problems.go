@@ -53,7 +53,7 @@ func (s *Service) CheckManifests(ctx context.Context) {
 	}
 	for _, p := range ps {
 		problems := s.problems(ctx, p)
-		name := fmt.Sprintf("manifest_problems:%d", p.ID)
+		name := fmt.Sprintf("project:manifest_problems:%d", p.ID)
 		sum := sha256.Sum256([]byte(strings.Join(problems, "\n")))
 		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			if len(problems) == 0 {

@@ -4,9 +4,11 @@ import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 
 	"deck2/internal/ask"
 	"deck2/internal/gateway"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
@@ -18,14 +20,14 @@ type told struct {
 	Remarks []int64 `json:"remarks,omitempty"`
 }
 
-func (t told) mark(ctx context.Context, q *db.Queries) error {
+func (t told) mark(ctx context.Context, q *db.Queries, now time.Time) error {
 	for _, id := range t.Asks {
-		if _, err := q.DeliverAsk(ctx, id); err != nil {
+		if _, err := q.DeliverAsk(ctx, db.DeliverAskParams{ID: id, Now: store.Time(now)}); err != nil {
 			return err
 		}
 	}
 	for _, id := range t.Remarks {
-		if err := q.MarkRemarkDelivered(ctx, id); err != nil {
+		if err := q.MarkRemarkDelivered(ctx, db.MarkRemarkDeliveredParams{ID: id, Now: store.Time(now)}); err != nil {
 			return err
 		}
 	}

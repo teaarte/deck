@@ -83,7 +83,7 @@ func deckError(ws map[string]string, p db.Process, text string) string {
 // long reports whether a running process works, since it was last opened, more than twice as long as its
 // command's usual run, the median of its last runs, and over a minute.
 func (s *Service) long(ctx context.Context, p db.Process, since string) bool {
-	started, err := time.Parse(time.RFC3339Nano, since)
+	started, err := store.ParseTime(since)
 	if err != nil || p.State != process.StateRunning {
 		return false
 	}

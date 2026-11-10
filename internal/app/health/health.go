@@ -216,7 +216,7 @@ func (s *Service) seen(ctx context.Context, act registry.Actor, in healthMarkSee
 		project = p.ID
 	}
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		return q.SeeHealth(ctx, db.SeeHealthParams{Subject: in.Subject, WorkspaceID: store.ID(act.Workspace), ProjectID: store.ID(project)})
+		return q.SeeHealth(ctx, db.SeeHealthParams{Subject: in.Subject, WorkspaceID: store.ID(act.Workspace), ProjectID: store.ID(project), Now: store.Time(s.St.Now())})
 	})
 	if err != nil {
 		return nil, err

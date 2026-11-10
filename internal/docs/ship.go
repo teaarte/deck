@@ -75,7 +75,7 @@ func Ship(ctx context.Context, q *db.Queries, s Scope, prefix string, files []Fi
 		if r.Author != Deck {
 			continue
 		}
-		if _, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: sql.NullString{String: store.Time(now), Valid: true}, ID: d.ID}); err != nil {
+		if _, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: store.At(now), ID: d.ID}); err != nil {
 			return out, err
 		}
 		out.Changed = append(out.Changed, d.Name)

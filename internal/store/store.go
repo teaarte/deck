@@ -32,7 +32,9 @@ type Store struct {
 	// Changed hears what each committed transaction changed, once it committed.
 	Changed func(events.Event)
 	// Wait is how long a transaction waits for the base before it fails.
-	Wait    time.Duration
+	Wait time.Duration
+	// Now is deck's clock.
+	Now     func() time.Time
 	changes *changes
 }
 
@@ -40,6 +42,9 @@ type Store struct {
 const TimeLayout = "2006-01-02T15:04:05.000Z"
 
 func Time(t time.Time) string { return t.UTC().Format(TimeLayout) }
+
+// ParseTime reads a time deck stored: TimeLayout, or RFC 3339 with any fraction.
+func ParseTime(s string) (time.Time, error) { return time.Parse(time.RFC3339Nano, s) }
 
 // At is a time of a column that may be NULL.
 func At(t time.Time) sql.NullString { return sql.NullString{String: Time(t), Valid: true} }
@@ -127,7 +132,7 @@ func (g guard) QueryRowContext(ctx context.Context, q string, a ...any) *sql.Row
 	return g.db.QueryRowContext(ctx, q, a...)
 }
 
-func Open(path string) (*Store, error) {
+func Open(path string, now func() time.Time) (*Store, error) {
 	uri := "file:" + strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(path)
 	// A write takes the lock at BEGIN: a read before it in the same transaction cannot go stale and fail as busy.
 	base, err := sqlite.NewConnector(uri + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_txlock=immediate")
@@ -154,7 +159,7 @@ func Open(path string) (*Store, error) {
 		return nil, err
 	}
 	reads.SetMaxOpenConns(4)
-	return &Store{DB: conn, Q: db.New(guard{reads}), reads: reads, uri: uri, changes: ch}, nil
+	return &Store{DB: conn, Q: db.New(guard{reads}), reads: reads, uri: uri, changes: ch, Now: now}, nil
 }
 
 func (s *Store) Close() error { return cmp.Or(s.reads.Close(), s.DB.Close()) }

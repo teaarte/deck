@@ -57,7 +57,7 @@ ORDER BY created_at DESC, id DESC LIMIT sqlc.arg(lim);
 SELECT * FROM feed WHERE id = ?;
 
 -- name: MarkFeedUndone :execrows
-UPDATE feed SET undone_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND undone_at IS NULL;
+UPDATE feed SET undone_at = CAST(sqlc.arg(now) AS TEXT) WHERE id = sqlc.arg(id) AND undone_at IS NULL;
 
 -- name: PurgeOldNotes :exec
 DELETE FROM feed WHERE kind = 'note' AND for_master = 0 AND (read_at IS NOT NULL OR author != 'deck')
@@ -73,17 +73,17 @@ SELECT * FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id;
 DELETE FROM feed WHERE workspace_id = sqlc.arg(workspace_id) AND for_master = 1 AND id <= sqlc.arg(through);
 
 -- name: ReadNotesOfProcess :exec
-UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+UPDATE feed SET read_at = CAST(sqlc.arg(now) AS TEXT)
 WHERE process_id = sqlc.arg(process_id) AND kind = 'note' AND for_master = 0 AND read_at IS NULL;
 
 
 -- name: MarkFeedRead :execrows
-UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+UPDATE feed SET read_at = CAST(sqlc.arg(now) AS TEXT)
 WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id) AND kind = 'note' AND for_master = 0 AND read_at IS NULL;
 
 
 -- name: MarkAllFeedRead :execrows
-UPDATE feed SET read_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+UPDATE feed SET read_at = CAST(sqlc.arg(now) AS TEXT)
 WHERE workspace_id = sqlc.arg(workspace_id) AND kind = 'note' AND for_master = 0 AND read_at IS NULL;
 
 -- name: CountUnreadNotes :one

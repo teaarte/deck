@@ -95,17 +95,18 @@ func (q *Queries) ListTokens(ctx context.Context, workspaceID int64) ([]Automati
 }
 
 const revokeToken = `-- name: RevokeToken :execrows
-UPDATE automation_token SET revoked_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE id = ? AND workspace_id = ? AND revoked_at IS NULL
+UPDATE automation_token SET revoked_at = CAST(?1 AS TEXT)
+WHERE id = ?2 AND workspace_id = ?3 AND revoked_at IS NULL
 `
 
 type RevokeTokenParams struct {
+	Now         string
 	ID          int64
 	WorkspaceID int64
 }
 
 func (q *Queries) RevokeToken(ctx context.Context, arg RevokeTokenParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, revokeToken, arg.ID, arg.WorkspaceID)
+	result, err := q.db.ExecContext(ctx, revokeToken, arg.Now, arg.ID, arg.WorkspaceID)
 	if err != nil {
 		return 0, err
 	}

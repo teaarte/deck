@@ -84,7 +84,7 @@ func (s *Service) Mark(ctx context.Context) error {
 			if s.unknown() != "" {
 				text = fmt.Sprintf("%s; its commit is not known", text)
 			}
-			if _, err := health.Set(ctx, q, health.Of{}, Subject, health.OK, text); err != nil {
+			if _, err := health.Set(ctx, q, s.Now(), health.Of{}, Subject, health.OK, text); err != nil {
 				return err
 			}
 		}
@@ -193,7 +193,7 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 		}
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		changed, err := health.Set(ctx, q, health.Of{}, Subject, status, text)
+		changed, err := health.Set(ctx, q, s.Now(), health.Of{}, Subject, status, text)
 		if err != nil || !changed || !newer {
 			return err
 		}

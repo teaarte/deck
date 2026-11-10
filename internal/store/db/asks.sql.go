@@ -57,19 +57,20 @@ func (q *Queries) ClaimDecision(ctx context.Context, arg ClaimDecisionParams) (i
 }
 
 const closeOpenAsksOfProcess = `-- name: CloseOpenAsksOfProcess :many
-UPDATE ask SET state = 'expired', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-WHERE process_id = CAST(?1 AS INTEGER) AND state = 'open' AND kind != 'unknown'
-  AND (CAST(?2 AS INTEGER) = 1 OR kind != 'call')
+UPDATE ask SET state = 'expired', delivered_at = CAST(?1 AS TEXT)
+WHERE process_id = CAST(?2 AS INTEGER) AND state = 'open' AND kind != 'unknown'
+  AND (CAST(?3 AS INTEGER) = 1 OR kind != 'call')
 RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at
 `
 
 type CloseOpenAsksOfProcessParams struct {
+	Now       string
 	ProcessID int64
 	CallsToo  int64
 }
 
 func (q *Queries) CloseOpenAsksOfProcess(ctx context.Context, arg CloseOpenAsksOfProcessParams) ([]Ask, error) {
-	rows, err := q.db.QueryContext(ctx, closeOpenAsksOfProcess, arg.ProcessID, arg.CallsToo)
+	rows, err := q.db.QueryContext(ctx, closeOpenAsksOfProcess, arg.Now, arg.ProcessID, arg.CallsToo)
 	if err != nil {
 		return nil, err
 	}
@@ -107,23 +108,24 @@ func (q *Queries) CloseOpenAsksOfProcess(ctx context.Context, arg CloseOpenAsksO
 }
 
 const consumeApproval = `-- name: ConsumeApproval :one
-UPDATE ask SET state = 'used', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+UPDATE ask SET state = 'used', delivered_at = CAST(?1 AS TEXT)
 WHERE id = (
     SELECT a.id FROM ask a
-    WHERE a.process_id = CAST(?1 AS INTEGER) AND a.kind = 'confirm' AND a.state = 'answered' AND a.answer = 'allow'
-      AND a.payload = ?2
+    WHERE a.process_id = CAST(?2 AS INTEGER) AND a.kind = 'confirm' AND a.state = 'answered' AND a.answer = 'allow'
+      AND a.payload = ?3
     ORDER BY a.id LIMIT 1)
 AND state = 'answered'
 RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at
 `
 
 type ConsumeApprovalParams struct {
+	Now       string
 	ProcessID int64
 	Payload   string
 }
 
 func (q *Queries) ConsumeApproval(ctx context.Context, arg ConsumeApprovalParams) (Ask, error) {
-	row := q.db.QueryRowContext(ctx, consumeApproval, arg.ProcessID, arg.Payload)
+	row := q.db.QueryRowContext(ctx, consumeApproval, arg.Now, arg.ProcessID, arg.Payload)
 	var i Ask
 	err := row.Scan(
 		&i.ID,
@@ -323,11 +325,16 @@ func (q *Queries) DeleteWaitingRemark(ctx context.Context, arg DeleteWaitingRema
 }
 
 const deliverAsk = `-- name: DeliverAsk :execrows
-UPDATE ask SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL
+UPDATE ask SET delivered_at = CAST(?1 AS TEXT) WHERE id = ?2 AND delivered_at IS NULL
 `
 
-func (q *Queries) DeliverAsk(ctx context.Context, id int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deliverAsk, id)
+type DeliverAskParams struct {
+	Now string
+	ID  int64
+}
+
+func (q *Queries) DeliverAsk(ctx context.Context, arg DeliverAskParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deliverAsk, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -941,11 +948,16 @@ func (q *Queries) ListWorkspaceOpenAsks(ctx context.Context, workspaceID int64) 
 }
 
 const markRemarkDelivered = `-- name: MarkRemarkDelivered :exec
-UPDATE process_remark SET delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND delivered_at IS NULL
+UPDATE process_remark SET delivered_at = CAST(?1 AS TEXT) WHERE id = ?2 AND delivered_at IS NULL
 `
 
-func (q *Queries) MarkRemarkDelivered(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, markRemarkDelivered, id)
+type MarkRemarkDeliveredParams struct {
+	Now string
+	ID  int64
+}
+
+func (q *Queries) MarkRemarkDelivered(ctx context.Context, arg MarkRemarkDeliveredParams) error {
+	_, err := q.db.ExecContext(ctx, markRemarkDelivered, arg.Now, arg.ID)
 	return err
 }
 
@@ -989,11 +1001,16 @@ func (q *Queries) SetRemarkText(ctx context.Context, arg SetRemarkTextParams) er
 }
 
 const tellUnheard = `-- name: TellUnheard :execrows
-UPDATE ask SET unheard_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND unheard_at IS NULL
+UPDATE ask SET unheard_at = CAST(?1 AS TEXT) WHERE id = ?2 AND unheard_at IS NULL
 `
 
-func (q *Queries) TellUnheard(ctx context.Context, id int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, tellUnheard, id)
+type TellUnheardParams struct {
+	Now string
+	ID  int64
+}
+
+func (q *Queries) TellUnheard(ctx context.Context, arg TellUnheardParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, tellUnheard, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -1001,11 +1018,16 @@ func (q *Queries) TellUnheard(ctx context.Context, id int64) (int64, error) {
 }
 
 const useApproval = `-- name: UseApproval :execrows
-UPDATE ask SET state = 'used', delivered_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ? AND state = 'answered'
+UPDATE ask SET state = 'used', delivered_at = CAST(?1 AS TEXT) WHERE id = ?2 AND state = 'answered'
 `
 
-func (q *Queries) UseApproval(ctx context.Context, id int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, useApproval, id)
+type UseApprovalParams struct {
+	Now string
+	ID  int64
+}
+
+func (q *Queries) UseApproval(ctx context.Context, arg UseApprovalParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, useApproval, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}

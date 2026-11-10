@@ -124,7 +124,7 @@ func TestTheSessionsThatMayGoOnMoveIntoTheHomesOfTheirProjects(t *testing.T) {
 		}
 	}
 	// The base of a deck before the homes of projects, whose sessions have not moved.
-	e.SQL(`DELETE FROM mark WHERE name = 'moved:sessions'`)
+	e.SQL(`DELETE FROM mark WHERE name = 'providers:sessions_moved'`)
 
 	e = e.Restart()
 	moved := filepath.Join(deckhome.Layout(e.Home).Agent("claude", p), "projects", "-work-runs")

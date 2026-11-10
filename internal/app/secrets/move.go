@@ -17,7 +17,7 @@ import (
 )
 
 // moved is the mark of a workspace whose secrets lie by module and whose keys of connections lie apart.
-const moved = "moved:secrets"
+const moved = "secrets:moved"
 
 // staged is the folder the secrets of a workspace wait in while they move; no project or secret has its name.
 const staged = "~before"

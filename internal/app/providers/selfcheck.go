@@ -257,7 +257,7 @@ const agentStart = time.Minute
 func (s *Service) writeCheck(ctx context.Context, name, status, text, version, verdict string, speed float64) {
 	subject := health.Provider(name)
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := process.ProviderHealth(ctx, q, name, status, text); err != nil {
+		if err := process.ProviderHealth(ctx, q, s.Now(), name, status, text); err != nil {
 			return err
 		}
 		if status == health.Checking {

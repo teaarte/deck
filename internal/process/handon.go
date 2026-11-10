@@ -12,6 +12,7 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -130,7 +131,7 @@ func (r *Runner) passOn(ctx context.Context, from, to int64, told []db.ProcessRe
 				}
 				moved = true
 			}
-			if err := q.MarkRemarkDelivered(ctx, m.ID); err != nil {
+			if err := q.MarkRemarkDelivered(ctx, db.MarkRemarkDeliveredParams{ID: m.ID, Now: store.Time(r.now())}); err != nil {
 				return err
 			}
 		}

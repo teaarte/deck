@@ -301,7 +301,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			// A turn that ended on its own with its result in is done, whatever a later call of the model got.
 			res.Fault = nil
 		}
-		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error { return asks.mark(ctx, q) })
+		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error { return asks.mark(ctx, q, r.now()) })
 		asks = told{}
 		r.providerHealth(bg, pv, res, err)
 		settled := err == nil && res.Fault == nil

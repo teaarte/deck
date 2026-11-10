@@ -81,7 +81,7 @@ func (r *Runner) relogin(ctx context.Context, processID int64, login db.Ask, pen
 		if n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateRunning, ID: processID, FromState: StateNeedsLogin}); err != nil || n == 0 {
 			return err
 		}
-		_, err = q.DeliverAsk(ctx, login.ID)
+		_, err = q.DeliverAsk(ctx, db.DeliverAskParams{ID: login.ID, Now: store.Time(r.now())})
 		return err
 	})
 	if err != nil || n == 0 {

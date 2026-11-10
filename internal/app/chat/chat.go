@@ -282,7 +282,7 @@ func (s *Service) chatTopicDelete(ctx context.Context, act registry.Actor, in ch
 		if err := q.DismissTopicQuestions(ctx, in.Topic); err != nil {
 			return err
 		}
-		_, err := q.DeleteTopic(ctx, db.DeleteTopicParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: in.Topic})
+		_, err := q.DeleteTopic(ctx, db.DeleteTopicParams{DeletedAt: store.At(s.Now()), ID: in.Topic})
 		return err
 	})
 	if err != nil {

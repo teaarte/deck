@@ -12,7 +12,7 @@ import (
 )
 
 // movedSessions is the mark of a workspace whose agents that may go on keep their sessions in the homes of projects.
-const movedSessions = "moved:sessions"
+const movedSessions = "providers:sessions_moved"
 
 // MoveSessions copies once the sessions that may go on, of processes not ended and chat topics kept, from the user's
 // homes of the CLIs into those of their projects; the rest stays the user's. Without homes of projects it does nothing.

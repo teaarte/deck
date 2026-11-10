@@ -55,7 +55,7 @@ const (
 func (s *Service) cleanup(ctx context.Context, now time.Time) {
 	s.Expire(ctx, now)
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		deleted := sql.NullString{String: store.Time(now.Add(-topicsKept)), Valid: true}
+		deleted := store.At(now.Add(-topicsKept))
 		if err := q.PurgeTopicSummaries(ctx, deleted); err != nil {
 			return err
 		}

@@ -50,7 +50,7 @@ func TestTheSecretsOfBeforeMoveToTheirModulesOnce(t *testing.T) {
 	// A base before the move: the connection names the secret of its key.
 	e.SQL(`UPDATE connection SET key_secret = 'openrouter' WHERE name = 'openrouter'`)
 	// And the move is not done yet.
-	e.SQL(`DELETE FROM mark WHERE name = 'moved:secrets'`)
+	e.SQL(`DELETE FROM mark WHERE name = 'secrets:moved'`)
 	e = e.Restart()
 	read := func(path string) string {
 		b, err := os.ReadFile(path)

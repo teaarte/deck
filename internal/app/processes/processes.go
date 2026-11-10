@@ -358,7 +358,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	}
 	v.Terminal = s.terminal(ctx, p)
 	if turn && asked <= 0 && open(p) {
-		started, _ := time.Parse(store.TimeLayout, p.StartedAt)
+		started, _ := store.ParseTime(p.StartedAt)
 		ran := s.Now().Sub(started).Round(time.Second)
 		v.Hint = fmt.Sprintf("process %d is still running (for %s). To wait for it, call process_get with wait=600 instead of calling it again", p.ID, ran)
 		if looks > 1 {
@@ -584,7 +584,7 @@ func (s *Service) handedOn(ctx context.Context, p db.Process) (int64, bool) {
 	if fs, err := s.St.Q.ListFollowers(ctx, store.ID(p.ID)); err == nil && len(fs) > 0 {
 		return fs[len(fs)-1].ID, false
 	}
-	at, err := time.Parse(store.TimeLayout, p.FinishedAt.String)
+	at, err := store.ParseTime(p.FinishedAt.String)
 	return 0, err == nil && s.Now().Sub(at) < handOnGrace
 }
 

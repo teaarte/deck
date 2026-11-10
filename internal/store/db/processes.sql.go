@@ -900,7 +900,7 @@ func (q *Queries) ListChildProcesses(ctx context.Context, parentID sql.NullInt64
 const listEpisodeIncidents = `-- name: ListEpisodeIncidents :many
 SELECT m.name, m.value, CAST(COALESCE(j.name, '') AS TEXT) AS project
 FROM mark m LEFT JOIN project j ON j.id = m.project_id
-WHERE m.workspace_id = ?1 AND m.name LIKE 'incident:%'
+WHERE m.workspace_id = ?1 AND m.name GLOB 'processes:incident:*'
   AND (CAST(?2 AS INTEGER) = 0 OR m.project_id = CAST(?2 AS INTEGER))
   AND m.value >= ?3 AND m.value < ?4
 ORDER BY m.value, m.name LIMIT ?5

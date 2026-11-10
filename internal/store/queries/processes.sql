@@ -431,7 +431,7 @@ ORDER BY p.finished_at, p.id LIMIT sqlc.arg(lim);
 -- The incidents of processes deck handed to the master in a period, oldest first; the value of a mark is its time.
 SELECT m.name, m.value, CAST(COALESCE(j.name, '') AS TEXT) AS project
 FROM mark m LEFT JOIN project j ON j.id = m.project_id
-WHERE m.workspace_id = sqlc.arg(workspace_id) AND m.name LIKE 'incident:%'
+WHERE m.workspace_id = sqlc.arg(workspace_id) AND m.name GLOB 'processes:incident:*'
   AND (CAST(sqlc.arg(project_id) AS INTEGER) = 0 OR m.project_id = CAST(sqlc.arg(project_id) AS INTEGER))
   AND m.value >= sqlc.arg(since) AND m.value < sqlc.arg(until)
 ORDER BY m.value, m.name LIMIT sqlc.arg(lim);

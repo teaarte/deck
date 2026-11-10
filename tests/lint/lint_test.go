@@ -72,7 +72,7 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		got = append(got, v.String())
 	}
 	all := strings.Join(got, "\n")
-	for _, not := range []string{"internal/app/y/y.go:10:", "internal/app/y/y.go:11:"} {
+	for _, not := range []string{"internal/app/y/y.go:10:", "internal/app/y/y.go:11:", "q.sql:6:", "00099_x.sql:3:"} {
 		if strings.Contains(all, not) {
 			t.Errorf("a string that is no topic of an event is taken for one: %s in:\n%s", not, all)
 		}
@@ -91,6 +91,8 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		"internal/app/y/y.go:7: a topic of events written out",
 		"internal/app/y/y.go:8: a topic of events written out",
 		"internal/app/y/y.go:9: a topic of events written out",
+		"internal/store/queries/q.sql:2: 'now' outside the DEFAULT of a column",
+		"internal/store/migrations/00099_x.sql:5: 'now' outside the DEFAULT of a column",
 	} {
 		if !strings.Contains(all, want) {
 			t.Errorf("missing violation %q in:\n%s", want, all)

@@ -10,9 +10,6 @@ import (
 	"deck2/internal/store/db"
 )
 
-// offKey is the setting of a workspace that turns a built-in provider off.
-func offKey(name string) string { return "off:" + name }
-
 // base is the built-in provider a provider runs on: itself, or the CLI a model of deck's settings runs in; nil for
 // any other.
 func (s *Service) base(ctx context.Context, workspace int64, name string) provider.Provider {
@@ -38,7 +35,7 @@ func (s *Service) Off(ctx context.Context, workspace int64, name string) string 
 	if i, ok := pv.(provider.Installed); ok && !i.Installed() {
 		return health.Missing
 	}
-	if v, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: offKey(pv.Name())}); err == nil && v == "1" {
+	if s.TurnedOff(ctx, workspace, pv.Name()) {
 		return health.Off
 	}
 	return ""
@@ -80,12 +77,8 @@ func (s *Service) providerSwitch(ctx context.Context, act registry.Actor, in pro
 	if _, ok := pv.(provider.SelfChecker); !ok {
 		return nil, registry.Invalid("%q is no built-in provider; a model of an agent is removed in Settings → Models", in.Provider)
 	}
-	value := ""
-	if in.Off {
-		value = "1"
-	}
 	if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: offKey(in.Provider), Value: value})
+		return s.TurnOff(ctx, q, act.Workspace, in.Provider, in.Off)
 	}); err != nil {
 		return nil, err
 	}

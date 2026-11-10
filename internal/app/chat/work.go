@@ -77,7 +77,7 @@ func (s *Service) running(ctx context.Context, workspace, topic int64, tr func(s
 		open = append(open, v)
 	}
 	ended, _ := s.St.Q.ListRecentTopicProcesses(ctx, db.ListRecentTopicProcessesParams{MasterID: m.ID, Topic: topic,
-		Since: sql.NullString{String: store.Time(s.Now().Add(-recentFor)), Valid: true}, Lim: recentMax})
+		Since: store.At(s.Now().Add(-recentFor)), Lim: recentMax})
 	for _, r := range ended {
 		recent = append(recent, view(r.Process, r.Project))
 	}
@@ -135,8 +135,8 @@ func (s *Service) work(ctx context.Context, p db.Process, tr func(string) string
 		}
 		v.CostUSD, v.SubscriptionUSD = process.Spent(calls, func(c db.ListTurnCallsRow) (sql.NullFloat64, bool) { return c.CostUsd, c.Subscription != 0 })
 	}
-	if from, err := time.Parse(time.RFC3339Nano, p.StartedAt); err == nil {
-		if to, err := time.Parse(time.RFC3339Nano, p.FinishedAt.String); err == nil {
+	if from, err := store.ParseTime(p.StartedAt); err == nil {
+		if to, err := store.ParseTime(p.FinishedAt.String); err == nil {
 			v.Seconds = int64(to.Sub(from).Round(time.Second) / time.Second)
 		}
 	}

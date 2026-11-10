@@ -254,7 +254,7 @@ and bring the modules in line.
 - 2026-11-09: a reply of the master in a chat topic shows one block under its text with `deck.chat_block_show`:
   options to pick, a form (a bounded number slides), a table, a chart or a card, its data in place, by the schema
   `shown` of deck's catalog; a wrong block is refused with why. The owner's answer to options or a form comes as the
-  owner's next message of the topic, and the block keeps it (`deck.chat_answer`).
+  owner's next message of the topic, and the block keeps it.
 - 2026-11-09: `logo` of a model in `deck.models_list` (and `choice_logos`, the `logo` of work) names the model itself
   first — its id at the provider, else its name — then its connection and agent, so its mark is the maker's, not the
   provider's, and the provider's only for a maker deck has no mark of; the provider stands in `provider` (and starts
@@ -264,3 +264,9 @@ and bring the modules in line.
   deck started with it has the health row `tailscale:builtin` (warning) saying how to move to Tailscale on the host
   (`tailscale serve`, `-public`/`DECK_DOMAIN`, pair the phone again). Off it, the rows `tailscale` and
   `tailscale:builtin` go at the start.
+- 2026-11-10: a question to the owner is one ask of deck: options or a form a reply shows with `deck.chat_block_show`
+  waits for the owner in the topic and in "waiting for you" (`deck.asks_list`, a question whose `payload.questions[0]`
+  has `options` or `form`), answered in either with `deck.ask_answer` (a form's answer is its fields as a JSON
+  object); the answer comes as the owner's next message of the topic. The chat's own answer command is gone. The
+  owner's own message in the topic closes its open options and forms. A reply asks by these blocks, not by its
+  question tool.

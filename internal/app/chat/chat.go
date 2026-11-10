@@ -180,6 +180,10 @@ func (s *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendI
 		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: t.ID, Role: roleOwner, Text: text, Context: screen, RetryKey: in.RetryKey}); err != nil {
 			return err
 		}
+		// The owner answered in words: the options and forms of the topic wait for them no more.
+		if err := q.DismissTopicQuestions(ctx, t.ID); err != nil {
+			return err
+		}
 		for _, id := range it.Files {
 			n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: FileOwner, OwnerID: msg.ID, ID: id, ProjectID: master.ID, FromKind: "upload", FromID: 0})
 			if err != nil {
@@ -275,6 +279,9 @@ func (s *Service) chatTopicDelete(ctx context.Context, act registry.Actor, in ch
 		if _, err := s.ownTopic(ctx, q, act, in.Topic); err != nil {
 			return err
 		}
+		if err := q.DismissTopicQuestions(ctx, in.Topic); err != nil {
+			return err
+		}
 		_, err := q.DeleteTopic(ctx, db.DeleteTopicParams{DeletedAt: sql.NullString{String: store.Time(s.Now()), Valid: true}, ID: in.Topic})
 		return err
 	})
@@ -346,11 +353,8 @@ func (s *Service) chatCommands() []*registry.Command {
 			"Sets the model the master's replies in a chat topic go on from the next one; empty brings back the master's own model.",
 			registry.OwnerOnly, s.chatTopicModel),
 		registry.Def("chat_block_show", "Show a block in the chat",
-			"Shows the owner one block in the topic this reply answers: options to pick, a form to fill (a number with minimum and maximum slides, its examples the marks), a table, a chart or a card, its data in place; the final text of the turn goes over it, and the owner's answer comes as the next message.",
+			"Shows the owner one block in the topic this reply answers: options to pick, a form to fill (a number with minimum and maximum slides, its examples the marks), a table, a chart or a card, its data in place; the final text of the turn goes over it. Options and a form are a question that waits for the owner in the topic and among what waits for them; the answer, given in either, comes as the next message of the topic.",
 			registry.OwnerSide, s.chatBlockShow),
-		registry.Def("chat_answer", "Answer in the chat",
-			"Answers the block of a message of the master: the option picked or the fields filled, which the topic gets as the owner's next message.",
-			registry.OwnerOnly, s.chatAnswer),
 		registry.Def("chat_topic_delete", "Delete topic",
 			"Deletes a chat topic with its messages and stops its reply if one is going.",
 			registry.OwnerOnly, s.chatTopicDelete),

@@ -1,13 +1,16 @@
 ---
 name: chat-blocks
-description: Shows the owner one block in a reply of the chat — options to pick, a form with sliders, a table, a chart or a card — with deck.chat_block_show. Use when the owner answers better by a press than by words, or rows or a trend read better drawn than told.
+description: Shows the owner one block in a reply of the chat — options to pick, a form with sliders, a table, a chart or a card — with deck.chat_block_show. Use for every question to the owner in a reply, and when rows or a trend read better drawn than told.
 ---
 
 # Blocks in the chat
 
 A reply shows at most one block, under its text. Call `deck.chat_block_show` with `block` as JSON, then end the turn
-with one to three lines that go over it: what you ask or what the block shows. The owner's answer to options or a
-form comes as the owner's next message of the topic, its fields as `label: value` lines; act on it in that turn.
+with one to three lines that go over it: what you ask or what the block shows. Options and a form are a question:
+it waits for the owner in the topic and in "waiting for you", the lines of your reply its words there. The answer,
+given in either place, comes as the owner's next message of the topic, its fields as `label: value` lines; act on it
+in that turn. A table, a chart and a card only show. When the owner writes past a question in words, it waits no
+more.
 
 ## Which block
 
@@ -22,7 +25,6 @@ form comes as the owner's next message of the topic, its fields as `label: value
 - **card** — one thing in fields: a label and a value each, `markdown` for a value with links or lists.
 - Text alone when the answer is words, or a block would only repeat the text. More than one block, or a screen the
   owner comes back to, is a link to a screen of a module instead.
-- A question that must wait for the owner in "waiting for you", out of the topic, goes through the question tool.
 
 ## Shapes
 

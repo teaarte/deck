@@ -382,6 +382,10 @@ export interface Question {
     label?: string;
     description?: string;
   }[];
+  /**
+   * fields the owner fills in place of options, as the value of a form block: a block of the chat that asks; its answer is the fields as a JSON object
+   */
+  form?: {};
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema

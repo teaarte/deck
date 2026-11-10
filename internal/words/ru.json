@@ -1283,10 +1283,5 @@
   "Answered": "Отвечено",
   "Show a block in the chat": "Показать блок в чате",
   "The block, by the schema shown of the catalog: choice, form, table, chart or card with its data in place": "Блок по схеме shown каталога: choice, form, table, chart или card с данными на месте",
-  "Answer in the chat": "Ответить в чате",
-  "Answers the block of a message of the master: the option picked or the fields filled, which the topic gets as the owner's next message.": "Отвечает на блок сообщения мастера: выбранный вариант или заполненные поля, которые тема получает следующим сообщением владельца.",
-  "The message of the master whose block the owner answers": "Сообщение мастера, на блок которого отвечает владелец",
-  "The option picked, of a choice": "Выбранный вариант",
-  "The fields filled, of a form, as a JSON object": "Заполненные поля формы, объект JSON",
-  "Shows the owner one block in the topic this reply answers: options to pick, a form to fill (a number with minimum and maximum slides, its examples the marks), a table, a chart or a card, its data in place; the final text of the turn goes over it, and the owner's answer comes as the next message.": "Показывает владельцу один блок в теме, на которую отвечает этот ход: варианты на выбор, форму (число с minimum и maximum — ползунок, его examples — отметки), таблицу, график или карточку с данными на месте; итоговый текст хода встаёт над ним, а ответ владельца приходит следующим сообщением."
+  "Shows the owner one block in the topic this reply answers: options to pick, a form to fill (a number with minimum and maximum slides, its examples the marks), a table, a chart or a card, its data in place; the final text of the turn goes over it. Options and a form are a question that waits for the owner in the topic and among what waits for them; the answer, given in either, comes as the next message of the topic.": "Показывает владельцу один блок в теме, на которую отвечает этот ответ: варианты на выбор, форму (число с минимумом и максимумом — ползунок, его примеры — отметки), таблицу, график или карточку, с данными на месте; итоговый текст хода встаёт над ним. Варианты и форма — вопрос, который ждёт владельца в теме и среди того, что ждёт его; ответ, данный в любом из двух мест, приходит следующим сообщением темы."
 }

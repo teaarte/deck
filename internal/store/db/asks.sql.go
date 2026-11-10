@@ -346,6 +346,30 @@ func (q *Queries) DismissExpiredAsk(ctx context.Context, id int64) (int64, error
 	return result.RowsAffected()
 }
 
+const dismissShownQuestion = `-- name: DismissShownQuestion :exec
+UPDATE ask SET state = 'dismissed'
+WHERE kind = 'question' AND state = 'open' AND process_id IS NULL
+  AND json_extract(payload, '$.message') = CAST(?1 AS INTEGER)
+`
+
+// The question of a block of the chat another block took the place of.
+func (q *Queries) DismissShownQuestion(ctx context.Context, message int64) error {
+	_, err := q.db.ExecContext(ctx, dismissShownQuestion, message)
+	return err
+}
+
+const dismissTopicQuestions = `-- name: DismissTopicQuestions :exec
+UPDATE ask SET state = 'dismissed'
+WHERE kind = 'question' AND state = 'open' AND process_id IS NULL AND json_extract(payload, '$.message') IN (
+  SELECT m.id FROM chat_message m WHERE m.topic_id = CAST(?1 AS INTEGER))
+`
+
+// The questions of the blocks of a topic the owner wrote past in words.
+func (q *Queries) DismissTopicQuestions(ctx context.Context, topicID int64) error {
+	_, err := q.db.ExecContext(ctx, dismissTopicQuestions, topicID)
+	return err
+}
+
 const expireAsk = `-- name: ExpireAsk :execrows
 UPDATE ask SET state = 'expired' WHERE id = ? AND state = 'open'
 `
@@ -931,6 +955,22 @@ UPDATE ask SET state = 'open', answer = '' WHERE id = ? AND state = 'answered'
 
 func (q *Queries) ReopenDecision(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, reopenDecision, id)
+	return err
+}
+
+const setQuestionText = `-- name: SetQuestionText :exec
+UPDATE ask SET text = ?1, payload = json_set(payload, '$.questions[0].question', ?1)
+WHERE id = ?2 AND state = 'open'
+`
+
+type SetQuestionTextParams struct {
+	Text string
+	ID   int64
+}
+
+// The words of a question the owner reads, in its text and its first question, while it is open.
+func (q *Queries) SetQuestionText(ctx context.Context, arg SetQuestionTextParams) error {
+	_, err := q.db.ExecContext(ctx, setQuestionText, arg.Text, arg.ID)
 	return err
 }
 

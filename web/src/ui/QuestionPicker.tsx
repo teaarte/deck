@@ -3,6 +3,7 @@ import { Button, Checkbox, Group, Radio, Stack, Text, TextInput } from '@mantine
 import { useTranslation } from 'react-i18next';
 import type { Action, Question } from '../lib/catalog.gen';
 import { ActionButton } from './actions/ActionButton';
+import { Form, type FormValue } from '../blocks/form/Form';
 import s from './QuestionPicker.module.css';
 
 type Option = NonNullable<Question['options']>[number];
@@ -31,6 +32,16 @@ export function QuestionPicker({ questions, act, quiet }: { questions: Question[
   const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [other, setOther] = useState<Record<string, string>>({});
   if (!act || questions.length === 0) return null;
+  // A question of fields is a form whose send answers it with the fields as a JSON object.
+  const form = questions.length === 1 ? questions[0].form as FormValue | undefined : undefined;
+  if (form) {
+    return (
+      <Stack gap="xs" data-question-form>
+        <Text size="sm" fw={500} className={s.text} data-question-text>{questions[0].question}</Text>
+        <Form value={{ ...form, send: act }} />
+      </Stack>
+    );
+  }
   const answer = (q: Question) => {
     const o = other[q.question]?.trim();
     const p = picked[q.question] ?? [];

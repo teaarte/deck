@@ -24,6 +24,26 @@ SELECT * FROM ask WHERE state = 'open' AND kind = 'call' ORDER BY id;
 SELECT * FROM ask WHERE state = 'open' AND workspace_id = ? ORDER BY id;
 
 
+-- name: DismissShownQuestion :exec
+-- The question of a block of the chat another block took the place of.
+UPDATE ask SET state = 'dismissed'
+WHERE kind = 'question' AND state = 'open' AND process_id IS NULL
+  AND json_extract(payload, '$.message') = CAST(sqlc.arg(message) AS INTEGER);
+
+
+-- name: DismissTopicQuestions :exec
+-- The questions of the blocks of a topic the owner wrote past in words.
+UPDATE ask SET state = 'dismissed'
+WHERE kind = 'question' AND state = 'open' AND process_id IS NULL AND json_extract(payload, '$.message') IN (
+  SELECT m.id FROM chat_message m WHERE m.topic_id = CAST(sqlc.arg(topic_id) AS INTEGER));
+
+
+-- name: SetQuestionText :exec
+-- The words of a question the owner reads, in its text and its first question, while it is open.
+UPDATE ask SET text = sqlc.arg(text), payload = json_set(payload, '$.questions[0].question', sqlc.arg(text))
+WHERE id = sqlc.arg(id) AND state = 'open';
+
+
 -- name: AnswerAsk :execrows
 UPDATE ask SET answer = ?, state = 'answered'
 WHERE id = ? AND state = 'open';

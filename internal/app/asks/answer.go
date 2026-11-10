@@ -49,6 +49,9 @@ func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswe
 	if err := ask.Check(q.Kind, in.Answer); err != nil {
 		return nil, err
 	}
+	if out, ok, err := s.Shown(ctx, act, q, in.Answer); ok {
+		return out, err
+	}
 	if q.Kind == ask.KindCall || q.Kind == ask.KindUnknown || q.Kind == ask.KindGrant && q.State == ask.StateOpen {
 		return s.decide(ctx, act, q, in.Answer)
 	}

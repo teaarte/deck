@@ -37,8 +37,8 @@ func shownMaster(ctx context.Context, c *harness.Call) provider.Result {
 	return provider.Result{Text: "ok"}
 }
 
-// TestRealBrowserMasterShowsBlocks: the master's reply shows one block under its text: a form whose bounded number
-// slides, options, a table and a chart; an answer goes as the owner's message and folds the form, on a phone too.
+// TestRealBrowserMasterShowsBlocks: a reply shows a block under its text: a sliding form, options (both waiting on
+// Today too, answered in either as the owner's message), a table and a chart, on a phone too.
 func TestRealBrowserMasterShowsBlocks(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()
@@ -67,6 +67,10 @@ func TestRealBrowserMasterShowsBlocks(t *testing.T) {
 			return m && m.innerText.includes('How much do you offer?') && m.querySelector('[data-field="price"] [data-range-slider]')
 				&& m.querySelector('[data-range-value]').value === '100' })()`)
 		b.until(size.name+": nothing goes past the edge", `document.documentElement.scrollWidth <= window.innerWidth + 1`)
+		if size.name == "desktop" {
+			b.until("the same form waits on Today, in the words of the reply, its price a slider", `[...document.querySelectorAll('[data-item]')].some((x) =>
+				x.querySelector('[data-question-form]')?.innerText.includes('How much do you offer?') && x.querySelector('[data-field="price"] [data-range-slider]'))`)
+		}
 		b.shot("shown-form-" + size.name)
 		b.call("browser_run_code_unsafe", map[string]any{"code": `async (page) => {
   await page.locator('[data-shown="form"] [data-field="price"] .mantine-Slider-thumb').focus();
@@ -84,10 +88,21 @@ func TestRealBrowserMasterShowsBlocks(t *testing.T) {
 		b.shot("shown-answered-" + size.name)
 
 		say("which way")
-		b.until(size.name+": the options as buttons", `document.querySelectorAll('[data-shown="choice"] button').length === 3`)
-		b.eval(`([...document.querySelectorAll('[data-shown="choice"] button')].find((x) => x.innerText.includes('Plane')).click(), '')`)
-		b.until(size.name+": the option picked stands out", `document.querySelector('[data-shown="choice"][data-answered] [data-picked]')?.innerText.includes('Plane')
+		b.until(size.name+": the options as buttons", `document.querySelectorAll('[data-shown="choice"]:not([data-answered]) button').length === 3`)
+		if size.name == "desktop" {
+			// Answered on Today, the question the chat shows is answered too.
+			item := `[...document.querySelectorAll('[data-item]')].find((x) => x.querySelector('[data-question-at]') && x.innerText.includes('How do we go?'))`
+			b.until("the options wait on Today too", item+`?.querySelector('[data-option="Plane"]')`)
+			b.eval(`(` + item + `.querySelector('[data-option="Plane"]').click(), '')`)
+			b.eval(`([...` + item + `.querySelectorAll('[data-question-at] button')].filter((x) => !x.disabled && x.innerText.trim() !== '').pop().click(), '')`)
+		} else {
+			b.eval(`([...document.querySelectorAll('[data-shown="choice"]:not([data-answered]) button')].find((x) => x.innerText.includes('Plane')).click(), '')`)
+		}
+		b.until(size.name+": the option picked stands out", `[...document.querySelectorAll('[data-shown="choice"][data-answered] [data-picked]')].pop()?.innerText.includes('Plane')
 			&& [...document.querySelectorAll('[data-message="owner"]')].pop().innerText.includes('Plane')`)
+		if size.name == "desktop" {
+			b.until("nothing waits on Today", `![...document.querySelectorAll('[data-item]')].some((x) => x.querySelector('[data-question-at], [data-question-form]'))`)
+		}
 
 		say("compare")
 		b.until(size.name+": the table of rows", `document.querySelector('[data-shown="table"]')?.innerText.includes('laguna')`)

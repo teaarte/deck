@@ -190,7 +190,7 @@ func viewReply(p db.Process, tr func(string) string) *replyView {
 		Shown: process.Show(p, "", false, tr)}
 }
 
-func viewMessage(m db.ChatMessage) messageView {
+func viewMessage(m db.ChatMessage, asked func(int64) bool) messageView {
 	v := messageView{ID: m.ID, Role: m.Role, Text: m.Text, Process: m.ProcessID, CreatedAt: m.CreatedAt}
 	if m.Role == roleOwner && m.ProcessID == 0 {
 		v.Delete = chatAction("delete", registry.Deck("chat_message_delete"), map[string]any{"message": m.ID})
@@ -199,7 +199,7 @@ func viewMessage(m db.ChatMessage) messageView {
 		v.Screen = json.RawMessage(m.Context)
 	}
 	if m.Block != "" {
-		v.Block = viewBlock(m)
+		v.Block = viewBlock(m, asked)
 	}
 	return v
 }
@@ -240,8 +240,12 @@ func (s *Service) messages(ctx context.Context, topic int64, rows []db.ChatMessa
 	s.mu.Unlock()
 	last := lastOf(rows)
 	out := make([]messageView, 0, len(rows))
+	asked := func(id int64) bool {
+		a, err := s.St.Q.GetAsk(ctx, id)
+		return err == nil && a.State == ask.StateOpen
+	}
 	for _, r := range rows {
-		m := viewMessage(r)
+		m := viewMessage(r, asked)
 		if last[r.ProcessID] == r.ID && r.Role == roleMaster {
 			if p, err := s.St.Q.GetProcess(ctx, r.ProcessID); err == nil {
 				m.Work = s.work(ctx, p, tr)

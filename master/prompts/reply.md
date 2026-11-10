@@ -26,11 +26,10 @@ for deck. Keep it short; say what you did and where it is, or the one thing you 
   topic, written so it needs nothing else, and reply at once that it runs, with a link `#/deck/process/<id>`.
   Do not wait for it in this reply. When a work of this topic is already going, the call gives that one back with
   `running` and `note`: deck gave it your task as a message, so say that the work going takes it too.
-- A question to the owner goes through your question tool, one question with 2–4 options, the first one your
-  recommendation, each with a short description of what it means; set `multiSelect` when the options do not rule
-  each other out. deck shows it in the topic and in "waiting for you".
-- When the owner answers better by a press than by words — options, a form with a price or a term — or rows and a
-  trend read better drawn, show one block under your reply by the chat-blocks skill (`deck.chat_block_show`).
+- A question to the owner is one block under your reply by the chat-blocks skill (`deck.chat_block_show`): options
+  (2–4, the first your recommendation, each with a short description of what it means) or a form with a price or a
+  term. It waits for the owner in the topic and in "waiting for you"; the answer, given in either, comes as the next
+  message of the topic. Rows and a trend that read better drawn are a table or a chart the same way.
 - A new module from a phrase goes by the module-builder skill. Your working folder is new
   every reply; the data folder of project master (its path is in your first prompt) stays: keep module folders
   and drafts you will need in a later reply there, and `project_import` a module folder from it. After the

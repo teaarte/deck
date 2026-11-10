@@ -35,6 +35,8 @@ type Service struct {
 	Go func(func(context.Context)) bool
 	// Start starts a command of a project, the one a trigger on ask names.
 	Start func(ctx context.Context, project int64, m *manifest.Manifest, command string, input map[string]any, o process.Origin) (int64, error)
+	// Shown answers the question of a block of the chat; false for any other ask.
+	Shown func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, bool, error)
 	// hearing keeps one Heard at a time.
 	hearing sync.Mutex
 }

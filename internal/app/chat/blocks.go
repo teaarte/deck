@@ -12,10 +12,11 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
-	"deck2/internal/access"
+	"deck2/internal/ask"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -44,6 +45,8 @@ type shown struct {
 	X        []any         `json:"x,omitempty"`
 	Series   []shownSeries `json:"series,omitempty"`
 	Fields   []shownField  `json:"fields,omitempty"`
+	// Ask is the question a choice or a form is: deck's, the one the owner answers here or where it waits for them.
+	Ask int64 `json:"ask,omitempty"`
 }
 
 type shownOption struct {
@@ -165,8 +168,8 @@ type chatBlockShowIn struct {
 	Block string `type:"json" desc:"The block, by the schema shown of the catalog: choice, form, table, chart or card with its data in place"`
 }
 
-// chatBlockShow shows a block of the catalog in the topic the reply turn answers: a message of the master that the
-// final text of the turn fills in over it.
+// chatBlockShow shows a block of the catalog in the topic the reply turn answers, the final text of the turn over it;
+// a choice or a form is a question too, which waits for the owner in the topic and among what waits for them.
 func (s *Service) chatBlockShow(ctx context.Context, act registry.Actor, in chatBlockShowIn) (any, error) {
 	p, err := s.St.Q.GetProcess(ctx, act.ProcessID)
 	if err != nil {
@@ -180,13 +183,14 @@ func (s *Service) chatBlockShow(ctx context.Context, act registry.Actor, in chat
 	if err != nil {
 		return nil, registry.Invalid("%v", err)
 	}
-	raw, _ := json.Marshal(b)
 	var id int64
 	replaced := true
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := s.ownTopic(ctx, q, act, topic); err != nil {
+		t, err := s.ownTopic(ctx, q, act, topic)
+		if err != nil {
 			return err
 		}
+		raw, _ := json.Marshal(b)
 		id, err = q.ReplaceShownBlock(ctx, db.ReplaceShownBlockParams{Block: string(raw), TopicID: topic, ProcessID: p.ID, Since: p.StartedAt})
 		if errors.Is(err, sql.ErrNoRows) {
 			replaced = false
@@ -196,6 +200,22 @@ func (s *Service) chatBlockShow(ctx context.Context, act registry.Actor, in chat
 		}
 		if err != nil {
 			return err
+		}
+		if replaced {
+			if err := q.DismissShownQuestion(ctx, id); err != nil {
+				return err
+			}
+		}
+		if b.Type == "choice" || b.Type == "form" {
+			a, err := ask.ForProject(ctx, q, t.WorkspaceID, p.ProjectID, 0, ask.KindQuestion, cmp.Or(b.Title, t.Title), questionOf(b, cmp.Or(b.Title, t.Title), id), time.Time{})
+			if err != nil {
+				return err
+			}
+			b.Ask = a.ID
+			raw, _ = json.Marshal(b)
+			if err := q.SetMessageBlock(ctx, db.SetMessageBlockParams{Block: string(raw), ID: id}); err != nil {
+				return err
+			}
 		}
 		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.Now()), ID: topic})
 	})
@@ -207,81 +227,142 @@ func (s *Service) chatBlockShow(ctx context.Context, act registry.Actor, in chat
 		note = "the block took the place of the one this turn showed before; end the turn with one to three lines that go over it"
 	}
 	if b.Type == "choice" || b.Type == "form" {
-		note += "; the owner's answer comes as the next message of the topic, and a later turn acts on it"
+		note += "; it is a question that waits for the owner here and among what waits for them, and the answer comes as the next message of the topic, which a later turn acts on"
 	}
 	return map[string]any{"message": id, "note": note}, nil
 }
 
-type chatAnswerIn struct {
-	Message int64  `desc:"The message of the master whose block the owner answers"`
-	Choice  string `opt:"" desc:"The option picked, of a choice"`
-	Values  string `type:"json" opt:"" desc:"The fields filled, of a form, as a JSON object"`
+// questionOf is the payload of the question a choice or a form is: its first question in the shape every question
+// of an agent has, the form in the shape the form block draws, and the message it answers.
+func questionOf(b shown, text string, message int64) string {
+	one := map[string]any{"question": text}
+	if b.Title != "" {
+		one["header"] = b.Title
+	}
+	switch b.Type {
+	case "choice":
+		one["options"] = b.Options
+	case "form":
+		one["form"] = formOf(b, nil)
+	}
+	raw, _ := json.Marshal(map[string]any{"questions": []any{one}, "message": message})
+	return string(raw)
 }
 
-// chatAnswer takes the owner's answer to the block of a message of the master: the block keeps it, and the topic
-// gets it as the owner's next message, which the master's next reply takes.
-func (s *Service) chatAnswer(ctx context.Context, act registry.Actor, in chatAnswerIn) (any, error) {
-	m, err := s.St.Q.GetMessage(ctx, in.Message)
-	if err != nil || m.Block == "" {
-		return nil, registry.NotFound("no block of the master in message %d", in.Message)
+// formOf is a form as the form block draws it: its fields as the input of deck.ask_answer, filled by the master's
+// values or their defaults, or by the answer once given.
+func formOf(b shown, answer map[string]any) map[string]any {
+	in, _ := json.Marshal(b.Input)
+	form := map[string]any{"project": master.Name, "commands": []map[string]any{{
+		"name": registry.Deck("ask_answer"), "title": b.Title, "input": b.Input, "order": manifest.PropertyOrder(in)}}}
+	values := map[string]any{}
+	props, _ := b.Input["properties"].(map[string]any)
+	for k, p := range props {
+		if d, ok := p.(map[string]any)["default"]; ok {
+			values[k] = d
+		}
 	}
-	if _, err := s.ownTopic(ctx, s.St.Q, act, m.TopicID); err != nil {
-		return nil, err
+	maps.Copy(values, b.Values)
+	if answer != nil {
+		values = answer
+		form["readonly"] = slices.Collect(maps.Keys(manifest.ObjectOf(in).Types()))
+	}
+	if len(values) > 0 {
+		form["values"] = values
+	}
+	return form
+}
+
+// AnswerShown answers the question of a block of the chat wherever the owner answered it: the block keeps the answer,
+// the topic gets it as the owner's next message; false for any other ask.
+func (s *Service) AnswerShown(ctx context.Context, act registry.Actor, a db.Ask, answer string) (any, bool, error) {
+	var pl struct{ Message int64 }
+	// A question of a block has no process; one of an agent keeps the payload the agent gave.
+	if a.Kind != ask.KindQuestion || a.ProcessID.Valid || json.Unmarshal([]byte(a.Payload), &pl) != nil || pl.Message == 0 {
+		return nil, false, nil
+	}
+	if a.State != ask.StateOpen {
+		return nil, true, ask.ErrNotOpen
+	}
+	gone := func() (any, bool, error) {
+		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DismissShownQuestion(ctx, pl.Message) })
+		return nil, true, errors.Join(err, registry.Conflict("this question was taken back"))
+	}
+	m, err := s.St.Q.GetMessage(ctx, pl.Message)
+	if errors.Is(err, sql.ErrNoRows) {
+		return gone()
+	}
+	if err != nil {
+		return nil, true, err
+	}
+	t, err := s.St.Q.GetTopic(ctx, m.TopicID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return gone()
+	}
+	if err != nil || t.WorkspaceID != act.Workspace {
+		return nil, true, cmp.Or(err, registry.NotFound("no chat topic %d", m.TopicID))
 	}
 	var b shown
-	if err := json.Unmarshal([]byte(m.Block), &b); err != nil {
-		return nil, err
+	if err := json.Unmarshal([]byte(m.Block), &b); err != nil || b.Ask != a.ID {
+		return nil, true, registry.Conflict("this question was taken back")
 	}
-	answer, text, err := s.answerOf(ctx, b, in)
+	kept, text, err := s.answerOf(ctx, b, answer)
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
 	if len(text) > maxChatText {
-		return nil, registry.Invalid("the answer is at most %d bytes", maxChatText)
-	}
-	if _, err := access.Master(ctx, s.St.Q, act.Workspace); err != nil {
-		return nil, err
+		return nil, true, registry.Invalid("the answer is at most %d bytes", maxChatText)
 	}
 	var msg db.ChatMessage
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		n, err := q.AnswerMessage(ctx, db.AnswerMessageParams{Answer: answer, At: store.At(s.Now()), ID: m.ID})
-		if err != nil {
+		if n, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: kept, ID: a.ID}); err != nil || n == 0 {
+			return cmp.Or(err, ask.ErrNotOpen)
+		}
+		if n, err := q.AnswerMessage(ctx, db.AnswerMessageParams{Answer: kept, At: store.At(s.Now()), ID: m.ID}); err != nil || n == 0 {
+			return cmp.Or(err, ask.ErrNotOpen)
+		}
+		// One answer of the topic: the other questions of its blocks wait no more, as after a message of the owner.
+		if err := q.DismissTopicQuestions(ctx, m.TopicID); err != nil {
 			return err
 		}
-		if n == 0 {
-			return registry.Conflict("the block of message %d is answered already", m.ID)
-		}
+		var err error
 		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: m.TopicID, Role: roleOwner, Text: text}); err != nil {
 			return err
 		}
 		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.Now()), ID: m.TopicID})
 	})
 	if err != nil {
-		return nil, err
+		return nil, true, err
 	}
-	return s.sent(ctx, msg), nil
+	return s.sent(ctx, msg), true, nil
 }
 
-// answerOf is the answer to a block as kept and as the owner's message says it: the option picked, or each field
-// filled by its title.
-func (s *Service) answerOf(ctx context.Context, b shown, in chatAnswerIn) (string, string, error) {
-	switch b.Type {
-	case "choice":
-		if !slices.ContainsFunc(b.Options, func(o shownOption) bool { return o.Label == in.Choice }) {
-			return "", "", registry.Invalid("%q is not an option of the block", in.Choice)
+// answerOf is the answer to a block as kept and as the owner's message says it: the option picked or their own
+// words, or each field filled by its title. A question picker sends its answers by question, as a JSON object.
+func (s *Service) answerOf(ctx context.Context, b shown, answer string) (string, string, error) {
+	answer = strings.TrimSpace(answer)
+	if b.Type == "choice" {
+		var by map[string]string
+		if json.Unmarshal([]byte(answer), &by) == nil && len(by) == 1 {
+			for _, v := range by {
+				answer = strings.TrimSpace(v)
+			}
 		}
-		raw, _ := json.Marshal(map[string]string{"choice": in.Choice})
+		if answer == "" {
+			return "", "", registry.Invalid("the answer is an option of the block or the owner's own words")
+		}
+		raw, _ := json.Marshal(map[string]string{"choice": answer})
 		if b.Title != "" {
-			return string(raw), b.Title + ": " + in.Choice, nil
+			return string(raw), b.Title + ": " + answer, nil
 		}
-		return string(raw), in.Choice, nil
-	case "form":
-	default:
+		return string(raw), answer, nil
+	}
+	if b.Type != "form" {
 		return "", "", registry.Invalid("a %s takes no answer", b.Type)
 	}
 	var values map[string]any
-	if err := json.Unmarshal([]byte(cmp.Or(strings.TrimSpace(in.Values), "{}")), &values); err != nil {
-		return "", "", registry.Invalid("values are a JSON object: %v", err)
+	if err := json.Unmarshal([]byte(cmp.Or(answer, "{}")), &values); err != nil {
+		return "", "", registry.Invalid("the answer to a form is its fields as a JSON object: %v", err)
 	}
 	if err := fits(b.Input, values, true); err != nil {
 		return "", "", registry.Invalid("values: %v", err)
@@ -346,7 +427,7 @@ type answeredView struct {
 
 // viewBlock is the block of a message in the shapes of the blocks of the catalog; its buttons answer it until the
 // owner did, and then it shows the answer.
-func viewBlock(m db.ChatMessage) *blockView {
+func viewBlock(m db.ChatMessage, asked func(int64) bool) *blockView {
 	var b shown
 	if err := json.Unmarshal([]byte(m.Block), &b); err != nil {
 		return &blockView{Type: "card", Data: map[string]any{"state": "error", "error": err.Error()}}
@@ -358,10 +439,12 @@ func viewBlock(m db.ChatMessage) *blockView {
 		v.Answered = &answeredView{At: m.AnsweredAt.String}
 		v.Answered.Choice, _ = answer["choice"].(string)
 	}
-	answering := func(params map[string]any) action {
-		params["message"] = m.ID
-		return action{"command": registry.Deck("chat_answer"), "params": params}
+	answering := func(answer string) action {
+		return action{"command": registry.Deck("ask_answer"), "params": map[string]any{"ask": b.Ask, "answer": answer}}
 	}
+	// A choice or a form answers while its question waits: not one shown before blocks were questions, nor one the
+	// owner wrote past in words.
+	open := v.Answered == nil && b.Ask != 0 && asked(b.Ask)
 	switch b.Type {
 	case "choice":
 		opts := make([]map[string]any, 0, len(b.Options))
@@ -370,8 +453,8 @@ func viewBlock(m db.ChatMessage) *blockView {
 			if o.Description != "" {
 				one["description"] = o.Description
 			}
-			if v.Answered == nil {
-				act := answering(map[string]any{"choice": o.Label})
+			if open {
+				act := answering(o.Label)
 				act["label"] = o.Label
 				one["action"] = act
 			}
@@ -379,33 +462,17 @@ func viewBlock(m db.ChatMessage) *blockView {
 		}
 		v.Data["value"] = map[string]any{"options": opts}
 	case "form":
-		in, _ := json.Marshal(b.Input)
-		form := map[string]any{"project": master.Name, "commands": []map[string]any{{
-			"name": registry.Deck("chat_answer"), "title": b.Title, "input": b.Input, "order": manifest.PropertyOrder(in)}}}
-		// A field starts at the value the master gave it, else at the default of its schema.
-		values := map[string]any{}
-		props, _ := b.Input["properties"].(map[string]any)
-		for k, p := range props {
-			if d, ok := p.(map[string]any)["default"]; ok {
-				values[k] = d
-			}
-		}
-		maps.Copy(values, b.Values)
-		if len(values) > 0 {
-			form["values"] = values
-		}
-		if v.Answered == nil {
-			send := answering(map[string]any{})
-			send["input"] = "values"
+		form := formOf(b, answer)
+		if open {
+			send := answering("")
+			delete(send["params"].(map[string]any), "answer")
+			send["input"] = "answer"
 			if b.Submit != "" {
 				send["label"] = b.Submit
 			} else {
 				send["verb"] = "answer"
 			}
 			form["send"] = send
-		} else {
-			form["values"] = answer
-			form["readonly"] = slices.Collect(maps.Keys(manifest.ObjectOf(in).Types()))
 		}
 		v.Data["value"] = form
 	case "table":

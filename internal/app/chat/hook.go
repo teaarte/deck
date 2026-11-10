@@ -2,7 +2,9 @@ package chat
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"strings"
 
@@ -11,6 +13,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // replyOf is the topic of a reply process of the built-in master, or 0 for any other process.
@@ -35,11 +38,18 @@ func (h replies) Turn(ctx context.Context, p db.Process, text string) {
 		return
 	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		filled, err := q.FillShownText(ctx, db.FillShownTextParams{Text: strings.TrimSpace(text), TopicID: topic, ProcessID: p.ID, Since: p.StartedAt})
-		if err != nil {
+		block, err := q.FillShownText(ctx, db.FillShownTextParams{Text: strings.TrimSpace(text), TopicID: topic, ProcessID: p.ID, Since: p.StartedAt})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
-		if filled == 0 {
+		var b shown
+		if err == nil && json.Unmarshal([]byte(block), &b) == nil && b.Ask != 0 {
+			// The words of the reply are the question the owner reads where it waits for them.
+			if err := q.SetQuestionText(ctx, db.SetQuestionTextParams{Text: untrusted.Cut(strings.TrimSpace(text), 1000), ID: b.Ask}); err != nil {
+				return err
+			}
+		}
+		if errors.Is(err, sql.ErrNoRows) {
 			if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID}); err != nil {
 				return err
 			}

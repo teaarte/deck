@@ -117,19 +117,25 @@ func TestTheMasterShowsABlockAndTheOwnerAnswersIt(t *testing.T) {
 	}
 	_ = json.Unmarshal(form.Block.Data, &data)
 	if form.Block.Type != "form" || form.Block.Title != "Offer" || data.State != "ready" || len(data.Value.Commands) != 1 ||
-		data.Value.Commands[0].Name != "deck.chat_answer" || data.Value.Values["price"] != float64(100) || data.Value.Values["rush"] != false ||
-		data.Value.Send["command"] != "deck.chat_answer" || data.Value.Send["input"] != "values" || data.Value.Send["label"] != "Send" ||
+		data.Value.Values["price"] != float64(100) || data.Value.Values["rush"] != false ||
+		data.Value.Send["command"] != "deck.ask_answer" || data.Value.Send["input"] != "answer" || data.Value.Send["label"] != "Send" ||
 		strings.Join(data.Value.Commands[0].Order, ",") != "price,rush" {
-		t.Fatalf("the form asks by its fields and answers through chat_answer: %+v %s", form.Block, form.Block.Data)
+		t.Fatalf("the form asks by its fields and answers its question: %+v %s", form.Block, form.Block.Data)
 	}
+	asked := waiting(e)
+	if len(asked) != 1 || asked[0].Kind != "question" || asked[0].Project != "master" || asked[0].ID != data.Value.Send["params"].(map[string]any)["ask"] ||
+		len(asked[0].Payload.Questions) != 1 || asked[0].Payload.Questions[0].Question != "Pick the price below." || asked[0].Payload.Questions[0].Form == nil {
+		t.Fatalf("the form is one question that waits for the owner, in the words of the reply, the choice it replaced gone: %+v", asked)
+	}
+	id := int64(asked[0].ID)
 
-	e.Refused("deck.chat_answer", map[string]any{"message": form.ID, "values": `{"price": 1234}`}, http.StatusUnprocessableEntity, "values")
-	e.Refused("deck.chat_answer", map[string]any{"message": form.ID, "choice": "Train"}, http.StatusUnprocessableEntity, "values")
+	e.Refused("deck.ask_answer", map[string]any{"ask": id, "answer": `{"price": 1234}`}, http.StatusUnprocessableEntity, "values")
+	e.Refused("deck.ask_answer", map[string]any{"ask": id, "answer": "Train"}, http.StatusUnprocessableEntity, "JSON object")
 	e.Refused("deck.chat_block_show", map[string]any{"block": offerForm}, http.StatusUnprocessableEntity, "only a reply of the master")
-	e.Must("deck.chat_answer", map[string]any{"message": form.ID, "values": `{"price": 120, "rush": true}`}, nil)
-	e.Refused("deck.chat_answer", map[string]any{"message": form.ID, "values": `{"price": 130}`}, http.StatusConflict, "answered already")
+	e.Must("deck.ask_answer", map[string]any{"ask": id, "answer": `{"price": 120, "rush": true}`}, nil)
+	e.Refused("deck.ask_answer", map[string]any{"ask": id, "answer": `{"price": 130}`}, http.StatusConflict, "already answered")
 
-	e.Until("the answer as the owner's message and the master acting on it", func() bool {
+	e.Until("the answer where the owner waits for, as the owner's message, and the master acting on it", func() bool {
 		ms := shownIn(e, topic)
 		n := len(ms)
 		return n == 4 && ms[2].Role == "owner" && ms[2].Text == "Offer\nPrice: 120\nRush: Yes" && ms[3].Text == "Offered 120."
@@ -144,7 +150,10 @@ func TestTheMasterShowsABlockAndTheOwnerAnswersIt(t *testing.T) {
 	}
 	_ = json.Unmarshal(ms[1].Block.Data, &done)
 	if ms[1].Block.Answered == nil || done.Value.Send != nil || done.Value.Values["price"] != float64(120) || len(done.Value.Readonly) != 2 {
-		t.Fatalf("the block keeps the answer and takes no other: %s", ms[1].Block.Data)
+		t.Fatalf("the block in the chat keeps the answer and takes no other: %s", ms[1].Block.Data)
+	}
+	if left := waiting(e); len(left) != 0 {
+		t.Fatalf("an answered question waits no more: %+v", left)
 	}
 
 	e.Say(topic, "which way")
@@ -166,12 +175,16 @@ func TestTheMasterShowsABlockAndTheOwnerAnswersIt(t *testing.T) {
 		} `json:"value"`
 	}
 	_ = json.Unmarshal(choice.Block.Data, &opts)
-	if len(opts.Value.Options) != 2 || opts.Value.Options[1].Action["command"] != "deck.chat_answer" || opts.Value.Options[1].Action["label"] != "Plane" {
+	if len(opts.Value.Options) != 2 || opts.Value.Options[1].Action["command"] != "deck.ask_answer" || opts.Value.Options[1].Action["label"] != "Plane" {
 		t.Fatalf("each option is a button that answers: %s", choice.Block.Data)
 	}
-	e.Refused("deck.chat_answer", map[string]any{"message": choice.ID, "choice": "Bus"}, http.StatusUnprocessableEntity, "not an option")
-	e.Must("deck.chat_answer", map[string]any{"message": choice.ID, "choice": "Plane"}, nil)
-	e.Until("the option picked as the owner's message, the block keeping it", func() bool {
+	asked = waiting(e)
+	if len(asked) != 1 || len(asked[0].Payload.Questions) != 1 || len(asked[0].Payload.Questions[0].Options) != 2 || asked[0].Payload.Questions[0].Header != "Way" {
+		t.Fatalf("the choice waits for the owner with its options: %+v", asked)
+	}
+	params := opts.Value.Options[1].Action["params"].(map[string]any)
+	e.Must("deck.ask_answer", map[string]any{"ask": params["ask"], "answer": params["answer"]}, nil)
+	e.Until("the option picked in the chat as the owner's message, the block keeping it", func() bool {
 		ms := shownIn(e, topic)
 		for i, m := range ms {
 			if m.ID == choice.ID {
@@ -180,4 +193,59 @@ func TestTheMasterShowsABlockAndTheOwnerAnswersIt(t *testing.T) {
 		}
 		return false
 	})
+	if left := waiting(e); len(left) != 0 {
+		t.Fatalf("a question answered in the chat waits no more: %+v", left)
+	}
+
+	e.Say(topic, "which way")
+	e.Until("another choice waits", func() bool { return len(waiting(e)) == 1 })
+	e.Say(topic, "by bus, I said")
+	if left := waiting(e); len(left) != 0 {
+		t.Fatalf("a question the owner wrote past in words waits no more: %+v", left)
+	}
+	ms = shownIn(e, topic)
+	for _, m := range ms {
+		if m.Block != nil && m.Block.Answered == nil && strings.Contains(string(m.Block.Data), "ask_answer") {
+			t.Fatalf("its options answer nothing now: %s", m.Block.Data)
+		}
+	}
+
+	e.Say(topic, "which way")
+	e.Until("a choice waits again", func() bool { return len(waiting(e)) == 1 })
+	asked = waiting(e)
+	e.Must("deck.ask_answer", map[string]any{"ask": int64(asked[0].ID), "answer": `{"Way": "Bus"}`}, nil)
+	e.Until("the owner's own words picked on Today, as the picker sends them", func() bool {
+		ms := shownIn(e, topic)
+		return ms[len(ms)-1].Text == "Way: Bus" || len(ms) > 1 && ms[len(ms)-2].Text == "Way: Bus"
+	})
+
+	e.Say(topic, "which way")
+	e.Until("one more choice waits", func() bool { return len(waiting(e)) == 1 })
+	gone := waiting(e)[0]
+	e.Must("deck.chat_topic_delete", map[string]any{"topic": topic}, nil)
+	if left := waiting(e); len(left) != 0 {
+		t.Fatalf("the questions of a deleted topic wait no more: %+v", left)
+	}
+	e.Refused("deck.ask_answer", map[string]any{"ask": int64(gone.ID), "answer": "Plane"}, http.StatusConflict, "already answered")
+}
+
+// waitingAsk is a question as asks_list, the source of what waits for the owner on Today, gives it.
+type waitingAsk struct {
+	ID      float64 `json:"id"`
+	Kind    string  `json:"kind"`
+	Project string  `json:"project"`
+	Payload struct {
+		Questions []struct {
+			Question string           `json:"question"`
+			Header   string           `json:"header"`
+			Options  []map[string]any `json:"options"`
+			Form     map[string]any   `json:"form"`
+		} `json:"questions"`
+	} `json:"payload"`
+}
+
+func waiting(e *harness.Env) []waitingAsk {
+	var out []waitingAsk
+	e.Must("deck.asks_list", map[string]any{}, &out)
+	return out
 }

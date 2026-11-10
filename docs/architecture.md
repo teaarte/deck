@@ -95,8 +95,9 @@ one place.
   master's nightly `sleep` confirms or retires lessons and proposes corrections; Settings → Memory shows it all
   (`deck.memory_map`).
 - **Blocks in the chat.** A reply turn of the master may show one block of the catalog under its text
-  (`deck.chat_block_show`: options, a form, a table, a chart or a card); the owner's press comes back to the topic as
-  the owner's next message.
+  (`deck.chat_block_show`: options, a form, a table, a chart or a card). Options and a form are an ask of the broker,
+  as every question to the owner: they wait in the topic and on Today alike, and the answer, given in either, comes
+  back to the topic as the owner's next message.
 - **Failures** have one form (`internal/fault`): a type from a closed set, whose failure it is, a text and
   details. A script reports its own failure as `{"error", "type", "details"}`.
 

@@ -210,9 +210,10 @@ func (q *Queries) DeleteWaitingMessage(ctx context.Context, id int64) (int64, er
 	return result.RowsAffected()
 }
 
-const fillShownText = `-- name: FillShownText :execrows
+const fillShownText = `-- name: FillShownText :one
 UPDATE chat_message SET text = ?1 WHERE id = (SELECT MAX(m.id) FROM chat_message m
   WHERE m.topic_id = ?2 AND m.process_id = ?3 AND m.block != '' AND m.text = '' AND m.created_at >= ?4)
+RETURNING block
 `
 
 type FillShownTextParams struct {
@@ -223,17 +224,16 @@ type FillShownTextParams struct {
 }
 
 // The final text of a turn goes over the block it showed last, wherever messages came after it.
-func (q *Queries) FillShownText(ctx context.Context, arg FillShownTextParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, fillShownText,
+func (q *Queries) FillShownText(ctx context.Context, arg FillShownTextParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, fillShownText,
 		arg.Text,
 		arg.TopicID,
 		arg.ProcessID,
 		arg.Since,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	var block string
+	err := row.Scan(&block)
+	return block, err
 }
 
 const findMessageByKey = `-- name: FindMessageByKey :one
@@ -908,6 +908,20 @@ func (q *Queries) SetChatSession(ctx context.Context, arg SetChatSessionParams) 
 		arg.Seen,
 		arg.Memory,
 	)
+	return err
+}
+
+const setMessageBlock = `-- name: SetMessageBlock :exec
+UPDATE chat_message SET block = ?1 WHERE id = ?2
+`
+
+type SetMessageBlockParams struct {
+	Block string
+	ID    int64
+}
+
+func (q *Queries) SetMessageBlock(ctx context.Context, arg SetMessageBlockParams) error {
+	_, err := q.db.ExecContext(ctx, setMessageBlock, arg.Block, arg.ID)
 	return err
 }
 

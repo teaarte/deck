@@ -193,7 +193,10 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Installed: a.Providers.Installed, Node: a.nodeTransport,
 		Online: func(device int64) bool { return a.Nodes.State(device).Online }, FolderNodes: a.Folders.Nodes, Go: a.bg.Go}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
-		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start}
+		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start,
+		Shown: func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, bool, error) {
+			return a.Chats.AnswerShown(ctx, act, q, answer)
+		}}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP,
 		Agent: a.Providers.Agent, Check: a.Providers.Check, Emit: a.Bus.Emit, Go: a.bg.Go}
 	a.Chats = chat.Service{St: st, Emit: a.Bus.Emit, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Work.For,

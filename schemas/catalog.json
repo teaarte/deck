@@ -429,7 +429,8 @@
       "started_at": {"type": "string", "description": "when it last started work"}, "finished_at": {"type": "string"}}},
     "question": {"type": "object", "required": ["question"], "description": "a question of an agent to the owner", "properties": {
       "question": {"type": "string"}, "header": {"type": "string", "description": "a short name of the question"}, "multiSelect": {"type": "boolean", "description": "the options do not rule each other out"},
-      "options": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "description": {"type": "string"}}}}}},
+      "options": {"type": "array", "items": {"type": "object", "properties": {"label": {"type": "string"}, "description": {"type": "string"}}}},
+      "form": {"type": "object", "description": "fields the owner fills in place of options, as the value of a form block: a block of the chat that asks; its answer is the fields as a JSON object"}}},
     "reply": {"type": "object", "additionalProperties": false, "required": ["process", "state"], "properties": {
       "process": {"type": "integer"}, "state": {"type": "string"}, "provider": {"type": "string"}, "error": {"type": "string"}, "word": {"type": "string", "description": "the state in the owner's words"}, "tone": {"$ref": "#/$defs/tone"}, "waits": {"type": "boolean", "description": "it waits for the owner or its provider rather than works"},
       "open": {"$ref": "#/$defs/action"},

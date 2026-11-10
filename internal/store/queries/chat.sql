@@ -205,10 +205,15 @@ INSERT INTO chat_message (topic_id, role, text, process_id, block, created_at) V
 UPDATE chat_message SET answer = sqlc.arg(answer), answered_at = sqlc.arg(at) WHERE id = sqlc.arg(id) AND block != '' AND answered_at IS NULL;
 
 
--- name: FillShownText :execrows
+-- name: FillShownText :one
 -- The final text of a turn goes over the block it showed last, wherever messages came after it.
 UPDATE chat_message SET text = sqlc.arg(text) WHERE id = (SELECT MAX(m.id) FROM chat_message m
-  WHERE m.topic_id = sqlc.arg(topic_id) AND m.process_id = sqlc.arg(process_id) AND m.block != '' AND m.text = '' AND m.created_at >= sqlc.arg(since));
+  WHERE m.topic_id = sqlc.arg(topic_id) AND m.process_id = sqlc.arg(process_id) AND m.block != '' AND m.text = '' AND m.created_at >= sqlc.arg(since))
+RETURNING block;
+
+
+-- name: SetMessageBlock :exec
+UPDATE chat_message SET block = sqlc.arg(block) WHERE id = sqlc.arg(id);
 
 
 -- name: ReplaceShownBlock :one

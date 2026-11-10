@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -477,4 +478,64 @@ func TestCoreDocumentNamesKeepTheirKind(t *testing.T) {
 		}
 	}
 	e.Must("deck.document_save", map[string]any{"project": "ideas", "name": "prompt.md", "kind": "prompt", "text": "Real prompt"}, nil)
+}
+
+// TestAShippedPromptKeepsTheLineTheMasterAddedBesideALineDeckChanged: a line the master added survives a new text of
+// deck that changed a neighbouring line; only the same lines changed by both are a conflict.
+func TestAShippedPromptKeepsTheLineTheMasterAddedBesideALineDeckChanged(t *testing.T) {
+	t.Parallel()
+	const added = "- Check the work before you reply."
+	for _, c := range []struct {
+		name     string
+		edit     func(older []string, at int) []string
+		conflict bool
+	}{
+		{"before", func(l []string, at int) []string { return slices.Insert(slices.Clone(l), at, added) }, false},
+		{"after", func(l []string, at int) []string { return slices.Insert(slices.Clone(l), at+1, added) }, false},
+		{"far", func(l []string, at int) []string { return slices.Insert(slices.Clone(l), at+5, added) }, false},
+		{"same", func(l []string, at int) []string {
+			l = slices.Clone(l)
+			l[at] = "- The master's own words of this rule."
+			return l
+		}, true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			home := t.TempDir()
+			e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
+			at := map[string]any{"project": "master", "name": "prompts/reply.md"}
+			var d documentV
+			e.Must("deck.document_get", at, &d)
+			shipped := strings.Split(d.Text, "\n")
+			i := slices.IndexFunc(shipped, func(l string) bool { return strings.HasPrefix(l, "- Files the owner attached") })
+			if i < 1 {
+				t.Fatalf("reply.md has no rule of attached files: %.80q", d.Text)
+			}
+			older := slices.Clone(shipped)
+			older[i] = "- Attached files are in the data folder."
+			edit := c.edit(older, i)
+			e.Must("deck.document_save", map[string]any{"project": "master", "name": d.Name, "kind": d.Kind, "text": strings.Join(edit, "\n")}, nil)
+			// A history in which an older deck shipped the older rule and the master added its line.
+			e.SQL(`UPDATE document_revision SET author = CASE author WHEN 'owner' THEN 'master' ELSE author END,
+				text = CASE author WHEN 'deck' THEN ? ELSE text END WHERE document_id = ?`, strings.Join(older, "\n"), d.ID)
+			_ = e.App.Close()
+			e = harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
+			e.Must("deck.document_get", at, &d)
+			var notes int
+			// Notes to the master wait for its next turn; no read lists them.
+			if err := e.SQLRow(`SELECT count(*) FROM feed WHERE for_master = 1`).Scan(&notes); err != nil {
+				t.Fatal(err)
+			}
+			if c.conflict {
+				if d.Text != strings.Join(shipped, "\n") || notes != 1 {
+					t.Fatalf("deck's text stands where both changed the same line, with a note: %d notes, %.200q", notes, d.Text)
+				}
+				return
+			}
+			want := c.edit(shipped, i)
+			if d.Text != strings.Join(want, "\n") || notes != 0 {
+				t.Fatalf("the master's line and deck's new rule both stay, no note: %d notes\n%s", notes, docs.Diff(strings.Join(want, "\n"), d.Text))
+			}
+		})
+	}
 }

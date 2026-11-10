@@ -292,3 +292,5 @@ and bring the modules in line.
 - 2026-11-11: A reply of the master reads the topic it answers as the owner sees it: `chat_get` and `chat_turn_get`
   with `topic` set to that topic, or without one, give its messages, the work over them and what waits, and
   `screen_capture` of `#/deck/chat` draws it. Any other topic is refused; the list of topics stays the owner's.
+- 2026-11-11: when deck ships a new text of a document you edited (a prompt, a skill), a line you added beside a line
+  deck changed stays; only the same lines changed by both are a conflict with a note.

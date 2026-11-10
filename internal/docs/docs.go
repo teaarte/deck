@@ -189,6 +189,10 @@ func Merge3(edit, base, next string) (string, []Conflict) {
 	var conflicts []Conflict
 	for _, r := range diff3.Diff3Merge(strings.Split(edit, "\n"), strings.Split(base, "\n"), strings.Split(next, "\n"), true) {
 		if c := r.Conflict; c != nil {
+			if lines, ok := beside(c.A, c.O, c.B); ok {
+				out = append(out, lines...)
+				continue
+			}
 			out = append(out, c.B...)
 			conflicts = append(conflicts, Conflict{Base: c.O, Edit: c.A, Next: c.B})
 			continue
@@ -196,6 +200,43 @@ func Merge3(edit, base, next string) (string, []Conflict) {
 		out = append(out, r.Ok...)
 	}
 	return strings.Join(out, "\n"), conflicts
+}
+
+// change is a run of base lines [from, to) a side replaced with lines.
+type change struct {
+	from, to int
+	lines    []string
+}
+
+func changes(base, side []string) []change {
+	var out []change
+	at := 0
+	for _, r := range diff3.DiffComm(base, side) {
+		if r.Common != nil {
+			at += len(r.Common)
+			continue
+		}
+		out = append(out, change{at, at + len(r.File1), r.File2})
+		at += len(r.File1)
+	}
+	return out
+}
+
+// beside merges a place diff3 calls a conflict where the changes of the two sides only touch: they share no line of
+// base and do not both add lines at one place; lines added before a changed line go first.
+func beside(a, base, b []string) ([]string, bool) {
+	all := append(changes(base, a), changes(base, b)...)
+	slices.SortStableFunc(all, func(x, y change) int { return cmp.Or(cmp.Compare(x.from, y.from), cmp.Compare(x.to, y.to)) })
+	var out []string
+	at := 0
+	for i, c := range all {
+		if c.from < at || i > 0 && c.from == c.to && all[i-1].from == all[i-1].to && c.from == all[i-1].from {
+			return nil, false
+		}
+		out = append(append(out, base[at:c.from]...), c.lines...)
+		at = c.to
+	}
+	return append(out, base[at:]...), true
 }
 
 // Diff is what changed from old to next by lines: removed lines with -, added with +, a line of context around each

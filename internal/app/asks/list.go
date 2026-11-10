@@ -91,7 +91,7 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 		r := s.askRow(ctx, q, names, lang)
 		r.Who, r.Always = tr(r.Who), tr(r.Always)
 		switch {
-		case q.Kind == ask.KindGrant:
+		case q.Kind == ask.KindGrant, q.Kind == ask.KindQuestion:
 			r.What = tr(r.What)
 		case q.Kind == ask.KindLogin:
 			r.What, r.Text = tr(r.What), tr(r.Text)

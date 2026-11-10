@@ -338,7 +338,9 @@ func TestABaseWithTheTriggersOfTheFeedJoinsItsNotesInDeck(t *testing.T) {
 	e.SaveScript("work", "scripts/main.py", "print('{}')\n")
 	var first struct{ Notification int64 }
 	e.Must("deck.owner_notify", map[string]any{"project": "films", "text": "Groq does not answer; move films to nemotron", "cause": "provider:groq"}, &first)
+	// A base an older deck left, before the notes joined in deck.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 75`)
+	// Its trigger joined deck's same unread note.
 	e.SQL(`CREATE TRIGGER feed_repeat BEFORE INSERT ON feed
 WHEN NEW.author = 'deck' AND NEW.kind = 'note' AND NEW.for_master = 0 AND EXISTS (SELECT 1 FROM feed f
     WHERE f.project_id = NEW.project_id AND f.author = 'deck' AND f.kind = 'note' AND f.for_master = 0
@@ -349,6 +351,7 @@ BEGIN
       AND text = NEW.text;
     SELECT RAISE(IGNORE);
 END`)
+	// Its trigger joined a note of a cause to the unread one of the day.
 	e.SQL(`CREATE TRIGGER feed_cause BEFORE INSERT ON feed
 WHEN NEW.cause != '' AND NEW.kind = 'note' AND NEW.for_master = 0 AND NEW.screen = '' AND NEW.actions IN ('[]', 'null') AND EXISTS (SELECT 1 FROM feed f
     WHERE f.workspace_id = NEW.workspace_id AND f.cause = NEW.cause AND f.kind = 'note' AND f.for_master = 0
@@ -365,6 +368,7 @@ BEGIN
 END`)
 	e = e.Restart()
 	var triggers int
+	// The triggers of a base are nowhere in deck.
 	if err := e.SQLRow(`SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'feed'`).Scan(&triggers); err != nil || triggers != 0 {
 		t.Fatalf("the triggers of the feed are gone: %d %v", triggers, err)
 	}

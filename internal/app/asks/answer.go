@@ -3,7 +3,6 @@ package asks
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/url"
@@ -139,8 +138,8 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 // allowAlways adds the tool or command of a frozen call to the allowed external list of its project, or the
 // site of a browser action to its act domains, as the owner's own manifest change.
 func (s *Service) allowAlways(ctx context.Context, act registry.Actor, q db.Ask) error {
-	var f gateway.Frozen
-	if err := json.Unmarshal([]byte(q.Payload), &f); err != nil {
+	f, err := ask.Decode[gateway.Frozen](q.Payload)
+	if err != nil {
 		return err
 	}
 	p, err := s.St.Q.GetProject(ctx, q.ProjectID.Int64)

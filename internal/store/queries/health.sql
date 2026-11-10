@@ -33,12 +33,12 @@ UPDATE health SET verdict = sqlc.arg(verdict), speed = sqlc.arg(speed) WHERE wor
 
 
 -- name: DeleteScreenHealth :exec
-DELETE FROM health WHERE project_id = ? AND subject GLOB 'screen:*';
+DELETE FROM health WHERE project_id = sqlc.arg(project_id) AND subject GLOB CAST(sqlc.arg(subjects) AS TEXT);
 
 
 -- name: DeleteModelHealth :exec
-DELETE FROM health WHERE health.workspace_id = sqlc.arg(workspace_id) AND health.subject = 'model:' || CAST(sqlc.arg(name) AS TEXT)
-    OR health.workspace_id IS NULL AND health.subject = 'provider:' || CAST(sqlc.arg(name) AS TEXT)
+DELETE FROM health WHERE health.workspace_id = sqlc.arg(workspace_id) AND health.subject = sqlc.arg(model)
+    OR health.workspace_id IS NULL AND health.subject = sqlc.arg(provider)
     AND NOT EXISTS (SELECT 1 FROM model m WHERE m.name = CAST(sqlc.arg(name) AS TEXT));
 
 

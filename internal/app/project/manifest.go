@@ -11,6 +11,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/gateway"
+	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -242,7 +243,7 @@ func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pro
 		if outdated, err = outdate(ctx, q, p, n, s.Now()); err != nil {
 			return err
 		}
-		if err := q.DeleteScreenHealth(ctx, store.ID(p.ID)); err != nil {
+		if err := q.DeleteScreenHealth(ctx, db.DeleteScreenHealthParams{ProjectID: store.ID(p.ID), Subjects: health.OfScreen + ":*"}); err != nil {
 			return err
 		}
 		for name, mg := range plan {

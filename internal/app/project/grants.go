@@ -56,15 +56,12 @@ var errFrozen = errors.New("the manifest changed since it was asked")
 // merged is the change a grant holds merged into the current manifest of p, and the revision it merged into; an
 // error when the manifest changed the same paths since, or the merge would widen what the grant does not name.
 func merged(ctx context.Context, q *db.Queries, p db.Project, a db.Ask) (string, int64, error) {
-	var f gateway.Frozen
-	var in struct {
-		Manifest string `json:"manifest"`
-		Base     int64  `json:"if_revision"`
-	}
-	if err := json.Unmarshal([]byte(a.Payload), &f); err != nil {
+	f, err := ask.Decode[gateway.Frozen](a.Payload)
+	if err != nil {
 		return "", 0, err
 	}
-	if err := json.Unmarshal(f.Call.Input, &in); err != nil || in.Manifest == "" {
+	in, err := ask.Decode[manifestSaveIn](f.Call.Input)
+	if err != nil || in.Manifest == "" {
 		return "", 0, errFrozen
 	}
 	d, err := docs.Find(ctx, q, docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName})
@@ -72,8 +69,8 @@ func merged(ctx context.Context, q *db.Queries, p db.Project, a db.Ask) (string,
 		return "", 0, err
 	}
 	text := manifest.Canonical(in.Manifest)
-	if d.Current != in.Base {
-		base, err := docs.Revision(ctx, q, d, in.Base)
+	if d.Current != in.IfRevision {
+		base, err := docs.Revision(ctx, q, d, in.IfRevision)
 		if err != nil {
 			return "", 0, err
 		}

@@ -398,7 +398,7 @@ func (s *Service) modelDelete(ctx context.Context, act registry.Actor, in modelD
 		if err := s.Unassign(ctx, q, act.Workspace, in.Name); err != nil {
 			return err
 		}
-		if err := q.DeleteModelHealth(ctx, db.DeleteModelHealthParams{WorkspaceID: store.ID(act.Workspace), Name: in.Name}); err != nil || !unasked || approved {
+		if err := q.DeleteModelHealth(ctx, db.DeleteModelHealthParams{WorkspaceID: store.ID(act.Workspace), Model: health.Model(in.Name), Provider: health.Provider(in.Name), Name: in.Name}); err != nil || !unasked || approved {
 			return err
 		}
 		return store.AddChange(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: act.Workspace, ProjectID: act.ProjectID,

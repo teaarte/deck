@@ -14,6 +14,9 @@ func Answers[Out any](c *Command) *Command {
 	return c
 }
 
+// Enumer is a string type of a result field whose values a list kept in Go names, where a tag cannot.
+type Enumer interface{ Enum() []string }
+
 func resultSchema(t reflect.Type) map[string]any {
 	if t == rawType {
 		return map[string]any{}
@@ -58,6 +61,9 @@ func resultFields(t reflect.Type, props map[string]any) {
 		props[name] = resultSchema(f.Type)
 		if e := f.Tag.Get("enum"); e != "" && f.Type.Kind() == reflect.String {
 			props[name] = map[string]any{"type": "string", "enum": strings.Split(e, "|")}
+		}
+		if e, ok := reflect.Zero(f.Type).Interface().(Enumer); ok && f.Type.Kind() == reflect.String {
+			props[name] = map[string]any{"type": "string", "enum": e.Enum()}
 		}
 		if m := f.Tag.Get("media"); m != "" && f.Type.Kind() == reflect.String {
 			props[name] = map[string]any{"type": "string", "contentMediaType": m, "contentEncoding": "base64"}

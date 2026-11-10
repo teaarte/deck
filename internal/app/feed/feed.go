@@ -136,7 +136,7 @@ const FeedFailure = "failure"
 // deckText is the text of a line of the feed in the owner's words when deck wrote it: a change made without the owner
 // or a note of deck; a note of a module or the master is theirs as they wrote it.
 func deckText(ws map[string]string, kind, author, text string) string {
-	if kind == FeedChange || author == "deck" {
+	if kind == store.FeedChange || author == "deck" {
 		return manifest.TrText(ws, text)
 	}
 	return text
@@ -159,7 +159,7 @@ func (r *feedView) parts(f db.Feed, names map[int64]string, ws map[string]string
 	_ = json.Unmarshal([]byte(f.Parts), &more)
 	r.Parts = []notePart{{Project: r.Project, Author: r.Author, Text: r.Text}}
 	for _, m := range more {
-		r.Parts = append(r.Parts, notePart{Project: names[m.ProjectID], Author: m.Author, Text: deckText(ws, FeedNote, m.Author, m.Text)})
+		r.Parts = append(r.Parts, notePart{Project: names[m.ProjectID], Author: m.Author, Text: deckText(ws, store.FeedNote, m.Author, m.Text)})
 	}
 	for _, p := range r.Parts {
 		if !slices.Contains(r.Projects, p.Project) {
@@ -196,12 +196,12 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 	for _, f := range rows {
 		r := feedView{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: deckText(ws, f.Kind, f.Author, f.Text), Screen: f.Screen,
 			Record: f.RecordID.Int64, Buttons: []Button{}, CanUndo: f.Command != "" && !f.UndoneAt.Valid, Undone: f.UndoneAt.Valid,
-			Read: f.ReadAt.Valid, CanRead: f.Kind == FeedNote && !f.ReadAt.Valid, CreatedAt: f.CreatedAt, Repeats: f.Repeats}
+			Read: f.ReadAt.Valid, CanRead: f.Kind == store.FeedNote && !f.ReadAt.Valid, CreatedAt: f.CreatedAt, Repeats: f.Repeats}
 		if f.Cause != "" {
 			r.Cause = f.Cause
 			r.parts(f, names, ws)
 		}
-		if f.Kind == FeedChange && f.Repeats > 1 {
+		if f.Kind == store.FeedChange && f.Repeats > 1 {
 			parts, undo, err := process.ChangeLine(ctx, s.St.Q, f)
 			if err != nil {
 				return nil, err
@@ -352,7 +352,7 @@ type feedUndoIn struct {
 // since; a document changed more than once in the line goes back once, to before the first change.
 func (s *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndoIn) (any, error) {
 	r, err := s.St.Q.GetFeed(ctx, in.Entry)
-	if err != nil || r.WorkspaceID != act.Workspace || r.Kind != FeedChange || r.LineID.Valid {
+	if err != nil || r.WorkspaceID != act.Workspace || r.Kind != store.FeedChange || r.LineID.Valid {
 		return nil, registry.NotFound("no change %d", in.Entry)
 	}
 	_, undoable, err := store.Line(ctx, s.St.Q, r)

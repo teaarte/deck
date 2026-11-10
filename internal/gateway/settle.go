@@ -26,8 +26,8 @@ var ErrStale = registry.Conflict("this request is out of date: what it would cha
 // Freshness says what became of what a frozen call acts on since it was asked for; probe also checks what only a call
 // out tells, as when the owner answers.
 func (g *Gateway) Freshness(ctx context.Context, a db.Ask, probe bool) int {
-	var f Frozen
-	if json.Unmarshal([]byte(a.Payload), &f) != nil {
+	f, err := ask.Decode[Frozen](a.Payload)
+	if err != nil {
 		return AsAsked
 	}
 	c, err := g.reg.Lookup(ctx, f.Caller.Workspace, f.Call.Command)

@@ -25,27 +25,39 @@ func (q *Queries) ClearHealth(ctx context.Context, arg ClearHealthParams) error 
 }
 
 const deleteModelHealth = `-- name: DeleteModelHealth :exec
-DELETE FROM health WHERE health.workspace_id = ?1 AND health.subject = 'model:' || CAST(?2 AS TEXT)
-    OR health.workspace_id IS NULL AND health.subject = 'provider:' || CAST(?2 AS TEXT)
-    AND NOT EXISTS (SELECT 1 FROM model m WHERE m.name = CAST(?2 AS TEXT))
+DELETE FROM health WHERE health.workspace_id = ?1 AND health.subject = ?2
+    OR health.workspace_id IS NULL AND health.subject = ?3
+    AND NOT EXISTS (SELECT 1 FROM model m WHERE m.name = CAST(?4 AS TEXT))
 `
 
 type DeleteModelHealthParams struct {
 	WorkspaceID sql.NullInt64
+	Model       string
+	Provider    string
 	Name        string
 }
 
 func (q *Queries) DeleteModelHealth(ctx context.Context, arg DeleteModelHealthParams) error {
-	_, err := q.db.ExecContext(ctx, deleteModelHealth, arg.WorkspaceID, arg.Name)
+	_, err := q.db.ExecContext(ctx, deleteModelHealth,
+		arg.WorkspaceID,
+		arg.Model,
+		arg.Provider,
+		arg.Name,
+	)
 	return err
 }
 
 const deleteScreenHealth = `-- name: DeleteScreenHealth :exec
-DELETE FROM health WHERE project_id = ? AND subject GLOB 'screen:*'
+DELETE FROM health WHERE project_id = ?1 AND subject GLOB CAST(?2 AS TEXT)
 `
 
-func (q *Queries) DeleteScreenHealth(ctx context.Context, projectID sql.NullInt64) error {
-	_, err := q.db.ExecContext(ctx, deleteScreenHealth, projectID)
+type DeleteScreenHealthParams struct {
+	ProjectID sql.NullInt64
+	Subjects  string
+}
+
+func (q *Queries) DeleteScreenHealth(ctx context.Context, arg DeleteScreenHealthParams) error {
+	_, err := q.db.ExecContext(ctx, deleteScreenHealth, arg.ProjectID, arg.Subjects)
 	return err
 }
 

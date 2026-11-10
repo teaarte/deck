@@ -248,8 +248,8 @@ func Approved(ctx context.Context) (string, bool) {
 // Decide makes the frozen call the owner allowed and keeps what it gave on the journal row of the ask, answered
 // first, so it runs once; a failing then, or a failing call made as the owner, opens the ask again.
 func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, answer string, then func() error) (any, error) {
-	var f Frozen
-	if err := json.Unmarshal([]byte(a.Payload), &f); err != nil {
+	f, err := ask.Decode[Frozen](a.Payload)
+	if err != nil {
 		return nil, err
 	}
 	if f.Tool != g.fingerprint(ctx, f.Caller.Workspace, f.Caller.Project, f.Call.Command, f.Call.Input) {
@@ -305,8 +305,8 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 
 // Record writes to the journal what became of a frozen call that deck did not make.
 func (g *Gateway) Record(ctx context.Context, a db.Ask, outcome, why string) {
-	var f Frozen
-	if json.Unmarshal([]byte(a.Payload), &f) != nil {
+	f, err := ask.Decode[Frozen](a.Payload)
+	if err != nil {
 		return
 	}
 	act := f.Caller.actor()

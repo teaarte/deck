@@ -17,6 +17,7 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/app/updates"
+	"deck2/internal/health"
 	"deck2/internal/provider"
 	"deck2/internal/release"
 	"deck2/tests/harness"
@@ -113,7 +114,7 @@ func TestDeckUpdatesItselfFromASignedRelease(t *testing.T) {
 	if v.Version != "v0.1.0" || v.Latest != "v0.2.0" || !v.Newer {
 		t.Fatalf("the deck sees the newer release: %+v", v)
 	}
-	if h := e.WaitHealth(updates.Subject, "warning"); !strings.Contains(h.Error, "v0.2.0") {
+	if h := e.WaitHealth(health.Update, "warning"); !strings.Contains(h.Error, "v0.2.0") {
 		t.Fatalf("the health of the update names the new version: %+v", h)
 	}
 	n := 0
@@ -228,7 +229,7 @@ func TestABuildFromSourceSaysItsCommit(t *testing.T) {
 			c.commit == "" && !strings.Contains(v.Unknown, "--build-arg COMMIT=") {
 			t.Fatalf("version_get of a build from source at %q: %+v", c.commit, v)
 		}
-		h := e.WaitHealth(updates.Subject, "ok")
+		h := e.WaitHealth(health.Update, "ok")
 		if h.Version != c.row || !strings.Contains(h.Error, "built from source") || strings.Contains(h.Error, "commit is not known") != (c.commit == "") {
 			t.Fatalf("the row of the update names the build: %+v", h)
 		}
@@ -258,7 +259,7 @@ func TestADeckSaysHowItUpdates(t *testing.T) {
 			e := harness.New(t, harness.WithConfig(func(cfg *app.Config) {
 				cfg.Releases, cfg.Version, cfg.Commit, cfg.Variant, cfg.Image = r.source(), c.version, "4a671c8e1234", "deck-test", c.image
 			}))
-			if h := e.WaitHealth(updates.Subject, "ok"); h.Error != c.row {
+			if h := e.WaitHealth(health.Update, "ok"); h.Error != c.row {
 				t.Fatalf("the row of the update says how this deck updates: %+v", h)
 			}
 			e.Refused("deck.update_install", nil, 422, c.refusal)
@@ -271,7 +272,7 @@ func TestADeckSaysHowItUpdates(t *testing.T) {
 			if c.version == "v0.2.0" {
 				status, want = "ok", "deck v0.2.0 is the latest; it runs from the image ghcr.io/teaarte/deck and updates with docker compose pull && docker compose up -d"
 			}
-			if h := e.WaitHealth(updates.Subject, status); h.Error != want {
+			if h := e.WaitHealth(health.Update, status); h.Error != want {
 				t.Fatalf("the row after a check still says how this deck updates: %+v", h)
 			}
 		})

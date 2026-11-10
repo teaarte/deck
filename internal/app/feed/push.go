@@ -49,12 +49,6 @@ type pushMessage struct {
 	Badge int64 `json:"badge"`
 }
 
-// Kinds of lines of the owner's feed, as the store names them.
-const (
-	FeedNote   = store.FeedNote
-	FeedChange = store.FeedChange
-)
-
 type vapid struct {
 	Public  string `json:"public"`
 	Private string `json:"private"`

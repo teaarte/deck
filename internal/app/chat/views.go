@@ -427,10 +427,7 @@ func (s *Service) chatTurn(ctx context.Context, act registry.Actor, in chatGetIn
 		if q.Kind != ask.KindQuestion {
 			continue
 		}
-		var payload struct {
-			Questions []json.RawMessage `json:"questions"`
-		}
-		_ = json.Unmarshal([]byte(q.Payload), &payload)
+		payload, _ := ask.Decode[ask.Question](q.Payload)
 		questions := []map[string]any{}
 		for _, raw := range payload.Questions {
 			var one map[string]any

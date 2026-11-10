@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -31,9 +30,8 @@ func (s *Service) Memory(ctx context.Context, p db.Process, again bool) (memory,
 		return "", "", err
 	}
 	if proj.Builtin == 1 {
-		var in struct{ Topic int64 }
-		_ = json.Unmarshal([]byte(p.Input), &in)
-		memory, lessons, _, err = s.masterMemory(ctx, proj, in.Topic, less, !again)
+		topic, _ := topicOf(p)
+		memory, lessons, _, err = s.masterMemory(ctx, proj, topic, less, !again)
 		return memory, lessons, err
 	}
 	own, _, err := s.memoryIndex(ctx, proj, "Memory index of project "+proj.Name)

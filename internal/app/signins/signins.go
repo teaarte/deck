@@ -88,7 +88,7 @@ func (s *Service) browserLoginFinish(ctx context.Context, act registry.Actor, in
 	if err := health.Write(ctx, s.St, health.Of{}, health.Site(site), health.OK, ""); err != nil {
 		return nil, err
 	}
-	n, err := s.signedIn(ctx, act.Workspace, "site", site)
+	n, err := s.signedIn(ctx, act.Workspace, ask.SignIn{Site: site})
 	return map[string]any{"site": site, "resumed": n}, err
 }
 
@@ -109,7 +109,7 @@ func (s *Service) browserLoginRequest(ctx context.Context, act registry.Actor, i
 	if err := health.Write(ctx, s.St, health.Of{}, health.Site(site), health.NeedsLogin, untrusted.Cut(in.Why, 300)); err != nil {
 		return nil, err
 	}
-	payload, _ := json.Marshal(map[string]string{"site": site})
+	payload, _ := json.Marshal(ask.SignIn{Site: site})
 	text := fmt.Sprintf("Sign in to %s in deck's browser (deck.browser_login), then say done: %s", site, untrusted.Cut(in.Why, 300))
 	row, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {
 		return ask.New(ctx, q, act.ProcessID, ask.KindSignIn, text, string(payload), time.Time{})
@@ -122,15 +122,17 @@ func (s *Service) browserLoginRequest(ctx context.Context, act registry.Actor, i
 }
 
 // signedIn answers the open sign-in asks for a site or a tool, so the processes behind them go on.
-func (s *Service) signedIn(ctx context.Context, workspace int64, key, value string) (int, error) {
+func (s *Service) signedIn(ctx context.Context, workspace int64, to ask.SignIn) (int, error) {
 	open, err := s.St.Q.ListWorkspaceOpenAsks(ctx, workspace)
 	if err != nil {
 		return 0, err
 	}
 	n := 0
 	for _, q := range open {
-		var p map[string]string
-		if q.Kind != ask.KindSignIn || json.Unmarshal([]byte(q.Payload), &p) != nil || p[key] != value {
+		if q.Kind != ask.KindSignIn {
+			continue
+		}
+		if p, err := ask.Decode[ask.SignIn](q.Payload); err != nil || p != to {
 			continue
 		}
 		if err := s.Broker.Answer(ctx, q.ID, "done"); err == nil {
@@ -169,12 +171,14 @@ func (s *Service) ToolSignIn(ctx context.Context, p db.Project, tool, why string
 		return
 	}
 	for _, q := range open {
-		var pl map[string]string
-		if q.Kind == ask.KindSignIn && json.Unmarshal([]byte(q.Payload), &pl) == nil && pl["tool"] == tool {
+		if q.Kind != ask.KindSignIn {
+			continue
+		}
+		if pl, err := ask.Decode[ask.SignIn](q.Payload); err == nil && pl.Tool == tool {
 			return
 		}
 	}
-	payload, _ := json.Marshal(map[string]string{"tool": tool})
+	payload, _ := json.Marshal(ask.SignIn{Tool: tool})
 	text := fmt.Sprintf("%s needs you to sign in to its service again (deck.oauth_start): %s", tool, untrusted.Cut(why, 300))
 	if a, _, err := s.auth(ctx, p, strings.TrimPrefix(tool, p.Name+".")); err == nil && a.Type == "oauth2" {
 		text += fmt.Sprintf("; the sign-in is at %s, its token from %s", host(a.AuthURL), host(a.TokenURL))
@@ -250,7 +254,7 @@ func (s *Service) oauthStart(ctx context.Context, act registry.Actor, in oauthSt
 			return
 		}
 		s.ToolHealth(s.Ctx, p, in.Tool, "ok", "")
-		_, _ = s.signedIn(s.Ctx, p.WorkspaceID, "tool", in.Tool)
+		_, _ = s.signedIn(s.Ctx, p.WorkspaceID, ask.SignIn{Tool: in.Tool})
 	})
 	if err != nil {
 		return nil, err

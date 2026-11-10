@@ -33,15 +33,15 @@ type toldState struct {
 // workTopic is the topic a process of the built-in master other than a reply was started from, or 0; only the
 // master's topic is a topic of the chat.
 func (s *Service) workTopic(ctx context.Context, p db.Process) (int64, int64) {
-	var in struct{ Topic int64 }
-	if json.Unmarshal([]byte(p.Input), &in) != nil || in.Topic == 0 || s.replyOf(ctx, p) != 0 {
+	topic, err := topicOf(p)
+	if err != nil || topic == 0 || s.replyOf(ctx, p) != 0 {
 		return 0, 0
 	}
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil || proj.Builtin == 0 {
 		return 0, 0
 	}
-	t, err := s.St.Q.GetTopic(ctx, in.Topic)
+	t, err := s.St.Q.GetTopic(ctx, topic)
 	if err != nil || t.WorkspaceID != proj.WorkspaceID {
 		return 0, 0
 	}

@@ -162,7 +162,7 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 				}
 			}
 		}
-		if h, err := s.St.Q.GetHealthAt(ctx, db.GetHealthAtParams{Workspace: act.Workspace, Subject: health.Trigger(p.Name, t.Command)}); err == nil && h.Status == health.Error && !v.Draft && !(h.SeenAt.Valid && h.SeenAt.String >= h.UpdatedAt) {
+		if h, err := health.Get(ctx, s.St.Q, health.Of{Workspace: act.Workspace}, health.Trigger(p.Name, t.Command)); err == nil && h.Status == health.Error && !v.Draft && !health.Seen(h) {
 			v.Failure, v.LastWord, v.LastTone = manifest.TrText(ws, h.Error), tr("did not start"), "error"
 		}
 		switch {

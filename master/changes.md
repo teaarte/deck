@@ -281,3 +281,5 @@ and bring the modules in line.
   deck learns it from an answer of its API that says so, as Groq does past 128. A request with more tools goes to the
   next model, and agent work whose turns have more is not offered the model: the work of `models_list` gives
   `left_out`, why such models are not among its `choices`.
+- 2026-11-10: `health_list` names the kinds of its rows by what deck writes: `kind` takes `node` and `https`, and no
+  longer `browser`; `status` no longer lists `missing`, which no health row has.

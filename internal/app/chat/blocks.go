@@ -276,9 +276,12 @@ func formOf(b shown, answer map[string]any) map[string]any {
 // AnswerShown answers the question of a block of the chat wherever the owner answered it: the block keeps the answer,
 // the topic gets it as the owner's next message; false for any other ask.
 func (s *Service) AnswerShown(ctx context.Context, act registry.Actor, a db.Ask, answer string) (any, bool, error) {
-	var pl struct{ Message int64 }
 	// A question of a block has no process; one of an agent keeps the payload the agent gave.
-	if a.Kind != ask.KindQuestion || a.ProcessID.Valid || json.Unmarshal([]byte(a.Payload), &pl) != nil || pl.Message == 0 {
+	if a.Kind != ask.KindQuestion || a.ProcessID.Valid {
+		return nil, false, nil
+	}
+	pl, err := ask.Decode[ask.Shown](a.Payload)
+	if err != nil || pl.Message == 0 {
 		return nil, false, nil
 	}
 	if a.State != ask.StateOpen {

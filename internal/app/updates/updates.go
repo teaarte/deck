@@ -43,9 +43,6 @@ type Source struct {
 // GitHub is where deck is released.
 var GitHub = Source{URL: "https://github.com/teaarte/deck/releases/latest/download/", Domains: []string{"github.com", "githubusercontent.com"}}
 
-// Subject is the health row of the update of deck.
-const Subject = "update"
-
 type Service struct {
 	St      *store.Store
 	Now     func() time.Time
@@ -75,7 +72,7 @@ type Service struct {
 // that says no newer one is out is rewritten, so a row of another build does not stay.
 func (s *Service) Mark(ctx context.Context) error {
 	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		row, err := health.Get(ctx, q, health.Of{}, Subject)
+		row, err := health.Get(ctx, q, health.Of{}, health.Update)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
@@ -84,12 +81,12 @@ func (s *Service) Mark(ctx context.Context) error {
 			if s.unknown() != "" {
 				text = fmt.Sprintf("%s; its commit is not known", text)
 			}
-			if _, err := health.Set(ctx, q, s.Now(), health.Of{}, Subject, health.OK, text); err != nil {
+			if _, err := health.Set(ctx, q, s.Now(), health.Of{}, health.Update, health.OK, text); err != nil {
 				return err
 			}
 		}
 		version := release.Named(s.Version, s.Commit) + " " + s.Variant
-		return q.SetHealthVersion(ctx, db.SetHealthVersionParams{Version: version, Subject: Subject})
+		return q.SetHealthVersion(ctx, db.SetHealthVersionParams{Version: version, Subject: health.Update})
 	})
 }
 
@@ -193,7 +190,7 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 		}
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		changed, err := health.Set(ctx, q, s.Now(), health.Of{}, Subject, status, text)
+		changed, err := health.Set(ctx, q, s.Now(), health.Of{}, health.Update, status, text)
 		if err != nil || !changed || !newer {
 			return err
 		}
@@ -211,7 +208,7 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 				continue
 			}
 			if _, err := store.AddNote(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: ws, ProjectID: m.ID,
-				Author: "deck", Text: text, Actions: string(buttons), Params: "{}", Cause: Subject}); err != nil {
+				Author: "deck", Text: text, Actions: string(buttons), Params: "{}", Cause: health.Update}); err != nil {
 				return err
 			}
 		}

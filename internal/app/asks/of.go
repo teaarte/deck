@@ -2,7 +2,6 @@ package asks
 
 import (
 	"context"
-	"encoding/json"
 	"slices"
 
 	"deck2/internal/ask"
@@ -66,8 +65,7 @@ func buttons(r askView) []map[string]any {
 	case r.Kind == ask.KindUnknown:
 		return []map[string]any{primary(button(r.ID, "retry", "retry")), button(r.ID, "mark_done", "done")}
 	case r.Kind == ask.KindSignIn:
-		var pl struct{ Site, Tool string }
-		_ = json.Unmarshal(r.Payload, &pl)
+		pl, _ := ask.Decode[ask.SignIn](r.Payload)
 		if pl.Site != "" {
 			url := map[string]any{"url": "https://" + pl.Site}
 			return []map[string]any{

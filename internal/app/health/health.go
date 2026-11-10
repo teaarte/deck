@@ -23,7 +23,7 @@ type healthRow struct {
 	Subject string `json:"subject"`
 	// Project is the project the row is of, none for the machine and the workspace.
 	Project string `json:"project,omitempty"`
-	Status  string `json:"status" enum:"ok|warning|error|checking|paused|needs_login|missing"`
+	Status  string `json:"status" enum:"ok|warning|error|checking|paused|needs_login"`
 	Error   string `json:"error"`
 	Version string `json:"version"`
 	// Verdict of a failed self-check: model when the model does not manage it, adapter when it broke.
@@ -35,8 +35,13 @@ type healthRow struct {
 	// Seen marks a failing check the owner read since it last changed.
 	Seen bool `json:"seen"`
 	// Kind is what the row is of, the start of its subject: provider, model, command, trigger, secret, ….
-	Kind string `json:"kind" enum:"provider|agent|model|command|trigger|tool|mcp|secret|screen|project|retention|site|scripts|sandbox|tailscale|snapshot|disk|outbox|push|search|master|browser|update"`
+	Kind kind `json:"kind"`
 }
+
+// kind is the kind of a health row, one of health.Kinds.
+type kind string
+
+func (kind) Enum() []string { return health.Kinds }
 
 // shownRow is a row of health with the work it stands for: the model of a command or its schedule, with Trigger its
 // cron trigger; Places the work a model does, Fallbacks the work it stands in while another does it.
@@ -81,9 +86,9 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, in healthListIn
 	for _, r := range rows {
 		r.Error = manifest.TrText(ws, r.Error)
 		v := healthView{healthRow: r}
-		name := strings.TrimPrefix(r.Subject, r.Kind+":")
+		name := health.Name(r.Subject)
 		switch r.Kind {
-		case "command", "trigger":
+		case health.OfCommand, health.OfTrigger:
 			if id, ok := ids[r.Project]; ok {
 				v.Command = strings.TrimPrefix(name, r.Project+".")
 				v.Work = works(id, v.Command)
@@ -91,7 +96,7 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, in healthListIn
 					v.Trigger = ts[i].ID
 				}
 			}
-		case "provider", "model":
+		case health.OfProvider, health.OfModel:
 			v.Places, v.Fallbacks = places[name].Now, places[name].Fallback
 		}
 		out = append(out, v)
@@ -126,17 +131,11 @@ func (s *Service) list(ctx context.Context, act registry.Actor, in healthListIn)
 	}
 	for _, hr := range hs {
 		h := hr.Health
-		if strings.HasPrefix(h.Subject, "provider:") && !mine[h.Subject] || !shown(hr.Project) {
+		if health.Kind(h.Subject) == health.OfProvider && !mine[h.Subject] || !shown(hr.Project) {
 			continue
 		}
 		out = append(out, healthRow{Subject: h.Subject, Project: hr.Project, Status: h.Status, Error: h.Error, Version: h.Version,
-			Verdict: h.Verdict, Speed: h.Speed, UpdatedAt: h.UpdatedAt, SelfCheck: checked[h.Subject], Seen: h.SeenAt.Valid && h.SeenAt.String >= h.UpdatedAt})
-	}
-	for i := range out {
-		out[i].Kind, _, _ = strings.Cut(out[i].Subject, ":")
-		if !strings.Contains(out[i].Subject, ":") {
-			out[i].Kind = out[i].Subject
-		}
+			Verdict: h.Verdict, Speed: h.Speed, UpdatedAt: h.UpdatedAt, SelfCheck: checked[h.Subject], Seen: health.Seen(h), Kind: kind(health.Kind(h.Subject))})
 	}
 	slices.SortStableFunc(out, func(x, y healthRow) int {
 		switch {

@@ -104,8 +104,6 @@ type Runner struct {
 	marked map[int64]time.Time
 	// slots counts the agent turns of each workspace that hold a slot, taken or handed over.
 	slots map[int64]int
-	// of is the workspace and project of each process an event was published for.
-	of map[int64]events.Event
 	// hearing are the processes this deck closes and hears itself, which a drain of the outbox leaves alone.
 	hearing map[int64]bool
 	// warned is the deadline each agent process was told it nears, negative while the telling is under way.
@@ -115,21 +113,7 @@ type Runner struct {
 // logged publishes that the log of a process grew, in its project: the log is a file, which no write of the base
 // announces.
 func (r *Runner) logged(ctx context.Context, processID int64) {
-	r.mu.Lock()
-	e, ok := r.of[processID]
-	r.mu.Unlock()
-	if !ok {
-		if p, err := r.st.Q.GetProcess(ctx, processID); err == nil {
-			if pr, err := r.st.Q.GetProject(ctx, p.ProjectID); err == nil {
-				e = events.Event{Workspace: pr.WorkspaceID, Project: pr.Name}
-				r.mu.Lock()
-				r.of[processID] = e
-				r.mu.Unlock()
-			}
-		}
-	}
-	e.Topic = events.Log
-	r.bus.Emit(e)
+	r.bus.Emit(r.st.ProcessEvent(ctx, processID, events.Log))
 }
 
 type liveTurn struct {
@@ -208,7 +192,7 @@ func New(cfg Config, deps Deps) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Runner{st: deps.Store, gw: deps.Gateway, bus: deps.Bus, scripts: deps.Scripts, cfg: cfg, deps: deps, ctx: ctx, cancel: cancel,
 		live: map[int64]*liveTurn{}, seen: map[int64]map[int64]int64{}, marked: map[int64]time.Time{}, warned: map[int64]int64{},
-		slots: map[int64]int{}, of: map[int64]events.Event{}, hearing: map[int64]bool{}}
+		slots: map[int64]int{}, hearing: map[int64]bool{}}
 }
 
 // Shutdown interrupts running providers and waits; interrupted processes stay running and resume on next start.
@@ -349,9 +333,6 @@ func unheardCall(ctx context.Context, q *db.Queries, processID int64) bool {
 // closed announces a process that reached a final state, then takes it off the outbox; its log stays until deck
 // clears old runs.
 func (r *Runner) closed(ctx context.Context, processID int64) {
-	r.mu.Lock()
-	delete(r.of, processID)
-	r.mu.Unlock()
 	// A process deck could not read stays in the outbox, heard on the next drain.
 	if err := r.hear(ctx, processID, func(h Hook, p db.Process) { h.Closed(ctx, p) }); err != nil {
 		slog.Error("hear a closed process", "process", processID, "err", err)

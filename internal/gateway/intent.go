@@ -117,8 +117,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 	res, _ := json.Marshal(Outcome{Error: "deck stopped while making this call; it is listed for the owner as an unknown outcome"})
 	classes := map[string]string{}
 	for _, r := range running {
-		var f Frozen
-		_ = json.Unmarshal([]byte(r.Ask.Payload), &f)
+		f, _ := ask.Decode[Frozen](r.Ask.Payload)
 		classes[f.Call.Command] = registry.External
 		if c, err := g.reg.Lookup(ctx, r.Ask.WorkspaceID, f.Call.Command); err == nil {
 			classes[f.Call.Command] = c.Class
@@ -130,8 +129,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 			if err := q.SettleDecision(ctx, db.SettleDecisionParams{Result: string(res), AskID: sql.NullInt64{Int64: a.ID, Valid: true}}); err != nil {
 				return err
 			}
-			var f Frozen
-			_ = json.Unmarshal([]byte(a.Payload), &f)
+			f, _ := ask.Decode[Frozen](a.Payload)
 			if lost[fmt.Sprint(a.ProjectID.Int64, f.Call.Command, string(f.Call.Input))] {
 				continue
 			}

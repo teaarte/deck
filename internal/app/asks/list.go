@@ -134,15 +134,11 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 	}
 	switch q.Kind {
 	case ask.KindQuestion:
-		var pl struct {
-			Questions json.RawMessage `json:"questions"`
-		}
-		if json.Unmarshal([]byte(q.Payload), &pl) == nil && len(pl.Questions) > 0 {
-			r.What = questionTitle(pl.Questions)
+		if pl, err := ask.Decode[ask.Question](q.Payload); err == nil && len(pl.Questions) > 0 {
+			r.What = questionTitle(pl)
 		}
 	case ask.KindCall, ask.KindUnknown:
-		var f gateway.Frozen
-		_ = json.Unmarshal([]byte(q.Payload), &f)
+		f, _ := ask.Decode[gateway.Frozen](q.Payload)
 		r.Who, r.What, r.Where, r.Command = s.callerWho(ctx, f.Caller), f.Call.Command, f.Target, f.Call.Command
 		if f.Caller.Process != 0 {
 			r.By = s.processName(ctx, f.Caller.Process)
@@ -158,8 +154,7 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 			r.Always = fmt.Sprintf("Always let %s run %s", r.Project, strings.TrimPrefix(f.Call.Command, r.Project+"."))
 		}
 	case ask.KindGrant:
-		var f gateway.Frozen
-		_ = json.Unmarshal([]byte(q.Payload), &f)
+		f, _ := ask.Decode[gateway.Frozen](q.Payload)
 		r.Who, r.What, r.Where = s.callerWho(ctx, f.Caller), fmt.Sprintf("Widen the rights of %s", r.Project), strings.Join(f.Widens, "; ")
 		if f.Caller.Process != 0 {
 			r.By = s.processName(ctx, f.Caller.Process)
@@ -167,33 +162,19 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		r.Text = cmp.Or(f.Reason, "no reason given")
 		r.Payload, _ = json.Marshal(map[string]any{"widens": f.Widens, "reason": f.Reason})
 	case ask.KindConfirm:
-		var pl struct {
-			Tool  string         `json:"tool"`
-			Input map[string]any `json:"input"`
-		}
-		if json.Unmarshal([]byte(q.Payload), &pl) == nil && pl.Tool != "" {
+		if pl, err := ask.Decode[ask.Confirm](q.Payload); err == nil && pl.Tool != "" {
 			r.What, r.Where = pl.Tool, confirmTarget(pl.Input)
 		}
 	case ask.KindSignIn:
-		var pl map[string]string
-		_ = json.Unmarshal([]byte(q.Payload), &pl)
-		r.Where = cmp.Or(pl["site"], pl["tool"])
+		pl, _ := ask.Decode[ask.SignIn](q.Payload)
+		r.Where = cmp.Or(pl.Site, pl.Tool)
 	}
 	return r
 }
 
 // questionTitle heads a question the picker shows in full: the short headers of its questions, else "Question".
-func questionTitle(raw json.RawMessage) string {
-	var qs []struct {
-		Header string `json:"header"`
-	}
-	_ = json.Unmarshal(raw, &qs)
-	var hs []string
-	for _, q := range qs {
-		if q.Header != "" {
-			hs = append(hs, q.Header)
-		}
-	}
+func questionTitle(q ask.Question) string {
+	hs := q.Headers()
 	if len(hs) == 0 {
 		return "Question"
 	}

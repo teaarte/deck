@@ -111,8 +111,8 @@ func (s *Service) derive(ctx context.Context, ws int64, projects []string) error
 			if scripts[subject] {
 				continue
 			}
-			if name, ok := strings.CutPrefix(subject, "model:"); ok {
-				if _, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: ws, Name: name}); err == nil {
+			if health.Kind(subject) == health.OfModel {
+				if _, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: ws, Name: health.Name(subject)}); err == nil {
 					continue
 				}
 			}
@@ -141,17 +141,16 @@ const noModel = "deck has no such model"
 
 // gone reports whether a row is the one Derive writes of a model deck has none of.
 func gone(h db.Health) bool {
-	return strings.HasPrefix(h.Subject, "model:") && strings.HasPrefix(h.Error, noModel)
+	return health.Kind(h.Subject) == health.OfModel && strings.HasPrefix(h.Error, noModel)
 }
 
 // ownDerived reports whether Derive writes a row: of a manifest, a secret, search, or of a command that is not of a
 // script, whose row is of its programs; a manifest that does not read takes the rows of its commands along.
 func ownDerived(h db.Health, scripts map[string]bool) bool {
-	kind, _, _ := strings.Cut(h.Subject, ":")
-	switch kind {
-	case "project", "secret", health.Search:
+	switch health.Kind(h.Subject) {
+	case health.OfProject, health.OfSecret, health.Search:
 		return true
-	case "command":
+	case health.OfCommand:
 		return !scripts[h.Subject]
 	}
 	return false

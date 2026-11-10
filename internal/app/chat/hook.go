@@ -25,9 +25,17 @@ func (s *Service) replyOf(ctx context.Context, p db.Process) int64 {
 	if m, err := docs.Manifest(ctx, s.St.Q, proj); err != nil || p.Command != m.EventCommand(manifest.OnMessage) {
 		return 0
 	}
-	var in struct{ Topic int64 }
-	_ = json.Unmarshal([]byte(p.Input), &in)
-	return in.Topic
+	topic, _ := topicOf(p)
+	return topic
+}
+
+// topicOf is the chat topic the input of a process names, 0 for none.
+func topicOf(p db.Process) (int64, error) {
+	var in struct {
+		Topic int64 `json:"topic"`
+	}
+	err := json.Unmarshal([]byte(p.Input), &in)
+	return in.Topic, err
 }
 
 // Turn keeps the final text of a reply turn as the master's message in its topic, over the block it showed last.

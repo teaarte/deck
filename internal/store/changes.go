@@ -326,6 +326,43 @@ func (c *changes) readColumns(conn *sql.DB) error {
 // query reads one row, inside the transaction before its commit or after it.
 type query func(ctx context.Context, q string, args ...any) *sql.Row
 
+// lookups read where a row of a table others lead through is.
+var lookups = map[string]string{
+	"project":    `SELECT id, workspace_id, name FROM project WHERE id = ?`,
+	"process":    `SELECT project_id, 0, '' FROM process WHERE id = ?`,
+	"document":   `SELECT COALESCE(project_id, 0), workspace_id, '' FROM document WHERE id = ?`,
+	"chat_topic": `SELECT 0, workspace_id, '' FROM chat_topic WHERE id = ?`,
+}
+
+// at is where a row of a table others lead through is, from places when the transaction knew it; zero when deck
+// cannot find it.
+func at(ctx context.Context, one query, places map[string]map[int64]place, table string, id int64) place {
+	if p, ok := places[table][id]; ok {
+		return p
+	}
+	var p place
+	_ = one(ctx, lookups[table], id).Scan(&p.project, &p.workspace, &p.name)
+	return p
+}
+
+// inProject puts the project and workspace of a project row into an event when deck finds the row.
+func inProject(ctx context.Context, one query, places map[string]map[int64]place, c *events.Event, project int64) {
+	if project == 0 {
+		return
+	}
+	if p := at(ctx, one, places, "project", project); p.name != "" {
+		c.Project, c.Workspace = p.name, p.workspace
+	}
+}
+
+// ProcessEvent is an event of a topic in the project and workspace of a process, read outside a transaction; deck
+// publishes it without them when it cannot find the process.
+func (s *Store) ProcessEvent(ctx context.Context, processID int64, topic string) events.Event {
+	e := events.Event{Topic: topic}
+	inProject(ctx, s.reads.QueryRowContext, nil, &e, at(ctx, s.reads.QueryRowContext, nil, "process", processID).project)
+	return e
+}
+
 // resolve turns writes into changes: a row's project by name with its workspace, or the workspace the row keeps; a row
 // whose project deck cannot find changes every project of the topic in its workspace.
 func resolve(ctx context.Context, one query, ws []rowWrite, places map[string]map[int64]place) []events.Event {
@@ -334,18 +371,6 @@ func resolve(ctx context.Context, one query, ws []rowWrite, places map[string]ma
 		if !slices.Contains(out, c) {
 			out = append(out, c)
 		}
-	}
-	at := func(table string, id int64, q string) place {
-		if p, ok := places[table][id]; ok {
-			return p
-		}
-		var p place
-		if table == "project" {
-			_ = one(ctx, q, id).Scan(&p.name, &p.workspace)
-		} else {
-			_ = one(ctx, q, id).Scan(&p.project, &p.workspace)
-		}
-		return p
 	}
 	for _, w := range ws {
 		t := tables[w.table]
@@ -357,22 +382,18 @@ func resolve(ctx context.Context, one query, ws []rowWrite, places map[string]ma
 			case ofWorkspace:
 				c.Workspace = sc.id
 			case ofTopic:
-				c.Workspace = at("chat_topic", sc.id, `SELECT 0, workspace_id FROM chat_topic WHERE id = ?`).workspace
+				c.Workspace = at(ctx, one, places, "chat_topic", sc.id).workspace
 			case ofProject, ofSelf:
 				project = sc.id
 			case ofProcess:
-				project = at("process", sc.id, `SELECT project_id, 0 FROM process WHERE id = ?`).project
+				project = at(ctx, one, places, "process", sc.id).project
 			case ofDocument:
-				d := at("document", sc.id, `SELECT COALESCE(project_id, 0), workspace_id FROM document WHERE id = ?`)
+				d := at(ctx, one, places, "document", sc.id)
 				project, c.Workspace = d.project, d.workspace
 			default:
 				panic(fmt.Sprintf("store: no scope %d", t.scope))
 			}
-			if project != 0 {
-				if p := at("project", project, `SELECT name, workspace_id FROM project WHERE id = ?`); p.name != "" {
-					c.Project, c.Workspace = p.name, p.workspace
-				}
-			}
+			inProject(ctx, one, places, &c, project)
 			add(c)
 		}
 	}

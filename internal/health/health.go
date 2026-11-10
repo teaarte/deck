@@ -3,6 +3,7 @@ package health
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"deck2/internal/store"
@@ -62,6 +63,9 @@ func Get(ctx context.Context, q *db.Queries, of Of, subject string) (db.Health, 
 	return q.GetHealthAt(ctx, db.GetHealthAtParams{Workspace: of.Workspace, Subject: subject})
 }
 
+// Seen says the owner read a row since its status or text last changed.
+func Seen(h db.Health) bool { return h.SeenAt.Valid && h.SeenAt.String >= h.UpdatedAt }
+
 // Clear deletes the row of a subject.
 func Clear(ctx context.Context, q *db.Queries, of Of, subject string) error {
 	return q.ClearHealth(ctx, db.ClearHealthParams{Workspace: of.Workspace, Subject: subject})
@@ -78,47 +82,82 @@ const (
 	Outbox    = "outbox"
 	Push      = "push"
 	Search    = "search"
+	Update    = "update"
 	// Master is the row of a workspace whose built-in master a project of the owner keeps out.
 	Master = "master"
 	// BuiltinTailscale is the row that says the tailnet inside deck goes away, beside the row of its node.
 	BuiltinTailscale = "tailscale:builtin"
 )
 
+// The kinds of subjects of many rows, each the start of its subjects before a colon.
+const (
+	OfProvider  = "provider"
+	OfNode      = "node"
+	OfAgent     = "agent"
+	OfModel     = "model"
+	OfSite      = "site"
+	OfTool      = "tool"
+	OfMCP       = "mcp"
+	OfCommand   = "command"
+	OfTrigger   = "trigger"
+	OfSecret    = "secret"
+	OfRetention = "retention"
+	OfScreen    = "screen"
+	OfProject   = "project"
+)
+
+// Kinds are the kinds of the subjects of health: of many rows, then of the subjects of one row each.
+var Kinds = []string{OfProvider, OfNode, OfAgent, OfModel, OfSite, OfTool, OfMCP, OfCommand, OfTrigger, OfSecret,
+	OfRetention, OfScreen, OfProject, Scripts, Sandbox, Tailscale, HTTPS, Snapshot, Disk, Outbox, Push, Search, Master,
+	Update}
+
+// Kind is the kind of a subject: the start before its colon, or the subject of one row itself.
+func Kind(subject string) string {
+	kind, _, _ := strings.Cut(subject, ":")
+	return kind
+}
+
+// Name is a subject without its kind; the name of a subject of one row is empty.
+func Name(subject string) string {
+	_, name, _ := strings.Cut(subject, ":")
+	return name
+}
+
 // Provider is the subject of a provider of agent turns, of the machine.
-func Provider(name string) string { return "provider:" + name }
+func Provider(name string) string { return OfProvider + ":" + name }
 
 // Node is the subject of a node of a workspace.
-func Node(name string) string { return "node:" + name }
+func Node(name string) string { return OfNode + ":" + name }
 
 // Agent is the subject of an ACP agent of the machine.
-func Agent(name string) string { return "agent:" + name }
+func Agent(name string) string { return OfAgent + ":" + name }
 
 // Model is the subject of a model of a workspace.
-func Model(name string) string { return "model:" + name }
+func Model(name string) string { return OfModel + ":" + name }
 
 // Site is the subject of a site of the browser.
-func Site(site string) string { return "site:" + site }
+func Site(site string) string { return OfSite + ":" + site }
 
 // Tool is the subject of a tool of a project, by its full name.
-func Tool(name string) string { return "tool:" + name }
+func Tool(name string) string { return OfTool + ":" + name }
 
 // MCP is the subject of an MCP server of a project.
-func MCP(project, server string) string { return "mcp:" + project + "." + server }
+func MCP(project, server string) string { return OfMCP + ":" + project + "." + server }
 
 // Command is the subject of a command of a project.
-func Command(project, command string) string { return "command:" + project + "." + command }
+func Command(project, command string) string { return OfCommand + ":" + project + "." + command }
 
 // Trigger is the subject of the triggers of a command of a project.
-func Trigger(project, command string) string { return "trigger:" + project + "." + command }
+func Trigger(project, command string) string { return OfTrigger + ":" + project + "." + command }
 
 // Secret is the subject of a secret a project needs.
-func Secret(project, name string) string { return "secret:" + project + "." + name }
+func Secret(project, name string) string { return OfSecret + ":" + project + "." + name }
 
 // Retention is the subject of the retention of the records of a project.
-func Retention(project string) string { return "retention:" + project }
+func Retention(project string) string { return OfRetention + ":" + project }
 
 // Screen is the subject of a screen of a project.
-func Screen(project, name string) string { return "screen:" + project + "." + name }
+func Screen(project, name string) string { return OfScreen + ":" + project + "." + name }
 
 // Manifest is the subject of the manifest of a project.
-func Manifest(project string) string { return "project:" + project }
+func Manifest(project string) string { return OfProject + ":" + project }

@@ -212,7 +212,7 @@ func TestOnlyTheOwnerUpdatesDeck(t *testing.T) {
 }
 
 // A deck built from source says its commit in version_get and in the row of the update the Settings show; without a
-// known commit it says dev and no more.
+// known commit it says so and how to build one that knows it.
 func TestABuildFromSourceSaysItsCommit(t *testing.T) {
 	t.Parallel()
 	for _, c := range []struct{ commit, version, row string }{
@@ -222,12 +222,14 @@ func TestABuildFromSourceSaysItsCommit(t *testing.T) {
 		e := harness.New(t, harness.WithConfig(func(cfg *app.Config) {
 			cfg.Version, cfg.Commit, cfg.Variant = "dev", c.commit, "deck-test"
 		}))
-		var v struct{ Version, Commit string }
+		var v struct{ Version, Commit, Unknown string }
 		e.Must("deck.version_get", nil, &v)
-		if v.Version != c.version || v.Commit != c.commit {
+		if v.Version != c.version || v.Commit != c.commit || (v.Unknown != "") != (c.commit == "") ||
+			c.commit == "" && !strings.Contains(v.Unknown, "--build-arg COMMIT=") {
 			t.Fatalf("version_get of a build from source at %q: %+v", c.commit, v)
 		}
-		if h := e.WaitHealth(updates.Subject, "ok"); h.Version != c.row || !strings.Contains(h.Error, "built from source") {
+		h := e.WaitHealth(updates.Subject, "ok")
+		if h.Version != c.row || !strings.Contains(h.Error, "built from source") || strings.Contains(h.Error, "commit is not known") != (c.commit == "") {
 			t.Fatalf("the row of the update names the build: %+v", h)
 		}
 	}
@@ -254,7 +256,7 @@ func TestADeckSaysHowItUpdates(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			e := harness.New(t, harness.WithConfig(func(cfg *app.Config) {
-				cfg.Releases, cfg.Version, cfg.Variant, cfg.Image = r.source(), c.version, "deck-test", c.image
+				cfg.Releases, cfg.Version, cfg.Commit, cfg.Variant, cfg.Image = r.source(), c.version, "4a671c8e1234", "deck-test", c.image
 			}))
 			if h := e.WaitHealth(updates.Subject, "ok"); h.Error != c.row {
 				t.Fatalf("the row of the update says how this deck updates: %+v", h)

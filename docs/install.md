@@ -74,6 +74,9 @@ To go back, `docker compose down` and start the old binary on `~/.deck2`, which 
 `sh install.sh` in a checkout of deck takes its master, builds the image `deck:local` and runs it in `~/deck` (its
 `compose.override.yaml` names that image; remove the line to go back to the published one).
 
+By hand: `docker build --build-arg COMMIT=$(git rev-parse --short=12 HEAD) -t deck:local .` — without `COMMIT` a
+build from a git worktree does not know its commit, and `deck.version_get` answers `dev` with `unknown`, why and how to build one that knows it.
+
 ## Without Docker
 
 For developing deck: macOS or Linux, Go 1.27, and at least one agent CLI (`claude` or `codex`) or an ACP agent on a

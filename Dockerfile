@@ -13,7 +13,8 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-# A build from a checkout without COMMIT takes the commit of its HEAD (.dockerignore lets in HEAD and the refs only).
+# A build without COMMIT takes the commit of the HEAD of its checkout (.dockerignore lets in HEAD and the refs only);
+# a worktree's .git is a file naming a folder outside, so install.sh gives COMMIT.
 RUN if [ -z "$COMMIT" ] && [ -f .git/HEAD ]; then \
       ref=$(sed -n 's/^ref: //p' .git/HEAD); \
       COMMIT=$(if [ -z "$ref" ]; then cat .git/HEAD; elif [ -f ".git/$ref" ]; then cat ".git/$ref"; \

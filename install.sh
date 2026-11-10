@@ -54,7 +54,10 @@ http*)
       git -C "$src" pull -q --ff-only
     fi
     say "building the image deck:local of $src"
-    docker build -q -t deck:local "$src" >/dev/null
+    # git names the commit of a worktree too, whose .git is a file the build does not see.
+    commit=$(git -C "$src" rev-parse --short=12 HEAD 2>/dev/null || true)
+    if [ -n "$commit" ] && ! git -C "$src" diff --quiet HEAD 2>/dev/null; then commit=$commit-dirty; fi
+    docker build -q --build-arg COMMIT="$commit" -t deck:local "$src" >/dev/null
     # The override names the image; whatever else it says stays.
     if [ ! -f compose.override.yaml ]; then
       printf 'services:\n  deck:\n    image: deck:local\n' > compose.override.yaml

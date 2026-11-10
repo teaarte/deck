@@ -79,7 +79,11 @@ func (s *Service) Mark(ctx context.Context) error {
 			return err
 		}
 		if err != nil || s.Version == "dev" || row.Status == health.OK && s.way() != "" {
-			if _, err := health.Set(ctx, q, health.Of{}, Subject, health.OK, s.way()); err != nil {
+			text := s.way()
+			if s.unknown() != "" {
+				text = fmt.Sprintf("%s; its commit is not known", text)
+			}
+			if _, err := health.Set(ctx, q, health.Of{}, Subject, health.OK, text); err != nil {
 				return err
 			}
 		}
@@ -100,6 +104,14 @@ func (s *Service) way() string {
 		return fmt.Sprintf("runs from the image %s; it updates with docker compose pull && docker compose up -d", s.Image)
 	}
 	return ""
+}
+
+// unknown says that a build from source does not know its commit, and how to build one that does.
+func (s *Service) unknown() string {
+	if s.Version != "dev" || s.Commit != "" {
+		return ""
+	}
+	return "its commit is not known: build it in a git checkout, the image with docker build --build-arg COMMIT=$(git rev-parse --short=12 HEAD)"
 }
 
 // inPlace refuses an update in place of a deck that updates another way, in the words of its row.
@@ -211,6 +223,8 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 type versionOut struct {
 	Version string `json:"version"`
 	Commit  string `json:"commit,omitempty"`
+	// Unknown says that a build from source does not know its commit.
+	Unknown string `json:"unknown,omitempty"`
 	Variant string `json:"variant"`
 	Latest  string `json:"latest,omitempty"`
 	Newer   bool   `json:"newer"`
@@ -220,7 +234,7 @@ type versionOut struct {
 func (s *Service) out() versionOut {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return versionOut{Version: release.Named(s.Version, s.Commit), Commit: s.Commit, Variant: s.Variant,
+	return versionOut{Version: release.Named(s.Version, s.Commit), Commit: s.Commit, Unknown: s.unknown(), Variant: s.Variant,
 		Latest: s.latest.Version, Newer: release.Newer(s.latest.Version, s.Version), Error: s.failed}
 }
 

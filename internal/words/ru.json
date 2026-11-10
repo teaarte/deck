@@ -282,6 +282,7 @@
   "document": "документ",
   "%s; %s takes its work": "%s; её работу берёт %s",
   "%s; no model of its assignment is after it": "%s; в назначении после неё моделей нет",
+  "%s; its commit is not known": "%s; его коммит неизвестен",
   "the model answered at %.0f tokens/s": "модель отвечала со скоростью %.0f токенов/с",
   "%s; the model answered at %.0f tokens/s": "%s; модель отвечала со скоростью %.0f токенов/с",
   "%s did not finish %s, %s goes on with it: %s": "%s не закончила «%s», продолжает %s: %s",

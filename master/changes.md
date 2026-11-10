@@ -270,3 +270,6 @@ and bring the modules in line.
   object); the answer comes as the owner's next message of the topic. The chat's own answer command is gone. The
   owner's own message in the topic closes its open options and forms. A reply asks by these blocks, not by its
   question tool.
+- 2026-11-10: `version_get` of a build from source that does not know its commit gives `unknown`, why and how to
+  build one that knows it, beside `version` `dev`; the image `deck:local` of `install.sh` knows its commit in a git
+  worktree too.

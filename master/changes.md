@@ -88,14 +88,6 @@ and bring the modules in line.
   is seldom needed below what the owner acts on. A line of a list takes `logo` (words naming a model, its maker or
   provider: the client draws its mark in place of the icon, else the first letter), a column the format `logo`.
   Buttons of deck's verbs wear an icon each.
-- 2026-11-08: a module exports with its data (`project_export` with `data`: records, memory, the data folder) and an
-  import brings it back; `project_reset` empties its data after a snapshot. A widget whose blocks are all empty gives
-  way to the cover of its module. An empty block below another of its place stays out of sight — say why a screen is
-  empty in its first block. A column of a table takes `icon` (an expression of the row's icon), a chart `details`
-  (the text of a point, beside its values). `folder_add` with `replace` changes the path of a folder in place;
-  `commands_list` gives `document`, the file of a command's script or prompt, by its fields. The theme token
-  `widget-card` colors a card that shows its module's view without a cover; with a cover the view stands on a veil
-  over it; `widget-row-gap` (the space between the lines of a widget) and the part `widget-row` (a line of a widget) shape its lines.
 - 2026-11-07 (written 2026-11-08; a summary of what modules see now, some of it older): deck runs in Docker on the owner's Mac as on a server — its programs
   are those of deck's image (Claude Code, Codex, Goose, uv, python3, node, git, chromium); a program a module names
   that is not in the image is a failure of its command in health, not something to install with brew. A text model of
@@ -105,10 +97,18 @@ and bring the modules in line.
   before stay after it as fallbacks; `models` still sets the whole list. `deck.model_replace` (the owner's only) puts a
   model in place of another in every work of a kind it does first. A row of a model in `health_list` gives `places`,
   the work it does. `command_try` in an enabled project runs only with `live`; else try the change in a draft copy.
+- 2026-11-08: a module exports with its data (`project_export` with `data`: records, memory, the data folder) and an
+  import brings it back; `project_reset` empties its data after a snapshot. A widget whose blocks are all empty gives
+  way to the cover of its module. An empty block below another of its place stays out of sight — say why a screen is
+  empty in its first block. A column of a table takes `icon` (an expression of the row's icon), a chart `details`
+  (the text of a point, beside its values). `folder_add` with `replace` changes the path of a folder in place;
+  `commands_list` gives `document`, the file of a command's script or prompt, by its fields. The theme token
+  `widget-card` colors a card that shows its module's view without a cover; with a cover the view stands on a veil
+  over it; `widget-row-gap` (the space between the lines of a widget) and the class `widget-row` (a line of a widget,
+  `.widget-row` in the `css` of a theme) shape its lines.
 - 2026-11-08: `version_get` of a deck built from source says `dev+<commit>` and `commit`; a release says its tag.
 - 2026-11-08: a `file` field takes the name a call answered with as it is (`tts-….mp3` from `deck.model_call`, a
   tool, a screen shot), the same file as `results/<name>` of the calling process.
-  over it.
 - 2026-11-08: deck's image carries `ffmpeg` and `unzip` beside `python3`, `node`, `uv`, `bash`, `git`, `curl`,
   `chromium` and Goose (the list is in the skill of modules); a script names them in `programs` all the same. A program
   missing from the image says so in health — the owner updates the image; elsewhere the `install` of the manifest stays,
@@ -175,10 +175,6 @@ and bring the modules in line.
   `if_revision`, a diff past 2000 bytes (propose a smaller change). A text in force already is done without asking; a
   yes to a document changed since does not apply; a button's `allows` does not stand for it, as for calls that spend
   money.
-- 2026-11-09: a run no one started by hand — of a schedule or an event, or one such a run started; a reply to the
-  owner's message is not — saves and deletes in memory only lessons, the index `memory/MEMORY.md` and facts whose
-  `expires` passed; a save or delete of another fact is refused ("propose it with document_propose; the owner
-  decides"). `document_propose` stays the master's and the owner's.
 - 2026-11-08: a lesson may say `confirmed` (how many times its situation came again, a whole number from 1) and
   `last_confirmed` (a date); when the same thing happens again raise them instead of writing a new lesson, and merge
   lessons that contradict each other (memory skill). A turn gets at most ten lessons of its command, the most
@@ -189,6 +185,10 @@ and bring the modules in line.
 - 2026-11-08: a memory document counts its reads: a lesson that reached a turn, a fact an agent or the master read
   with `document_get` or found with `memory_search` (not the index, not the owner's reads); `documents_list` and the
   hits of `memory_search` give `reads` and `last_read_at` — a signal of what to raise or drop in the index.
+- 2026-11-09: a run no one started by hand — of a schedule or an event, or one such a run started; a reply to the
+  owner's message is not — saves and deletes in memory only lessons, the index `memory/MEMORY.md` and facts whose
+  `expires` passed; a save or delete of another fact is refused ("propose it with document_propose; the owner
+  decides"). `document_propose` stays the master's and the owner's.
 - 2026-11-09: `deck.memory_map` (owner and master; it was `memory_overview`) gives the parts of deck's memory:
   `projects` (facts, lessons, index lines of 150, last change, the index document), `lessons` (document, project,
   command, source, confirmed, reads), `nodes` (the owner's memory, modules, summaries of topics, skills, sleep,

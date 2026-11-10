@@ -86,5 +86,5 @@ a note in the feed show an **Update** button, which only the owner can press. de
 against `release.json` and that file's ed25519 signature with the key built into it, takes a snapshot, puts the new
 binary in place and restarts; the agents go on in their sessions. If the new version never gets as far as serving, the
 next start goes back to the old one; if a signature or a sha256 does not match, deck stays as it is. A deck built from
-source calls itself `dev`, offers no updates, and is updated with `git pull` and `go build`. On start, deck migrates
+source calls itself `dev`, offers no updates, and is updated with `git pull` and `go build`, or, built into the image `deck:local`, with `sh install.sh` in its checkout. On start, deck migrates
 its database and the stored manifests.

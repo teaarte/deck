@@ -20,6 +20,17 @@ with open(p, "a") as f: f.write("end %f\n" % time.time())
 print("{}")
 `
 
+// besideScript notes its start, waits up to a minute for a second run to start too, and notes its end: runs side by
+// side both start before either ends, however slow the machine.
+const besideScript = `import os, time
+p = os.path.join(os.environ["DECK_DATA"], "spans")
+with open(p, "a") as f: f.write("start %f\n" % time.time())
+deadline = time.time() + 60
+while time.time() < deadline and open(p).read().count("start") < 2: time.sleep(0.05)
+with open(p, "a") as f: f.write("end %f\n" % time.time())
+print("{}")
+`
+
 // A command runs one at a time unless it says runs many: a second call while the first runs starts once the first
 // has ended.
 func TestACommandOfOneRunAtATimeQueuesTheNextCall(t *testing.T) {
@@ -57,7 +68,7 @@ func TestACommandOfManyRunsRunsTheNextCallBeside(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	p := e.Project("spans", harness.Many(harness.ScriptManifest("run", "", "")))
-	e.SaveScript("spans", "scripts/main.py", spanScript)
+	e.SaveScript("spans", "scripts/main.py", besideScript)
 	first, second := e.Start("spans", "run", nil), e.Start("spans", "run", nil)
 	for _, id := range []int64{first, second} {
 		if got := e.WaitState(id, "done", "error"); got.State != "done" {

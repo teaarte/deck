@@ -1205,6 +1205,7 @@
   "command %s: runs tool %s instead of %s": "команда %s: выполняет инструмент %s вместо %s",
   "command %s: its agent may call every command": "команда %s: её агент может вызывать любую команду",
   "command %s: its agent may call %s": "команда %s: её агент может вызывать %s",
+  "command %s: its agent may change records, documents or files, and its result schema has no changes: add changes, an array of strings, a line for each change": "команда %s: её агент может менять записи, документы или файлы, а в схеме её результата нет changes: добавь changes — массив строк, по строке на каждое изменение",
   "command %s: callable by %s": "команда %s: её могут вызывать %s",
   "tool %s: host %s": "инструмент %s: хост %s",
   "tool %s: new with class %s": "инструмент %s: новый, класс %s",

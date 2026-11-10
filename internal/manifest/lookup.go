@@ -2,6 +2,7 @@ package manifest
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"deck2/internal/registry"
 )
@@ -55,4 +56,27 @@ func (c *Command) Callable() []string {
 		return registry.AnyCaller
 	}
 	return c.Callers
+}
+
+// writing are deck's commands an agent changes records, documents or files with.
+var writing = []string{"record_upsert", "record_update", "record_delete", "document_save", "document_delete",
+	"file_upload", "file_delete"}
+
+// Unreported are the warnings of the agent commands that may change records, documents or files — they work in a
+// folder or may call a command of writing — without `changes` in their result schema.
+func (m *Manifest) Unreported() []string {
+	var out []string
+	for _, c := range m.Commands {
+		if _, ok := ObjectOf(c.Result).Properties["changes"]; ok || c.Executor.Type != "agent" {
+			continue
+		}
+		writes := !c.Executor.Folder.IsZero() || c.Executor.Calls == nil
+		for _, n := range writing {
+			writes = writes || registry.Permits(c.Executor.Calls, registry.Deck(n))
+		}
+		if writes {
+			out = append(out, fmt.Sprintf("command %s: its agent may change records, documents or files, and its result schema has no changes: add changes, an array of strings, a line for each change", c.Name))
+		}
+	}
+	return out
 }

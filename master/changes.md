@@ -273,3 +273,7 @@ and bring the modules in line.
 - 2026-11-10: `version_get` of a build from source that does not know its commit gives `unknown`, why and how to
   build one that knows it, beside `version` `dev`; the image `deck:local` of `install.sh` knows its commit in a git
   worktree too.
+- 2026-11-10: `manifest_check`, `manifest_save` and an import warn of an agent command that may change records,
+  documents or files (it works in a folder, or its `calls` are all commands or name `record_upsert`, `record_update`,
+  `record_delete`, `document_save`, `document_delete`, `file_upload` or `file_delete`) whose result schema has no
+  `changes`; the save and the import still take it.

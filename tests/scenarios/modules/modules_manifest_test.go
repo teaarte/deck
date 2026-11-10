@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -539,5 +541,52 @@ func TestARefusalOfAScreenSaysWhereByPointerAndWhatFits(t *testing.T) {
 	code, out := e.Call("deck.project_create", map[string]any{"name": "work", "manifest": bad})
 	if code != 422 || !strings.Contains(string(out), `/screens/0/blocks/0`) || !strings.Contains(string(out), "status") || !strings.Contains(string(out), "title") {
 		t.Fatalf("a refusal says where by pointer and lists the fields: %d %s", code, out)
+	}
+}
+
+// TestAnAgentThatWritesSaysWhatItChanged: an agent command that may change records, documents or files and has no
+// changes in its result schema is warned of by manifest_check and by an import, which still takes the module.
+func TestAnAgentThatWritesSaysWhatItChanged(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	module := func(calls, result string) string {
+		return harness.Manifest(`{"commands": [{"name": "tidy", "title": "Tidy", "description": "Tidies the notes.", "class": "internal",
+    "result": ` + result + `, "executor": {"type": "agent", "prompt": "Tidy the notes."` + calls + `}}]}`)
+	}
+	silent := `{"type": "object", "properties": {"n": {"type": "integer"}}}`
+	told := `{"type": "object", "properties": {"changes": {"type": "array", "items": {"type": "string"}}}}`
+	warned := func(ws []string) bool {
+		return slices.ContainsFunc(ws, func(w string) bool { return strings.Contains(w, "command tidy:") && strings.Contains(w, "no changes") })
+	}
+	for _, c := range []struct {
+		name, calls, result string
+		warn                bool
+	}{
+		{"every command", "", silent, true},
+		{"saves documents", `, "calls": ["deck.document_save"]`, silent, true},
+		{"writes records by a prefix", `, "calls": ["deck.*"]`, silent, true},
+		{"only reads", `, "calls": ["deck.records_list"]`, silent, false},
+		{"says its changes", "", told, false},
+	} {
+		var v struct {
+			Ok       bool
+			Warnings []string
+		}
+		e.Must("deck.manifest_check", map[string]any{"manifest": module(c.calls, c.result)}, &v)
+		if !v.Ok || warned(v.Warnings) != c.warn {
+			t.Fatalf("%s: manifest_check warns %v: %+v", c.name, c.warn, v)
+		}
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(module("", silent)), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var im struct {
+		Name     string
+		Warnings []string
+	}
+	e.Must("deck.project_import", map[string]any{"folder": dir, "name": "tidy"}, &im)
+	if im.Name != "tidy" || !warned(im.Warnings) {
+		t.Fatalf("an import takes the module and warns: %+v", im)
 	}
 }

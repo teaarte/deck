@@ -150,7 +150,8 @@ func TestABlockWithoutALimitShowsAPage(t *testing.T) {
 	}
 	var saved struct{ Warnings []string }
 	e.Must("deck.manifest_save", map[string]any{"project": "web", "manifest": m}, &saved)
-	if len(saved.Warnings) != 2 || !strings.Contains(saved.Warnings[0], `screen main block "Notes" has no limit and notes holds 60 records`) {
+	unpaged := slices.DeleteFunc(saved.Warnings, func(w string) bool { return !strings.Contains(w, "has no limit") })
+	if len(unpaged) != 2 || !strings.Contains(unpaged[0], `screen main block "Notes" has no limit and notes holds 60 records`) {
 		t.Fatalf("a save names the blocks without a limit on a collection past a page: %v", saved.Warnings)
 	}
 	raw, _ := json.Marshal(saved)

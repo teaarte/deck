@@ -139,9 +139,11 @@ func (f *fakeACPRun) send(v any) {
 	f.write(f.subst(string(b)))
 }
 
+// subst fills a line of the stream; {{env}} is the environment of the agent.
 func (f *fakeACPRun) subst(s string) string {
 	w, _ := os.ReadFile(filepath.Join(f.dir, "word"))
-	return strings.NewReplacer("{{session}}", f.session, "{{cwd}}", f.cwd, "{{word}}", strings.TrimSpace(string(w)),
+	env, _ := json.Marshal(strings.Join(os.Environ(), "\n"))
+	return strings.NewReplacer("{{session}}", f.session, "{{cwd}}", f.cwd, "{{word}}", strings.TrimSpace(string(w)), "{{env}}", string(env[1:len(env)-1]),
 		"{{skill}}", skillCommand(filepath.Join(os.Getenv("HOME"), ".agents", "skills"))).Replace(s)
 }
 
@@ -213,7 +215,7 @@ func (f *fakeACPRun) run(lines []string) {
 		case l["stderr"] != nil:
 			var text string
 			_ = json.Unmarshal(l["stderr"], &text)
-			fmt.Fprint(os.Stderr, text)
+			fmt.Fprint(os.Stderr, f.subst(text))
 		case l["exit"] != nil:
 			code, _ := strconv.Atoi(string(l["exit"]))
 			os.Exit(code)

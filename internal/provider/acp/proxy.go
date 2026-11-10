@@ -58,7 +58,7 @@ func (e *entry) refused(res provider.Result) provider.Result {
 	status, after, words, past := e.last, e.retryAfter, e.refusal, e.past
 	e.mu.Unlock()
 	if past {
-		res.Past = untrusted.Line(words, 500)
+		res.Past = untrusted.Flat(words, 500)
 		res.Fail(fault.TaskFailed)
 		return res
 	}

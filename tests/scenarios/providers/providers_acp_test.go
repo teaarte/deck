@@ -779,8 +779,18 @@ func TestAModelThatTakesFewToolsIsNotOfferedTheMaster(t *testing.T) {
 	refusal.Store(&body)
 	turn(7)
 	got := e.WaitState(e.Run(p, "work"), "done", "error", "rate_limited")
-	if fl := e.Fault(got.ID); got.State != "error" || fl.ErrorType != "model.limit" || !strings.Contains(fl.Error, "acp takes at most 2 tools a request") {
-		t.Fatalf("a refusal for the tools is the model's limit: %+v %+v", got, fl)
+	if fl := e.Fault(got.ID); got.State != "error" || fl.ErrorType != "model.limit" || fl.Error != "deck: acp takes at most 2 tools a request" {
+		t.Fatalf("a refusal for the tools is the model's limit in deck's own words, unquoted: %+v %+v", got, fl)
+	}
+	type failure struct {
+		Process int64
+		Error   string
+	}
+	var failures []failure
+	e.Must("deck.feed_list", map[string]any{"kind": "failure", "lang": "ru"}, &failures)
+	if i := slices.IndexFunc(failures, func(f failure) bool { return f.Process == got.ID }); i < 0 ||
+		failures[i].Error != "deck: acp принимает не больше 2 инструментов за запрос" {
+		t.Fatalf("the feed tells the limit in the owner's words: %+v", failures)
 	}
 	type model struct {
 		Name  string

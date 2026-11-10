@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"image/color"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -699,4 +700,34 @@ func TestRealBrowserAWorkToldInItsTopic(t *testing.T) {
 	if works.Load() != 1 {
 		t.Fatalf("the work went on in its session, not afresh: %d fresh runs", works.Load())
 	}
+}
+
+// TestRealBrowserChatOpensAnAttachedPicture: a picture attached to a message opens on a press in the viewer of files,
+// whole, from the address the server gives.
+func TestRealBrowserChatOpensAnAttachedPicture(t *testing.T) {
+	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Seen."} }))
+	id := e.Upload("master", "shot.png", "image/png", harness.Solid(color.RGBA{R: 200, G: 40, B: 90, A: 255}))
+	e.MasterSaid(e.Say(0, "look at this", map[string]any{"files": []string{fmt.Sprint(id)}}), 1)
+	e.App.Files.Thumbs(context.Background())
+
+	b := Open(t)
+	b.call("browser_resize", map[string]any{"width": 1400, "height": 900})
+	b.Open(e, "#/deck/cockpit")
+	b.until("the cockpit", `document.querySelector('[data-chat-toggle]')`)
+	b.eval(`(document.querySelector('[data-chat-toggle]').click(), '')`)
+	b.until("the picture in the message", `document.querySelector('[data-message="owner"] [data-attached] img[data-thumb="image"]')`)
+	b.eval(`(document.querySelector('[data-message="owner"] [data-attached]').click(), '')`)
+	b.until("the picture whole in the viewer", `(() => { const i = document.querySelector('[data-lightbox] img[data-media-full]');
+		return i && i.complete && i.naturalWidth === 640 && document.querySelector('[data-lightbox]').innerText.includes('shot.png') })()`)
+	if got := b.eval(fmt.Sprintf(`performance.getEntriesByType('resource').some((r) => new URL(r.name).pathname === %q)`, fmt.Sprintf("/api/files/%d", id))); got != "true" {
+		t.Fatalf("the viewer reads the picture at the address the server gives: %s", got)
+	}
+	b.shot("chat-picture")
+	if b.eval(`document.querySelector('[data-message="owner"]').hasAttribute('data-shown')`) == "true" {
+		t.Fatal("a press on the picture opens it, not the details of the message")
+	}
+	b.call("browser_press_key", map[string]any{"key": "Escape"})
+	b.until("the viewer closed", `!document.querySelector('[data-lightbox] img')`)
 }

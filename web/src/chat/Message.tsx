@@ -1,5 +1,5 @@
 import { lazy, memo, Suspense, useState, type MouseEvent } from 'react';
-import { ActionIcon, Badge, CopyButton, Group, Spoiler, Stack, Text, Tooltip } from '@mantine/core';
+import { ActionIcon, Badge, CopyButton, Group, Spoiler, Stack, Text, Tooltip, UnstyledButton } from '@mantine/core';
 import { IconCheck, IconCopy, IconPaperclip, IconTrash } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { Action } from '../lib/catalog.gen';
@@ -18,6 +18,7 @@ import { Thumb } from '../blocks/media/Thumb';
 import { locale } from '../lib/i18n';
 
 const Media = lazy(() => import('../blocks/media/Media').then((m) => ({ default: m.Media })));
+const Lightbox = lazy(() => import('../blocks/media/Lightbox').then((m) => ({ default: m.Lightbox })));
 
 type ChatMessage = ChatData['messages'][number];
 type WorkValue = NonNullable<ChatMessage['work']>;
@@ -143,6 +144,8 @@ export const Message = memo(function Message({ m, latest }: { m: ChatMessage; la
   const mascot = useMascot();
   // A press shows how the message went, for a phone has no hover; a press on a link or a button, or a selection, does not.
   const [shown, setShown] = useState(false);
+  // The picture attached that is open in the viewer of files.
+  const [open, setOpen] = useState<number | null>(null);
   const show = (e: MouseEvent) => {
     if (!getSelection()?.toString() && !(e.target as HTMLElement).closest('a, button, img, video')) setShown(!shown);
   };
@@ -151,22 +154,28 @@ export const Message = memo(function Message({ m, latest }: { m: ChatMessage; la
     // A picture attached shows as its light copy, another file by its name.
     const pictures = (m.files ?? []).filter((f) => f.thumb);
     const files = (m.files ?? []).filter((f) => !f.thumb).map((f) => f.name);
+    // The viewer is beside the line, so a press inside it does not reach the line's own.
     return (
-      <Stack gap={2} align="flex-end" className={s.ownerLine} data-message="owner" data-shown={shown || undefined} onClick={show}>
-        <div className={s.ownerBubble} data-bubble>
-          {pictures.length > 0 && <Group gap={4} mb={6}>{pictures.map((f) => <Thumb key={f.id} it={f} size={72} />)}</Group>}
-          {files.length > 0 && <Group gap={4} mb={6}>{files.map((f) => <Badge key={f} size="sm" variant="white" leftSection={<IconPaperclip size={11} />}>{f}</Badge>)}</Group>}
-          <Text size="sm" className="deck-pre">{m.text}</Text>
-        </div>
-        <div className={s.lineTools} data-line-tools><Meta at={m.created_at} /></div>
-        {(m.reply?.tone === 'error' || m.reply?.tone === 'muted') && <ReplyState reply={m.reply} latest={latest} />}
-        {m.delete && (
-          <Group gap={2} data-not-taken>
-            <Text size="xs" c="dimmed">{t('not taken yet')}</Text>
-            <ActionIconButton act={m.delete} icon={<IconTrash size={14} />} />
-          </Group>
-        )}
-      </Stack>
+      <>
+        <Stack gap={2} align="flex-end" className={s.ownerLine} data-message="owner" data-shown={shown || undefined} onClick={show}>
+          <div className={s.ownerBubble} data-bubble>
+            {pictures.length > 0 && <Group gap={4} mb={6}>{pictures.map((f, i) => (
+              <UnstyledButton key={f.id} onClick={() => setOpen(i)} aria-label={f.name} data-attached><Thumb it={f} size={72} /></UnstyledButton>
+            ))}</Group>}
+            {files.length > 0 && <Group gap={4} mb={6}>{files.map((f) => <Badge key={f} size="sm" variant="white" leftSection={<IconPaperclip size={11} />}>{f}</Badge>)}</Group>}
+            <Text size="sm" className="deck-pre">{m.text}</Text>
+          </div>
+          <div className={s.lineTools} data-line-tools><Meta at={m.created_at} /></div>
+          {(m.reply?.tone === 'error' || m.reply?.tone === 'muted') && <ReplyState reply={m.reply} latest={latest} />}
+          {m.delete && (
+            <Group gap={2} data-not-taken>
+              <Text size="xs" c="dimmed">{t('not taken yet')}</Text>
+              <ActionIconButton act={m.delete} icon={<IconTrash size={14} />} />
+            </Group>
+          )}
+        </Stack>
+        {open !== null && <Suspense><Lightbox items={pictures} at={open} onAt={setOpen} /></Suspense>}
+      </>
     );
   }
   return (

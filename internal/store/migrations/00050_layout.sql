@@ -12,7 +12,7 @@ CREATE TABLE layout (
 
 INSERT INTO layout (workspace_id, device, columns, cards, updated_at)
 SELECT workspace_id, '', 0, (SELECT json_group_array(json_object('id', value)) FROM json_each(setting.value)),
-    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    '1970-01-01T00:00:00.000Z'
 FROM setting WHERE key = 'menu_order' AND json_valid(value);
 DELETE FROM setting WHERE key = 'menu_order';
 

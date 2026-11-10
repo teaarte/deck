@@ -16,8 +16,9 @@ services:
       - apparmor=deck-box
     environment:
       DECK_PUBLIC: ${DECK_DOMAIN:+https://${DECK_DOMAIN}}
-      # deck takes X-Forwarded-For only from Caddy below.
-      DECK_PROXY: caddy
+      # deck takes X-Forwarded-For only from Caddy below and from the gateway of its network, the host's tailscale
+      # serve; safe while the ports below stay on 127.0.0.1 (any engine); publish them wider and DECK_PROXY=caddy in .env.
+      DECK_PROXY: ${DECK_PROXY:-caddy,gateway}
       DECK_TAILSCALE: ${DECK_TAILSCALE:-}
       TZ: ${TZ:-}
     ports:

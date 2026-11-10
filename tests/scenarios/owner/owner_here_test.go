@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"deck2/tests/harness"
 )
@@ -187,6 +188,32 @@ func TestOnlyLoopbackAndDecksProxySayWhereACallComesFrom(t *testing.T) {
 		e := harness.New(t, harness.OnEveryAddress, harness.WithProxies(lan))
 		if a, b := tries(t, e, lan, "203.0.113.1"), tries(t, e, lan, "203.0.113.2"); a != 30 || b != 30 {
 			t.Fatalf("from a proxy of deck each forwarded address has its tries: %d %d", a, b)
+		}
+	})
+	t.Run("gateway", func(t *testing.T) {
+		t.Parallel()
+		e := harness.New(t, harness.OnEveryAddress, harness.WithProxies("caddy", "gateway"), harness.WithGateway(lan))
+		if a, b := tries(t, e, lan, "203.0.113.1"), tries(t, e, lan, "203.0.113.2"); a != 30 || b != 30 {
+			t.Fatalf("from the gateway of deck's network each forwarded address has its tries: %d %d", a, b)
+		}
+	})
+	t.Run("not the gateway", func(t *testing.T) {
+		t.Parallel()
+		e := harness.New(t, harness.OnEveryAddress, harness.WithProxies("caddy", "gateway"), harness.WithGateway("192.0.2.1"))
+		if a, b := tries(t, e, lan, "203.0.113.1"), tries(t, e, lan, "203.0.113.2"); a != 30 || b != 0 {
+			t.Fatalf("beside the gateway a forwarded address counts nothing: %d %d", a, b)
+		}
+	})
+	t.Run("gateway moved", func(t *testing.T) {
+		t.Parallel()
+		e := harness.New(t, harness.OnEveryAddress, harness.WithClock(), harness.WithProxies("caddy", "gateway"), harness.WithGateway(lan))
+		if a := tries(t, e, lan, "203.0.113.1"); a != 30 {
+			t.Fatalf("from the gateway a forwarded address has its tries: %d", a)
+		}
+		e.Gateway("192.0.2.1")
+		e.Clock.Add(time.Minute + time.Second)
+		if a, b := tries(t, e, lan, "203.0.113.2"), tries(t, e, lan, "203.0.113.3"); a != 30 || b != 0 {
+			t.Fatalf("the gateway before counts nothing once it moved, while caddy is not found: %d %d", a, b)
 		}
 	})
 }

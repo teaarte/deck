@@ -37,9 +37,10 @@ type Server struct {
 	proxies *proxies
 }
 
-// New serves a; proxies are those besides loopback whose X-Forwarded-For deck takes: addresses, networks or names.
+// New serves a; proxies are those besides loopback whose X-Forwarded-For deck takes: addresses, networks, names or
+// Gateway.
 func New(a *app.App, web fs.FS, proxies []string) *Server {
-	return &Server{app: a, web: web, origins: a.Auth.Origins(), proxies: newProxies(proxies, a.Cfg.Now)}
+	return &Server{app: a, web: web, origins: a.Auth.Origins(), proxies: newProxies(proxies, a.Cfg.Now, a.Cfg.Routes)}
 }
 
 // maxUpload is how much one upload of files may hold together.

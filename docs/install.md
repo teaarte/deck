@@ -1,7 +1,7 @@
 # Installing deck: the details
 
 The short way is in the [README](../README.md#install). This page has the rest: a server with a domain, what the
-container needs, Windows, moving a deck that ran without Docker, and deck without Docker.
+container needs, behind the host's tailscale serve, Windows, moving a deck that ran without Docker, and deck without Docker.
 
 ## A server with a domain
 
@@ -34,6 +34,16 @@ Every program of a module runs in a box of its own inside the container, built b
 Without these lines deck starts no foreign program, and Settings → Health says which line is missing. Tried on Ubuntu
 22.04 and 24.04 with Docker, rootless Docker and OrbStack; Docker Desktop and SELinux hosts (Fedora, RHEL) are not
 tried yet.
+
+## Behind the host's tailscale serve
+
+deck counts the failed sign-in tries of each client by its address. Behind `tailscale serve` of the host every client
+reaches the container from the gateway of its docker network, so `compose.yaml` sets `DECK_PROXY: caddy,gateway` and
+deck takes the client's address from X-Forwarded-For of that gateway. This is safe while the ports stay bound to
+`127.0.0.1`, on any engine: only the host's own programs reach them. Published wider (`0.0.0.0` or a LAN address), on
+Docker Desktop, OrbStack, rootless Docker or an engine with the userland proxy clients from outside may arrive from the
+gateway too and name any address to get past the limit; then put `DECK_PROXY=caddy` into `.env`, and deck counts all
+clients of `tailscale serve` as one.
 
 ## Windows
 

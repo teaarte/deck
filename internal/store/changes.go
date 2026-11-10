@@ -358,6 +358,7 @@ func inProject(ctx context.Context, one query, places map[string]map[int64]place
 // ProcessEvent is an event of a topic in the project and workspace of a process, read outside a transaction; deck
 // publishes it without them when it cannot find the process.
 func (s *Store) ProcessEvent(ctx context.Context, processID int64, topic string) events.Event {
+	check(ctx)
 	e := events.Event{Topic: topic}
 	inProject(ctx, s.reads.QueryRowContext, nil, &e, at(ctx, s.reads.QueryRowContext, nil, "process", processID).project)
 	return e

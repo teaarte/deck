@@ -277,3 +277,7 @@ and bring the modules in line.
   documents or files (it works in a folder, or its `calls` are all commands or name `record_upsert`, `record_update`,
   `record_delete`, `document_save`, `document_delete`, `file_upload` or `file_delete`) whose result schema has no
   `changes`; the save and the import still take it.
+- 2026-11-10: a model has `tools`, the most tools one request of it takes (`model_set` with `tools`, `models_list`);
+  deck learns it from an answer of its API that says so, as Groq does past 128. A request with more tools goes to the
+  next model, and agent work whose turns have more is not offered the model: the work of `models_list` gives
+  `left_out`, why such models are not among its `choices`.

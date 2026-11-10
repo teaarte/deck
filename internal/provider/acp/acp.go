@@ -83,6 +83,9 @@ func (a *Adapter) Name() string { return a.cfg.Name }
 
 func (a *Adapter) Caps() provider.Caps { return caps(a.cfg.NoCloud) }
 
+// OwnTools are the tools of the agent's own extensions.
+func (a *Adapter) OwnTools() int { return a.agent.Tools }
+
 // AgentName is the ACP agent the provider starts.
 func (a *Adapter) AgentName() string { return a.cfg.Agent }
 

@@ -191,7 +191,10 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Key: a.Secrets.Key, Resolve: a.Tools.Resolve, Invoke: a.Registry.Invoke, Builtin: builtin, Provider: a.Providers.Provider,
 		All: a.Providers.All, Off: a.Providers.Off, Up: a.Providers.Up, Health: a.Providers.Health, Exists: a.Providers.Exists, Free: a.Providers.Free, Spare: a.Providers.Spare,
 		Installed: a.Providers.Installed, Node: a.nodeTransport,
-		Online: func(device int64) bool { return a.Nodes.State(device).Online }, FolderNodes: a.Folders.Nodes, Go: a.bg.Go}
+		Online: func(device int64) bool { return a.Nodes.State(device).Online }, FolderNodes: a.Folders.Nodes, Go: a.bg.Go,
+		Tools: func(ctx context.Context, p db.Project, cmd *manifest.Command) int {
+			return a.Gateway.Count(ctx, &gateway.Session{ProjectID: p.ID, Workspace: p.WorkspaceID, Master: p.Builtin == 1, Commands: cmd.Executor.Calls})
+		}}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
 		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start,
 		Shown: func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, bool, error) {

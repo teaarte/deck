@@ -18,6 +18,8 @@ type Work struct {
 	Logo string `json:"logo,omitempty"`
 	// Why is one line of the health of the first model that is down, when the work goes to another.
 	Why string `json:"why,omitempty"`
+	// LeftOut says why models that have what the work requires are not among its choices.
+	LeftOut string `json:"left_out,omitempty"`
 }
 
 // Placed is the work of the projects one model stands in: Now what it does now, Fallback where another model does it

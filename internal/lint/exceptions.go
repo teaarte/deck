@@ -7,9 +7,9 @@ var exceptions = map[string][]string{
 		"internal/app/asks/process_asks.go:86", "internal/app/config.go:63", "internal/app/files/thumbs.go:31",
 		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:321",
 		"internal/app/processes/processes.go:325", "internal/app/processes/processes.go:318",
-		"internal/models/hops.go:149", "internal/models/hops.go:159",
+		"internal/models/hops.go:154", "internal/models/hops.go:164",
 		"internal/models/meter.go:23", "internal/models/meter.go:32",
-		"internal/provider/acp/acp.go:186",
+		"internal/provider/acp/acp.go:189",
 		"internal/tools/oauth.go:79", "internal/tools/oauth.go:90",
 	},
 	"exec": {

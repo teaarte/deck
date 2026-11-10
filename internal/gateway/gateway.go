@@ -312,6 +312,23 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 	return srv, allowed, tools, err
 }
 
+// Count is how many tools a session would have: its commands, the approval, and the tools of a question and of the
+// result it asks for.
+func (g *Gateway) Count(ctx context.Context, s *Session) int {
+	cmds, err := g.reg.List(ctx, s.actor())
+	if err != nil {
+		return 0
+	}
+	n := 1 + len(cmds)
+	if s.Question == provider.AskTool {
+		n++
+	}
+	if s.Submit != nil {
+		n++
+	}
+	return n
+}
+
 // addCommands exposes the registry commands the session may call as tools of srv.
 func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session) (allowed, tools []string, err error) {
 	cmds, err := g.reg.List(ctx, s.actor())

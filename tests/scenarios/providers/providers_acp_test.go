@@ -8,7 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -722,5 +724,102 @@ func TestACPTurnPastTheLimitOfItsModelGoesOnWithoutAPause(t *testing.T) {
 	}
 	if h := e.HealthRowOf("provider:acp"); h == nil || h["status"] == "paused" {
 		t.Fatalf("the model does not pause on a limit it did not meet: %v", h)
+	}
+}
+
+// TestAModelThatTakesFewToolsIsNotOfferedTheMaster: a model keeps the tools limit its API said, the master's replies
+// do not offer it and say why, and a request past a limit set by hand reaches no model.
+func TestAModelThatTakesFewToolsIsNotOfferedTheMaster(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	var refusal atomic.Pointer[string]
+	llm := harness.NewLLM(t, func(int, harness.ChatRequest) harness.ChatReply {
+		if r := refusal.Load(); r != nil {
+			return harness.ChatReply{Status: http.StatusBadRequest, Body: *r}
+		}
+		return harness.TextReply("ok")
+	})
+	tools := `[{"type": "function", "function": {"name": "a"}}, {"type": "function", "function": {"name": "b"}}, {"type": "function", "function": {"name": "c"}}]`
+	turn := func(n int) {
+		f.StreamText(n, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-`+strconv.Itoa(n)+`"}}`, `{"reply": "session/prompt"}`,
+			`{"model": {"model": "m", "messages": [{"role": "user", "content": "go"}], "tools": `+tools+`}}`, `{"end": "end_turn"}`))
+	}
+	e := harness.New(t, harness.WithACP(f, llm))
+	p := e.AcpProject("paint", harness.ColorManifest)
+	limit := func() int64 {
+		var list struct {
+			Models []struct {
+				Name  string
+				Tools int64
+			}
+		}
+		e.Must("deck.models_list", nil, &list)
+		for _, m := range list.Models {
+			if m.Name == "acp" {
+				return m.Tools
+			}
+		}
+		return -1
+	}
+	// Limits of one tool, of a name and of the context are no count of tools.
+	for i, body := range []string{
+		`{"error": {"message": "Invalid 'tools[0].function.name': string too long. Expected a string with maximum length 64, but got a string with length 80 instead."}}`,
+		`{"error": {"message": "Invalid 'tools[3].function.description': string too long. Expected a string with maximum length 1024."}}`,
+		`{"error": {"message": "Please reduce the length of the messages or tools. This model's maximum context length is 32768 tokens."}}`,
+	} {
+		refusal.Store(&body)
+		turn(4 + i)
+		before := len(llm.Requests())
+		e.WaitState(e.Run(p, "work"), "done", "error", "rate_limited")
+		if n := limit(); n != 0 || len(llm.Requests()) == before {
+			t.Fatalf("%s: the model answers and no limit of tools is learned: %d", body, n)
+		}
+	}
+	body := `{"error": {"message": "'tools' : maximum number of items is 2", "type": "invalid_request_error"}}`
+	refusal.Store(&body)
+	turn(7)
+	got := e.WaitState(e.Run(p, "work"), "done", "error", "rate_limited")
+	if fl := e.Fault(got.ID); got.State != "error" || fl.ErrorType != "model.limit" || !strings.Contains(fl.Error, "acp takes at most 2 tools a request") {
+		t.Fatalf("a refusal for the tools is the model's limit: %+v %+v", got, fl)
+	}
+	type model struct {
+		Name  string
+		Tools int64
+	}
+	type work struct {
+		Project, Command string
+		Choices          []string
+		LeftOut          string `json:"left_out"`
+	}
+	var list struct {
+		Models []model
+		Work   []work
+	}
+	e.Must("deck.models_list", nil, &list)
+	if i := slices.IndexFunc(list.Models, func(m model) bool { return m.Name == "acp" }); i < 0 || list.Models[i].Tools != 2 {
+		t.Fatalf("the model keeps the limit its API said: %+v", list.Models)
+	}
+	reply := slices.IndexFunc(list.Work, func(w work) bool { return w.Project == "master" && w.Command == "reply" })
+	if reply < 0 {
+		t.Fatalf("the master's replies are work of the list: %+v", list.Work)
+	}
+	w := list.Work[reply]
+	if slices.Contains(w.Choices, "acp") || len(w.Choices) == 0 || !strings.Contains(w.LeftOut, "acp takes at most 2 tools a request, and this work gives") {
+		t.Fatalf("the master's replies offer the models that take their tools and say why one is left out: %+v", w)
+	}
+	refusal.Store(nil)
+	before := len(llm.Requests())
+	e.Must("deck.model_set", map[string]any{"connection": "acp", "name": "acp", "model": "m", "tools": 1}, nil)
+	turn(8)
+	got = e.WaitState(e.Run(p, "work"), "done", "error", "rate_limited")
+	if fl := e.Fault(got.ID); got.State != "error" || !strings.Contains(fl.Error, "the request with 3 tools is past the 1 tools a request of acp takes") {
+		t.Fatalf("a request past the tools set by hand is the model's limit: %+v %+v", got, fl)
+	}
+	if n := len(llm.Requests()); n != before {
+		t.Fatalf("the request past the tools reaches no model: %d calls after %d", n, before)
+	}
+	e.Must("deck.model_set", map[string]any{"connection": "acp", "name": "acp", "model": "m2"}, nil)
+	if n := limit(); n != 0 {
+		t.Fatalf("another model of the API leaves the limit of the old one: %d", n)
 	}
 }

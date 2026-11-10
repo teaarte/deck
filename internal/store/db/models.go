@@ -270,6 +270,7 @@ type Model struct {
 	Tpm          int64
 	Context      int64
 	ProjectID    sql.NullInt64
+	Tools        int64
 }
 
 type Outbox struct {

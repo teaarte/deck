@@ -280,6 +280,11 @@ type Installed interface {
 	Install() string
 }
 
+// Tooled is a provider whose agent adds tools of its own to each request beside deck's.
+type Tooled interface {
+	OwnTools() int
+}
+
 // Tested is a provider of a CLI whose version CI tests deck with; another version runs, with a warning.
 type Tested interface {
 	TestedVersion() string

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strconv"
@@ -143,7 +144,8 @@ func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (models.Hop,
 	h := models.Hop{Target: s.target(c, s.Key(workspace, c.Name)), Connection: c.Name, Name: m.Name, Model: m.Model,
 		Local: c.Local != 0, Free: m.Free != 0, Queue: c.Local != 0 && slices.Contains(queuedKinds, m.Kind)}
 	if m.Kind == RoleText {
-		h.TPM, h.Context = m.Tpm, m.Context
+		h.TPM, h.Context, h.Tools = m.Tpm, m.Context, m.Tools
+		h.ToolsAt = func(ctx context.Context, n int64) { s.toolsAt(ctx, workspace, m.Name, n) }
 	}
 	_ = json.Unmarshal([]byte(m.Options), &h.Options)
 	if err := s.withFiles(h.Options, m.Name); err != nil {
@@ -310,4 +312,14 @@ func (s *Service) Proxy(act registry.Actor, permit func(ctx context.Context, act
 // as long as deck runs.
 func jobKey(workspace int64, connection, id string) string {
 	return strconv.FormatInt(workspace, 10) + "/" + connection + "/" + id
+}
+
+// toolsAt keeps the most tools a request of a model takes, as its API said.
+func (s *Service) toolsAt(ctx context.Context, workspace int64, model string, n int64) {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.SetModelTools(ctx, db.SetModelToolsParams{Tools: n, WorkspaceID: workspace, Name: model})
+	})
+	if err != nil {
+		slog.Error("keep the tools of a model", "model", model, "err", err)
+	}
 }

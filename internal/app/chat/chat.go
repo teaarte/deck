@@ -51,7 +51,7 @@ type Service struct {
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
 	Fits  func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
 	// Able are the providers that have what a command requires, the models a topic may keep.
-	Able func(ctx context.Context, workspace int64, cmd *manifest.Command) []string
+	Able func(ctx context.Context, p db.Project, cmd *manifest.Command) []string
 	// Facts say each model in short in a language, the words naming it for its mark and the group of its provider.
 	Facts func(ctx context.Context, workspace int64, lang string) func(model string) (note, logo, group string)
 	// Go runs work beside the calls unless deck stops; the replies it leaves go at the next start.
@@ -217,7 +217,7 @@ func (s *Service) topicModel(ctx context.Context, master db.Project, model strin
 	if err != nil {
 		return err
 	}
-	if able := s.Able(ctx, master.WorkspaceID, cmd); !slices.Contains(able, model) {
+	if able := s.Able(ctx, master, cmd); !slices.Contains(able, model) {
 		return registry.Invalid("the master's replies do not run on %q; one of: %s", model, strings.Join(able, ", "))
 	}
 	return nil

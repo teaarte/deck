@@ -40,6 +40,8 @@ type modelView struct {
 	// TPM and Context are the tokens a minute and of one request the model takes, 0 when not known.
 	TPM     int64 `json:"tpm,omitempty"`
 	Context int64 `json:"context,omitempty"`
+	// Tools is the most tools one request of the model takes, 0 when not known.
+	Tools int64 `json:"tools,omitempty"`
 	// Builtin is a provider deck was started with; Status, Error, Verdict, Speed and Version are of its last self-check.
 	Builtin bool `json:"builtin"`
 	// Spare says the calling module may remove it without the owner: its own call added it, free, in no assignment.
@@ -196,7 +198,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		m := r.Model
 		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Options: s.shownOptions(ctx, m.Options),
 			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0,
-			Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context}
+			Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context, Tools: m.Tools}
 		if act.Confined() {
 			v.Spare = s.Spare(ctx, act, m)
 		}
@@ -468,7 +470,7 @@ func (s *Service) agents(ctx context.Context, workspace int64, tr func(string) s
 func (s *Service) ModelView(ctx context.Context, m db.Model, connection string) any {
 	return modelView{Name: m.Name, Connection: connection, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Options: s.shownOptions(ctx, m.Options),
 		InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0,
-		Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context}
+		Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context, Tools: m.Tools}
 }
 
 func (s *Service) listCommands() []*registry.Command {

@@ -58,6 +58,8 @@ type Service struct {
 	// FolderNodes are the nodes that hold the folder of a project an agent command works in, and whether deck's
 	// machine holds it too.
 	FolderNodes func(ctx context.Context, projectID int64, f manifest.Folder) (nodes []string, deck bool, err error)
+	// Tools are deck's commands a turn of an agent command of a project has as tools, with the approval.
+	Tools func(ctx context.Context, p db.Project, cmd *manifest.Command) int
 	// Go runs work beside the calls; false once deck stops.
 	Go func(func(context.Context)) bool
 

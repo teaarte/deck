@@ -63,7 +63,7 @@
           {"type": "list", "title": "Models", "icon": "cpu", "cards": true, "source": {"from": "deck.models_list", "rows": "work"},
             "description": "The model each command and each kind of work of its scripts runs on; change it on its card.",
             "item": {"title": "command != nil ? title : role", "text": "join(filter([model ?? '', price ?? ''], # != ''), ' · ')", "meta": "own ? 'chosen here' : 'default'", "logo": "logo ?? model ?? ''",
-              "details": "(why ?? '') != '' ? why : len(models ?? []) > 1 ? join(models[1:], ' → ') : nil",
+              "details": "(why ?? '') != '' ? why : (left_out ?? '') != '' ? left_out : len(models ?? []) > 1 ? join(models[1:], ' → ') : nil",
               "tone": "(why ?? '') != '' ? 'warn' : nil"},
             "actions": [
               {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command ?? ''"},

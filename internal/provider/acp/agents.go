@@ -14,13 +14,15 @@ type Agent struct {
 	Start func(l Launch) (argv, env []string)
 	// Skills is the folder in the home where the agent finds skills, so none is written in the folder it works in.
 	Skills string
+	// Tools are the tools of its own a request of the agent carries beside deck's.
+	Tools int
 }
 
 // Agents are the ACP agents deck starts; docs/spikes/acp.md has what each one does.
-var Agents = map[string]Agent{"goose": {Start: goose, Skills: ".agents/skills"}}
+var Agents = map[string]Agent{"goose": {Start: goose, Skills: ".agents/skills", Tools: 6}}
 
-// gooseTools are the built-in extensions of a session of deck: files and shell, and skills; the rest (memory,
-// sub-agents, schedules, apps) outlive or leave the turn.
+// gooseTools are the built-in extensions of a session of deck, six tools: files and shell, and skills; the rest
+// (memory, sub-agents, schedules, apps) outlive or leave the turn.
 const gooseTools = `{"developer": {"enabled": true, "type": "platform", "name": "developer", "description": "", "bundled": true}, "skills": {"enabled": true, "type": "platform", "name": "skills", "description": "", "bundled": true}}`
 
 func goose(l Launch) ([]string, []string) {

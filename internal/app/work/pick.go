@@ -67,16 +67,60 @@ func (s *Service) Ahead(ctx context.Context, projectID int64, cmd *manifest.Comm
 	return ""
 }
 
-// Able are the providers of a workspace that have what a command requires, whether it is assigned to them or not.
-func (s *Service) Able(ctx context.Context, workspace int64, cmd *manifest.Command) []string {
-	all, _ := s.All(ctx, workspace)
-	out := []string{}
-	for _, pv := range all {
-		if len(pv.Caps().Missing(cmd.Requires)) == 0 {
-			out = append(out, pv.Name())
-		}
+// Able are the providers of a workspace that have what a command of project p requires, whether it is assigned to
+// them or not, and take the tools of its turns.
+func (s *Service) Able(ctx context.Context, p db.Project, cmd *manifest.Command) []string {
+	limits := map[string]int64{}
+	rows, _ := s.St.Q.ListModels(ctx, p.WorkspaceID)
+	for _, r := range rows {
+		limits[r.Model.Name] = r.Model.Tools
 	}
+	out, _ := s.able(ctx, p, cmd, func(name string) int64 {
+		if base, _, ok := provider.AtNode(name); ok {
+			name = base
+		}
+		return limits[name]
+	})
 	return out
+}
+
+// able are the names of Able and why each provider with what the command requires is left out: its model takes
+// fewer tools a request than a turn of the command carries; limit is the tools limit of a model by name.
+func (s *Service) able(ctx context.Context, p db.Project, cmd *manifest.Command, limit func(string) int64) (names, left []string) {
+	all, _ := s.All(ctx, p.WorkspaceID)
+	names, deck := []string{}, -1
+	for _, pv := range all {
+		if len(pv.Caps().Missing(cmd.Requires)) > 0 {
+			continue
+		}
+		if most := limit(pv.Name()); most > 0 && s.Tools != nil {
+			if deck < 0 {
+				deck = s.Tools(ctx, p, cmd)
+			}
+			if n := deck + turnTools(pv, cmd); int64(n) > most {
+				left = append(left, fmt.Sprintf("%s takes at most %d tools a request, and this work gives %d", pv.Name(), most, n))
+				continue
+			}
+		}
+		names = append(names, pv.Name())
+	}
+	return names, left
+}
+
+// turnTools are the tools a turn on pv carries beside deck's commands: the question of the gateway, the result
+// tool of a provider without output by schema, and the agent's own.
+func turnTools(pv provider.Provider, cmd *manifest.Command) int {
+	n := 0
+	if pv.QuestionTool() == provider.AskTool {
+		n++
+	}
+	if len(cmd.Result) > 0 && !slices.Contains(pv.Caps(), provider.StructuredOutput) {
+		n++
+	}
+	if t, ok := pv.(provider.Tooled); ok {
+		n += t.OwnTools()
+	}
+	return n
 }
 
 // Fits are the providers a command may start on that are up: those of its assignment in order, else all that fit.

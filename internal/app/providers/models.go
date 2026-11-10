@@ -41,6 +41,8 @@ type modelSetIn struct {
 	// TPM and Context are limits of the model a request past which deck sends to the next model.
 	TPM     *int64 `json:"tpm" opt:"" desc:"Tokens a minute the model takes, such as 8000 of a free tier: a request past it goes to the next model of its assignment; 0 for none, a model changed without it keeps its own"`
 	Context *int64 `json:"context" opt:"" desc:"Tokens one request of the model may hold: a request past it goes to the next model of its assignment; 0 for none, a model changed without it keeps its own"`
+	// Tools is the most tools one request of the model takes.
+	Tools *int64 `json:"tools" opt:"" desc:"The most tools one request of the model takes, such as 128: a request with more goes to the next model, and agent work with more is not offered it; deck learns it from an answer of the API that says so; 0 for none; another model id without it starts at 0"`
 }
 
 // modelCommands are model_set, whose call held for the owner says the model it adds or changes and what it sets,
@@ -124,7 +126,7 @@ func assigned(ctx context.Context, q *db.Queries, workspace int64, name string) 
 // back is the input of model_set that makes a model again as it is.
 func back(m db.Model, connection string) json.RawMessage {
 	in := map[string]any{"connection": connection, "model": m.Model, "name": m.Name, "kind": m.Kind, "unit": m.Unit, "free": m.Free == 1,
-		"subscription": m.Subscription == 1, "options": m.Options, "tpm": m.Tpm, "context": m.Context}
+		"subscription": m.Subscription == 1, "options": m.Options, "tpm": m.Tpm, "context": m.Context, "tools": m.Tools}
 	for k, v := range map[string]sql.NullFloat64{"input_usd": m.InputUsd, "output_usd": m.OutputUsd, "call_usd": m.CallUsd} {
 		if v.Valid {
 			in[k] = v.Float64
@@ -177,13 +179,17 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		}
 		m.Kind, m.CheckMinutes, m.Unit = cmp.Or(m.Kind, old.Model.Kind), cmp.Or(m.CheckMinutes, old.Model.CheckMinutes), cmp.Or(m.Unit, old.Model.Unit)
 		m.Subscription, m.Tpm, m.Context = old.Model.Subscription, old.Model.Tpm, old.Model.Context
+		if old.Model.Model == m.Model {
+			// A limit learned of the API belongs to the model it was learned of.
+			m.Tools = old.Model.Tools
+		}
 	}
 	for _, l := range []struct {
 		in  *int64
 		out *int64
-	}{{in.TPM, &m.Tpm}, {in.Context, &m.Context}} {
+	}{{in.TPM, &m.Tpm}, {in.Context, &m.Context}, {in.Tools, &m.Tools}} {
 		if l.in != nil && *l.in < 0 {
-			return nil, registry.Invalid("a limit of a model is a number of tokens, or 0 for none")
+			return nil, registry.Invalid("a limit of a model is a number, of tokens or of tools, or 0 for none")
 		}
 		if l.in != nil {
 			*l.out = *l.in

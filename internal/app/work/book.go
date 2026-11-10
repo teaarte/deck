@@ -110,7 +110,7 @@ func (s *Service) book(ctx context.Context, workspace int64, tr func(string) str
 	for _, r := range rows {
 		m := r.Model
 		b.add(modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd),
-			CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0, Subscription: m.Subscription != 0, Context: m.Context})
+			CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0, Subscription: m.Subscription != 0, Context: m.Context, Tools: m.Tools})
 	}
 	base := make([]modelView, 0, len(b.order))
 	for _, n := range b.order {
@@ -320,7 +320,13 @@ func (s *Service) commandWork(ctx context.Context, b *Book, projectID int64, com
 	}
 	switch cmd.Executor.Type {
 	case "agent":
-		w := provider.Work{Role: RoleAgent, Choices: s.Able(ctx, p.WorkspaceID, cmd)}
+		w := provider.Work{Role: RoleAgent}
+		var left []string
+		w.Choices, left = s.able(ctx, p, cmd, func(name string) int64 { return b.models[name].Tools })
+		for i, l := range left {
+			left[i] = b.tr(l)
+		}
+		w.LeftOut = strings.Join(left, "; ")
 		w.Models, _ = Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, command, RoleAgent)
 		if pv, err := s.For(ctx, projectID, cmd); err == nil {
 			w.Model = pv.Name()

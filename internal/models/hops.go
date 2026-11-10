@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -36,8 +39,10 @@ type Hop struct {
 	// replaces an @role the caller asked for.
 	Connection, Name string
 	Model            string
-	// TPM and Context are the tokens a minute and of one request the model takes, 0 when not known.
-	TPM, Context int64
+	// TPM and Context are the tokens a minute and of one request the model takes, Tools the tools of one request, 0
+	// when not known; ToolsAt keeps the most tools the API said it takes.
+	TPM, Context, Tools int64
+	ToolsAt             func(ctx context.Context, n int64)
 	// Local is a connection on the owner's hardware; Free is a model that costs nothing; Queue sends one call at a
 	// time to its server, such as a local server of pictures that would time out the calls it holds.
 	Local, Free, Queue bool
@@ -173,6 +178,16 @@ func SendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 			last = fault.New(fault.ModelLimit, fmt.Sprintf("deck: %s answered %s: %s", h.Connection, resp.Status, past))
 			continue
 		}
+		if n := toolsPast(resp, c.Body); n > 0 {
+			// A request with more tools than the model takes: it learns its limit, and the next model takes it.
+			release()
+			h.Done(ctx, resp.StatusCode, nil)
+			if h.ToolsAt != nil {
+				h.ToolsAt(ctx, n)
+			}
+			last = fault.New(fault.ModelLimit, fmt.Sprintf("deck: %s takes at most %d tools a request", h.Name, n))
+			continue
+		}
 		if Fallible(resp.StatusCode) && i < len(hops)-1 {
 			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 			_ = resp.Body.Close()
@@ -194,6 +209,11 @@ const bytesPerToken = 4
 // past says why a request of body is past a limit of the model of h, empty when it is not or the model has none.
 func (h Hop) past(body []byte) string {
 	n := int64(len(body) / bytesPerToken)
+	if h.Tools > 0 {
+		if t := tools(body); t > h.Tools {
+			return fmt.Sprintf("deck: the request with %d tools is past the %d tools a request of %s takes", t, h.Tools, h.Name)
+		}
+	}
 	switch {
 	case h.Context > 0 && n > h.Context:
 		return fmt.Sprintf("deck: the request of about %d tokens is past the %d tokens a request of %s holds", n, h.Context, h.Name)
@@ -201,6 +221,47 @@ func (h Hop) past(body []byte) string {
 		return fmt.Sprintf("deck: the request of about %d tokens is past the %d tokens a minute %s takes", n, h.TPM, h.Name)
 	}
 	return ""
+}
+
+// tools counts the tools of a request: the functions of a Gemini tool each, any other tool as one.
+func tools(body []byte) int64 {
+	var req struct {
+		Tools []struct {
+			Functions []json.RawMessage `json:"functionDeclarations"`
+		} `json:"tools"`
+	}
+	if json.Unmarshal(body, &req) != nil {
+		return 0
+	}
+	var n int64
+	for _, t := range req.Tools {
+		n += max(1, int64(len(t.Functions)))
+	}
+	return n
+}
+
+// toolLimit finds the most tools an API says a request takes, as "'tools': maximum number of items is 128"; a path
+// into one tool (tools[0].function.name) is no count of tools.
+var toolLimit = regexp.MustCompile(`(?is)\btools\b[^\[].{0,79}?\bmaxim\w*\D{0,40}?(\d+)(\s*\w*)`)
+
+// toolsPast is the most tools a 400 of a model API says it takes when the request of body carried more, closing it;
+// any other answer it leaves whole.
+func toolsPast(resp *http.Response, body []byte) int64 {
+	if resp.StatusCode != http.StatusBadRequest {
+		return 0
+	}
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	if m := toolLimit.FindSubmatch(raw); m != nil && !bytes.HasPrefix(bytes.ToLower(bytes.TrimSpace(m[2])), []byte("token")) {
+		if n, err := strconv.ParseInt(string(m[1]), 10, 64); err == nil && n > 0 && tools(body) > n {
+			_ = resp.Body.Close()
+			return n
+		}
+	}
+	resp.Body = struct {
+		io.Reader
+		io.Closer
+	}{io.MultiReader(bytes.NewReader(raw), resp.Body), resp.Body}
+	return 0
 }
 
 // pastMinute is the words of a 413 of a model API past its limit per minute, which it closes; any other answer it

@@ -53,15 +53,15 @@ func (q *Queries) AddConnection(ctx context.Context, arg AddConnectionParams) (C
 
 const addModel = `-- name: AddModel :one
 INSERT INTO model (workspace_id, connection_id, name, model, kind, agent, input_usd, output_usd, call_usd, unit, free, options, check_minutes, subscription,
-    tpm, context, project_id)
+    tpm, context, tools, project_id)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
     ?7, ?8, ?9, ?10, ?11, ?12, ?13,
-    ?14, ?15, ?16, ?17)
+    ?14, ?15, ?16, ?17, ?18)
 ON CONFLICT (workspace_id, name) DO UPDATE SET connection_id = excluded.connection_id, model = excluded.model,
     kind = excluded.kind, agent = excluded.agent, input_usd = excluded.input_usd, output_usd = excluded.output_usd,
     call_usd = excluded.call_usd, unit = excluded.unit, free = excluded.free, options = excluded.options, check_minutes = excluded.check_minutes,
-    subscription = excluded.subscription, tpm = excluded.tpm, context = excluded.context
-RETURNING id, workspace_id, connection_id, name, model, kind, agent, input_usd, output_usd, call_usd, free, options, check_minutes, created_at, unit, subscription, tpm, context, project_id
+    subscription = excluded.subscription, tpm = excluded.tpm, context = excluded.context, tools = excluded.tools
+RETURNING id, workspace_id, connection_id, name, model, kind, agent, input_usd, output_usd, call_usd, free, options, check_minutes, created_at, unit, subscription, tpm, context, project_id, tools
 `
 
 type AddModelParams struct {
@@ -81,6 +81,7 @@ type AddModelParams struct {
 	Subscription int64
 	Tpm          int64
 	Context      int64
+	Tools        int64
 	ProjectID    sql.NullInt64
 }
 
@@ -102,6 +103,7 @@ func (q *Queries) AddModel(ctx context.Context, arg AddModelParams) (Model, erro
 		arg.Subscription,
 		arg.Tpm,
 		arg.Context,
+		arg.Tools,
 		arg.ProjectID,
 	)
 	var i Model
@@ -125,6 +127,7 @@ func (q *Queries) AddModel(ctx context.Context, arg AddModelParams) (Model, erro
 		&i.Tpm,
 		&i.Context,
 		&i.ProjectID,
+		&i.Tools,
 	)
 	return i, err
 }
@@ -248,7 +251,7 @@ func (q *Queries) GetConnection(ctx context.Context, arg GetConnectionParams) (C
 }
 
 const getModel = `-- name: GetModel :one
-SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id FROM model m JOIN connection k ON k.id = m.connection_id
+SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, m.tools, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id FROM model m JOIN connection k ON k.id = m.connection_id
 WHERE m.workspace_id = ? AND m.name = ?
 `
 
@@ -285,6 +288,7 @@ func (q *Queries) GetModel(ctx context.Context, arg GetModelParams) (GetModelRow
 		&i.Model.Tpm,
 		&i.Model.Context,
 		&i.Model.ProjectID,
+		&i.Model.Tools,
 		&i.Connection.ID,
 		&i.Connection.WorkspaceID,
 		&i.Connection.Name,
@@ -299,7 +303,7 @@ func (q *Queries) GetModel(ctx context.Context, arg GetModelParams) (GetModelRow
 }
 
 const getModelOf = `-- name: GetModelOf :one
-SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id FROM model m JOIN connection k ON k.id = m.connection_id
+SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, m.tools, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id FROM model m JOIN connection k ON k.id = m.connection_id
 WHERE m.connection_id = ? AND m.model = ? ORDER BY m.id LIMIT 1
 `
 
@@ -336,6 +340,7 @@ func (q *Queries) GetModelOf(ctx context.Context, arg GetModelOfParams) (GetMode
 		&i.Model.Tpm,
 		&i.Model.Context,
 		&i.Model.ProjectID,
+		&i.Model.Tools,
 		&i.Connection.ID,
 		&i.Connection.WorkspaceID,
 		&i.Connection.Name,
@@ -432,7 +437,7 @@ func (q *Queries) ListConnections(ctx context.Context, workspaceID int64) ([]Con
 }
 
 const listModels = `-- name: ListModels :many
-SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id FROM model m JOIN connection k ON k.id = m.connection_id
+SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, m.tools, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id FROM model m JOIN connection k ON k.id = m.connection_id
 WHERE m.workspace_id = ? ORDER BY m.name
 `
 
@@ -470,6 +475,7 @@ func (q *Queries) ListModels(ctx context.Context, workspaceID int64) ([]ListMode
 			&i.Model.Tpm,
 			&i.Model.Context,
 			&i.Model.ProjectID,
+			&i.Model.Tools,
 			&i.Connection.ID,
 			&i.Connection.WorkspaceID,
 			&i.Connection.Name,
@@ -610,5 +616,20 @@ type SetModelOptionsParams struct {
 
 func (q *Queries) SetModelOptions(ctx context.Context, arg SetModelOptionsParams) error {
 	_, err := q.db.ExecContext(ctx, setModelOptions, arg.Options, arg.ID)
+	return err
+}
+
+const setModelTools = `-- name: SetModelTools :exec
+UPDATE model SET tools = ?1 WHERE workspace_id = ?2 AND name = ?3
+`
+
+type SetModelToolsParams struct {
+	Tools       int64
+	WorkspaceID int64
+	Name        string
+}
+
+func (q *Queries) SetModelTools(ctx context.Context, arg SetModelToolsParams) error {
+	_, err := q.db.ExecContext(ctx, setModelTools, arg.Tools, arg.WorkspaceID, arg.Name)
 	return err
 }

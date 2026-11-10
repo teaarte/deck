@@ -461,7 +461,7 @@ func (s *Service) models(ctx context.Context, workspace int64) ([]string, string
 	if pv, err := s.For(ctx, m.ID, cmd); err == nil {
 		own = pv.Name()
 	}
-	return s.Able(ctx, workspace, cmd), own
+	return s.Able(ctx, m, cmd), own
 }
 
 // turnLines are the last calls and messages in the log of a process still open, each call with what it does.

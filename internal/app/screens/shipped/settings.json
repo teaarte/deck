@@ -49,7 +49,7 @@
           "description": "Each module's work and its model; change it on its card. Agent work needs an agent: Claude Code, Codex or Goose on your model.",
           "empty": "Nothing of deck runs on a model yet",
           "item": {"title": "title", "text": "model ?? ''", "meta": "price ?? ''", "group": "project_title ?? 'deck'", "logo": "logo ?? model ?? ''",
-            "details": "(why ?? '') != '' ? why : len(models ?? []) > 1 ? join(models[1:], ' → ') : nil",
+            "details": "(why ?? '') != '' ? why : (left_out ?? '') != '' ? left_out : len(models ?? []) > 1 ? join(models[1:], ' → ') : nil",
             "tone": "(why ?? '') != '' ? 'warn' : nil"},
           "actions": [
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project != '' ? project : nil", "command": "=command ?? nil"},
@@ -187,7 +187,7 @@
           "description": "The models of sleep and the daily review; sleep starts on a free model first.",
           "empty": "Sleep and review have no model yet",
           "item": {"title": "title", "text": "model ?? ''", "meta": "price ?? ''", "logo": "logo ?? model ?? ''",
-            "details": "(why ?? '') != '' ? why : len(models ?? []) > 1 ? join(models[1:], ' → ') : nil",
+            "details": "(why ?? '') != '' ? why : (left_out ?? '') != '' ? left_out : len(models ?? []) > 1 ? join(models[1:], ' → ') : nil",
             "tone": "(why ?? '') != '' ? 'warn' : nil"},
           "actions": [
             {"verb": "model", "command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "command": "=command"},

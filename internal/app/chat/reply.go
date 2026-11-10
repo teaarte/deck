@@ -163,7 +163,7 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 	}
 	next := s.againOf(topicID)
 	if next.provider == "" && t.Model != "" {
-		if !slices.Contains(s.Able(ctx, p.WorkspaceID, cmd), t.Model) {
+		if !slices.Contains(s.Able(ctx, p, cmd), t.Model) {
 			return fmt.Errorf("the model %s of this topic does not run the master's replies now; pick another one at the top of the chat", t.Model)
 		}
 		next.provider = t.Model

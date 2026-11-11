@@ -209,7 +209,7 @@ func viewTopic(t db.ListTopicSummariesRow, tr func(string) string) topicView {
 	v := topicView{ID: t.ID, Title: t.Title, Project: t.Project, Archived: t.Archived == 1,
 		UpdatedAt: t.UpdatedAt, Last: untrusted.Cut(t.LastText, 200), Model: t.Model, RepliedOn: t.RepliedOn}
 	if t.OpenID != 0 {
-		v.Reply = viewReply(db.Process{ID: t.OpenID, Kind: process.KindAgent, State: t.OpenState, Provider: t.OpenProvider, Error: t.OpenError}, tr)
+		v.Reply = viewReply(db.Process{ID: t.OpenID, Kind: process.KindAgent, State: t.OpenState, WaitReason: t.OpenWaitReason, Provider: t.OpenProvider, Error: t.OpenError}, tr)
 	}
 	return v
 }

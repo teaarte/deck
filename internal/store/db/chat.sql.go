@@ -623,6 +623,7 @@ const listTopicSummaries = `-- name: ListTopicSummaries :many
 SELECT t.id, t.title, t.archived, t.updated_at, t.model,
     CAST(COALESCE((SELECT m.text FROM chat_message m WHERE m.topic_id = t.id ORDER BY m.id DESC LIMIT 1), '') AS TEXT) AS last_text,
     CAST(COALESCE(op.id, 0) AS INTEGER) AS open_id, CAST(COALESCE(op.state, '') AS TEXT) AS open_state,
+    CAST(COALESCE(op.wait_reason, '') AS TEXT) AS open_wait_reason,
     CAST(COALESCE(op.provider, '') AS TEXT) AS open_provider, CAST(COALESCE(op.error, '') AS TEXT) AS open_error,
     CAST(COALESCE(
         (SELECT pr.name FROM project pr WHERE pr.workspace_id = t.workspace_id AND pr.name =
@@ -654,18 +655,19 @@ type ListTopicSummariesParams struct {
 }
 
 type ListTopicSummariesRow struct {
-	ID           int64
-	Title        string
-	Archived     int64
-	UpdatedAt    string
-	Model        string
-	LastText     string
-	OpenID       int64
-	OpenState    string
-	OpenProvider string
-	OpenError    string
-	Project      string
-	RepliedOn    string
+	ID             int64
+	Title          string
+	Archived       int64
+	UpdatedAt      string
+	Model          string
+	LastText       string
+	OpenID         int64
+	OpenState      string
+	OpenWaitReason string
+	OpenProvider   string
+	OpenError      string
+	Project        string
+	RepliedOn      string
 }
 
 func (q *Queries) ListTopicSummaries(ctx context.Context, arg ListTopicSummariesParams) ([]ListTopicSummariesRow, error) {
@@ -692,6 +694,7 @@ func (q *Queries) ListTopicSummaries(ctx context.Context, arg ListTopicSummaries
 			&i.LastText,
 			&i.OpenID,
 			&i.OpenState,
+			&i.OpenWaitReason,
 			&i.OpenProvider,
 			&i.OpenError,
 			&i.Project,

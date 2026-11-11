@@ -114,6 +114,7 @@ WHERE workspace_id = sqlc.arg(workspace_id) AND deleted_at IS NULL AND archived 
 SELECT t.id, t.title, t.archived, t.updated_at, t.model,
     CAST(COALESCE((SELECT m.text FROM chat_message m WHERE m.topic_id = t.id ORDER BY m.id DESC LIMIT 1), '') AS TEXT) AS last_text,
     CAST(COALESCE(op.id, 0) AS INTEGER) AS open_id, CAST(COALESCE(op.state, '') AS TEXT) AS open_state,
+    CAST(COALESCE(op.wait_reason, '') AS TEXT) AS open_wait_reason,
     CAST(COALESCE(op.provider, '') AS TEXT) AS open_provider, CAST(COALESCE(op.error, '') AS TEXT) AS open_error,
     CAST(COALESCE(
         (SELECT pr.name FROM project pr WHERE pr.workspace_id = t.workspace_id AND pr.name =

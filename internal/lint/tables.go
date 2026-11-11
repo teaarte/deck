@@ -13,12 +13,22 @@ import (
 // Tabled are the pure functions on the trust boundary that keep a table test beside them, by package; a test
 // outside tests/ is one of these and nothing else, and a function joins the list only here.
 var Tabled = map[string][]string{
-	"internal/egress": {"Public"},
+	"internal/egress":   {"Public", "listed"},
+	"internal/home":     {"Within"},
+	"internal/registry": {"Permits"},
 }
 
 const tableFile = "table_test.go"
 
 var anyTest = regexp.MustCompile(`(?m)^func ((?:Test|Benchmark|Fuzz|Example)\w*)\(`)
+
+// testOf is the name of the table test of f: Test_f for a function of the package alone.
+func testOf(f string) string {
+	if f != "" && f[0] >= 'a' && f[0] <= 'z' {
+		return "Test_" + f
+	}
+	return "Test" + f
+}
 
 // Tables finds tests outside tests/ that are not the table test of a listed function, and listed functions
 // without one.
@@ -60,8 +70,8 @@ func TablesOf(root string, tabled map[string][]string) ([]Violation, error) {
 			out = append(out, Violation{rel, 1, "a table test takes no harness: rows of input and answer only"})
 		}
 		for _, f := range anyTest.FindAllStringSubmatch(src, -1) {
-			name, ok := strings.CutPrefix(f[1], "Test")
-			if !ok || !slices.Contains(funcs, name) {
+			name := strings.TrimPrefix(strings.TrimPrefix(f[1], "Test"), "_")
+			if testOf(name) != f[1] || !slices.Contains(funcs, name) {
 				out = append(out, Violation{rel, 1, fmt.Sprintf("%s tests no function of lint.Tabled for %s", f[1], pkg)})
 				continue
 			}
@@ -72,7 +82,7 @@ func TablesOf(root string, tabled map[string][]string) ([]Violation, error) {
 	for pkg, funcs := range tabled {
 		for _, f := range funcs {
 			if !seen[pkg+"."+f] {
-				out = append(out, Violation{pkg + "/" + tableFile, 1, fmt.Sprintf("%s.%s is in lint.Tabled without its table test Test%s", pkg, f, f)})
+				out = append(out, Violation{pkg + "/" + tableFile, 1, fmt.Sprintf("%s.%s is in lint.Tabled without its table test %s", pkg, f, testOf(f))})
 			}
 		}
 	}

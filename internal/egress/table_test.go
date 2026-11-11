@@ -68,3 +68,41 @@ func TestPublic(t *testing.T) {
 		t.Error("Public of no address is false")
 	}
 }
+
+func Test_listed(t *testing.T) {
+	for _, row := range []struct {
+		domains  []string
+		hostport string
+		listed   bool
+		what     string
+	}{
+		{[]string{"example.com"}, "example.com:443", true, "the name itself"},
+		{[]string{"example.com"}, "api.example.com:443", true, "a name under it"},
+		{[]string{"example.com"}, "notexample.com:443", false, "a name that only ends the same"},
+		{[]string{"api.example.com"}, "example.com:443", false, "the parent of a listed name"},
+		{[]string{"example.com"}, "EXAMPLE.com.:443", true, "case and the final dot"},
+		{[]string{" Example.COM "}, "example.com:80", true, "a listed name with spaces and capitals"},
+		{[]string{"example.com"}, "example.com", false, "no port"},
+		{[]string{"*"}, "example.com:443", false, "the wildcard names nothing"},
+		{nil, "example.com:443", false, "an empty list"},
+		{[]string{"example.com:8443"}, "example.com:8443", true, "a name with its port"},
+		{[]string{"example.com:8443"}, "example.com:443", false, "a name on another port"},
+		{[]string{"10.0.0.0/8"}, "10.1.2.3:80", true, "an address in a listed network"},
+		{[]string{"10.0.0.0/8"}, "11.0.0.1:80", false, "an address outside the network"},
+		{[]string{"10.0.0.0/8"}, "ten.example:80", false, "a name is not in a network"},
+		{[]string{"192.168.1.5"}, "192.168.1.5:22", true, "an address on any port"},
+		{[]string{"192.168.1.5"}, "x.192.168.1.5:22", true, "a name under an address, as written"},
+		{[]string{"192.168.1.5"}, "192.168.1.50:22", false, "an address that starts the same"},
+		{[]string{"127.0.0.1:8080"}, "127.0.0.1:8080", true, "an address with its port"},
+		{[]string{"127.0.0.1:8080"}, "127.0.0.1:8081", false, "an address on another port"},
+		{[]string{"[::1]:8080"}, "[::1]:8080", true, "an IPv6 address with its port"},
+		{[]string{"::1"}, "[::1]:80", true, "a bare IPv6 address"},
+		{[]string{"[::1]"}, "[::1]:80", true, "an IPv6 address in brackets"},
+		{[]string{"fd00::/8"}, "[fd12::1]:443", true, "an IPv6 address in a listed network"},
+		{[]string{"*", "example.org"}, "example.org:443", true, "a name beside the wildcard"},
+	} {
+		if got := listed(row.domains, row.hostport); got != row.listed {
+			t.Errorf("listed(%q, %s) = %v, want %v: %s", row.domains, row.hostport, got, row.listed, row.what)
+		}
+	}
+}

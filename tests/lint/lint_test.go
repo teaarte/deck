@@ -209,7 +209,7 @@ func TestRepositoryKeepsTablesToTheirList(t *testing.T) {
 
 func TestTablesCatchTestsOffTheList(t *testing.T) {
 	vs, err := lint.TablesOf("testdata/tables", map[string][]string{
-		"internal/egress": {"Public", "Local"},
+		"internal/egress": {"Public", "Local", "listed", "named"},
 		"internal/store":  {"Q"},
 	})
 	if err != nil {
@@ -221,8 +221,10 @@ func TestTablesCatchTestsOffTheList(t *testing.T) {
 	}
 	want := []string{
 		"internal/egress/table_test.go:1: FuzzPublic tests no function of lint.Tabled for internal/egress",
+		"internal/egress/table_test.go:1: TestNamed tests no function of lint.Tabled for internal/egress",
 		"internal/egress/table_test.go:1: TestOther tests no function of lint.Tabled for internal/egress",
 		"internal/egress/table_test.go:1: internal/egress.Local is in lint.Tabled without its table test TestLocal",
+		"internal/egress/table_test.go:1: internal/egress.named is in lint.Tabled without its table test Test_named",
 		"internal/home/within_test.go:1: a test outside tests/ is only the table test table_test.go of a function in lint.Tabled",
 		"internal/store/table_test.go:1: a table test takes no harness: rows of input and answer only",
 		"web/embed_test.go:1: a test outside tests/ is only the table test table_test.go of a function in lint.Tabled",

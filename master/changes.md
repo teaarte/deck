@@ -350,3 +350,7 @@ and bring the modules in line.
   `0.0.0.0/8` (OrbStack's `host.docker.internal` is 0.250.250.254), `198.18.0.0/15` (OrbStack's machines),
   `192.0.0.0/24`, the documentation ranges, `240.0.0.0/4`, Teredo, IPv6 outside `2000::/3` and the same in NAT64,
   6to4 and mapped forms are refused; a service there is reached only by naming its IP, network or IP:port.
+- 2026-11-11: a box on Linux needs bubblewrap 0.8 or later: a program in it makes no user namespace of its own
+  (`unshare -U` is refused), so it mounts nothing; an older bubblewrap is a red row `sandbox` in health. Chrome
+  there runs without its own sandbox (the box is it): a script that starts Chrome itself passes `--no-sandbox`. A
+  host with AppArmor loads `deck-box.apparmor` of this version again (README, "Install").

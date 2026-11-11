@@ -166,8 +166,12 @@ func TestWithoutABoxDeckStartsNoForeignProgramAndSaysWhatToFix(t *testing.T) {
 	if err := os.WriteFile(refusing, []byte("#!/bin/sh\necho 'bwrap: Can'\\''t mount proc on /newroot/proc: Operation not permitted' >&2\nexit 1\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	old := filepath.Join(t.TempDir(), "bwrap")
+	if err := os.WriteFile(old, []byte("#!/bin/sh\necho 'bwrap: Unknown option --disable-userns' >&2\nexit 1\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	for program, says := range map[string]string{filepath.Join(t.TempDir(), "none"): "bubblewrap is not installed",
-		refusing: "systempaths=unconfined is missing"} {
+		refusing: "systempaths=unconfined is missing", old: "deck needs bubblewrap 0.8 or later"} {
 		e := harness.New(t, harness.WithConfig(func(c *app.Config) { c.Sandbox.Program = program }))
 		h := e.WaitHealth("sandbox", "error")
 		if !strings.Contains(h.Error, says) || program == refusing && (!strings.Contains(h.Error, "apparmor=deck-box") ||
@@ -182,5 +186,32 @@ func TestWithoutABoxDeckStartsNoForeignProgramAndSaysWhatToFix(t *testing.T) {
 		if p := e.WaitState(e.Start("tools", "collect", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, "without its box") {
 			t.Fatalf("no script runs without its box: %+v", p)
 		}
+	}
+}
+
+// TestAProgramInABoxMakesNoNamespaceOfItsOwn: a program in a box gets no user namespace of its own, so it is no root
+// anywhere and mounts nothing, and the calls of the kernel behind that stay closed to it.
+func TestAProgramInABoxMakesNoNamespaceOfItsOwn(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the box of macOS is sandbox-exec; namespaces are of Linux")
+	}
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("nest", harness.ScriptManifest("collect", "", ""))
+	e.SaveScript("nest", "scripts/main.py", harness.PythonLib+`
+import subprocess
+r = subprocess.run(["unshare", "-Urm", "sh", "-c", "id -u; mount -t tmpfs none /tmp && echo mounted"], capture_output=True, text=True)
+print(json.dumps({"code": r.returncode, "out": r.stdout + r.stderr}))
+`)
+	p := e.WaitState(e.Start("nest", "collect", nil), "done", "error")
+	var got struct {
+		Code int
+		Out  string
+	}
+	if err := json.Unmarshal(p.Result, &got); err != nil {
+		t.Fatalf("the script answers: %+v %s", p, p.Result)
+	}
+	if got.Code == 0 || strings.Contains(got.Out, "mounted") || !strings.Contains(got.Out, "unshare") {
+		t.Fatalf("unshare -Urm in a box is refused: %+v", got)
 	}
 }

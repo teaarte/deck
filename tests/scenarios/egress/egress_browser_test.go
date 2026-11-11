@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -318,7 +319,8 @@ func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
 	var config struct {
 		Browser struct {
 			LaunchOptions struct {
-				Proxy struct{ Server, Bypass, Username, Password string }
+				Proxy           struct{ Server, Bypass, Username, Password string }
+				ChromiumSandbox *bool
 			}
 		}
 	}
@@ -331,6 +333,10 @@ func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
 	proxy := config.Browser.LaunchOptions.Proxy
 	if proxy.Server == "" || proxy.Password == "" {
 		t.Fatalf("the browser without sign-ins starts with deck's proxy and its key: %v %+v", harness.FakeLog(e.Browser), proxy)
+	}
+	// The box makes no user namespace, which the sandbox of Chrome needs on Linux: the box is its sandbox there.
+	if sb := config.Browser.LaunchOptions.ChromiumSandbox; runtime.GOOS == "linux" && (sb == nil || *sb) || runtime.GOOS != "linux" && sb != nil {
+		t.Fatalf("Chrome's own sandbox is off on Linux only: %v", sb)
 	}
 	// The fake browser loads a page by an address through its proxy, with the key and without.
 	log := harness.FakeLog(e.Browser)

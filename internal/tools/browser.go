@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -79,14 +80,23 @@ func (b *Browser) spec(open bool) mcphost.Spec {
 		env, read := sandbox.Display()
 		box.Env, box.Read = append(box.Env, env...), append(box.Read, read...)
 	}
-	box.Argv, box.Dir, box.Files = append([]string{b.Argv[0]}, args...), b.dir("work"), map[string]string{"config.json": proxyConfig}
+	box.Argv, box.Dir, box.Files = append([]string{b.Argv[0]}, args...), b.dir("work"), map[string]string{"config.json": browserConfig()}
 	box.Mark = b.Host.Sandbox.Mark(sandbox.KindBrowser, key)
 	return mcphost.Spec{Box: box}
 }
 
 // proxyConfig is the config of Playwright MCP that sends the browser through the door of its box with its key; the
 // door reaches the public internet only, so a name cannot turn into a local address after the check.
-const proxyConfig = `{"browser": {"launchOptions": {"proxy": {"server": "http://{door.addr}", "bypass": "<-loopback>", "username": "deck", "password": "{door.key}"}}}}`
+const proxyConfig = `{"browser": {"launchOptions": {%s"proxy": {"server": "http://{door.addr}", "bypass": "<-loopback>", "username": "deck", "password": "{door.key}"}}}}`
+
+// browserConfig is proxyConfig; on Linux Chrome runs without its own sandbox, which needs a user namespace the box
+// does not give: the box is the sandbox there.
+func browserConfig() string {
+	if runtime.GOOS == "linux" {
+		return fmt.Sprintf(proxyConfig, `"chromiumSandbox": false, `)
+	}
+	return fmt.Sprintf(proxyConfig, "")
+}
 
 // noWebRTC is a script run in every page of the browser without sign-ins before the page's own: WebRTC sends
 // UDP past the proxy, and Chrome ignores the switch that would stop it.

@@ -68,8 +68,9 @@ func (s *Sandbox) check() error {
 		return err
 	}
 	defer root.Close()
-	// A box mounts its folders by what deck opened: --ro-bind-fd, of bubblewrap 0.6 and later.
-	args := append(append([]string{"--die-with-parent", "--new-session", "--unshare-all"}, roots()...), "--proc", "/proc", "--dev", "/dev",
+	// A box mounts its folders by what deck opened (--ro-bind-fd, bubblewrap 0.6) and makes no namespace of its own
+	// (--disable-userns, 0.8).
+	args := append(append(slices.Clone(unshare), roots()...), "--proc", "/proc", "--dev", "/dev",
 		"--ro-bind-fd", "3", "/mnt", "--", "true")
 	cmd := exec.Command(prog, args...)
 	cmd.ExtraFiles = []*os.File{root}
@@ -84,10 +85,12 @@ func (s *Sandbox) check() error {
 		why = "systempaths=unconfined is missing (in Apple's container: --masked-path NONE --read-only-path NONE); "
 	case strings.Contains(said, "No permissions to create new namespace"), strings.Contains(said, "unshare"):
 		why = "the seccomp profile refuses namespaces (seccomp=./seccomp.json is missing); "
+	case strings.Contains(said, "max_user_namespaces"):
+		why = "AppArmor refuses the box its limit of namespaces (the profile deck-box is older than this deck: load it again); "
 	case strings.Contains(said, "RTM_NEWADDR"), strings.Contains(said, "Failed to make / slave"), strings.Contains(said, "Creating new namespace failed"):
 		why = "AppArmor refuses namespaces (the profile deck-box is not in force); "
-	case strings.Contains(said, "bind-fd"):
-		return fmt.Errorf("bwrap %s is too old: deck needs bubblewrap 0.6 or later, which mounts a folder by what deck opened", prog)
+	case strings.Contains(said, "bind-fd"), strings.Contains(said, "disable-userns"):
+		return fmt.Errorf("bwrap %s is too old: deck needs bubblewrap 0.8 or later, which mounts a folder by what deck opened and keeps a box from making namespaces", prog)
 	}
 	return fmt.Errorf("bwrap does not build a box here: %s; %s%s", said, why, Fix)
 }
@@ -154,10 +157,13 @@ func roots() []string {
 	return args
 }
 
+// unshare starts every box: in namespaces of its own, a program in it makes no user namespace, so it mounts nothing.
+var unshare = []string{"--die-with-parent", "--new-session", "--unshare-all", "--unshare-user", "--disable-userns"}
+
 // allowed are the arguments of bwrap for the box: only what is listed is there; the folders it reads and writes are
 // mounted by the files pinned opens, which bwrap takes from fd 4 on and closes.
 func allowed(b Box, door *Door, env []string) (args, argv []string, pinned []*os.File, err error) {
-	args = append([]string{"--die-with-parent", "--new-session", "--unshare-all"}, roots()...)
+	args = append(slices.Clone(unshare), roots()...)
 	// A box on the network of the machine resolves names as the machine does; the others reach out by their door.
 	if b.HostNet {
 		args = append(args, "--share-net", "--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf")

@@ -24,7 +24,7 @@ var linuxTests = []string{"TestScriptCommandRunsInTheSandbox", "TestScriptKeepsA
 	"TestTheSessionsThatMayGoOnMoveIntoTheHomesOfTheirProjects", "TestTheCodexACrashedDeckLeftIsKilledByTheMarkOfItsBox",
 	"TestCodexInItsBoxHasNoSandboxNorWebOfItsOwn", "TestSelfCheckIsRedWhenAutoModeStopsWorking",
 	"TestALinkAnAgentPutsInTheSharedFolderOpensNothing", "TestAFolderTurnedIntoALinkLeadsNowhereElse",
-	"TestABoxWithEveryHostReachesNoGatewayOfItsHost"}
+	"TestABoxWithEveryHostReachesNoGatewayOfItsHost", "TestAProgramInABoxMakesNoNamespaceOfItsOwn"}
 
 // TestLinuxTestsExist fails when a listed test is renamed or gone from tests/scenarios.
 func TestLinuxTestsExist(t *testing.T) {

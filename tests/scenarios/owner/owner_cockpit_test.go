@@ -187,7 +187,7 @@ func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
 		e.WaitState(e.Start("films", "voice", nil), "done", "error")
 	}
 	id := e.Start("films", "voice", nil)
-	e.WaitState(id, "rate_limited")
+	e.WaitState(id, "waiting:limit")
 	clock.Add(3 * time.Minute)
 	var open []cockpitRun
 	e.Must("deck.processes_list", map[string]any{"open": true}, &open)
@@ -523,7 +523,7 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	p := e.Project("notes", harness.WebManifest(svc.URL))
 
 	first := e.Run(p, "work")
-	e.WaitState(first, "waiting_answer", "done")
+	e.WaitState(first, "waiting:answer", "done")
 	e.App.Sweep(context.Background(), clock.Add(24*time.Hour+time.Minute))
 	second := e.Run(p, "work")
 	e.Until("the second confirmation", func() bool { return len(e.CockpitItems()) == 2 })
@@ -629,7 +629,7 @@ func TestAConfirmationOfAChangedToolIsClosedAsOutOfDate(t *testing.T) {
 	}) || len(svc.Requests()) != 0 {
 		t.Fatalf("the call is closed unmade as out of date: %+v", journal)
 	}
-	e.WaitState(id, "done", "error", "running", "waiting_answer")
+	e.WaitState(id, "done", "error", "running", "waiting:answer")
 }
 
 // TestRunningNowKeepsALongProcessBehindManyShortOnes: an open process stays in the cockpit however many finished

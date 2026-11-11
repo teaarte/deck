@@ -109,7 +109,7 @@ func TestACPSessionTheAgentLostStartsOver(t *testing.T) {
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
 	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
 	a := e.WaitAsk()
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	e.Answer(a.ID, "blue")
 	// Three starts of the agent in the sandbox, one after another.
 	got := e.WaitState(id, "done", "error")
@@ -180,8 +180,8 @@ func TestACPTurnSucceedsOnlyOnEndTurn(t *testing.T) {
 		{`{"end": "max_tokens"}`, 200, "error", "max_tokens"},
 		{`{"end": "refusal"}`, 200, "error", "refusal"},
 		{failed, 200, "error", "turn failed"},
-		{failed, 401, "needs_login", ""},
-		{failed, 429, "rate_limited", ""},
+		{failed, 401, "waiting:sign_in", ""},
+		{failed, 429, "waiting:limit", ""},
 	} {
 		t.Run(cmp.Or(tc.want, tc.state), func(t *testing.T) {
 			t.Parallel()
@@ -198,13 +198,13 @@ func TestACPTurnSucceedsOnlyOnEndTurn(t *testing.T) {
 				submit, tc.end))
 			e := harness.New(t, harness.WithACP(f, llm))
 			id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
-			got := e.WaitState(id, "done", "error", "needs_login", "rate_limited")
+			got := e.WaitState(id, "done", "error", "waiting:sign_in", "waiting:limit")
 			if got.State != tc.state || !strings.Contains(got.Error, tc.want) {
 				t.Fatalf("%s %d: want %s with %q, got %+v", tc.end, tc.status, tc.state, tc.want, got)
 			}
 			if tc.status == 429 {
 				pp, _ := e.App.Store.Q.GetProcess(t.Context(), id)
-				if left := time.Until(time.UnixMilli(pp.PauseUntilMs.Int64)); left < 100*time.Second || left > 121*time.Second {
+				if left := time.Until(time.UnixMilli(pp.WaitUntilMs.Int64)); left < 100*time.Second || left > 121*time.Second {
 					t.Fatalf("the pause lasts until Retry-After: %s", left)
 				}
 			}
@@ -234,7 +234,7 @@ func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {
 	for _, tc := range []struct {
 		status int
 		state  string
-	}{{429, "rate_limited"}, {401, "needs_login"}} {
+	}{{429, "waiting:limit"}, {401, "waiting:sign_in"}} {
 		t.Run(tc.state, func(t *testing.T) {
 			t.Parallel()
 			f := harness.NewACP(t)
@@ -248,10 +248,10 @@ func TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal(t *testing.T) {
 				`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Ran into this error: Rate limit exceeded."}}}`,
 				`{"end": "end_turn"}`))
 			e := harness.New(t, harness.WithACP(f, llm))
-			if got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != tc.state {
+			if got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error", "waiting:sign_in", "waiting:limit"); got.State != tc.state {
 				t.Fatalf("%d: want %s, got %+v", tc.status, tc.state, got)
 			}
-			if tc.state != "needs_login" {
+			if tc.state != "waiting:sign_in" {
 				return
 			}
 			if a := e.WaitAsk(); !strings.Contains(a.Text, "key of its connection") || strings.Contains(a.Text, "terminal") {
@@ -275,7 +275,7 @@ func TestACPTurnThatHandedInItsResultIsDoneThoughALaterCallWasRefused(t *testing
 	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, harness.AcpModel, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, llm))
-	if got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
+	if got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error", "waiting:sign_in", "waiting:limit"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
 		t.Fatalf("the turn that handed in its result is done: %+v", got)
 	}
 }
@@ -296,7 +296,7 @@ func TestACPTurnIsNotUndoneByARefusedCallOnTheSide(t *testing.T) {
 		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Checked the page."}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, llm))
 	open := harness.NoNetworkManifest
-	if got := e.WaitState(e.Run(e.AcpProject("open", open), "work"), "done", "error", "needs_login", "rate_limited"); got.State != "done" || !strings.Contains(string(got.Result), "Checked the page.") {
+	if got := e.WaitState(e.Run(e.AcpProject("open", open), "work"), "done", "error", "waiting:sign_in", "waiting:limit"); got.State != "done" || !strings.Contains(string(got.Result), "Checked the page.") {
 		t.Fatalf("a turn is done though a call on its side was refused: %+v", got)
 	}
 }

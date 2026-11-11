@@ -46,7 +46,7 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 		ids = append(ids, e.Run(p, "job"))
 	}
 	e.Until("three agents at their provider", func() bool { return len(e.Fake.Calls()) == 3 })
-	for _, want := range []string{"running running running waiting_slot", "running running running waiting_slot waiting_slot"} {
+	for _, want := range []string{"running running running waiting:slot", "running running running waiting:slot waiting:slot"} {
 		ids = append(ids, e.Run(p, "job"))
 		e.Until(want, func() bool { return states(e, ids) == want })
 	}
@@ -69,7 +69,7 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 	release <- struct{}{}
 	e.Until("the oldest waiting process to take the free slot", func() bool {
 		st := strings.Fields(states(e, ids))
-		return st[3] == "running" && st[4] == "waiting_slot" && strings.Count(states(e, ids[:3]), "done") == 1
+		return st[3] == "running" && st[4] == "waiting:slot" && strings.Count(states(e, ids[:3]), "done") == 1
 	})
 	stream := e.Events(t.Context())
 	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "5"}, nil)
@@ -82,7 +82,7 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 
 	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	extra := e.Run(p, "job")
-	e.Until("the new process to wait for a slot", func() bool { return e.Proc(extra).State == "waiting_slot" })
+	e.Until("the new process to wait for a slot", func() bool { return e.Proc(extra).State == "waiting:slot" })
 	e.Must("deck.process_stop", map[string]any{"process": extra}, nil)
 	e.WaitState(extra, "stopped")
 	for range 10 {
@@ -112,7 +112,7 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	a, b := e.Run(p, "job"), e.Run(p, "job")
 	e.Until("one running, one waiting", func() bool {
 		s := states(e, []int64{a, b})
-		return s == "running waiting_slot" || s == "waiting_slot running"
+		return s == "running waiting:slot" || s == "waiting:slot running"
 	})
 	if e.Proc(a).State != "running" {
 		a, b = b, a
@@ -123,7 +123,7 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	e2 := e.Restart(harness.WithProvider(second))
 	e2.Resume()
 	e2.Until("the running one resumed", func() bool { return len(second.Calls()) == 1 })
-	if got := states(e2, []int64{a, b}); got != "running waiting_slot" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
+	if got := states(e2, []int64{a, b}); got != "running waiting:slot" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
 		t.Fatalf("after a restart the limit holds and the running one goes on: %s, %d calls", got, len(second.Calls()))
 	}
 	release <- struct{}{}
@@ -180,7 +180,7 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 	a, b := e.Run(p, "job"), e.Run(p, "job")
 	e.Until("one running, one waiting", func() bool {
 		got := states(e, []int64{a, b})
-		return got == "running waiting_slot" || got == "waiting_slot running"
+		return got == "running waiting:slot" || got == "waiting:slot running"
 	})
 	if e.Proc(a).State != "running" {
 		a, b = b, a
@@ -204,7 +204,7 @@ func TestASlotFreedWhileDeckStopsLeavesTheWaitingProcessWaiting(t *testing.T) {
 	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
 	p := e.Project("jobs", harness.TestManifest([]string{harness.Many(harness.AgentCommand("job", ""))}, nil))
 	a, b := e.Run(p, "job"), e.Run(p, "job")
-	either := func(got string) bool { return got == "running waiting_slot" || got == "waiting_slot running" }
+	either := func(got string) bool { return got == "running waiting:slot" || got == "waiting:slot running" }
 	e.Until("one running, one waiting", func() bool { return either(states(e, []int64{a, b})) })
 	e.App.Runner.Shutdown()
 	if got := states(e, []int64{a, b}); !either(got) {
@@ -237,7 +237,7 @@ func TestAnAgentWaitingForAProcessLendsItsSlot(t *testing.T) {
 	e.Until("the boss to hold the slot", func() bool { return len(e.Fake.Calls()) == 1 })
 	ids := []int64{e.Run(p, "job"), e.Run(p, "job")}
 	job.Store(ids[0])
-	e.Until("both jobs to wait for the slot", func() bool { return states(e, ids) == "waiting_slot waiting_slot" })
+	e.Until("both jobs to wait for the slot", func() bool { return states(e, ids) == "waiting:slot waiting:slot" })
 	var v struct {
 		State     string
 		SlotAhead *int64 `json:"slot_ahead"`

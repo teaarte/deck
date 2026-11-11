@@ -31,11 +31,11 @@ func TestProviderLimitPausesAndContinuesTheSameSession(t *testing.T) {
 
 	p := e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
 	id := e.Run(p, "work")
-	e.WaitState(id, "rate_limited")
+	e.WaitState(id, "waiting:limit")
 	e.Clock.Add(time.Hour)
 	e.Sweep()
 	e.Settle()
-	if got := e.Proc(id); got.State != "rate_limited" || got.Deadline != "" || got.SilentSince != "" || len(e.Fake.Calls()) != 1 {
+	if got := e.Proc(id); got.State != "waiting:limit" || got.Deadline != "" || got.SilentSince != "" || len(e.Fake.Calls()) != 1 {
 		t.Fatalf("before the reset the process waits, its ceiling and silence stand still: %+v, %d calls", got, len(e.Fake.Calls()))
 	}
 	e.Clock.Add(time.Hour)
@@ -74,7 +74,7 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 	e.Fake = cf.Fake
 	p := e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
 	id := e.Run(p, "work")
-	e.WaitState(id, "rate_limited")
+	e.WaitState(id, "waiting:limit")
 	for h := 1; h <= 9; h++ {
 		e.Clock.Add(30 * time.Minute)
 		e.Sweep()
@@ -85,7 +85,7 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 		e.Clock.Add(30 * time.Minute)
 		e.Sweep()
 		e.Until("the hourly probe", func() bool { return len(e.Fake.Calls()) == h+1 })
-		e.WaitState(id, "rate_limited")
+		e.WaitState(id, "waiting:limit")
 	}
 	var as []harness.Ask
 	e.Must("deck.asks_list", nil, &as)
@@ -106,7 +106,7 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	e.WaitHealth("provider:fake", "ok")
 	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "go on"}, nil)
-	got := e.WaitState(id, "done", "waiting_answer", "error")
+	got := e.WaitState(id, "done", "waiting:answer", "error")
 	calls := e.Fake.Calls()
 	if got.State != "done" || string(got.Result) != `{"n":2}` || !calls[10].Resume || calls[10].SessionID != calls[0].SessionID {
 		t.Fatalf("a rework after the owner stopped the pause resumes the same session: %+v", got)
@@ -131,7 +131,7 @@ func TestAnAnswerDuringAPauseReachesTheNextTry(t *testing.T) {
 
 	p := e.Project("notes", strings.Replace(harness.NotesManifest, `"requires": ["no_cloud"],`, "", 1))
 	id := e.Run(p, "collect")
-	e.WaitState(id, "rate_limited")
+	e.WaitState(id, "waiting:limit")
 	e.Answer(e.WaitAsk().ID, "deny")
 	e.Settle()
 	if n := len(e.Fake.Calls()); n != 1 {
@@ -162,14 +162,14 @@ func limitedTurn(t *testing.T, reply harness.ChatReply) time.Duration {
 		`{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, llm))
 	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
-	if got := e.WaitState(id, "done", "error", "rate_limited"); got.State != "rate_limited" {
+	if got := e.WaitState(id, "done", "error", "waiting:limit"); got.State != "waiting:limit" {
 		t.Fatalf("a 429 pauses the turn: %+v", got)
 	}
 	p, _ := e.App.Store.Q.GetProcess(t.Context(), id)
-	if h := e.WaitHealth("provider:acp", "paused"); !strings.Contains(h.Error, "next try at "+store.Time(time.UnixMilli(p.PauseUntilMs.Int64))) {
+	if h := e.WaitHealth("provider:acp", "paused"); !strings.Contains(h.Error, "next try at "+store.Time(time.UnixMilli(p.WaitUntilMs.Int64))) {
 		t.Fatalf("the model waits as long as the process: %+v", h)
 	}
-	return time.Until(time.UnixMilli(p.PauseUntilMs.Int64))
+	return time.Until(time.UnixMilli(p.WaitUntilMs.Int64))
 }
 
 // TestAnOpenRouterLimitPausesUntilTheResetInItsError: OpenRouter tells the reset in unix milliseconds among the
@@ -269,7 +269,7 @@ func TestALimitOfAnAgentsModelHandsTheWorkOnWithoutWaiting(t *testing.T) {
 	e.AcpProject("paint", harness.ColorManifest)
 	e.UseModels("paint.work", "acp", "backup")
 	id := e.Start("paint", "work", nil)
-	if got := e.WaitState(id, "error", "done", "rate_limited"); got.State != "error" || e.Fault(id).ErrorType != "model.limit" {
+	if got := e.WaitState(id, "error", "done", "waiting:limit"); got.State != "error" || e.Fault(id).ErrorType != "model.limit" {
 		t.Fatalf("the refused process closes on the model's limit, it does not wait: %+v %+v", got, e.Fault(id))
 	}
 	if got := e.WaitState(e.Following(id), "done", "error"); got.State != "done" || len(backup.Calls()) != 1 {

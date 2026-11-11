@@ -31,7 +31,7 @@ func TestAModelAtItsLimitHandsTheWorkOnToTheNextModel(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})
 	id := e.StartWork(7)
-	if got := e.WaitState(id, "error", "done", "rate_limited"); got.State != "error" || e.Fault(id).ErrorType != "model.limit" || e.Fault(id).Whose != "model" {
+	if got := e.WaitState(id, "error", "done", "waiting:limit"); got.State != "error" || e.Fault(id).ErrorType != "model.limit" || e.Fault(id).Whose != "model" {
 		t.Fatalf("the refused process closes as the model's failure: %+v %+v", got, e.Fault(id))
 	}
 	next := e.Following(id)
@@ -100,7 +100,7 @@ func TestAModelAtItsLimitWithoutANextOneWaitsForTheReset(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return harness.Limited(harness.T0) }))
 	p := e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
 	e.UseModels("plain.work", "fake")
-	if got := e.WaitState(e.Run(p, "work"), "rate_limited", "error"); got.State != "rate_limited" {
+	if got := e.WaitState(e.Run(p, "work"), "waiting:limit", "error"); got.State != "waiting:limit" {
 		t.Fatalf("without a next model the process waits for the reset: %+v", got)
 	}
 }
@@ -215,7 +215,7 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 		return process.ProviderHealth(ctx, q, e.App.Store.Now(), "fake", "paused", "usage limit reached")
 	})
 	e.Sweep()
-	if got := e.WaitState(alone, "waiting_provider", "error"); got.State != "waiting_provider" {
+	if got := e.WaitState(alone, "waiting:provider", "error"); got.State != "waiting:provider" {
 		t.Fatalf("with no next model the turn waits for its model: %+v %+v", got, e.Fault(alone))
 	}
 	e.Until("a part of the note of the cause of fake that the turn waits for it", func() bool {
@@ -280,7 +280,7 @@ func TestAProcessThatWaitsForItsModelGoesToTheModelTheOwnerAssigns(t *testing.T)
 		return process.ProviderHealth(ctx, q, e.App.Store.Now(), "fake", "paused", "usage limit reached")
 	})
 	e.Sweep()
-	if got := e.WaitState(id, "waiting_provider", "error"); got.State != "waiting_provider" {
+	if got := e.WaitState(id, "waiting:provider", "error"); got.State != "waiting:provider" {
 		t.Fatalf("with no next model the turn waits for its model: %+v %+v", got, e.Fault(id))
 	}
 	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "model": "backup"}, nil)

@@ -101,7 +101,7 @@ func TestRealMasterBuildsAModuleFromAPhrase(t *testing.T) {
 	}
 	var r struct{ Process int64 }
 	e.Must(draft+"."+man.Commands[0].Name, map[string]any{}, &r)
-	got := e.WaitState(r.Process, "done", "error", "waiting_answer")
+	got := e.WaitState(r.Process, "done", "error", "waiting:answer")
 	t.Logf("run of %s.%s: %+v", draft, man.Commands[0].Name, got)
 	if got.State != "done" {
 		t.Fatalf("the enabled module runs: %+v", got)

@@ -231,7 +231,7 @@ func TestToolCommandMakesOneToolCall(t *testing.T) {
 	}
 
 	id := e.Start("pics", "send", map[string]any{"text": "hi"})
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if len(svc.Requests()) != 1 {
 		t.Fatal("an external tool behind an internal command waits for the owner")
 	}
@@ -241,7 +241,7 @@ func TestToolCommandMakesOneToolCall(t *testing.T) {
 		t.Fatalf("after yes the tool command ends with what the call gave: %+v %+v", sent, svc.Requests())
 	}
 	id = e.Start("pics", "send", map[string]any{"text": "no"})
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	e.Answer(e.WaitAsk().ID, "deny")
 	if got := e.WaitState(id, "error", "done"); got.State != "error" || !strings.Contains(got.Error, "rejected") || len(svc.Requests()) != 2 {
 		t.Fatalf("a rejected tool command ends with the refusal: %+v", got)
@@ -258,7 +258,7 @@ func TestAllowAlwaysAddsTheToolToTheProjectList(t *testing.T) {
 	var was struct{ Manifest string }
 	e.Must("deck.manifest_get", map[string]any{"project": "pics"}, &was)
 	id := e.Start("pics", "send", map[string]any{"text": "one"})
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	e.Answer(e.WaitAsk().ID, "allow_always")
 	e.WaitState(id, "done")
 	var m struct{ Manifest string }
@@ -270,7 +270,7 @@ func TestAllowAlwaysAddsTheToolToTheProjectList(t *testing.T) {
 	if !slices.Equal(slices.DeleteFunc(slices.Clone(after), func(k string) bool { return k == "allowed_external" }), before) {
 		t.Fatalf("allow always keeps the order of the keys of the manifest:\n%v\n%v", before, after)
 	}
-	if got := e.WaitState(e.Start("pics", "send", map[string]any{"text": "two"}), "done", "waiting_answer"); got.State != "done" || len(svc.Requests()) != 2 {
+	if got := e.WaitState(e.Start("pics", "send", map[string]any{"text": "two"}), "done", "waiting:answer"); got.State != "done" || len(svc.Requests()) != 2 {
 		t.Fatalf("an allowed tool runs at once: %+v", got)
 	}
 }
@@ -289,7 +289,7 @@ func TestAReversibleCommandRunsAtOnceAndAManifestHasNoAutonomy(t *testing.T) {
 
 	m := harness.ToolManifest("http://127.0.0.1:1", "")
 	p := e.Project("notes", m)
-	e.WaitState(e.Run(p, "work"), "done", "waiting_answer")
+	e.WaitState(e.Run(p, "work"), "done", "waiting:answer")
 	if !strings.Contains(out, `"process"`) {
 		t.Fatalf("a reversible command runs at once: %s", out)
 	}

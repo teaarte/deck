@@ -45,7 +45,7 @@ func TestLostLoginWaitsForOwnerAndRetries(t *testing.T) {
 	e := checkedCLIEnv(t, c, t.TempDir())
 	p := e.Project("plain", harness.PlainManifest)
 	id := e.Run(p, "work")
-	e.WaitState(id, "needs_login")
+	e.WaitState(id, "waiting:sign_in")
 	a := e.WaitAsk()
 	if a.Kind != "login" || !strings.Contains(a.Text, "Not logged in") || !strings.Contains(string(a.Payload), "new_session") {
 		t.Fatalf("want a login ask with the choices, got %+v", a)
@@ -77,7 +77,7 @@ func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 	e := checkedCLIEnv(t, c, t.TempDir())
 	p := e.Project("plain", harness.PlainManifest)
 	id := e.Run(p, "work")
-	e.WaitState(id, "needs_login")
+	e.WaitState(id, "waiting:sign_in")
 	first := e.Session(id)
 	// A call the turn made before its login was lost, which the fake CLI cannot make.
 	e.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome) VALUES (1, ?, ?, 'record_upsert', 'internal', 'done')`, id, p)
@@ -104,7 +104,7 @@ func TestRetryAfterLostLoginFinishesWhenTheSessionWasNeverSaved(t *testing.T) {
 	e := checkedCLIEnv(t, c, t.TempDir())
 	p := e.Project("plain", harness.PlainManifest)
 	id := e.Run(p, "work")
-	e.WaitState(id, "needs_login")
+	e.WaitState(id, "waiting:sign_in")
 	e.Answer(e.WaitAsk().ID, "retry")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" || !strings.Contains(string(got.Result), "ok") {
 		t.Fatalf("want done with the result, got %+v", got)
@@ -122,7 +122,7 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 	e1 := checkedCLIEnv(t, c, home)
 	p := e1.Project("plain", harness.PlainManifest)
 	id := e1.Run(p, "work")
-	e1.WaitState(id, "needs_login")
+	e1.WaitState(id, "waiting:sign_in")
 	// A call the turn made before its login was lost, which the fake CLI cannot make.
 	e1.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome) VALUES (1, ?, ?, 'record_upsert', 'internal', 'done')`, id, p)
 	e1.Answer(e1.WaitAsk().ID, "new_session")

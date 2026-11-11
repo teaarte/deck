@@ -102,7 +102,7 @@ func TestATopicSpeaksTheLanguageTheOwnerWritesIn(t *testing.T) {
 	e, said := langEnv(t, "en")
 
 	topic := e.Say(0, "поставь модель для films")
-	waits := e.Told(topic, "waiting_answer", "en")
+	waits := e.Told(topic, "waiting", "en")
 	if len(said.marked) != 1 || !strings.HasPrefix(said.marked[0], "false ") {
 		t.Fatalf("the reply marks the topic Russian once: %q", said.marked)
 	}
@@ -145,7 +145,7 @@ func TestATopicInEnglishUnderRussianSettings(t *testing.T) {
 	e, said := langEnv(t, "ru")
 
 	topic := e.Say(0, "set a model for films")
-	waits := e.Told(topic, "waiting_answer", "ru")
+	waits := e.Told(topic, "waiting", "ru")
 	if len(said.marked) != 1 || !strings.HasPrefix(said.marked[0], "false ") {
 		t.Fatalf("the reply marks the topic English: %q", said.marked)
 	}
@@ -204,7 +204,7 @@ func TestUnderAutoSettingsTheReplyMarksTheTopic(t *testing.T) {
 	var sent struct{ Topic int64 }
 	e.In("ru").Must("deck.chat_send", map[string]any{"text": "поставь модель для films"}, &sent)
 	topic := sent.Topic
-	waits := e.Told(topic, "waiting_answer", "en")
+	waits := e.Told(topic, "waiting", "en")
 	if reply := said.of("reply"); len(reply) != 1 || !strings.Contains(reply[0], "deck knows no language of this topic yet") ||
 		strings.Contains(reply[0], "deck gives this topic the language") {
 		t.Fatalf("the reply is given no language of a client: %q", reply)

@@ -118,7 +118,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		return nil, false
 	}
 	if !r.deps.Goes(ctx, proj.WorkspaceID, pv.Name()) {
-		r.hold(ctx, *t, StateWaitingProvider)
+		r.hold(ctx, *t, wait{reason: WaitProvider, on: pv.Name(), silence: SilenceFail + fault.ModelUnavailable, until: r.now().Add(providerTerm)})
 		return nil, false
 	}
 	t.folder = p.Folder
@@ -138,7 +138,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	}
 	if t.slot == nil {
 		if t.slot = r.takeSlot(ctx, proj.WorkspaceID); t.slot == nil {
-			r.hold(ctx, *t, StateWaitingSlot)
+			r.hold(ctx, *t, wait{reason: WaitSlot})
 			return nil, false
 		}
 		r.mu.Lock()
@@ -297,7 +297,6 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			r.lostTools(bg, *t, pv, err)
 			return
 		}
-		r.toolsFound(processID)
 		var killed *provider.Killed
 		if a.sub != nil && a.sub.Taken() {
 			// A turn that handed in a result its schema took is done, whatever came after it.

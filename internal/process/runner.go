@@ -23,23 +23,42 @@ import (
 )
 
 const (
-	StateRunning       = "running"
-	StateWaitingAnswer = "waiting_answer"
-	StateNeedsLogin    = "needs_login"
-	// StateRateLimited is a pause on a provider's usage limit; StateWaitingProvider waits for a red self-check.
-	StateRateLimited     = "rate_limited"
-	StateWaitingProvider = "waiting_provider"
-	// StateWaitingSlot waits for one of the agent turns the workspace may run at once.
-	StateWaitingSlot = "waiting_slot"
-	// StateWaitingFolder waits for another agent process to leave the project folder.
-	StateWaitingFolder = "waiting_folder"
-	// StateWaitingRun waits for the run before it of a command that runs one at a time.
-	StateWaitingRun  = "waiting_run"
+	StateRunning = "running"
+	// StateWaiting is a process that waits: why, on what, until when and what its silence comes to are its wait.
+	StateWaiting     = "waiting"
 	StateDone        = "done"
 	StateError       = "error"
 	StateInterrupted = "interrupted"
 	StateStopped     = "stopped"
 )
+
+// The reasons a process waits.
+const (
+	// WaitAnswer waits for the owner to answer an ask; WaitSignIn for the owner to log its provider in again.
+	WaitAnswer = "answer"
+	WaitSignIn = "sign_in"
+	// WaitLimit is a pause on a provider's usage limit until it resets; WaitProvider waits for a red provider.
+	WaitLimit    = "limit"
+	WaitProvider = "provider"
+	// WaitSlot waits for one of the agent turns a workspace may run at once, WaitFolder for another agent process to
+	// leave the project folder, WaitRun for the run before it of a command that runs one at a time.
+	WaitSlot   = "slot"
+	WaitFolder = "folder"
+	WaitRun    = "run"
+)
+
+// What the silence of a wait comes to at its term: try again, go on without the answer, or fail with a type after
+// SilenceFail. A wait without a term of its own has none.
+const (
+	SilenceRetry = "retry"
+	SilenceGoOn  = "go_on"
+	SilenceFail  = "fail:"
+)
+
+// Waits says p waits for reason.
+func Waits(p db.Process, reason string) bool {
+	return p.State == StateWaiting && p.WaitReason == reason
+}
 
 // Final are the states a process ends in; the client reads the same list from the catalog.
 var Final = []string{StateDone, StateError, StateInterrupted, StateStopped}
@@ -50,6 +69,13 @@ const (
 	Ceiling       = time.Hour
 	ScriptCeiling = 10 * time.Minute
 	pauseProbe    = time.Hour
+)
+
+// The terms of the waits deck sets itself: for a red provider, for one whose agent did not get deck's tools, for a login.
+const (
+	providerTerm = 24 * time.Hour
+	toolsTerm    = time.Hour
+	signInTerm   = 7 * 24 * time.Hour
 )
 
 // MaxDepth is the longest chain of processes that start one another.
@@ -85,8 +111,6 @@ type Runner struct {
 	scripts *script.Exec
 	cfg     Config
 	deps    Deps
-	// lost counts the turns of a process that started without deck's tools; past lostTries it fails.
-	lost map[int64]int
 	// tails keeps the lines Tail read of a log while the log stays as it was.
 	tails tailCache
 
@@ -317,7 +341,6 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	r.Wake(ctx)
 	r.mu.Lock()
 	delete(r.marked, processID)
-	delete(r.lost, processID)
 	r.mu.Unlock()
 	r.closed(ctx, processID)
 	r.disown(processID)

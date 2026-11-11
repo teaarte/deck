@@ -59,7 +59,7 @@ func TestCodexLostThreadStartsTheSessionOver(t *testing.T) {
 func TestCodexLostLoginAndLimit(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ fixture, state string }{
-		{"nologin.jsonl", "needs_login"}, {"unauthorized.jsonl", "needs_login"}, {"ratelimit.jsonl", "rate_limited"},
+		{"nologin.jsonl", "waiting:sign_in"}, {"unauthorized.jsonl", "waiting:sign_in"}, {"ratelimit.jsonl", "waiting:limit"},
 	} {
 		c := harness.NewCodex(t)
 		c.Stream(1, tc.fixture)
@@ -67,10 +67,10 @@ func TestCodexLostLoginAndLimit(t *testing.T) {
 		p := e.Project("paint", harness.ColorManifest)
 		id := e.Run(p, "work")
 		e.WaitState(id, tc.state)
-		if tc.state == "rate_limited" {
+		if tc.state == "waiting:limit" {
 			pp, _ := e.App.Store.Q.GetProcess(t.Context(), id)
-			if pp.PauseUntilMs.Int64 != 1790481864*1000 {
-				t.Fatalf("the pause lasts until the spent window resets: %d", pp.PauseUntilMs.Int64)
+			if pp.WaitUntilMs.Int64 != 1790481864*1000 {
+				t.Fatalf("the pause lasts until the spent window resets: %d", pp.WaitUntilMs.Int64)
 			}
 		}
 	}
@@ -84,7 +84,7 @@ func TestCodexOutOfCreditsEndsItsTurn(t *testing.T) {
 	c.Stream(1, "credits.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
 	id := e.Run(e.Project("paint", harness.ColorManifest), "work")
-	if got := e.WaitState(id, "rate_limited", "error", "done"); got.State != "rate_limited" {
+	if got := e.WaitState(id, "waiting:limit", "error", "done"); got.State != "waiting:limit" {
 		t.Fatalf("the process waits for the limit, its turn ended: %+v", got)
 	}
 	if h := e.WaitHealth("provider:codex", "paused"); !strings.Contains(h.Error, "workspace_member_credits_depleted") {
@@ -180,7 +180,7 @@ func TestCodexLimitReachedAfterItsTurnLeavesTheResult(t *testing.T) {
 	c := harness.NewCodex(t)
 	c.Stream(1, "spent_after.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	if got := e.WaitState(e.Run(e.Project("paint", harness.ColorManifest), "work"), "done", "error", "rate_limited"); got.State != "done" {
+	if got := e.WaitState(e.Run(e.Project("paint", harness.ColorManifest), "work"), "done", "error", "waiting:limit"); got.State != "done" {
 		t.Fatalf("the completed turn counts: %+v", got)
 	}
 }
@@ -221,7 +221,7 @@ func TestCodexResumeAfterALateAnswerAsksForTheResultAgain(t *testing.T) {
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)), harness.WithConfig(func(cfg *app.Config) { cfg.QuestionWait = 200 * time.Millisecond }))
 	p := e.Project("paint", harness.ColorManifest)
 	id := e.Run(p, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if m := c.Call(1).Mcp; len(m) == 0 || m[0]["is_error"] != true || !strings.Contains(m[0]["text"].(string), "not answered yet") {
 		t.Fatalf("an unanswered ask tells the agent to stop and wait: %v", m)
 	}
@@ -245,7 +245,7 @@ func TestCodexSessionWithoutItsThreadStartsOver(t *testing.T) {
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)), harness.WithConfig(func(cfg *app.Config) { cfg.QuestionWait = 200 * time.Millisecond }))
 	p := e.Project("paint", harness.ColorManifest)
 	id := e.Run(p, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if err := os.RemoveAll(filepath.Join(deckhome.Layout(home).State(), "codex", "sessions")); err != nil {
 		t.Fatal(err)
 	}

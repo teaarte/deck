@@ -136,7 +136,7 @@ func callResult(res json.RawMessage) json.RawMessage {
 
 // deliverTool closes a tool process that waited for the owner with what the frozen call gave.
 func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending untold) error {
-	if ok, err := r.claim(ctx, p.ID, StateWaitingAnswer); err != nil || !ok {
+	if ok, err := r.claim(ctx, p.ID, WaitAnswer); err != nil || !ok {
 		return err
 	}
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return pending.ids().mark(ctx, q, r.now()) })

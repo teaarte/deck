@@ -243,7 +243,7 @@ func (r *Runner) leaveModel(ctx context.Context, t *turn, l *leaving) {
 		held := *t
 		held.resume, held.message = true, "deck: your model was held up and is back. Continue where you stopped."
 		r.warnOf(ctx, t.process, fmt.Sprintf("%s waits for %s: %s", cmp.Or(t.cmd.Title, t.cmd.Name), pv.Name(), l.f.Text), health.Provider(pv.Name()))
-		r.hold(ctx, held, StateWaitingProvider)
+		r.hold(ctx, held, wait{reason: WaitProvider, on: pv.Name(), silence: SilenceFail + fault.ModelUnavailable, until: r.now().Add(providerTerm)})
 		return
 	}
 	r.finish(ctx, t.process, StateError, "", false, l.f)

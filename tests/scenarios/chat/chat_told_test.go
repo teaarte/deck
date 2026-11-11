@@ -109,7 +109,7 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	}
 
 	e.Say(topic, "count the notes")
-	waits := e.Told(topic, "waiting_answer", "ru")
+	waits := e.Told(topic, "waiting", "ru")
 	if !strings.HasPrefix(waits.Told.Word, "ждёт вашего ответа") || !strings.Contains(waits.Told.Word, "Which collection?") || waits.Told.Tone != "warn" {
 		t.Fatalf("a work that waits for the owner says what it waits for: %+v", waits.Told)
 	}

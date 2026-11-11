@@ -163,7 +163,7 @@ func TestADeckBeforeSleepWakesUpWithIt(t *testing.T) {
 	// Nor kept its models the module that added them.
 	e.SQL(`ALTER TABLE model DROP COLUMN project_id`)
 	// Nor had its messages of the master blocks.
-	e.SQL(`ALTER TABLE chat_message DROP COLUMN block; ALTER TABLE chat_message DROP COLUMN answer; ALTER TABLE chat_message DROP COLUMN answered_at; ALTER TABLE model DROP COLUMN tools; ALTER TABLE chat_topic DROP COLUMN lang`)
+	e.SQL(`ALTER TABLE chat_message DROP COLUMN block; ALTER TABLE chat_message DROP COLUMN answer; ALTER TABLE chat_message DROP COLUMN answered_at; ALTER TABLE model DROP COLUMN tools; ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence`)
 	e2 := e.Restart()
 	e2.Must("deck.triggers_list", map[string]any{"project": "master"}, &ts)
 	var sleeps int

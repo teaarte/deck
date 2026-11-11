@@ -272,10 +272,10 @@ func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
 	e.Clock.Add(time.Unix(1790379000, 0).Add(-2 * time.Hour).Sub(e.Clock.Now()))
 	p := e.Project("plain", harness.PlainManifest)
 	id := e.Run(p, "work")
-	e.WaitState(id, "rate_limited")
+	e.WaitState(id, "waiting:limit")
 	pp, _ := e.App.Store.Q.GetProcess(context.Background(), id)
-	if pp.PauseUntilMs.Int64 != 1790379000*1000 {
-		t.Fatalf("the next try is the reset time of the refusal: %d", pp.PauseUntilMs.Int64)
+	if pp.WaitUntilMs.Int64 != 1790379000*1000 {
+		t.Fatalf("the next try is the reset time of the refusal: %d", pp.WaitUntilMs.Int64)
 	}
 	e.Clock.Add(time.Unix(1790379000, 1).Sub(e.Clock.Now()))
 	e.Sweep()

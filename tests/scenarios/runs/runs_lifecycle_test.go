@@ -77,7 +77,7 @@ func TestTwoLateAnswersResumeOnce(t *testing.T) {
 
 	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
-	e.PassState(id, "waiting_answer")
+	e.PassState(id, "waiting:answer")
 	var asks []harness.Ask
 	e.Must("deck.asks_list", nil, &asks)
 	if len(asks) != 2 {
@@ -125,11 +125,11 @@ func TestLateAllowPermitsExactlyThatCallOnce(t *testing.T) {
 
 	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
-	e.PassState(id, "waiting_answer")
+	e.PassState(id, "waiting:answer")
 	a := e.WaitAsk()
 	e.Answer(a.ID, "allow")
 	e.Until("the resume", func() bool { return len(e.Fake.Calls()) >= 2 })
-	e.PassState(id, "waiting_answer")
+	e.PassState(id, "waiting:answer")
 	e.App.Runner.Wait()
 	if second["behavior"] != "allow" {
 		t.Fatalf("the allowed call must go through after resume: %v", second)
@@ -156,7 +156,7 @@ func TestConfirmationExpiresAndProcessIsTold(t *testing.T) {
 
 	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
-	e.PassState(id, "waiting_answer")
+	e.PassState(id, "waiting:answer")
 	a := e.WaitAsk()
 	e.Clock.Add(2 * time.Hour)
 	e.Sweep()
@@ -239,7 +239,7 @@ func TestResumeKeepsTheManifestRevisionTheProcessStartedBy(t *testing.T) {
 	m := harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)
 	p := e.Project("pinned", m)
 	id := e.Run(p, "job")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	changed := strings.Replace(m, `"executor": {"type": "agent", "prompt": "Do job."}, "result": {"type": "object", "properties": {"n": {"type": "integer"}}}`,
 		`"executor": {"type": "script", "script": "job"}, "result": {"type": "object", "required": ["s"]}`, 1)
 	changed = strings.Replace(changed, `"triggers": []`, `"triggers": [], "scripts": [{"name": "job", "file": "job.py", "runtime": "python"}]`, 1)
@@ -305,7 +305,7 @@ func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(fake), harness.WithConfig(func(c *app.Config) { c.QuestionWait, c.ConfirmWait = time.Second, time.Second }))
 	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	a := e.WaitAsk()
 	_ = e.App.Close()
 
@@ -334,7 +334,7 @@ func TestResumeAfterItsCommandWasRenamedFinishesTheSession(t *testing.T) {
 
 	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
-	e.PassState(id, "waiting_answer")
+	e.PassState(id, "waiting:answer")
 	a := e.WaitAsk()
 	renamed := strings.NewReplacer(`"name": "collect"`, `"name": "gather"`, `"command": "collect"`, `"command": "gather"`).Replace(harness.IdeasManifest)
 	e.Must("deck.manifest_save", map[string]any{"project": "ideas", "manifest": renamed}, nil)

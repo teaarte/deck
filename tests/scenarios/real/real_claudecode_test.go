@@ -45,8 +45,8 @@ func TestRealClaudeCodeQuestionResume(t *testing.T) {
 
 	p := e.Project("ideas", realManifest)
 	id := e.Run(p, "collect")
-	stopped := e.WaitState(id, "waiting_answer", "done", "error")
-	if stopped.State != "waiting_answer" {
+	stopped := e.WaitState(id, "waiting:answer", "done", "error")
+	if stopped.State != "waiting:answer" {
 		t.Fatalf("agent should stop waiting for the owner, got %+v", stopped)
 	}
 	a1 := e.WaitAsk()

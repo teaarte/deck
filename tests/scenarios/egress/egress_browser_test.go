@@ -45,7 +45,7 @@ func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
 	}
 
 	id := e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/a"), harness.Click("e2")))
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if got := ag.Last(1)[0]; !strings.Contains(got.Out, `"waiting"`) || slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/a") {
 		t.Fatalf("a click on a read domain waits for the owner: %+v", got)
 	}
@@ -56,7 +56,7 @@ func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
 	}
 
 	id = e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/b"), harness.Click("e3")))
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	a := e.WaitAsk()
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/c"))), "done")
 	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}); code != 409 || !strings.Contains(string(out), "out of date") ||
@@ -111,7 +111,7 @@ func TestExpiredSiteSessionWaitsForTheOwnersSignIn(t *testing.T) {
 	e.Project("web", harness.BrowserManifest(`{"read": ["mail.example"]}`))
 	id := e.Start("web", "browse", harness.Steps(harness.Nav("https://mail.example/inbox"),
 		harness.Step{Tool: "browser_login_request", Args: map[string]any{"url": "https://mail.example/login", "why": "the inbox shows a sign-in form"}}))
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if h := e.WaitHealth("site:mail.example", "needs_login"); !strings.Contains(h.Error, "sign-in form") {
 		t.Fatalf("an expired session shows as needs login: %+v", h)
 	}
@@ -178,7 +178,7 @@ func TestBrowserWithholdsPagesOffTheDomainsAndSurvivesALostAction(t *testing.T) 
 	}
 
 	_ = os.WriteFile(filepath.Join(e.Browser, "goto"), []byte("crash"), 0o600)
-	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/"), harness.Click("e1"))), "done", "waiting_answer")
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/"), harness.Click("e1"))), "done", "waiting:answer")
 	if c := ag.Last(1)[0]; !c.IsErr || !strings.Contains(c.Out, "outcome is unknown") {
 		t.Fatalf("an action the browser died in has an unknown outcome: %+v", c)
 	}
@@ -262,7 +262,7 @@ func TestAllowingABrowserActionAlwaysAllowsItsSite(t *testing.T) {
 		t.Fatalf("from then on the site takes actions without asking: %v", harness.FakeLog(e.Browser))
 	}
 	id = e.Start("web", "browse", harness.Steps(harness.Nav("https://other.example/x"), harness.Click("e4")))
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if slices.Contains(harness.FakeLog(e.Browser), "click:https://other.example/x") {
 		t.Fatalf("other sites still ask: %v", harness.FakeLog(e.Browser))
 	}

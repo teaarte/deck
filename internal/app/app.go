@@ -363,7 +363,7 @@ func (a *App) Sweep(ctx context.Context, now time.Time) {
 // deadlines are what is due by now: confirmations, ceilings, pauses, silent processes, results handed in by processes
 // that still run, empty results kept long enough, files whose rows are gone, the disk.
 func (a *App) deadlines(ctx context.Context, now time.Time) {
-	a.Answers.ExpireConfirms(ctx, now)
+	a.Answers.ExpireAsks(ctx, now)
 	a.Answers.Settle(ctx)
 	a.Answers.Heard(ctx)
 	a.Runner.Due(ctx, now)

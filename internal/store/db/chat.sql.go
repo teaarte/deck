@@ -739,7 +739,7 @@ func (q *Queries) ListTopicsWithPending(ctx context.Context) ([]int64, error) {
 }
 
 const openTopicProcess = `-- name: OpenTopicProcess :one
-SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.pause_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, p.error_type, p.error_details, p.follows_id, p.again, p.allows, p.wrote, p.submitted_at FROM process p
+SELECT p.id, p.project_id, p.command, p.kind, p.state, p.provider, p.session_id, p.input, p.result, p.not_by_schema, p.error, p.start_note, p.parent_id, p.depth, p.trigger_id, p.retry_key, p.manifest_revision, p.trial, p.folder, p.pgid, p.ceiling_ms, p.deadline_ms, p.output_ms, p.silent_since_ms, p.wait_until_ms, p.wait_message, p.wait_fresh, p.started_at, p.finished_at, p.alone, p.dismissed, p.reopened_at, p.error_type, p.error_details, p.follows_id, p.again, p.allows, p.wrote, p.submitted_at, p.wait_reason, p.wait_on, p.wait_silence FROM process p
 WHERE p.id IN (SELECT process_id FROM chat_message WHERE topic_id = ? AND process_id != 0 AND role != 'deck')
   AND p.finished_at IS NULL
 ORDER BY p.id DESC
@@ -774,7 +774,7 @@ func (q *Queries) OpenTopicProcess(ctx context.Context, topicID int64) (Process,
 		&i.DeadlineMs,
 		&i.OutputMs,
 		&i.SilentSinceMs,
-		&i.PauseUntilMs,
+		&i.WaitUntilMs,
 		&i.WaitMessage,
 		&i.WaitFresh,
 		&i.StartedAt,
@@ -789,6 +789,9 @@ func (q *Queries) OpenTopicProcess(ctx context.Context, topicID int64) (Process,
 		&i.Allows,
 		&i.Wrote,
 		&i.SubmittedAt,
+		&i.WaitReason,
+		&i.WaitOn,
+		&i.WaitSilence,
 	)
 	return i, err
 }

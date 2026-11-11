@@ -163,7 +163,7 @@ func TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne(t *testing.T) {
 	e.UseModels("plain.work", "opus-high", "sonnet-low")
 	before := c.Calls()
 	id := e.Run(p, "work")
-	if got := e.WaitState(id, "error", "done", "rate_limited"); got.State != "error" || e.Fault(id).ErrorType != "model.limit" {
+	if got := e.WaitState(id, "error", "done", "waiting:limit"); got.State != "error" || e.Fault(id).ErrorType != "model.limit" {
 		t.Fatalf("opus at its limit fails as the model's: %+v %+v", got, e.Fault(id))
 	}
 	next := e.Following(id)

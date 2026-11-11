@@ -77,7 +77,12 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 	}
 	a, err := g.again(open, text), error(nil)
 	if a.ID == 0 {
-		a, err = g.asks.Create(ctx, s.ProcessID, ask.KindQuestion, text, in.Input, time.Time{})
+		// A question waits as long as a confirmation; at its term the agent goes on without the answer.
+		var expires time.Time
+		if ttl := g.confirmTTL(ctx, s.Workspace); ttl > 0 {
+			expires = g.cfg.Now().Add(ttl)
+		}
+		a, err = g.asks.Create(ctx, s.ProcessID, ask.KindQuestion, text, in.Input, expires)
 	}
 	if err != nil {
 		return decision{Behavior: "deny", Message: "deck: could not deliver the question: " + err.Error()}

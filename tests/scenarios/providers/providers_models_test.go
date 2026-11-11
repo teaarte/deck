@@ -46,7 +46,7 @@ func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
 		`ALTER TABLE process DROP COLUMN submitted_at`,
 		`DROP INDEX feed_line`, `DROP INDEX feed_run`, `ALTER TABLE feed DROP COLUMN line_id`, `ALTER TABLE feed DROP COLUMN what`,
 		`ALTER TABLE connection DROP COLUMN node_id`, `ALTER TABLE model DROP COLUMN project_id`,
-		`ALTER TABLE chat_message DROP COLUMN block`, `ALTER TABLE chat_message DROP COLUMN answer`, `ALTER TABLE chat_message DROP COLUMN answered_at`, `ALTER TABLE model DROP COLUMN tools`, `ALTER TABLE chat_topic DROP COLUMN lang`,
+		`ALTER TABLE chat_message DROP COLUMN block`, `ALTER TABLE chat_message DROP COLUMN answer`, `ALTER TABLE chat_message DROP COLUMN answered_at`, `ALTER TABLE model DROP COLUMN tools`, `ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence`,
 		`DELETE FROM goose_db_version WHERE version_id >= 46`,
 	}, harness.BeforeDevices...) {
 		if _, err := st.DB.Exec(q); err != nil {
@@ -537,7 +537,7 @@ func TestAModuleProposesAModelAndTheOwnerAddsItWithOneButton(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	p := e.Project("films", harness.PlainManifest)
 	id := e.Run(p, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	var m harness.ModelsOut
 	e.Must("deck.models_list", nil, &m)
 	lyria := func() bool {

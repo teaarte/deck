@@ -51,12 +51,14 @@ func (s *Service) Commands() []*registry.Command {
 }
 
 type processView struct {
-	ID      int64           `json:"id"`
-	Project string          `json:"project"`
-	Command string          `json:"command"`
-	Kind    string          `json:"kind" enum:"agent|script|tool|model"`
-	State   string          `json:"state" enum:"running|waiting_answer|needs_login|rate_limited|waiting_provider|waiting_slot|waiting_folder|waiting_run|done|error|interrupted|stopped"`
-	Result  json.RawMessage `json:"result,omitempty"`
+	ID      int64  `json:"id"`
+	Project string `json:"project"`
+	Command string `json:"command"`
+	Kind    string `json:"kind" enum:"agent|script|tool|model"`
+	State   string `json:"state" enum:"running|waiting|done|error|interrupted|stopped"`
+	// Wait is why a waiting process waits, on what, until when and what its silence comes to.
+	Wait   *waitView       `json:"wait,omitempty"`
+	Result json.RawMessage `json:"result,omitempty"`
 	// Input is what the process was started with; only process_get gives it.
 	Input       json.RawMessage `json:"input,omitempty"`
 	NotBySchema bool            `json:"not_by_schema"`
@@ -90,8 +92,6 @@ type processView struct {
 	Folder   string `json:"folder,omitempty"`
 	Deadline string `json:"deadline,omitempty"`
 	Provider string `json:"provider,omitempty"`
-	// PausedUntil is the next try of a process paused on a usage limit.
-	PausedUntil string `json:"paused_until,omitempty"`
 	// Terminal goes on with the session of the process in a terminal.
 	Terminal string `json:"terminal,omitempty"`
 	// Ask and Question are what an open process waits for the owner to answer.
@@ -129,6 +129,15 @@ type processView struct {
 	Hint string `json:"hint,omitempty"`
 }
 
+// waitView is the wait of a process: its reason (answer, sign_in, limit, provider, slot, folder, run), the ask,
+// provider, folder or run it waits on, its term and what comes at the term: retry, go_on or fail:<type>.
+type waitView struct {
+	Reason  string `json:"reason" enum:"answer|sign_in|limit|provider|slot|folder|run"`
+	On      string `json:"on,omitempty"`
+	Until   string `json:"until,omitempty"`
+	Silence string `json:"silence,omitempty"`
+}
+
 func msTime(v sql.NullInt64) string {
 	if !v.Valid {
 		return ""
@@ -141,8 +150,8 @@ func procView(p db.Process, project string) processView {
 		Error: p.Error, ErrorType: p.ErrorType, Whose: fault.Whose(p.ErrorType), Follows: p.FollowsID.Int64, StartedAt: p.StartedAt, FinishedAt: p.FinishedAt.String, SubmittedAt: p.SubmittedAt.String, Parent: p.ParentID.Int64, Depth: p.Depth,
 		Trigger: p.TriggerID.Int64, RetryKey: p.RetryKey, Empty: p.State == process.StateDone && p.Result == process.Empty && p.NotBySchema == 0,
 		SilentSince: msTime(p.SilentSinceMs), SessionID: p.SessionID, Silent: p.SilentSinceMs.Valid, Folder: p.Folder, Deadline: msTime(p.DeadlineMs), Provider: p.Provider}
-	if p.State == process.StateRateLimited {
-		v.PausedUntil = msTime(p.PauseUntilMs)
+	if p.State == process.StateWaiting {
+		v.Wait = &waitView{Reason: p.WaitReason, On: p.WaitOn, Until: msTime(p.WaitUntilMs), Silence: p.WaitSilence}
 	}
 	if p.Result != "" {
 		if json.Valid([]byte(p.Result)) {
@@ -290,7 +299,7 @@ const pollWait = time.Minute
 
 // open says a process still works, rather than ended or waiting for the owner.
 func open(p db.Process) bool {
-	return !p.FinishedAt.Valid && p.State != process.StateWaitingAnswer && p.State != process.StateNeedsLogin
+	return !p.FinishedAt.Valid && !process.Waits(p, process.WaitAnswer) && !process.Waits(p, process.WaitSignIn)
 }
 
 // ceilingMargin is how long before the ceiling of its own process a wait of an agent ends, for it to act on it.
@@ -327,7 +336,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		// A wait goes on through the process another model took the work over to.
 		if next, soon := s.handedOn(ctx, p); in.Wait > 0 && next != 0 {
 			in.Process = next
-		} else if !soon && (p.FinishedAt.Valid || p.State == process.StateWaitingAnswer || p.State == process.StateNeedsLogin) {
+		} else if !soon && (p.FinishedAt.Valid || process.Waits(p, process.WaitAnswer) || process.Waits(p, process.WaitSignIn)) {
 			break
 		}
 		if !lent && act.ProcessID != 0 && act.ProcessID != p.ID {
@@ -366,7 +375,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		}
 	}
 	s.shown(ctx, p, &v, registry.Lang(ctx))
-	if p.State == process.StateWaitingSlot {
+	if process.Waits(p, process.WaitSlot) {
 		ahead, err := s.St.Q.CountSlotAhead(ctx, db.CountSlotAheadParams{WorkspaceID: project.WorkspaceID, ID: p.ID})
 		if err != nil {
 			return processView{}, err

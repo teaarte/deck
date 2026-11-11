@@ -316,7 +316,7 @@ func TestTopicsRunInParallelAndRepliesQueue(t *testing.T) {
 	e.Until("D to wait for a slot", func() bool {
 		e.ChatTopics(false, &ts)
 		for _, t := range ts {
-			if t.ID == d && t.Reply != nil && t.Reply.State == "waiting_slot" {
+			if t.ID == d && t.Reply != nil && t.Reply.State == "waiting" {
 				return true
 			}
 		}
@@ -349,7 +349,7 @@ func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
 	e.MasterSaid(topic, 1)
 	e.Until("the reply parked", func() bool {
 		ms := e.ChatMessages(topic)
-		return ms[0].Reply != nil && ms[0].Reply.State == "waiting_answer"
+		return ms[0].Reply != nil && ms[0].Reply.State == "waiting"
 	})
 	e.Say(topic, "the market one")
 	said := e.MasterSaid(topic, 2)

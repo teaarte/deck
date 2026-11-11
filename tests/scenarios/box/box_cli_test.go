@@ -113,7 +113,7 @@ func TestTheSessionsThatMayGoOnMoveIntoTheHomesOfTheirProjects(t *testing.T) {
 	waits = e.Run(p, "work")
 	e.WaitState(waits, "done")
 	// A turn an older deck left waiting for the owner, its session in the user's own home of the CLI.
-	e.SQL(`UPDATE process SET state = 'waiting_answer' WHERE id = ?`, waits)
+	e.SQL(`UPDATE process SET state = 'waiting', wait_reason = 'answer' WHERE id = ?`, waits)
 	sessions := filepath.Join(user, ".claude", "projects", "-work-runs")
 	for _, f := range []string{e.Session(ended) + ".jsonl", e.Session(waits) + ".jsonl", filepath.Join(e.Session(waits), "subagents", "a.jsonl")} {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(sessions, f)), 0o700); err != nil {

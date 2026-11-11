@@ -2,7 +2,6 @@ package process
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -22,7 +21,7 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 	var n int64
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		if n, err = r.leaveRunning(ctx, q, processID, StateRateLimited, w, false, sql.NullInt64{Int64: next, Valid: true}); err != nil || n == 0 {
+		if n, err = r.leaveRunning(ctx, q, processID, wait{reason: WaitLimit, on: pv.Name(), silence: SilenceRetry, until: time.UnixMilli(next)}, w, false); err != nil || n == 0 {
 			return err
 		}
 		return setHealth(ctx, q, r.now(), pv, "paused", limitText(next, text))

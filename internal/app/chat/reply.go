@@ -141,7 +141,7 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 			}
 			return s.takeMessages(ctx, t, open.ID, open.SessionID, "", told, last)
 		}
-		if open.State != process.StateWaitingAnswer {
+		if !process.Waits(open, process.WaitAnswer) {
 			return nil
 		}
 		msg, sign, err := s.chatPrompt(ctx, t, pending, open.SessionID, open.Provider, notes, true)
@@ -396,9 +396,10 @@ func (s *Service) topicProcesses(ctx context.Context, t db.ChatTopic) string {
 	return untrusted.Block("Processes of the topic", strings.Join(lines, "\n"))
 }
 
-// toldNothing says what a message of deck without a text of its work told.
+// toldNothing says what a message of deck without a text of its work told; a message tells of a wait only while its
+// work waits for the owner.
 func toldNothing(state string) string {
-	if state == process.StateWaitingAnswer {
+	if state == process.StateWaiting {
 		return "waits for the owner's answer to its request"
 	}
 	return "no text"

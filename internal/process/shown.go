@@ -16,14 +16,14 @@ type Shown struct {
 	Waits bool   `json:"waits,omitempty"`
 }
 
-// held are the states of an open process that waits for the owner or its provider.
-var held = []string{StateWaitingAnswer, StateNeedsLogin, StateRateLimited, StateWaitingProvider}
+// held are the reasons an open process waits for the owner or its provider.
+var held = []string{WaitAnswer, WaitSignIn, WaitLimit, WaitProvider}
 
 // Show says the state of a process: question is what it waits for the owner to answer, long that it works more
 // than twice as long as usual; tr puts a phrase, with %s for its detail, in the owner's language.
 func Show(p db.Process, question string, long bool, tr func(string) string) Shown {
 	say := func(phrase string, detail ...any) string { return fmt.Sprintf(tr(phrase), detail...) }
-	s := Shown{Waits: !p.FinishedAt.Valid && slices.Contains(held, p.State)}
+	s := Shown{Waits: !p.FinishedAt.Valid && p.State == StateWaiting && slices.Contains(held, p.WaitReason)}
 	if s.Waits {
 		s.Tone = "warn"
 	}
@@ -40,19 +40,19 @@ func Show(p db.Process, question string, long bool, tr func(string) string) Show
 		s.Word, s.Tone = say("stopped"), "muted"
 	case question != "":
 		s.Word = say("waits for your answer: %s", question)
-	case p.State == StateWaitingAnswer:
+	case Waits(p, WaitAnswer):
 		s.Word = say("waits for you")
-	case p.State == StateNeedsLogin:
+	case Waits(p, WaitSignIn):
 		s.Word = say("waits for a login")
-	case p.State == StateRateLimited:
+	case Waits(p, WaitLimit):
 		s.Word = say("paused on a usage limit")
-	case p.State == StateWaitingProvider:
+	case Waits(p, WaitProvider):
 		s.Word = say("waits for %s to work again", cmp.Or(p.Provider, p.Kind))
-	case p.State == StateWaitingSlot:
+	case Waits(p, WaitSlot):
 		s.Word = say("waits for a slot")
-	case p.State == StateWaitingFolder:
+	case Waits(p, WaitFolder):
 		s.Word = say("waits for folder %s", p.Folder)
-	case p.State == StateWaitingRun:
+	case Waits(p, WaitRun):
 		s.Word = say("waits for the run before it")
 	case p.SilentSinceMs.Valid:
 		s.Word = say("silent")

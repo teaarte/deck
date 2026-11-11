@@ -31,7 +31,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 	p := e.Project("notes", harness.WebManifest(svc.URL))
 	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "notes",
 		"records": harness.Jsonl(map[string]any{"title": "alpha", "score": 1}, map[string]any{"title": "beta", "score": 7})}, nil)
-	e.WaitState(e.Run(p, "work"), "waiting_answer", "done")
+	e.WaitState(e.Run(p, "work"), "waiting:answer", "done")
 	e.App.Sweep(context.Background(), clock.Add(24*time.Hour+time.Minute))
 	e.Run(p, "work")
 	e.Until("the fresh confirmation", func() bool { return len(e.CockpitItems()) == 2 })

@@ -140,7 +140,7 @@ func TestAQuestionWhoseCallDroppedStaysOpenWhenTheTurnBreaks(t *testing.T) {
 
 	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
-	e.WaitState(id, "waiting_answer", "error")
+	e.WaitState(id, "waiting:answer", "error")
 	a := e.WaitAsk()
 	if a.Kind != "question" || a.Text != "Which topic?" {
 		t.Fatalf("the question stays open for the owner: %+v", a)
@@ -177,7 +177,7 @@ func TestQuestionAnsweredLateResumesSession(t *testing.T) {
 
 	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	a := e.WaitAsk()
 	e.Answer(a.ID, "rust")
 	e.WaitState(id, "done")
@@ -226,7 +226,7 @@ func TestAProcessParkedOnACallSaysWhatItWaitsFor(t *testing.T) {
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 	e.Secret("notes", "svc", "key")
 	id := e.Run(p, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	var proc struct {
 		Ask      int64
 		Question string

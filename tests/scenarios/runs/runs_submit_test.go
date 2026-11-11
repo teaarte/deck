@@ -205,7 +205,7 @@ func TestAResultHandedInIsTheResultWhateverTheTurnDoesAfter(t *testing.T) {
 	}
 
 	sea := e.Start("clips", "revise", map[string]any{"record": e.Clip("c"), "note": "the sea"})
-	e.WaitState(sea, "waiting_answer")
+	e.WaitState(sea, "waiting:answer")
 	e.Answer(e.WaitAsk().ID, "blue")
 	if got := e.WaitState(sea, "done", "error"); got.State != "done" || string(got.Result) != `{"cut":"v2"}` || !strings.Contains(second, "already handed in") {
 		t.Fatalf("the session that goes on keeps its first result and is refused a second: %+v %q", got, second)

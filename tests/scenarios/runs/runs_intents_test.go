@@ -121,7 +121,7 @@ func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
 	}}
 	e2 := e.Restart(harness.WithProvider(second))
 	e2.Resume()
-	e2.WaitState(id, "waiting_answer")
+	e2.WaitState(id, "waiting:answer")
 	msg := second.Calls()[0].Prompt
 	if !second.Calls()[0].Resume || !strings.Contains(msg, "Outcome unknown") || !strings.Contains(msg, "Do not make this call again") {
 		t.Fatalf("the resumed agent is told the outcome is unknown: %q", msg)
@@ -148,7 +148,7 @@ func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 	e.Secret("notes", "svc", "k")
 	id := e.Run(p, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	a := e.WaitAsk()
 	second := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
@@ -223,7 +223,7 @@ func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 	e.Secret("notes", "svc", "k")
 	id := e.Run(p, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	a := e.WaitAsk()
 	go func() {
 		body := strings.NewReader(fmt.Sprintf(`{"ask": %d, "answer": "allow"}`, a.ID))

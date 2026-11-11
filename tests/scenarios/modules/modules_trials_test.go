@@ -237,7 +237,7 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 	if code != 200 || json.Unmarshal(out, &try) != nil {
 		t.Fatalf("a token that may try runs a command of any project as a trial: %d %s", code, out)
 	}
-	e.WaitState(try.Process, "waiting_answer")
+	e.WaitState(try.Process, "waiting:answer")
 	var held struct{ Waiting int64 }
 	if json.Unmarshal([]byte(posted), &held) != nil || held.Waiting == 0 || len(svc.Requests()) != 0 {
 		t.Fatalf("a tool call of a trial waits for the owner's yes on that call: %q, %d calls", posted, len(svc.Requests()))
@@ -301,7 +301,7 @@ func TestATrialOfAToolCommandWaitsForTheOwner(t *testing.T) {
 		if code != 200 || json.Unmarshal(out, &try) != nil || try.Process == 0 {
 			t.Fatalf("try: %d %s", code, out)
 		}
-		if p := e.WaitState(try.Process, "waiting_answer", "done", "error"); p.State != "waiting_answer" || len(svc.Requests()) != 0 {
+		if p := e.WaitState(try.Process, "waiting:answer", "done", "error"); p.State != "waiting:answer" || len(svc.Requests()) != 0 {
 			t.Fatalf("the tool call of a trial waits for the owner: %s, %d calls", p.State, len(svc.Requests()))
 		}
 	}

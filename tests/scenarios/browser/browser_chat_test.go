@@ -409,9 +409,9 @@ func TestRealBrowserChatDeletesAWaitingMessage(t *testing.T) {
 	if ms := e.ChatMessages(topics[0].ID); len(ms) != 1 || ms[0].Text != "first" {
 		t.Fatalf("only the message the master took stays: %+v", ms)
 	}
-	b.until("what the reply waits for, in the language of the interface", `document.querySelector('[data-turn="waiting_slot"]')?.innerText.includes('waits for a slot')`)
+	b.until("what the reply waits for, in the language of the interface", `document.querySelector('[data-turn="waiting"]')?.innerText.includes('waits for a slot')`)
 	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	b.until("what the reply waits for, in Russian", `(() => { const x = document.querySelector('[data-turn="waiting_slot"]')?.innerText ?? ''; return x.includes('свободного места') && !x.includes('slot') })()`)
+	b.until("what the reply waits for, in Russian", `(() => { const x = document.querySelector('[data-turn="waiting"]')?.innerText ?? ''; return x.includes('свободного места') && !x.includes('slot') })()`)
 }
 
 // TestRealBrowserChatInput: pasted and dropped files attach as the plus does, the field has no focus ring, the turn is

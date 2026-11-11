@@ -66,7 +66,7 @@ func TestRealBrowser(t *testing.T) {
 		t.Fatalf("the real browser uploads a file of the process: %+v", got)
 	}
 	id := e.Start("web", "browse", harness.Steps(harness.Nav(other), harness.Step{Tool: "browser_snapshot", Args: map[string]any{}}, harness.Click("e2")))
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if got := ag.Last(1)[0]; !strings.Contains(got.Out, `"waiting"`) {
 		t.Fatalf("a click on a read domain of the real browser waits for the owner: %+v", got)
 	}

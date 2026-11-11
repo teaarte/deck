@@ -45,7 +45,7 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 	}
 
 	id := e.Run(p, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if again != first {
 		t.Fatalf("the same call made twice waits on the same ask: %s vs %s", first, again)
 	}
@@ -69,7 +69,7 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 	if msg := e.Fake.Calls()[1].Prompt; !e.Fake.Calls()[1].Resume || !strings.Contains(msg, "Allowed") || !strings.Contains(msg, "ext-1") {
 		t.Fatalf("the result reaches the agent by resume: %q", msg)
 	}
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if !strings.Contains(second, `"waiting"`) {
 		t.Fatalf("an allowed call does not allow the next one: %s", second)
 	}
@@ -113,14 +113,14 @@ func TestNoBecauseReachesTheAgentAndTheToolKeepsItsOwnTerm(t *testing.T) {
 	p := e.Project("notes", harness.PostManifest(svc.URL, `, "confirm_ttl_minutes": 10`))
 	e.Secret("notes", "svc", "k")
 	id := e.Run(p, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	e.Answer(e.WaitAsk().ID, "deny:say it politely")
 	e.Until("the corrected call", func() bool {
 		mu.Lock()
 		defer mu.Unlock()
 		return len(calls) == 2
 	})
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	fixed := e.WaitAsk()
 	if !strings.Contains(fixed.Text, "hello, please") {
 		t.Fatalf("the agent gets the reason and makes a corrected call: %+v", fixed)
@@ -151,7 +151,7 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
   "triggers": [{"command": "send", "after": "work"}, {"command": "send", "cron": "0 9 * * *"}],
   "tools": {"http": [{"name": "note", "description": "d", "method": "POST", "url": "%s/n",
     "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}}}]}}`, svc.URL)))
-	if got := e.WaitState(e.Run(p, "work"), "done", "waiting_answer"); got.State != "done" {
+	if got := e.WaitState(e.Run(p, "work"), "done", "waiting:answer"); got.State != "done" {
 		t.Fatalf("the agent whose finish starts a trigger does not wait for its confirmation: %+v", got)
 	}
 	e.Clock.Add(time.Hour + time.Minute)
@@ -212,7 +212,7 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 	e.Secret("notes", "svc", "k")
 	id := e.Run(p, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	_, out := e.Call("deck.asks_list", nil)
 	var asks []harness.Ask
 	_ = json.Unmarshal(out, &asks)
@@ -227,7 +227,7 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 	}
 	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": harness.PostManifest(svc.URL, "")}, nil)
 	e.WaitState(id, "done", "error")
-	e.WaitState(e.Run(p, "work"), "waiting_answer")
+	e.WaitState(e.Run(p, "work"), "waiting:answer")
 	var again []harness.Ask
 	e.Must("deck.asks_list", nil, &again)
 	e.Clock.Add(25 * time.Hour)
@@ -305,7 +305,7 @@ func TestAllowOnceAllowsExactlyOneCall(t *testing.T) {
 
 	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
-	e.PassState(id, "waiting_answer")
+	e.PassState(id, "waiting:answer")
 	e.Answer(e.WaitAsk().ID, "allow")
 	e.PassWaits("the four calls answered", func() bool {
 		mu.Lock()

@@ -46,6 +46,10 @@ SELECT * FROM process WHERE project_id = ? AND json_extract(input, '$.record') =
 SELECT * FROM process WHERE state = ? ORDER BY id;
 
 
+-- name: ListWaitingFor :many
+SELECT * FROM process WHERE state = 'waiting' AND wait_reason = ? ORDER BY id;
+
+
 -- name: FindActiveProcess :one
 SELECT * FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?
@@ -123,7 +127,13 @@ GROUP BY 1;
 
 
 -- name: ClaimProcess :execrows
-UPDATE process SET state = sqlc.arg(to_state) WHERE id = sqlc.arg(id) AND state = sqlc.arg(from_state);
+-- A waiting process goes on when it waits for the reason given; its wait stays in the row for the next one.
+UPDATE process SET state = 'running' WHERE id = sqlc.arg(id) AND state = 'waiting' AND wait_reason = sqlc.arg(reason);
+
+
+-- name: UnclaimProcess :execrows
+-- A process claimed back to running that could not start waits again as it did.
+UPDATE process SET state = 'waiting' WHERE id = ? AND state = 'running';
 
 
 -- name: FinishProcess :execrows
@@ -160,7 +170,7 @@ WHERE id = ? AND finished_at IS NULL;
 -- name: ReopenProcess :execrows
 UPDATE process
 SET state = 'running', error = '', error_type = '', error_details = '', result = '', submitted_at = NULL, not_by_schema = 0, dismissed = 0, finished_at = NULL, ceiling_ms = ?,
-    deadline_ms = NULL, silent_since_ms = NULL, start_note = ?, pause_until_ms = NULL, reopened_at = ?
+    deadline_ms = NULL, silent_since_ms = NULL, start_note = ?, wait_until_ms = NULL, reopened_at = ?
 WHERE id = ? AND finished_at IS NOT NULL AND session_id != '';
 
 
@@ -199,7 +209,7 @@ WHERE state = 'running' AND kind = 'agent' AND deadline_ms > CAST(sqlc.arg(now) 
 
 
 -- name: ListRunningChildren :many
-SELECT id, command, state FROM process WHERE parent_id = ? AND finished_at IS NULL ORDER BY id;
+SELECT id, command, state, wait_reason FROM process WHERE parent_id = ? AND finished_at IS NULL ORDER BY id;
 
 
 -- name: SetProcessGroup :exec
@@ -249,7 +259,11 @@ SELECT id FROM process WHERE project_id = ?;
 
 
 -- name: LeaveRunning :execrows
-UPDATE process SET state = sqlc.arg(state), wait_message = sqlc.arg(message), wait_fresh = sqlc.arg(fresh), pause_until_ms = sqlc.narg(until),
+-- A wait that fails at its term keeps the term of the same wait before it, so trying again does not move it.
+UPDATE process SET state = 'waiting', wait_message = sqlc.arg(message), wait_fresh = sqlc.arg(fresh),
+    wait_until_ms = CASE WHEN wait_reason = sqlc.arg(reason) AND wait_on = sqlc.arg(on_what) AND wait_silence = sqlc.arg(silence)
+      AND wait_silence LIKE 'fail:%' AND wait_until_ms > CAST(sqlc.arg(now) AS INTEGER) THEN wait_until_ms ELSE sqlc.narg(until) END,
+    wait_reason = sqlc.arg(reason), wait_on = sqlc.arg(on_what), wait_silence = sqlc.arg(silence),
     ceiling_ms = CASE WHEN deadline_ms IS NULL THEN ceiling_ms ELSE MAX(0, deadline_ms - CAST(sqlc.arg(now) AS INTEGER)) END,
     deadline_ms = NULL, silent_since_ms = NULL
 WHERE id = sqlc.arg(id) AND state = 'running';
@@ -257,9 +271,16 @@ WHERE id = sqlc.arg(id) AND state = 'running';
 
 -- name: ListHeld :many
 SELECT sqlc.embed(p), j.workspace_id FROM process p JOIN project j ON j.id = p.project_id
-WHERE p.state IN ('waiting_provider', 'waiting_slot', 'waiting_folder', 'waiting_run')
-   OR p.state = 'rate_limited' AND p.pause_until_ms <= CAST(sqlc.arg(now) AS INTEGER)
+WHERE p.state = 'waiting' AND p.wait_reason NOT IN ('answer', 'sign_in')
 ORDER BY p.id;
+
+
+-- name: ListWaitsPast :many
+-- The waits whose term passed and whose silence ends the process; an ask's own term ends a wait on the owner.
+SELECT * FROM process
+WHERE state = 'waiting' AND wait_silence LIKE 'fail:%' AND wait_reason NOT IN ('answer', 'sign_in')
+  AND wait_until_ms <= CAST(sqlc.arg(now) AS INTEGER)
+ORDER BY id;
 
 
 -- name: RunsSince :many
@@ -286,7 +307,7 @@ WHERE c.parent_id = ? AND c.trigger_id = ? AND c.started_at >= COALESCE(p.submit
 
 -- name: CountSlotAhead :one
 SELECT count(*) FROM process p JOIN project j ON j.id = p.project_id
-WHERE p.state = 'waiting_slot' AND j.workspace_id = sqlc.arg(workspace_id) AND p.id < sqlc.arg(id);
+WHERE p.state = 'waiting' AND p.wait_reason = 'slot' AND j.workspace_id = sqlc.arg(workspace_id) AND p.id < sqlc.arg(id);
 
 
 -- name: RootProjectOf :one

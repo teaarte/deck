@@ -71,7 +71,6 @@ func (r *Runner) end(ctx context.Context, processID int64, state string, f *faul
 	r.mu.Lock()
 	lt := r.live[processID]
 	delete(r.marked, processID)
-	delete(r.lost, processID)
 	r.mu.Unlock()
 	after := func(ctx context.Context) {
 		if done == 1 {

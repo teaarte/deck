@@ -332,3 +332,11 @@ and bring the modules in line.
   `web_fetch` the address asked and, after a redirect, the one read (`read`); `web_search` the query, the service and
   the address of each result. A widening of `domains.read` reads "reaches and may send data to: <host>": the door
   sees the host, not the method.
+- 2026-11-11: a process waits in one state, `waiting`, instead of seven (`waiting_answer`, `needs_login`,
+  `rate_limited`, `waiting_provider`, `waiting_slot`, `waiting_folder`, `waiting_run`): `process_get` and
+  `processes_list` give its `wait` — `reason` (`answer`, `sign_in`, `limit`, `provider`, `slot`, `folder`, `run`),
+  `on` (the ask, provider, folder or run), `until` (its term) and `silence` (what comes at the term: `retry`, `go_on` or
+  `fail:<type>`); `paused_until` is gone, its time is `wait.until`. A question an agent asks waits as long as a
+  confirmation (`confirm_hours`, a day): then the agent is told the owner did not answer and finishes with what it has.
+  A lost login waits a week, a red provider a day, and then the process fails (`model.login`, `model.unavailable`); a
+  turn without deck's tools waits for its provider an hour (`deck.tools`) instead of three tries.

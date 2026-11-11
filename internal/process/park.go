@@ -1,13 +1,13 @@
 package process
 
 import (
+	"cmp"
 	"context"
-	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"deck2/internal/ask"
 	"deck2/internal/fault"
@@ -15,6 +15,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
@@ -29,45 +30,37 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 	}
 	msg := fmt.Sprintf("%s %s: %s. %s, then retry this session or start a new one with a report of what was done.",
 		pv.Name(), what, strings.TrimSpace(text), fix)
-	var n int64
+	term := r.now().Add(signInTerm)
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		if n, err = r.leaveRunning(ctx, q, processID, StateNeedsLogin, waiting{}, false, sql.NullInt64{}); err != nil || n == 0 {
+		a, err := ask.New(ctx, q, processID, ask.KindLogin, msg, string(payload), term)
+		if err != nil {
 			return err
 		}
-		if _, err := ask.New(ctx, q, processID, ask.KindLogin, msg, string(payload), time.Time{}); err != nil {
-			return err
+		w := wait{reason: WaitSignIn, on: fmt.Sprint(a.ID), silence: SilenceFail + fault.ModelLogin, until: term}
+		if n, err := r.leaveRunning(ctx, q, processID, w, waiting{}, false); err != nil || n == 0 {
+			// The ask goes with the wait it was for.
+			return cmp.Or(err, errNotRunning)
 		}
 		return setHealth(ctx, q, r.now(), pv, health.NeedsLogin, text)
 	})
+	if errors.Is(err, errNotRunning) {
+		return
+	}
 	if err != nil {
 		r.finish(ctx, processID, StateError, "", false, fault.New(fault.ModelLogin, fmt.Sprintf("needs login: %s", text)))
 		return
 	}
-	if n > 0 {
-		r.deps.Broke(ctx, pv.Name())
-	}
+	r.deps.Broke(ctx, pv.Name())
 }
 
-// lostTries is how many turns of a process may start without deck's tools before it fails.
-const lostTries = 3
+// errNotRunning rolls back a write for a process that left running meanwhile.
+var errNotRunning = errors.New("the process no longer runs")
 
 // lostTools holds a turn whose agent did not get deck's tools until the self-check of its provider is green again;
-// the provider is red meanwhile, so its other turns wait too. A process held lostTries times fails.
+// the provider is red meanwhile, so its other turns wait too. A wait that outlasts toolsTerm fails.
 func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, err error) {
-	r.mu.Lock()
-	if r.lost == nil {
-		r.lost = map[int64]int{}
-	}
-	r.lost[t.process]++
-	tries := r.lost[t.process]
-	r.mu.Unlock()
-	if tries >= lostTries {
-		r.finish(ctx, t.process, StateError, "", false, fault.With(fault.DeckTools, fmt.Sprintf("the agent started without deck's tools %d times", tries), err.Error()))
-		r.deps.Broke(ctx, pv.Name())
-		return
-	}
 	text := "the agent started without deck's tools, so deck holds the turns of " + pv.Name() + " until its self-check passes: " + err.Error()
+	w := wait{reason: WaitProvider, on: pv.Name(), silence: SilenceFail + fault.DeckTools, until: r.now().Add(toolsTerm)}
 	txErr := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := ProviderHealth(ctx, q, r.now(), pv.Name(), health.Error, untrusted.Cut(text, 1000)); err != nil {
 			return err
@@ -75,7 +68,7 @@ func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, er
 		if err := q.SetHealthCheck(ctx, db.SetHealthCheckParams{Verdict: "adapter", Subject: health.Provider(pv.Name())}); err != nil {
 			return err
 		}
-		_, err := r.holdIn(ctx, q, t, StateWaitingProvider)
+		_, err := r.holdIn(ctx, q, t, w)
 		return err
 	})
 	if txErr != nil {
@@ -83,13 +76,6 @@ func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, er
 		return
 	}
 	r.deps.Broke(ctx, pv.Name())
-}
-
-// toolsFound starts the count of turns without deck's tools over.
-func (r *Runner) toolsFound(processID int64) {
-	r.mu.Lock()
-	delete(r.lost, processID)
-	r.mu.Unlock()
 }
 
 // blocked reports whether the owner still owes the agent an answer; a result produced meanwhile is
@@ -107,7 +93,7 @@ func (r *Runner) questioned(ctx context.Context, processID int64) bool {
 	return slices.ContainsFunc(open, func(a db.Ask) bool { return a.Kind == ask.KindQuestion && a.State == ask.StateOpen })
 }
 
-// park moves the process to waiting_answer, where its ceiling does not tick, and immediately delivers
+// park moves the process to wait for the owner's answer, where its ceiling does not tick, and immediately delivers
 // answers that arrived while it was running.
 func (r *Runner) park(ctx context.Context, processID int64) {
 	var parked bool
@@ -125,8 +111,22 @@ func (r *Runner) park(ctx context.Context, processID int64) {
 	_ = r.hear(ctx, processID, func(h Hook, p db.Process) { h.Parked(ctx, p) })
 }
 
-// parkIn moves a running process to waiting_answer in a transaction; its ceiling stops.
+// parkIn moves a running process to wait for the owner's answer in a transaction; its ceiling stops. The wait is on
+// its first open ask, until the first term of them.
 func (r *Runner) parkIn(ctx context.Context, q *db.Queries, processID int64) (bool, error) {
-	n, err := r.leaveRunning(ctx, q, processID, StateWaitingAnswer, waiting{}, false, sql.NullInt64{})
+	w := wait{reason: WaitAnswer, silence: SilenceGoOn}
+	open, err := q.ListOpenAsksOfProcess(ctx, processID)
+	if err != nil {
+		return false, err
+	}
+	for _, a := range open {
+		if w.on == "" {
+			w.on = fmt.Sprint(a.ID)
+		}
+		if at, err := store.ParseTime(a.ExpiresAt.String); a.ExpiresAt.Valid && err == nil && (w.until.IsZero() || at.Before(w.until)) {
+			w.until = at
+		}
+	}
+	n, err := r.leaveRunning(ctx, q, processID, w, waiting{}, false)
 	return n > 0, err
 }

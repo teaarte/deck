@@ -160,7 +160,7 @@ func (r *Runner) leftWork(ctx context.Context, u *run, result string) *fault.F {
 	}
 	var names []string
 	for _, k := range kids {
-		if k.State == StateRunning || k.State == StateWaitingSlot || k.State == StateWaitingRun {
+		if k.State == StateRunning || k.State == StateWaiting && (k.WaitReason == WaitSlot || k.WaitReason == WaitRun) {
 			names = append(names, fmt.Sprintf("#%d %s", k.ID, k.Command))
 		}
 	}

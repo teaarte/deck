@@ -72,8 +72,11 @@ WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND 
 RETURNING *;
 
 
--- name: ExpireStaleConfirms :many
-UPDATE ask SET state = 'expired' WHERE kind IN ('confirm', 'call') AND state = 'open' AND expires_at <= CAST(sqlc.arg(now) AS TEXT) RETURNING *;
+-- name: ExpireStaleAsks :many
+-- The asks past their term: confirmations, and the questions and logins a process waits on.
+UPDATE ask SET state = 'expired'
+WHERE (kind IN ('confirm', 'call') OR kind IN ('question', 'login') AND process_id IS NOT NULL)
+  AND state = 'open' AND expires_at <= CAST(sqlc.arg(now) AS TEXT) RETURNING *;
 
 
 -- name: ConsumeApproval :one

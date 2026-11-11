@@ -88,10 +88,12 @@ func (e *Env) RunsOf(project, command string) []Proc {
 	return out
 }
 
-// Proc is a process as deck.process_get and deck.processes_list show it.
+// Proc is a process as deck.process_get and deck.processes_list show it; the State of a waiting one is
+// waiting:<reason>.
 type Proc struct {
 	ID          int64           `json:"id"`
 	State       string          `json:"state"`
+	Wait        *ProcWait       `json:"wait"`
 	Result      json.RawMessage `json:"result"`
 	NotBySchema bool            `json:"not_by_schema"`
 	Error       string          `json:"error"`
@@ -104,6 +106,25 @@ type Proc struct {
 	Empty       bool            `json:"empty"`
 	SilentSince string          `json:"silent_since"`
 	Deadline    string          `json:"deadline"`
+}
+
+// ProcWait is the wait of a process.
+type ProcWait struct {
+	Reason  string `json:"reason"`
+	On      string `json:"on"`
+	Until   string `json:"until"`
+	Silence string `json:"silence"`
+}
+
+func (p *Proc) UnmarshalJSON(b []byte) error {
+	type plain Proc
+	if err := json.Unmarshal(b, (*plain)(p)); err != nil {
+		return err
+	}
+	if p.State == "waiting" && p.Wait != nil {
+		p.State += ":" + p.Wait.Reason
+	}
+	return nil
 }
 
 func (e *Env) Proc(id int64) Proc {

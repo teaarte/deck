@@ -193,7 +193,7 @@ func TestACPQuestionStopsTheTurnBeforeTheAgentTimesOutAndTheAnswerResumes(t *tes
 	if a.Kind != "question" || !strings.Contains(a.Text, "Which color") {
 		t.Fatalf("the question reaches the owner: %+v", a)
 	}
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if m := f.Call(4).Mcp; len(m) != 1 || !strings.Contains(m[0]["text"].(string), "not answered yet") {
 		t.Fatalf("the agent hears in time that the owner has not answered and ends its turn: %v", m)
 	}
@@ -435,7 +435,7 @@ func TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails(t *testing.T) {
 				e.WaitState(id, "done")
 				return
 			}
-			e.WaitState(id, "waiting_provider")
+			e.WaitState(id, "waiting:provider")
 			if n := f.Calls(); n > len(tc.streams)+1 {
 				t.Fatalf("a process on a provider whose adapter is broken waits; one whose model fails runs: %d calls", n)
 			}
@@ -467,7 +467,7 @@ func TestACPDeckWritesNothingThroughWhatTheAgentLeft(t *testing.T) {
 		"text": "---\nname: reader\ndescription: Reads.\n---\nRead.\n"}, nil)
 	id := e.Run(p, "work")
 	a := e.WaitAsk()
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	e.Answer(a.ID, "blue")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
@@ -715,7 +715,7 @@ func TestACPTurnPastTheLimitOfItsModelGoesOnWithoutAPause(t *testing.T) {
 	e := harness.New(t, harness.WithACP(f, llm))
 	before := len(llm.Requests())
 	e.Must("deck.model_set", map[string]any{"connection": "acp", "name": "acp", "model": "m", "tpm": 10}, nil)
-	got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error", "rate_limited")
+	got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error", "waiting:limit")
 	if fl := e.Fault(got.ID); got.State != "error" || fl.ErrorType != "model.limit" || !strings.Contains(fl.Error, "tokens a minute acp takes") {
 		t.Fatalf("a call past the limit of the model is the model's limit: %+v %+v", got, fl)
 	}
@@ -770,7 +770,7 @@ func TestAModelThatTakesFewToolsIsNotOfferedTheMaster(t *testing.T) {
 		refusal.Store(&body)
 		turn(4 + i)
 		before := len(llm.Requests())
-		e.WaitState(e.Run(p, "work"), "done", "error", "rate_limited")
+		e.WaitState(e.Run(p, "work"), "done", "error", "waiting:limit")
 		if n := limit(); n != 0 || len(llm.Requests()) == before {
 			t.Fatalf("%s: the model answers and no limit of tools is learned: %d", body, n)
 		}
@@ -778,7 +778,7 @@ func TestAModelThatTakesFewToolsIsNotOfferedTheMaster(t *testing.T) {
 	body := `{"error": {"message": "'tools' : maximum number of items is 2", "type": "invalid_request_error"}}`
 	refusal.Store(&body)
 	turn(7)
-	got := e.WaitState(e.Run(p, "work"), "done", "error", "rate_limited")
+	got := e.WaitState(e.Run(p, "work"), "done", "error", "waiting:limit")
 	if fl := e.Fault(got.ID); got.State != "error" || fl.ErrorType != "model.limit" || fl.Error != "deck: acp takes at most 2 tools a request" {
 		t.Fatalf("a refusal for the tools is the model's limit in deck's own words, unquoted: %+v %+v", got, fl)
 	}
@@ -821,7 +821,7 @@ func TestAModelThatTakesFewToolsIsNotOfferedTheMaster(t *testing.T) {
 	before := len(llm.Requests())
 	e.Must("deck.model_set", map[string]any{"connection": "acp", "name": "acp", "model": "m", "tools": 1}, nil)
 	turn(8)
-	got = e.WaitState(e.Run(p, "work"), "done", "error", "rate_limited")
+	got = e.WaitState(e.Run(p, "work"), "done", "error", "waiting:limit")
 	if fl := e.Fault(got.ID); got.State != "error" || !strings.Contains(fl.Error, "the request with 3 tools is past the 1 tools a request of acp takes") {
 		t.Fatalf("a request past the tools set by hand is the model's limit: %+v %+v", got, fl)
 	}

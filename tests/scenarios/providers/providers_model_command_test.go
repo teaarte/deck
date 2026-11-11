@@ -133,7 +133,7 @@ func TestAModelCommandOfATrialWaitsForTheOwner(t *testing.T) {
 	e.Project("films", harness.ModelManifest)
 	var tried struct{ Process int64 }
 	e.Must("deck.command_try", map[string]any{"live": true, "only": true, "command": "films.factcheck", "input": map[string]any{"claim": "two"}}, &tried)
-	e.WaitState(tried.Process, "waiting_answer")
+	e.WaitState(tried.Process, "waiting:answer")
 	if n := len(made(api)); n != 0 {
 		t.Fatalf("a trial's call of a paid model does not reach it before the yes: %d calls", n)
 	}
@@ -528,7 +528,7 @@ func TestAModelCommandNoModelTakesIsWarnedOfAndFailsAtOnce(t *testing.T) {
 	}
 	var tried struct{ Process int64 }
 	e.Must("deck.command_try", map[string]any{"command": "films.factcheck", "input": map[string]any{"claim": "x"}}, &tried)
-	got := e.WaitState(tried.Process, "done", "error", "waiting_answer")
+	got := e.WaitState(tried.Process, "done", "error", "waiting:answer")
 	if got.State != "error" || !strings.Contains(got.Error, "no model is assigned to text") || !strings.Contains(got.Error, "Settings → Models") {
 		t.Fatalf("the trial fails at once with where to assign a model: %+v", got)
 	}

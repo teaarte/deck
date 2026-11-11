@@ -58,7 +58,7 @@ func (s *Service) tell(ctx context.Context, p db.Process) {
 	// A continued work tells again how its run ended; a wait is told once for each thing it asks.
 	text, key := untrusted.Cut(p.Result, maxChatText), endKey(p)
 	switch {
-	case !p.FinishedAt.Valid && p.State != process.StateWaitingAnswer:
+	case !p.FinishedAt.Valid && !process.Waits(p, process.WaitAnswer):
 		return
 	case p.State == process.StateError || p.State == process.StateInterrupted:
 		text = p.Error

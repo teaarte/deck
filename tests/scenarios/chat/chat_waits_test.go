@@ -77,7 +77,7 @@ func TestAWorkWaitingForARequestAsksAboutItOnce(t *testing.T) {
 
 	defer close(goOn)
 	topic := e.Say(0, "set the models of films")
-	waits := e.Told(topic, "waiting_answer", "ru")
+	waits := e.Told(topic, "waiting", "ru")
 	denies, _ := asked.Load().([]string)
 	if len(denies) != 2 {
 		t.Fatalf("the work asked twice: %v", denies)
@@ -191,7 +191,7 @@ func TestALaterRequestOfTheSamePlacesReplacesTheEarlier(t *testing.T) {
 	}
 	films := e.Project("films", harness.PlainManifest)
 	id := e.Run(films, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 
 	said, _ := held.Load().([]string)
 	var ids []int64

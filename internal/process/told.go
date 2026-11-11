@@ -58,6 +58,9 @@ func remarkText(m db.ProcessRemark) string {
 	return "The owner wrote while you worked:\n" + strings.TrimSpace(m.Text)
 }
 
+// NoAnswer is what deck tells an agent whose question the owner left past its term.
+const NoAnswer = "The owner did not answer your question in time:"
+
 // RemarkByDeck is the author of a message deck gives a process itself.
 const RemarkByDeck = "deck"
 
@@ -118,6 +121,9 @@ func (u untold) message() string {
 		case a.Kind == ask.KindLogin:
 		case a.Kind == ask.KindQuestion && a.State == ask.StateAnswered:
 			b.WriteString("- Question: " + untrusted.Line(a.Text, 1000) + "\n" + untrusted.Value("Answer", a.Answer, 500) + "\n")
+		case a.Kind == ask.KindQuestion && a.State == ask.StateExpired:
+			b.WriteString("- " + NoAnswer + " " + untrusted.Line(a.Text, 1000) + "\nGo on without the answer: decide what you " +
+				"can yourself and finish with what you have, saying in your result what you assumed and what is left for the owner.\n")
 		case a.Kind == ask.KindCall && a.State == ask.StateAnswered && row.Result != "":
 			b.WriteString("- Allowed: " + what + ". deck made this call for you; do not make it again yourself. " + outcomeText(row.Result) + "\n")
 		case a.Kind == ask.KindCall && a.State == ask.StateAnswered:

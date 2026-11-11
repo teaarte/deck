@@ -56,7 +56,7 @@ func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang 
 		asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
 		i := slices.IndexFunc(asks, holds)
 		// A parked process waits for every open ask, a frozen call too.
-		if i < 0 && p.State == process.StateWaitingAnswer {
+		if i < 0 && process.Waits(p, process.WaitAnswer) {
 			i = slices.IndexFunc(asks, func(a db.Ask) bool { return a.State == ask.StateOpen })
 		}
 		if i >= 0 {

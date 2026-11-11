@@ -20,8 +20,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// Deliver resumes a process parked in waiting_answer with every answer or expiry it has not seen yet.
-// It is safe to call concurrently: only one caller wins the waiting_answer -> running transition.
+// Deliver resumes a process that waits for the owner with every answer or expiry it has not seen yet.
+// It is safe to call concurrently: only one caller wins the claim of the wait back to running.
 func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 	pending, err := r.untold(ctx, processID)
 	if err != nil || pending.empty() {
@@ -34,15 +34,18 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 	if p.Kind == KindTool || p.Kind == KindModel {
 		return r.deliverTool(ctx, p, pending)
 	}
-	if p.State == StateRateLimited {
+	if Waits(p, WaitLimit) {
 		return nil
 	}
 	for _, a := range pending.asks {
+		if a.Ask.Kind == ask.KindLogin && a.Ask.State == ask.StateExpired {
+			return r.loginPast(ctx, p, a.Ask)
+		}
 		if a.Ask.Kind == ask.KindLogin {
 			return r.relogin(ctx, processID, a.Ask, pending)
 		}
 	}
-	if ok, err := r.claim(ctx, processID, StateWaitingAnswer); err != nil || !ok {
+	if ok, err := r.claim(ctx, processID, WaitAnswer); err != nil || !ok {
 		return err
 	}
 	if err := r.resume(ctx, processID, pending.message()+r.stillWaiting(ctx, processID), pending.ids(), false); err != nil {
@@ -65,9 +68,10 @@ func (r *Runner) stillWaiting(ctx context.Context, processID int64) string {
 	return s
 }
 
-func (r *Runner) claim(ctx context.Context, processID int64, from string) (bool, error) {
+// claim takes a process that waits for reason back to running; false when it does not wait for it.
+func (r *Runner) claim(ctx context.Context, processID int64, reason string) (bool, error) {
 	n, err := store.TxGet(r.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		return q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateRunning, ID: processID, FromState: from})
+		return q.ClaimProcess(ctx, db.ClaimProcessParams{ID: processID, Reason: reason})
 	})
 	return n > 0, err
 }
@@ -78,7 +82,7 @@ func (r *Runner) relogin(ctx context.Context, processID int64, login db.Ask, pen
 	var n int64
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
-		if n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: StateRunning, ID: processID, FromState: StateNeedsLogin}); err != nil || n == 0 {
+		if n, err = q.ClaimProcess(ctx, db.ClaimProcessParams{ID: processID, Reason: WaitSignIn}); err != nil || n == 0 {
 			return err
 		}
 		_, err = q.DeliverAsk(ctx, db.DeliverAskParams{ID: login.ID, Now: store.Time(r.now())})
@@ -102,6 +106,20 @@ func (r *Runner) relogin(ctx context.Context, processID int64, login db.Ask, pen
 		r.finish(ctx, processID, StateError, "", false, fault.Wrap("continue after login", err))
 		return err
 	}
+	return nil
+}
+
+// loginPast ends a process whose login the owner left past its term.
+func (r *Runner) loginPast(ctx context.Context, p db.Process, login db.Ask) error {
+	if ok, err := r.claim(ctx, p.ID, WaitSignIn); err != nil || !ok {
+		return err
+	}
+	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.DeliverAsk(ctx, db.DeliverAskParams{ID: login.ID, Now: store.Time(r.now())})
+		return err
+	})
+	r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.ModelLogin,
+		fmt.Sprintf("deck: %s waited for a login until %s, its term, and the owner did not log in", p.Provider, login.ExpiresAt.String)))
 	return nil
 }
 
@@ -181,8 +199,8 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.Of(err))
 		}
 	}
-	for _, state := range []string{StateWaitingAnswer, StateNeedsLogin} {
-		parked, err := r.st.Q.ListProcessesByState(ctx, state)
+	for _, reason := range []string{WaitAnswer, WaitSignIn} {
+		parked, err := r.st.Q.ListWaitingFor(ctx, reason)
 		if err != nil {
 			return err
 		}

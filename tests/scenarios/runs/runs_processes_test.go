@@ -283,7 +283,7 @@ func TestQuestionWaitEndsByTheClock(t *testing.T) {
 	late := e.Run(p, "job")
 	a = e.WaitAsk()
 	e.Clock.Add(31 * time.Minute)
-	e.WaitState(late, "waiting_answer")
+	e.WaitState(late, "waiting:answer")
 	e.Answer(a.ID, "yes")
 	if got := e.WaitState(late, "done"); string(got.Result) != `{"n":2}` || !e.Fake.Calls()[len(e.Fake.Calls())-1].Resume {
 		t.Fatalf("after 30 minutes by the clock the session parks and the answer resumes it: %+v", got)
@@ -309,7 +309,7 @@ func TestStopEndsRunningAndParkedProcesses(t *testing.T) {
 		t.Fatalf("stop ends a running agent: %+v", got)
 	}
 	parked := e.Run(p, "ask")
-	e.PassState(parked, "waiting_answer")
+	e.PassState(parked, "waiting:answer")
 	e.Must("deck.process_stop", map[string]any{"process": parked}, nil)
 	e.WaitState(parked, "stopped")
 	if _, out := e.Call("deck.asks_list", nil); strings.Contains(string(out), "Which?") {
@@ -452,7 +452,7 @@ func TestCeilingDoesNotTickWhileParked(t *testing.T) {
 	id := e.Run(p, "job")
 	a := e.WaitAsk()
 	e.Clock.Add(2 * time.Minute)
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	e.Clock.Add(3 * time.Hour)
 	e.Answer(a.ID, "allow")
 	e.Until("the resumed turn", func() bool { return len(e.Fake.Calls()) == 2 && e.Proc(id).Deadline != "" })
@@ -697,11 +697,11 @@ func TestACallThatOutlivesItsTurnLeavesAParkedProcessWithoutACeiling(t *testing.
 	id := e.Run(p, "job")
 	a := e.WaitAsk()
 	asked.Store(true)
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	e.Answer(a.ID, "deny")
 	<-returned
 	e.Settle()
-	if got := e.Proc(id); got.State == "waiting_answer" && got.Deadline != "" {
+	if got := e.Proc(id); got.State == "waiting:answer" && got.Deadline != "" {
 		t.Fatalf("a parked process has no ceiling running: %+v", got)
 	}
 }

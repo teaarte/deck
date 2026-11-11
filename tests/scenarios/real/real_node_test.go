@@ -32,7 +32,7 @@ func TestRealClaudeCodeOnANode(t *testing.T) {
 	p := e.Project("ideas", realManifest)
 	e.UseModels("ideas.collect", "claude-code@Mac")
 	id := e.Run(p, "collect")
-	if stopped := e.WaitState(id, "waiting_answer", "done", "error"); stopped.State != "waiting_answer" {
+	if stopped := e.WaitState(id, "waiting:answer", "done", "error"); stopped.State != "waiting:answer" {
 		t.Fatalf("the agent on the node stops waiting for the owner: %+v %+v", stopped, e.Fault(id))
 	}
 	a := e.WaitAsk()

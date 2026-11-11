@@ -335,7 +335,7 @@ type Process struct {
 	DeadlineMs       sql.NullInt64
 	OutputMs         int64
 	SilentSinceMs    sql.NullInt64
-	PauseUntilMs     sql.NullInt64
+	WaitUntilMs      sql.NullInt64
 	WaitMessage      string
 	WaitFresh        int64
 	StartedAt        string
@@ -350,6 +350,9 @@ type Process struct {
 	Allows           string
 	Wrote            int64
 	SubmittedAt      sql.NullString
+	WaitReason       string
+	WaitOn           string
+	WaitSilence      string
 }
 
 type ProcessRemark struct {

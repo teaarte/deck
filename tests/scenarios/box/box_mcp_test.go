@@ -64,7 +64,7 @@ func TestMCPServerToolsFollowClassesAndFilter(t *testing.T) {
 	e.WaitHealth("mcp:srv.fake", "ok")
 
 	id := e.Start("srv", "work", map[string]any{"step": "srv__fake__send"})
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if c := got["srv__fake__send"]; !strings.Contains(c.Out, `"waiting"`) || len(harness.FakeLog(dir)) != 1 {
 		t.Fatalf("a tool without a class is external and waits for the owner: %+v", c)
 	}
@@ -86,7 +86,7 @@ func TestMCPServerToolsFollowClassesAndFilter(t *testing.T) {
 		t.Fatalf("a tool command makes one MCP call with its input: %+v", look)
 	}
 	tell := e.Start("srv", "tell", map[string]any{"to": "bob"})
-	e.WaitState(tell, "waiting_answer")
+	e.WaitState(tell, "waiting:answer")
 	e.Answer(e.WaitAsk().ID, "deny")
 	if p := e.WaitState(tell, "error"); !strings.Contains(p.Error, "rejected") || slices.Contains(harness.FakeLog(dir), "send:bob") {
 		t.Fatalf("a refused MCP call is not made: %+v %v", p, harness.FakeLog(dir))
@@ -100,7 +100,7 @@ func TestMCPCallLostWithItsServerIsAnUnknownOutcome(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(stepAgent(got, args)))
 	e.Project("srv", harness.Many(harness.McpManifest(`, "allowed_external": ["fake.vanish"]`)))
 	dir := e.McpDir("srv", "fake")
-	e.WaitState(e.Start("srv", "work", map[string]any{"step": "srv__fake__vanish"}), "done", "waiting_answer")
+	e.WaitState(e.Start("srv", "work", map[string]any{"step": "srv__fake__vanish"}), "done", "waiting:answer")
 	if c := got["srv__fake__vanish"]; !c.IsErr || !strings.Contains(c.Out, "outcome is unknown") {
 		t.Fatalf("a call whose server died while making it has an unknown outcome: %+v", c)
 	}
@@ -111,7 +111,7 @@ func TestMCPCallLostWithItsServerIsAnUnknownOutcome(t *testing.T) {
 		t.Fatalf("a server that stopped shows in health with the error: %+v", h)
 	}
 	delete(got, "srv__fake__vanish")
-	e.WaitState(e.Start("srv", "work", map[string]any{"step": "srv__fake__vanish"}), "done", "waiting_answer")
+	e.WaitState(e.Start("srv", "work", map[string]any{"step": "srv__fake__vanish"}), "done", "waiting:answer")
 	if c := got["srv__fake__vanish"]; !c.IsErr || !strings.Contains(c.Out, "unknown outcome") || len(harness.FakeLog(dir)) != 1 {
 		t.Fatalf("the same call is not made again while its outcome is unknown: %+v %v", c, harness.FakeLog(dir))
 	}
@@ -148,7 +148,7 @@ func TestChangedMCPToolLosesItsRightsUntilTheOwnerAllowsItAgain(t *testing.T) {
 		t.Fatalf("the call that finds the tool changed is not made under its old rights: %+v %v", c, harness.FakeLog(dir))
 	}
 	id := e.Start("srv", "work", map[string]any{"step": "srv__fake__send"})
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if c := got["srv__fake__send"]; !strings.Contains(c.Out, `"waiting"`) || len(harness.FakeLog(dir)) != 1 {
 		t.Fatalf("a tool whose description changed waits for the owner despite the list: %+v %v", c, harness.FakeLog(dir))
 	}
@@ -331,7 +331,7 @@ func TestWiderToolFilterAndAToolThatComesBackWaitForTheOwner(t *testing.T) {
 	e2.App.Host.Stop(key)
 	e2.WaitState(e2.Start("srv", "work", map[string]any{"step": "srv__fake__lookup"}), "done")
 	id := e2.Start("srv", "work", map[string]any{"step": "srv__fake__send"})
-	e2.WaitState(id, "waiting_answer")
+	e2.WaitState(id, "waiting:answer")
 	if c := got["srv__fake__send"]; !strings.Contains(c.Out, `"waiting"`) {
 		t.Fatalf("a tool that vanished and came back changed waits for the owner: %+v", c)
 	}

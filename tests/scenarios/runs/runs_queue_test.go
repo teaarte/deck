@@ -42,7 +42,7 @@ func TestACommandOfOneRunAtATimeQueuesTheNextCall(t *testing.T) {
 	if first == second {
 		t.Fatalf("a second call is a run of its own: %d", first)
 	}
-	if got := e.WaitState(second, "waiting_run", "done"); got.State != "waiting_run" {
+	if got := e.WaitState(second, "waiting:run", "done"); got.State != "waiting:run" {
 		t.Fatalf("the second run waits for the first: %+v", got)
 	}
 	for _, id := range []int64{first, second} {
@@ -88,7 +88,7 @@ func TestAStoppedRunLetsTheNextOneStart(t *testing.T) {
 	e.Project("spans", strings.Replace(harness.ScriptManifest("run", "", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1))
 	e.SaveScript("spans", "scripts/main.py", strings.Replace(spanScript, "time.sleep(1)", "time.sleep(30)", 1))
 	first, second := e.Start("spans", "run", nil), e.Start("spans", "run", nil)
-	e.WaitState(second, "waiting_run")
+	e.WaitState(second, "waiting:run")
 	e.Must("deck.process_stop", map[string]any{"process": first}, nil)
 	if got := e.WaitState(second, "running"); got.State != "running" {
 		t.Fatalf("the next run starts once the first is stopped: %+v", got)

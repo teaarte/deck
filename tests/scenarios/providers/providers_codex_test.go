@@ -226,7 +226,7 @@ func TestFailedCodexSelfCheckHoldsCodexProcesses(t *testing.T) {
 	main := e.Project("main", harness.ColorManifest)
 	e.UseModels("paint.work", "codex")
 	id := e.Run(on, "work")
-	e.WaitState(id, "waiting_provider")
+	e.WaitState(id, "waiting:provider")
 	if got := e.WaitState(e.Run(main, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the main provider goes on while Codex is red: %+v", got)
 	}

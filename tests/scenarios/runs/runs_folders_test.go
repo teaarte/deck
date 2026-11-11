@@ -117,7 +117,7 @@ func TestSecondAgentInTheSameFolderWaitsForTheLock(t *testing.T) {
 	e.Until("the first agent at its provider", func() bool { return len(e.Fake.Calls()) == 1 })
 	second, third := e.Run(b, "run"), e.Run(a, "run")
 	e.Until("the others to wait for the folder", func() bool {
-		return states(e, []int64{first, second, third}) == "running waiting_folder waiting_folder"
+		return states(e, []int64{first, second, third}) == "running waiting:folder waiting:folder"
 	})
 	waits := 0
 	for _, it := range e.CockpitRunning() {
@@ -138,7 +138,7 @@ func TestSecondAgentInTheSameFolderWaitsForTheLock(t *testing.T) {
 		t.Fatalf("the second works in the real path of the folder: %s", c.Cwd)
 	}
 	fourth := e.Run(a, "run")
-	e.WaitState(fourth, "waiting_folder")
+	e.WaitState(fourth, "waiting:folder")
 	release <- struct{}{}
 	e.WaitState(second, "done")
 	release <- struct{}{}
@@ -162,14 +162,14 @@ func TestFolderLockSurvivesARestart(t *testing.T) {
 	a := e.Run(p, "run")
 	e.Until("the first at its provider", func() bool { return len(first.Calls()) == 1 })
 	b := e.Run(p, "run")
-	e.WaitState(b, "waiting_folder")
+	e.WaitState(b, "waiting:folder")
 
 	release := make(chan struct{}, 4)
 	second := &harness.Fake{Script: held(release)}
 	e2 := e.Restart(harness.WithProvider(second))
 	e2.Resume()
 	e2.Until("the one with the folder resumed", func() bool { return len(second.Calls()) == 1 })
-	if got := states(e2, []int64{a, b}); got != "running waiting_folder" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
+	if got := states(e2, []int64{a, b}); got != "running waiting:folder" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
 		t.Fatalf("after a restart the folder stays with its agent: %s, %d calls", got, len(second.Calls()))
 	}
 	release <- struct{}{}
@@ -303,10 +303,10 @@ func TestAPauseTheOwnerStopsFreesTheFolder(t *testing.T) {
 	e.UseModels("code.run", "fake")
 	e.Must("deck.folder_add", map[string]any{"project": "code", "path": harness.RepoFolder(t)}, nil)
 	a := e.Run(p, "run")
-	e.WaitState(a, "rate_limited")
+	e.WaitState(a, "waiting:limit")
 	e.UseModels("code.run", "fake", "other")
 	b := e.Run(p, "run")
-	e.WaitState(b, "waiting_folder")
+	e.WaitState(b, "waiting:folder")
 	e.Must("deck.process_stop", map[string]any{"process": a}, nil)
 	e.WaitState(a, "stopped")
 	e.WaitState(b, "done")
@@ -340,12 +340,12 @@ func TestAStoppedAgentKeepsTheFolderUntilItsTurnExits(t *testing.T) {
 	first := e.Run(p, "run")
 	<-inside
 	second := e.Run(p, "run")
-	e.WaitState(second, "waiting_folder")
+	e.WaitState(second, "waiting:folder")
 
 	e.Must("deck.process_stop", map[string]any{"process": first}, nil)
 	e.WaitState(first, "stopped")
 	e.Refused("deck.process_rework", map[string]any{"process": first, "remark": "again"}, 409, "still stopping")
-	if s := e.Proc(second).State; s != "waiting_folder" {
+	if s := e.Proc(second).State; s != "waiting:folder" {
 		t.Fatalf("the folder waits for the stopped turn to exit: %s", s)
 	}
 	let()

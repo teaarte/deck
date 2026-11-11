@@ -389,12 +389,15 @@ func (q *Queries) ExpireAsk(ctx context.Context, id int64) (int64, error) {
 	return result.RowsAffected()
 }
 
-const expireStaleConfirms = `-- name: ExpireStaleConfirms :many
-UPDATE ask SET state = 'expired' WHERE kind IN ('confirm', 'call') AND state = 'open' AND expires_at <= CAST(?1 AS TEXT) RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at
+const expireStaleAsks = `-- name: ExpireStaleAsks :many
+UPDATE ask SET state = 'expired'
+WHERE (kind IN ('confirm', 'call') OR kind IN ('question', 'login') AND process_id IS NOT NULL)
+  AND state = 'open' AND expires_at <= CAST(?1 AS TEXT) RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at
 `
 
-func (q *Queries) ExpireStaleConfirms(ctx context.Context, now string) ([]Ask, error) {
-	rows, err := q.db.QueryContext(ctx, expireStaleConfirms, now)
+// The asks past their term: confirmations, and the questions and logins a process waits on.
+func (q *Queries) ExpireStaleAsks(ctx context.Context, now string) ([]Ask, error) {
+	rows, err := q.db.QueryContext(ctx, expireStaleAsks, now)
 	if err != nil {
 		return nil, err
 	}

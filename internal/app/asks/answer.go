@@ -37,7 +37,7 @@ func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswe
 		return nil, err
 	}
 	if q.State == ask.StateOpen && q.ExpiresAt.Valid && q.ExpiresAt.String <= store.Time(s.Now()) {
-		s.ExpireConfirms(ctx, s.Now())
+		s.ExpireAsks(ctx, s.Now())
 		if q, err = s.St.Q.GetAsk(ctx, in.Ask); err != nil {
 			return nil, err
 		}
@@ -194,10 +194,10 @@ func (s *Service) LateAnswer(ctx context.Context, q db.Ask) {
 	}
 }
 
-// ExpireConfirms closes the confirmations the owner left past their term and tells the processes that asked.
-func (s *Service) ExpireConfirms(ctx context.Context, now time.Time) {
+// ExpireAsks closes the asks the owner left past their term and tells the processes that asked.
+func (s *Service) ExpireAsks(ctx context.Context, now time.Time) {
 	expired, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) ([]db.Ask, error) {
-		return q.ExpireStaleConfirms(ctx, store.Time(now))
+		return q.ExpireStaleAsks(ctx, store.Time(now))
 	})
 	if err != nil {
 		slog.Error("expire confirmations", "err", err)

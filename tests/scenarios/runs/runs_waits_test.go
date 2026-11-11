@@ -172,7 +172,7 @@ func TestAShortCommandFromATurnGivesItsResultAtOnce(t *testing.T) {
 		State   string
 		Result  json.RawMessage
 	}
-	if json.Unmarshal([]byte(got["slow"]), &slow) != nil || slow.Process == 0 || slow.State != "running" && slow.State != "waiting_slot" || slow.Result != nil {
+	if json.Unmarshal([]byte(got["slow"]), &slow) != nil || slow.Process == 0 || slow.State != "running" && slow.State != "waiting" || slow.Result != nil {
 		t.Fatalf("a long script gives its process when the short wait ends: %s (%s)", got["slow"], got["slow_took"])
 	}
 	if !strings.Contains(got["send"], "owner") {
@@ -189,7 +189,7 @@ func TestAShortCommandFromATurnGivesItsResultAtOnce(t *testing.T) {
 		t.Fatalf("an agent command does not wait: %s", got["child_took"])
 	}
 	e.Must("deck.process_stop", map[string]any{"process": slow.Process}, nil)
-	if p := e.WaitState(id, "done", "error", "waiting_answer"); p.State == "error" {
+	if p := e.WaitState(id, "done", "error", "waiting:answer"); p.State == "error" {
 		t.Fatalf("the work ends: %+v", e.Fault(id))
 	}
 }

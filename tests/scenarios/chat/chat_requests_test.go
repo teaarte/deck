@@ -73,7 +73,7 @@ func TestARequestSaysWhatChangesAndWhy(t *testing.T) {
 		out, _ := c.Tool(ctx, "assignment_set", map[string]any{"assignments": places("r1", "r2", "r3", "r4"), "why": "Нужно для 4-го захода опыта."})
 		return []string{out}
 	})
-	e.WaitState(e.Run(films, "work"), "waiting_answer")
+	e.WaitState(e.Run(films, "work"), "waiting:answer")
 	if got := said(); len(got) != 1 || !strings.Contains(got[0], "waits for the owner") {
 		t.Fatalf("the call waits for the owner: %q", got)
 	}
@@ -111,7 +111,7 @@ func TestARequestThatChangesNothingIsNotMade(t *testing.T) {
 	})
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "films", "command": "r1", "models": []string{"openrouter/qwen"}}, nil)
 	id := e.Run(films, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	got := said()
 	if len(got) != 2 || !strings.Contains(got[0], `"unchanged":true`) || strings.Contains(got[0], "ask") {
 		t.Fatalf("a call that changes nothing answers so and asks nothing: %q", got)
@@ -157,7 +157,7 @@ func TestTheSameRequestInOtherWordsIsOne(t *testing.T) {
 	}))
 	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
 	e.Secret("notes", "svc", "k")
-	e.WaitState(e.Run(p, "work"), "waiting_answer")
+	e.WaitState(e.Run(p, "work"), "waiting:answer")
 	rows := requestsIn(e, "en")
 	mu.Lock()
 	defer mu.Unlock()

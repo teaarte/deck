@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"deck2/internal/fault"
@@ -35,7 +36,7 @@ func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 		if held = holder == t.process; held {
 			return nil
 		}
-		_, err = r.holdIn(ctx, q, t, StateWaitingFolder)
+		_, err = r.holdIn(ctx, q, t, wait{reason: WaitFolder, on: folder})
 		return err
 	})
 	if err != nil {
@@ -63,14 +64,14 @@ func (r *Runner) holdRun(ctx context.Context, t turn) bool {
 		if err != nil {
 			return err
 		}
-		_, err = q.EarlierRun(ctx, db.EarlierRunParams{ProjectID: p.ProjectID, Command: p.Command, Trial: p.Trial, ID: p.ID})
+		before, err := q.EarlierRun(ctx, db.EarlierRunParams{ProjectID: p.ProjectID, Command: p.Command, Trial: p.Trial, ID: p.ID})
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		held, err = r.holdIn(ctx, q, t, StateWaitingRun)
+		held, err = r.holdIn(ctx, q, t, wait{reason: WaitRun, on: fmt.Sprint(before)})
 		return err
 	})
 	if err != nil {

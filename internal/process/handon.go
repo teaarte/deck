@@ -84,17 +84,14 @@ func (r *Runner) reassigned(ctx context.Context, workspace int64, p db.Process) 
 	if next == "" || !r.deps.Goes(ctx, workspace, next) {
 		return false
 	}
-	if ok, err := r.claim(ctx, p.ID, p.State); err != nil || !ok {
+	if ok, err := r.claim(ctx, p.ID, p.WaitReason); err != nil || !ok {
 		return false
 	}
 	f := fault.New(fault.ModelUnavailable, fmt.Sprintf("%s takes no turns, and the assignment gives the work to %s now", p.Provider, next))
 	if r.handOnTo(ctx, t, p.Provider, next, f) {
 		return true
 	}
-	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.ClaimProcess(ctx, db.ClaimProcessParams{ToState: p.State, ID: p.ID, FromState: StateRunning})
-		return err
-	})
+	r.unclaim(ctx, p.ID)
 	return false
 }
 

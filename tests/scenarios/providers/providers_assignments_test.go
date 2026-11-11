@@ -125,7 +125,7 @@ func TestNoCallerAppliesAnAssignmentPastTheOwner(t *testing.T) {
 	e.SaveScript("picker", "scripts/main.py", harness.DeckCallScript)
 
 	id := e.Run(films, "work")
-	e.WaitState(id, "waiting_answer")
+	e.WaitState(id, "waiting:answer")
 	if got := e.Assigned("films", "text"); got != nil {
 		t.Fatalf("an agent's call does not apply before the owner's yes: %v", got)
 	}

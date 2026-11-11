@@ -2,6 +2,7 @@ package work
 
 import (
 	"context"
+	"deck2/internal/fault"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -51,7 +52,7 @@ func (s *Service) video(ctx context.Context, act registry.Actor, h models.Hop, r
 	var job videoJob
 	if json.Unmarshal(raw, &job) != nil || job.ID == "" || strings.ContainsAny(job.ID, "/?#") {
 		done(&provider.Usage{})
-		return nil, fmt.Errorf("deck: %s took the video but answered no job id: %s", h.Connection, untrusted.Cut(string(raw), 500))
+		return nil, models.Unread(fmt.Sprintf("deck: %s took the video but answered no job id: %s", h.Connection, untrusted.Cut(string(raw), 500)))
 	}
 	spent := &provider.Usage{}
 	defer func() { done(spent) }()
@@ -63,13 +64,13 @@ func (s *Service) video(ctx context.Context, act registry.Actor, h models.Hop, r
 				zero := 0.0
 				spent = &provider.Usage{CostUSD: &zero}
 			}
-			return nil, fmt.Errorf("deck: the video job %s of %s ended %s: %s", job.ID, h.Connection, job.Status, untrusted.Cut(failure(job.Error), 1000))
+			return nil, fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: the video job %s of %s ended %s: %s", job.ID, h.Connection, job.Status, untrusted.Cut(failure(job.Error), 1000)))
 		}
 		select {
 		case <-ceiling.C:
-			return nil, fmt.Errorf("deck: the video job %s of %s was not ready in %s", job.ID, h.Connection, s.VideoCeiling)
+			return nil, fault.New(fault.Timeout, fmt.Sprintf("deck: the video job %s of %s was not ready in %s", job.ID, h.Connection, s.VideoCeiling))
 		case <-ctx.Done():
-			return nil, fmt.Errorf("deck: the call stopped while the video job %s of %s ran; the service may still finish it: %w", job.ID, h.Connection, ctx.Err())
+			return nil, fault.New(fault.Stopped, fmt.Sprintf("deck: the call stopped while the video job %s of %s ran; the service may still finish it: %v", job.ID, h.Connection, ctx.Err()))
 		case <-time.After(s.VideoPoll):
 		}
 		r, err := models.Send(ctx, h.Target, models.Call{Method: http.MethodGet, Path: "videos/" + job.ID})
@@ -82,7 +83,7 @@ func (s *Service) video(ctx context.Context, act registry.Actor, h models.Hop, r
 			continue
 		}
 		if r.StatusCode >= 400 {
-			return nil, fmt.Errorf("deck: %s answered HTTP %d about the video job %s: %s", h.Connection, r.StatusCode, job.ID, untrusted.Cut(string(body), 1000))
+			return nil, fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: %s answered HTTP %d about the video job %s: %s", h.Connection, r.StatusCode, job.ID, untrusted.Cut(string(body), 1000)))
 		}
 		var next videoJob
 		if json.Unmarshal(body, &next) == nil && next.Status != "" {
@@ -94,11 +95,11 @@ func (s *Service) video(ctx context.Context, act registry.Actor, h models.Hop, r
 	}
 	r, err := models.Send(ctx, h.Target, models.Call{Method: http.MethodGet, Path: "videos/" + job.ID + "/content"})
 	if err != nil {
-		return nil, fmt.Errorf("deck: the clip of the video job %s of %s: %v", job.ID, h.Connection, err)
+		return nil, fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: the clip of the video job %s of %s: %v", job.ID, h.Connection, err))
 	}
 	file, _, err := s.answer(act, RoleVideo, r, h)
 	if err == nil && file == nil {
-		err = fmt.Errorf("deck: %s answered no clip for the video job %s", h.Connection, job.ID)
+		err = fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: %s answered no clip for the video job %s", h.Connection, job.ID))
 	}
 	return file, err
 }

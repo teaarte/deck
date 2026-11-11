@@ -5,8 +5,8 @@ package shots
 import (
 	"bytes"
 	"context"
+	"deck2/internal/fault"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -95,7 +95,7 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in screenCapture
 	key, spec := Key(device), s.spec(device)
 	// The browser starts before the token is lent, so a slow first start does not outlast it.
 	if _, err := s.Host.Tools(ctx, key, spec); err != nil {
-		return nil, fmt.Errorf("deck: the browser of the shots: %w", err)
+		return nil, fault.Wrap("deck: the browser of the shots", err)
 	}
 	token := s.Lend(act, 2*time.Minute)
 	defer s.Return(token)
@@ -143,7 +143,7 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in screenCapture
 		Grown  bool            `json:"grown"`
 	}
 	if err := json.Unmarshal([]byte(result(res)), &drawn); err != nil {
-		return nil, fmt.Errorf("deck: the screen did not draw: %s", strings.TrimSpace(text(res)))
+		return nil, fault.New(fault.DeckInternal, fmt.Sprintf("deck: the screen did not draw: %s", strings.TrimSpace(text(res))))
 	}
 	pic, err := s.call(ctx, key, spec, "browser_take_screenshot", map[string]any{"type": "png", "fullPage": true})
 	if drawn.Grown {
@@ -178,10 +178,10 @@ func (s *Service) call(ctx context.Context, key string, spec mcphost.Spec, tool 
 	raw, _ := json.Marshal(args)
 	res, err := s.Host.Call(ctx, key, spec, tool, raw, nil)
 	if err != nil {
-		return nil, fmt.Errorf("deck: the browser of the shots: %w", err)
+		return nil, fault.Wrap("deck: the browser of the shots", err)
 	}
 	if res.IsError {
-		return nil, fmt.Errorf("deck: the browser of the shots: %s", strings.TrimSpace(text(res)))
+		return nil, fault.New(fault.DeckInternal, fmt.Sprintf("deck: the browser of the shots: %s", strings.TrimSpace(text(res))))
 	}
 	return res, nil
 }
@@ -202,7 +202,7 @@ func (s *Service) picture(res *mcp.CallToolResult) ([]byte, error) {
 			return os.ReadFile(path)
 		}
 	}
-	return nil, errors.New("deck: the browser of the shots gave no picture")
+	return nil, fault.New(fault.DeckInternal, "deck: the browser of the shots gave no picture")
 }
 
 var saved = regexp.MustCompile(`([^\s()\[\]]+\.png)`)

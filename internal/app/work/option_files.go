@@ -2,6 +2,7 @@ package work
 
 import (
 	"context"
+	"deck2/internal/fault"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -166,7 +167,7 @@ func (s *Service) withFiles(o map[string]any, model string) error {
 		if id := fileOf(v); id != 0 {
 			b, err := os.ReadFile(s.Home.File(id))
 			if err != nil {
-				return fmt.Errorf("deck: option %s of model %s is a file deck cannot read: %w", k, model, err)
+				return fault.New(fault.DeckInternal, fmt.Sprintf("deck: option %s of model %s is a file deck cannot read: %v", k, model, err))
 			}
 			o[k] = string(b)
 		}

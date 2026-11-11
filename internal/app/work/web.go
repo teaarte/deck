@@ -2,6 +2,7 @@ package work
 
 import (
 	"context"
+	"deck2/internal/fault"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -100,13 +101,13 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxPage))
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("deck: search %s answered %s: %s", h.Name, resp.Status, untrusted.Cut(strings.TrimSpace(string(raw)), 500))
+		return nil, fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: search %s answered %s: %s", h.Name, resp.Status, untrusted.Cut(strings.TrimSpace(string(raw)), 500)))
 	}
 	var v struct {
 		Results []struct{ Title, URL, Content string }
 	}
 	if err := json.Unmarshal(raw, &v); err != nil {
-		return nil, fmt.Errorf("deck: search %s answered what is not JSON; SearXNG needs json in search.formats of its settings: %s", h.Name, untrusted.Cut(string(raw), 300))
+		return nil, fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: search %s answered what is not JSON; SearXNG needs json in search.formats of its settings: %s", h.Name, untrusted.Cut(string(raw), 300)))
 	}
 	count := int(in.Count)
 	if count <= 0 {
@@ -146,7 +147,7 @@ func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchI
 		read["read"] = at
 	}
 	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("deck: %s answered %s", in.URL, resp.Status)
+		return nil, fault.New(fault.Network, fmt.Sprintf("deck: %s answered %s", in.URL, resp.Status))
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxPage))
 	if err != nil {

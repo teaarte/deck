@@ -42,6 +42,8 @@ var rules = []rule{
 		[]string{"internal/home/"}, fileWrite},
 	{"env", "the environment of deck read outside cmd/deck: take it from the config", []string{"internal/", "cmd/"},
 		[]string{"cmd/deck/"}, envRead},
+	{"failure", "an error that calls itself deck's by its text: take fault.New with its type, or a constructor of registry", []string{"internal/"},
+		[]string{"internal/fault/", "internal/registry/", "internal/lint/"}, deckErr},
 	{"topic", "a topic of events written out: take its constant of internal/events", []string{"internal/", "cmd/"},
 		[]string{"internal/events/"}, topicLit},
 }
@@ -300,6 +302,33 @@ func fileWrite(f *ast.File, fset *token.FileSet) []int {
 // envRead are the lines that read the environment of deck.
 func envRead(f *ast.File, fset *token.FileSet) []int {
 	return calls(f, fset, "os", "Getenv", "LookupEnv", "Environ")
+}
+
+// deckErr are the lines of fmt.Errorf and errors.New whose text begins "deck: ".
+func deckErr(f *ast.File, fset *token.FileSet) []int {
+	fmtName, errName := importName(f, "fmt"), importName(f, "errors")
+	var out []int
+	ast.Inspect(f, func(n ast.Node) bool {
+		c, ok := n.(*ast.CallExpr)
+		if !ok || len(c.Args) == 0 {
+			return true
+		}
+		s, ok := c.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		x, ok := s.X.(*ast.Ident)
+		if !ok || !(x.Name == fmtName && s.Sel.Name == "Errorf" || x.Name == errName && s.Sel.Name == "New") {
+			return true
+		}
+		if l, ok := c.Args[0].(*ast.BasicLit); ok && l.Kind == token.STRING {
+			if v, err := strconv.Unquote(l.Value); err == nil && strings.HasPrefix(v, "deck: ") {
+				out = append(out, fset.Position(c.Pos()).Line)
+			}
+		}
+		return true
+	})
+	return out
 }
 
 // composite are the lines of composite literals of the named types of the package at path.

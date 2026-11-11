@@ -3,9 +3,13 @@ package work
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"maps"
+	"net/http"
 	"strings"
 
+	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/models"
 	"deck2/internal/provider"
@@ -118,24 +122,25 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 			return nil, err
 		}
 	}
-	resp, h, err := models.SendHops(ctx, hops, func(h models.Hop) (models.Call, error) {
+	out, h, err := models.ReadHops(ctx, hops, func(h models.Hop) (models.Call, error) {
 		return build(in, h, merged(maps.Clone(h.Options), options), att)
+	}, func(h models.Hop, resp *http.Response) (any, error) {
+		if in.Kind == RoleVideo {
+			return s.video(ctx, act, h, resp, func(u *provider.Usage) {
+				if finish != nil {
+					finish(u)
+				}
+			})
+		}
+		return s.read(act, in, h, resp)
 	})
-	if err != nil {
-		return nil, err
-	}
-	var out any
-	if in.Kind == RoleVideo {
-		out, err = s.video(ctx, act, h, resp, func(u *provider.Usage) {
-			if finish != nil {
-				finish(u)
-			}
-		})
-	} else {
-		out, err = s.read(act, in, h, resp)
-	}
-	if err != nil && in.Kind == RoleTTS && merged(maps.Clone(h.Options), options)["voice"] == nil {
-		err = registry.Invalid("%v\ndeck: model %s got no voice; when its service needs one, set voice in the options of the model (Settings, Models, edit)", err, h.Name)
+	if err != nil && h.Name != "" && in.Kind == RoleTTS && merged(maps.Clone(h.Options), options)["voice"] == nil {
+		hint := fmt.Sprintf("model %s got no voice; when its service needs one, set voice in the options of the model (Settings, Models, edit)", h.Name)
+		if f := (*fault.F)(nil); errors.As(err, &f) {
+			err = fault.With(f.Type, err.Error(), hint)
+		} else {
+			err = registry.Invalid("%v\ndeck: %s", err, hint)
+		}
 	}
 	if file, ok := out.(map[string]any); ok && err == nil && file["file"] != nil {
 		file["model"] = h.Name

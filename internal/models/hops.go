@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -137,11 +138,51 @@ func Send(ctx context.Context, t Target, c Call) (*http.Response, error) {
 // SendHops makes the call each hop builds, in order, past one unsent, a 429 or a 5xx; the usage of the answer
 // reaches the Done of its hop when its body closes.
 func SendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*http.Response, Hop, error) {
+	resp, i, err := sendHops(ctx, hops, build)
+	if i < 0 {
+		return resp, Hop{}, err
+	}
+	return resp, hops[i], err
+}
+
+// unread is a failure of a model whose answer deck could not read.
+type unread struct{ *fault.F }
+
+func (u unread) Unwrap() error { return u.F }
+
+// Unread is the failure of a model that answered what deck cannot read, such as text that is not JSON: model.unavailable,
+// and ReadHops hands the call on to the next hop.
+func Unread(text string) error { return unread{fault.New(fault.ModelUnavailable, text)} }
+
+// ReadHops is SendHops with the answer read into a result; an answer read fails with Unread hands the call on to
+// the next hop as a failed one does.
+func ReadHops[T any](ctx context.Context, hops []Hop, build func(Hop) (Call, error), read func(Hop, *http.Response) (T, error)) (T, Hop, error) {
+	for {
+		var zero T
+		resp, i, err := sendHops(ctx, hops, build)
+		if err != nil {
+			if i < 0 {
+				return zero, Hop{}, err
+			}
+			return zero, hops[i], err
+		}
+		out, err := read(hops[i], resp)
+		var u unread
+		if err != nil && i < len(hops)-1 && errors.As(err, &u) {
+			hops = hops[i+1:]
+			continue
+		}
+		return out, hops[i], err
+	}
+}
+
+// sendHops is SendHops with the index of the hop that answered or failed, -1 for none.
+func sendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*http.Response, int, error) {
 	var last error = registry.Invalid("no model to call")
 	for i, h := range hops {
 		c, err := build(h)
 		if err != nil {
-			return nil, h, err
+			return nil, i, err
 		}
 		if past := h.past(c.Body); past != "" {
 			last = fault.New(fault.ModelLimit, past)
@@ -149,7 +190,7 @@ func SendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 		}
 		release, waited, err := queued(ctx, h)
 		if err != nil {
-			return nil, h, err
+			return nil, i, err
 		}
 		start := time.Now()
 		resp, err := Send(ctx, h.Target, c)
@@ -169,7 +210,7 @@ func SendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 				continue
 			}
 			h.Done(ctx, -1, nil)
-			return nil, h, last
+			return nil, i, last
 		}
 		if past := pastMinute(resp); past != "" {
 			// A request past what the model takes a minute: the next model takes it, and the model waits for nothing.
@@ -198,9 +239,9 @@ func SendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 		}
 		done, status := context.WithoutCancel(ctx), resp.StatusCode
 		resp.Body = &releasing{metered(resp.Body, start, chars(c.Body), func(u *provider.Usage) { h.Done(done, status, u) }), release}
-		return resp, h, nil
+		return resp, i, nil
 	}
-	return nil, Hop{}, last
+	return nil, -1, last
 }
 
 // bytesPerToken is how deck guesses the tokens of a request before it goes: four bytes a token.

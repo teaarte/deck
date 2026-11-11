@@ -67,7 +67,7 @@ func (s *Service) read(act registry.Actor, in modelCallIn, h models.Hop, resp *h
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &v); err != nil {
-		return nil, fmt.Errorf("deck: %s answered what is not JSON: %s", h.Connection, untrusted.Cut(string(raw), 500))
+		return nil, models.Unread(fmt.Sprintf("deck: %s answered what is not JSON: %s", h.Connection, untrusted.Cut(string(raw), 500)))
 	}
 	switch in.Kind {
 	case RoleSTT:
@@ -85,7 +85,7 @@ func (s *Service) read(act registry.Actor, in modelCallIn, h models.Hop, resp *h
 				}
 			}
 		}
-		return nil, fmt.Errorf("deck: %s answered no picture: %s", h.Connection, untrusted.Cut(string(raw), 500))
+		return nil, models.Unread(fmt.Sprintf("deck: %s answered no picture: %s", h.Connection, untrusted.Cut(string(raw), 500)))
 	}
 	var text strings.Builder
 	for _, c := range v.Choices {
@@ -106,7 +106,7 @@ func (s *Service) read(act registry.Actor, in modelCallIn, h models.Hop, resp *h
 	}
 	out, err := manifest.DecodeValue([]byte(unfence(text.String())))
 	if err != nil {
-		return nil, fmt.Errorf("deck: the model answered what is not JSON: %s", untrusted.Cut(text.String(), 1000))
+		return nil, models.Unread(fmt.Sprintf("deck: %s answered what is not JSON: %s", h.Name, untrusted.Cut(text.String(), 1000)))
 	}
 	return out, nil
 }
@@ -167,7 +167,7 @@ func dataURL(u string) (string, string, bool) {
 func (s *Service) keepBase64(act registry.Actor, ct, data string) (any, error) {
 	b, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
-		return nil, fmt.Errorf("deck: the picture is not base64: %v", err)
+		return nil, models.Unread(fmt.Sprintf("deck: the picture is not base64: %v", err))
 	}
 	return s.keep(act, RoleImage, ct, bytes.NewReader(b))
 }

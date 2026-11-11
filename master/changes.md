@@ -366,3 +366,7 @@ and bring the modules in line.
   caller set, and the confirmation shows its params (until a later version makes such a press the call of its
   writer). A confirmation of a tool call in `asks_list` gives `change` as the call's fields a line each, where it
   reaches (`to`, `cc`, `url`, …) first, each value cut on its own.
+- 2026-11-11: a model's answer deck cannot read (not JSON by the schema, no picture, no video job id) fails as the
+  model's, `model.unavailable` (HTTP 502), no longer as deck's own `deck.internal` (500), and the next model assigned
+  takes the call; a video job that failed is `model.unavailable` too, one past its ceiling `timeout`; a page
+  `web_fetch` reads that answers an error status fails as `network` (502).

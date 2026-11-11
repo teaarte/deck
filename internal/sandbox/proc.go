@@ -1,7 +1,6 @@
 package sandbox
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"errors"
@@ -13,8 +12,6 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
-
-	"deck2/internal/untrusted"
 )
 
 // Proc is the program of a box running: a process group of its own, ended whole once the program exits.
@@ -42,7 +39,7 @@ func Remote(stdin io.WriteCloser, signal func(syscall.Signal), done <-chan error
 	return p
 }
 
-func start(cmd *exec.Cmd, door *Door, o IO) (*Proc, error) {
+func start(cmd *exec.Cmd, door *Door, o IO, secrets []string) (*Proc, error) {
 	p := &Proc{door: door, done: make(chan struct{})}
 	theirs := slices.Clone(cmd.ExtraFiles)
 	fail := func(err error) (*Proc, error) {
@@ -67,15 +64,15 @@ func start(cmd *exec.Cmd, door *Door, o IO) (*Proc, error) {
 		if err != nil {
 			return fail(err)
 		}
-		cmd.Stdout, p.Stdout, theirs = w, hide(r, door), append(theirs, w)
+		cmd.Stdout, p.Stdout, theirs = w, readerOf(r, masking(secrets)), append(theirs, w)
 	} else {
-		c, w, err := pipe(o.Stdout)
+		c, w, err := pipe(writerOf(o.Stdout, masking(secrets)))
 		if err != nil {
 			return fail(err)
 		}
 		cmd.Stdout, theirs, copies = w, append(theirs, w), append(copies, c)
 	}
-	c, w, err := pipe(&lines{f: o.Stderr, hide: door.secrets()})
+	c, w, err := pipe(writerOf(&lines{f: o.Stderr}, masking(secrets)))
 	if err != nil {
 		return fail(err)
 	}
@@ -223,17 +220,16 @@ func (c *copier) drain(late context.Context) {
 func (c *copier) close() {
 	c.mu.Lock()
 	c.closed = true
-	if l, ok := c.w.(*lines); ok {
-		l.flush()
+	if f, ok := c.w.(flusher); ok {
+		f.flush()
 	}
 	c.mu.Unlock()
 }
 
-// lines passes each line written to f, the secrets of hide masked.
+// lines passes each line written to f.
 type lines struct {
-	f    func(string)
-	hide []string
-	buf  []byte
+	f   func(string)
+	buf []byte
 }
 
 func (l *lines) Write(p []byte) (int, error) {
@@ -261,38 +257,6 @@ func (l *lines) flush() {
 
 func (l *lines) line(s string) {
 	if l.f != nil {
-		l.f(untrusted.Redact(s, l.hide))
+		l.f(s)
 	}
 }
-
-// masked is the output of a program read line by line, the secrets of its door masked.
-type masked struct {
-	r    *bufio.Reader
-	c    io.Closer
-	hide []string
-	buf  []byte
-	err  error
-}
-
-// hide masks the key of door in what the program writes to r; without a door r is read as is.
-func hide(r *os.File, door *Door) io.ReadCloser {
-	if door == nil {
-		return r
-	}
-	return &masked{r: bufio.NewReader(r), c: r, hide: door.secrets()}
-}
-
-func (m *masked) Read(p []byte) (int, error) {
-	for len(m.buf) == 0 {
-		if m.err != nil {
-			return 0, m.err
-		}
-		line, err := m.r.ReadBytes('\n')
-		m.buf, m.err = []byte(untrusted.Redact(string(line), m.hide)), err
-	}
-	n := copy(p, m.buf)
-	m.buf = m.buf[n:]
-	return n, nil
-}
-
-func (m *masked) Close() error { return m.c.Close() }

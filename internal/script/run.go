@@ -80,7 +80,7 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	b.Argv, b.Dir, b.Home = argv, j.Work(), j.Work()
 	b.Write = append(slices.Clone(b.Write), j.Work(), j.Results(), data)
 	b.Read = append(append(slices.Clone(b.Read), src), j.Read...)
-	b.Env = environ(j, data)
+	b.Env, b.Secrets = environ(j, data), append(slices.Clone(b.Secrets), j.Token)
 	var out bytes.Buffer
 	var last []string
 	p, err := x.Sandbox.Run(ctx, b, sandbox.IO{Stdin: bytes.NewReader(j.Stdin), Stdout: &limited{w: &out, n: maxStdout},

@@ -52,6 +52,8 @@ type Box struct {
 	Deck string `json:"deck,omitempty"`
 	// GPU opens the graphics card: /dev/dri on Linux.
 	GPU bool `json:"gpu,omitempty"`
+	// Secrets are values the program is given that deck masks in what it writes, as it masks the key of the door.
+	Secrets []string `json:"secrets,omitempty"`
 	// HostNet keeps the network of the machine: only deck's browser of shots, which opens deck's own pages.
 	HostNet bool `json:"host_net,omitempty"`
 }
@@ -122,7 +124,7 @@ func (s *Sandbox) Run(ctx context.Context, b Box, o IO) (*Proc, error) {
 		door.Close()
 		return nil, err
 	}
-	return start(cmd, door, o)
+	return start(cmd, door, o, secretsOf(b, door))
 }
 
 // Leaves says what a box of kind leaves open on this machine: the files of the machine, its network.

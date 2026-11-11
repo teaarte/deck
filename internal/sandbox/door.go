@@ -73,14 +73,6 @@ func (d *Door) URL() string { return "http://" + d.self + "/" + d.key }
 // Env sends the web of the program through the door, deck reached directly; it goes last, over the program's own.
 func (d *Door) Env() []string { return Proxy("http://deck:"+d.key+"@"+d.self, d.self) }
 
-// secrets are what of the door a program must not show: its key, also in its URL and environment.
-func (d *Door) secrets() []string {
-	if d == nil {
-		return nil
-	}
-	return []string{d.key}
-}
-
 // Close ends the door and the tunnels through it; a second call, or one without a door, does nothing.
 func (d *Door) Close() {
 	if d == nil {

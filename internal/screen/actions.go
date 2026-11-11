@@ -189,7 +189,7 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 			ps[registry.RetryKey] = "press:" + string(b)
 		}
 		if calls != "" {
-			ps[registry.AllowsKey] = registry.SignAllows(name, calls)
+			ps[registry.AllowsKey] = r.src.Sign(name, calls)
 		}
 		act["command"], act["params"] = name, ps
 		fromBlock := slices.DeleteFunc(slices.Clone(a.FromBlock), registry.Reserved)

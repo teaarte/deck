@@ -3,9 +3,9 @@ package process
 import (
 	"cmp"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"slices"
 	"strings"
@@ -14,6 +14,7 @@ import (
 	"deck2/internal/fault"
 	"deck2/internal/health"
 	"deck2/internal/provider"
+	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
 
@@ -226,36 +227,25 @@ func (r *Runner) leaveModel(ctx context.Context, t *turn, l *leaving) {
 	}
 }
 
-// Saw notes the revision of a document an open process read or saved; it stays through the turns of the process.
-func (r *Runner) Saw(process, doc, revision int64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.seen[process] == nil {
-		r.seen[process] = map[int64]int64{}
+// Saw notes in the base the revision of a document an open process read or saved; it stays through its turns and restarts.
+func (r *Runner) Saw(ctx context.Context, process, doc, revision int64) {
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return q.SetProcessRead(ctx, db.SetProcessReadParams{ProcessID: process, DocumentID: doc, Revision: revision})
+	})
+	if err != nil {
+		slog.Error("note a read revision", "process", process, "document", doc, "err", err)
 	}
-	r.seen[process][doc] = revision
 }
 
 // Seen is the revision of a document an open process read or saved last, 0 when none.
-func (r *Runner) Seen(process, doc int64) int64 {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	return r.seen[process][doc]
+func (r *Runner) Seen(ctx context.Context, q *db.Queries, process, doc int64) int64 {
+	n, _ := q.GetProcessRead(ctx, db.GetProcessReadParams{ProcessID: process, DocumentID: doc})
+	return n
 }
 
 // forgetSeen drops what the processes that ended read.
 func (r *Runner) forgetSeen(ctx context.Context) {
-	r.mu.Lock()
-	ids := make([]int64, 0, len(r.seen))
-	for id := range r.seen {
-		ids = append(ids, id)
-	}
-	r.mu.Unlock()
-	for _, id := range ids {
-		if p, err := r.st.Q.GetProcess(ctx, id); err == nil && p.FinishedAt.Valid || errors.Is(err, sql.ErrNoRows) {
-			r.mu.Lock()
-			delete(r.seen, id)
-			r.mu.Unlock()
-		}
+	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteFinishedProcessReads(ctx) }); err != nil {
+		slog.Error("forget read revisions", "err", err)
 	}
 }

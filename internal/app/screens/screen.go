@@ -162,6 +162,11 @@ func (s *Service) sources(act registry.Actor) screenSources {
 	return screenSources{svc: s, act: act}
 }
 
+// Sign is the field of the calls a button of command allows, as deck signs it.
+func (s screenSources) Sign(command, calls string) string {
+	return s.svc.Registry.SignAllows(command, calls)
+}
+
 // File is a file a media block of the project shows.
 func (s screenSources) File(ctx context.Context, p db.Project, ref any) (map[string]any, error) {
 	if p.ID == 0 {

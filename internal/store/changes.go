@@ -97,7 +97,7 @@ func init() {
 
 // silent are the tables no screen shows, so their writes publish nothing; every other table is in tables.
 var silent = []string{"workspace", "goose_db_version", "mark", "folder_lock", "chat_session", "record_snapshot", "record_mark", "session",
-	"memory_fts", "memory_fts_data", "memory_fts_idx", "memory_fts_content", "memory_fts_docsize", "memory_fts_config", "memory_read",
+	"memory_fts", "memory_fts_data", "memory_fts_idx", "memory_fts_content", "memory_fts_docsize", "memory_fts_config", "memory_read", "process_read",
 	"ask_unheard"}
 
 // rowWrite is a row a transaction changed: the table and where the old and the new row are.

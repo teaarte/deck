@@ -112,6 +112,9 @@ func (l Layout) PushKey(workspace int64) string {
 	return l.state("push", fmt.Sprintf("%d.vapid", workspace))
 }
 
+// PressKey is the key deck signs the calls its buttons allow with.
+func (l Layout) PressKey() string { return l.state("press.key") }
+
 // Secrets holds the secrets of a workspace, a folder a project with a file a secret.
 func (l Layout) Secrets(workspace int64) string { return l.state("secrets", fmt.Sprint(workspace)) }
 

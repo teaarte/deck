@@ -355,6 +355,12 @@ type Process struct {
 	WaitSilence      string
 }
 
+type ProcessRead struct {
+	ProcessID  int64
+	DocumentID int64
+	Revision   int64
+}
+
 type ProcessRemark struct {
 	ID          int64
 	ProcessID   int64

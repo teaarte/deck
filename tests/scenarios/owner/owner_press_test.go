@@ -187,3 +187,39 @@ func TestAllowsComeOnlyFromAButtonDeckDrew(t *testing.T) {
 		t.Fatalf("a custom block fills no allows: %d %s", code, out)
 	}
 }
+
+// TestAButtonDrawnBeforeARestartStillAllowsItsCall: the calls a button allows are signed with a key deck keeps, so a
+// press of a screen drawn before a restart is the yes it was.
+func TestAButtonDrawnBeforeARestartStillAllowsItsCall(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	for _, m := range []string{"qwen", "gemma"} {
+		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
+	}
+	e.Project("films", harness.PlainManifest)
+	e.Project("picker", harness.PickerManifest)
+	e.SaveScript("picker", "scripts/apply.py", harness.ApplyScript)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/gemma"}}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "picker", "collection": "proposals",
+		"records": harness.Jsonl(map[string]any{"name": "a", "project": "films", "models": "openrouter/qwen"})}, nil)
+	apply := e.RowAction("picker", "main", "picker.apply", nil)
+
+	e2 := e.Restart()
+	code, out := e2.Press(apply)
+	if code != 200 {
+		t.Fatalf("a press of a button drawn before the restart starts its run: %d %s", code, out)
+	}
+	var run struct{ Process int64 }
+	_ = json.Unmarshal(out, &run)
+	if p := e2.WaitState(run.Process, "done", "error"); p.State != "done" || strings.Contains(string(p.Result), "waiting") {
+		t.Fatalf("the call the button names is made at once: %+v", p)
+	}
+	if got := e2.Assigned("films", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
+		t.Fatalf("the press applies the models its row shows: %v", got)
+	}
+	// The key is of this deck's folder: another deck does not take its buttons.
+	if code, out := harness.New(t).Press(apply); code < 400 || !strings.Contains(string(out), "press it again") {
+		t.Fatalf("another deck refuses a button this one drew: %d %s", code, out)
+	}
+}

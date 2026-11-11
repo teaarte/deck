@@ -21,7 +21,6 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
-	"deck2/internal/nonce"
 	"deck2/schemas"
 )
 
@@ -186,10 +185,13 @@ type Registry struct {
 	builtins map[string]*Command
 	modules  Modules
 	issued   bool
+	// key signs the calls a button deck drew allows; it is kept in deck's folder, so a restart keeps it.
+	key []byte
 }
 
-func New(modules Modules) *Registry {
-	return &Registry{builtins: map[string]*Command{}, modules: modules}
+// New is a registry of the modules' commands beside deck's own; key signs the calls of buttons.
+func New(modules Modules, key []byte) *Registry {
+	return &Registry{builtins: map[string]*Command{}, modules: modules, key: key}
 }
 
 // Add registers a builtin command; it panics on a malformed description.
@@ -470,7 +472,7 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 	case a.Kind != Owner:
 		return nil, Invalid("%s comes only with a press of the owner", AllowsKey)
 	default:
-		calls, ok := verified(name, signed)
+		calls, ok := r.verified(name, signed)
 		if !ok {
 			return nil, Refuse("%s comes only with a button deck drew for %s; press it again", AllowsKey, name)
 		}
@@ -486,23 +488,20 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 	return c.Handler(ctx, a, input)
 }
 
-// pressKey signs the calls a button deck drew allows; it lives as long as deck runs.
-var pressKey = []byte(nonce.Hex(32))
-
 // SignAllows is the field of the calls a button of command allows, as deck draws it: a client cannot make or move one.
-func SignAllows(command, calls string) string {
-	return hex.EncodeToString(allowsMAC(command, calls)) + "." + calls
+func (r *Registry) SignAllows(command, calls string) string {
+	return hex.EncodeToString(r.allowsMAC(command, calls)) + "." + calls
 }
 
 // verified are the calls of a signed field when deck signed them for command.
-func verified(command, signed string) (string, bool) {
+func (r *Registry) verified(command, signed string) (string, bool) {
 	mac, calls, ok := strings.Cut(signed, ".")
 	got, err := hex.DecodeString(mac)
-	return calls, ok && err == nil && hmac.Equal(got, allowsMAC(command, calls))
+	return calls, ok && err == nil && hmac.Equal(got, r.allowsMAC(command, calls))
 }
 
-func allowsMAC(command, calls string) []byte {
-	m := hmac.New(sha256.New, pressKey)
+func (r *Registry) allowsMAC(command, calls string) []byte {
+	m := hmac.New(sha256.New, r.key)
 	m.Write([]byte(command + "\x00" + calls))
 	return m.Sum(nil)
 }

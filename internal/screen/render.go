@@ -34,6 +34,8 @@ type Sources interface {
 	// File is a file a media block shows: a stored file of the project by id or a path in its data folder, as
 	// name, type, size and the url the client reads it at.
 	File(ctx context.Context, project db.Project, ref any) (map[string]any, error)
+	// Sign is the field of the calls a button of command allows, signed by deck (registry.AllowsKey).
+	Sign(command, calls string) string
 }
 
 // Scope is whose items a command gives: a project, or with none every project of the workspace.

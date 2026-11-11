@@ -132,7 +132,11 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	st.Changed = a.Bus.Emit
 	a.Asks = ask.NewBroker(st, cfg.Now, a.bg.Go)
 	a.mods.a = a
-	a.Registry = registry.New(a.mods.commands)
+	key, err := home.Key(h.PressKey())
+	if err != nil {
+		return nil, err
+	}
+	a.Registry = registry.New(a.mods.commands, key)
 	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL,
 		Models: func(act registry.Actor) http.Handler { return a.Work.Proxy(act, a.Gateway.Permit) }, Progress: cfg.Progress, Go: a.bg.Go},
 		gateway.Deps{Store: st, Asks: a.Asks, Bus: a.Bus, Registry: a.Registry})

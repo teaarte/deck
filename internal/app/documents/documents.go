@@ -42,8 +42,8 @@ type Service struct {
 	// Language is the language of the interface of a workspace, the picture's.
 	Language func(ctx context.Context, workspace int64) string
 	// Saw notes the revision of a document a running turn read or saved; Seen gives it back, 0 when none.
-	Saw  func(turn, doc, revision int64)
-	Seen func(turn, doc int64) int64
+	Saw  func(ctx context.Context, turn, doc, revision int64)
+	Seen func(ctx context.Context, q *db.Queries, turn, doc int64) int64
 }
 
 type documentView struct {
@@ -244,7 +244,7 @@ func (s *Service) documentGet(ctx context.Context, act registry.Actor, in docume
 	v := s.docView(ctx, d)
 	v.Revision, v.Text = r.N, r.Text
 	if r.N == d.Current && gateway.Live(ctx) && act.ProcessID != 0 {
-		s.Saw(act.ProcessID, d.ID, r.N)
+		s.Saw(ctx, act.ProcessID, d.ID, r.N)
 	}
 	if r.N == d.Current {
 		if err := docs.CheckMemory(d.Kind, d.Name, r.Text); err != nil {
@@ -337,7 +337,7 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 		return nil, err
 	}
 	if gateway.Live(ctx) && act.ProcessID != 0 && saved != 0 {
-		s.Saw(act.ProcessID, d.ID, saved)
+		s.Saw(ctx, act.ProcessID, d.ID, saved)
 	}
 	v := s.docView(ctx, d)
 	v.Warning = lessonWarning(ctx, s.St.Q, d, in.Text)
@@ -457,7 +457,7 @@ func (s *Service) behind(ctx context.Context, q *db.Queries, act registry.Actor,
 	if err != nil {
 		return err
 	}
-	return docs.Since(ctx, q, d, s.Seen(act.ProcessID, d.ID))
+	return docs.Since(ctx, q, d, s.Seen(ctx, q, act.ProcessID, d.ID))
 }
 
 // editText checks if_revision and, for old and new parts, makes the text of the save from the current one.

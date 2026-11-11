@@ -112,3 +112,13 @@ FROM document d
 WHERE d.workspace_id = sqlc.arg(workspace_id) AND d.project_id IS NULL AND d.kind = 'skill' AND d.deleted_at IS NULL
   AND d.name LIKE '%/SKILL.md'
 ORDER BY d.name;
+
+-- name: SetProcessRead :exec
+INSERT INTO process_read (process_id, document_id, revision) VALUES (?, ?, ?)
+ON CONFLICT (process_id, document_id) DO UPDATE SET revision = excluded.revision;
+
+-- name: GetProcessRead :one
+SELECT revision FROM process_read WHERE process_id = ? AND document_id = ?;
+
+-- name: DeleteFinishedProcessReads :exec
+DELETE FROM process_read WHERE process_id IN (SELECT id FROM process WHERE finished_at IS NOT NULL);

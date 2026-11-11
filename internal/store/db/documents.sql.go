@@ -167,6 +167,15 @@ func (q *Queries) DeleteDocument(ctx context.Context, arg DeleteDocumentParams) 
 	return result.RowsAffected()
 }
 
+const deleteFinishedProcessReads = `-- name: DeleteFinishedProcessReads :exec
+DELETE FROM process_read WHERE process_id IN (SELECT id FROM process WHERE finished_at IS NOT NULL)
+`
+
+func (q *Queries) DeleteFinishedProcessReads(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteFinishedProcessReads)
+	return err
+}
+
 const findDocument = `-- name: FindDocument :one
 SELECT id, workspace_id, project_id, record_id, kind, name, "current", deleted_at, created_at FROM document
 WHERE workspace_id = ?1 AND project_id IS ?2 AND record_id IS ?3 AND name = ?4
@@ -220,6 +229,22 @@ func (q *Queries) GetDocument(ctx context.Context, id int64) (Document, error) {
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const getProcessRead = `-- name: GetProcessRead :one
+SELECT revision FROM process_read WHERE process_id = ? AND document_id = ?
+`
+
+type GetProcessReadParams struct {
+	ProcessID  int64
+	DocumentID int64
+}
+
+func (q *Queries) GetProcessRead(ctx context.Context, arg GetProcessReadParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getProcessRead, arg.ProcessID, arg.DocumentID)
+	var revision int64
+	err := row.Scan(&revision)
+	return revision, err
 }
 
 const getRevision = `-- name: GetRevision :one
@@ -633,6 +658,22 @@ type SetDocumentCurrentParams struct {
 
 func (q *Queries) SetDocumentCurrent(ctx context.Context, arg SetDocumentCurrentParams) error {
 	_, err := q.db.ExecContext(ctx, setDocumentCurrent, arg.Current, arg.ID)
+	return err
+}
+
+const setProcessRead = `-- name: SetProcessRead :exec
+INSERT INTO process_read (process_id, document_id, revision) VALUES (?, ?, ?)
+ON CONFLICT (process_id, document_id) DO UPDATE SET revision = excluded.revision
+`
+
+type SetProcessReadParams struct {
+	ProcessID  int64
+	DocumentID int64
+	Revision   int64
+}
+
+func (q *Queries) SetProcessRead(ctx context.Context, arg SetProcessReadParams) error {
+	_, err := q.db.ExecContext(ctx, setProcessRead, arg.ProcessID, arg.DocumentID, arg.Revision)
 	return err
 }
 

@@ -1,6 +1,8 @@
 package home
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -104,4 +106,17 @@ func WriteTree(dir string, files map[string]string) error {
 		}
 	}
 	return nil
+}
+
+// Key is the secret kept in path, made once of 32 random bytes.
+func Key(path string) ([]byte, error) {
+	if b, err := os.ReadFile(path); err == nil && len(b) >= 32 {
+		return b, nil
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
+	b := make([]byte, 32)
+	_, _ = rand.Read(b)
+	k := []byte(hex.EncodeToString(b))
+	return k, WriteFile(path, k)
 }

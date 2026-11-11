@@ -121,9 +121,8 @@ type Runner struct {
 	stopped bool
 	// waking is a Wake under way; wakeAgain asks it for one more look.
 	waking, wakeAgain bool
-	live              map[int64]*liveTurn
-	// seen are the revisions of documents each open process read or saved last, by document, through its turns.
-	seen map[int64]map[int64]int64
+	// Below only what a restart rebuilds or may lose; what a turn read is in the base (process_read).
+	live map[int64]*liveTurn
 	// marked is when the output time of each open process was last written.
 	marked map[int64]time.Time
 	// stderrCut says the log of an open process keeps no more of its stderr.
@@ -218,7 +217,7 @@ type Deps struct {
 func New(cfg Config, deps Deps) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Runner{st: deps.Store, gw: deps.Gateway, bus: deps.Bus, scripts: deps.Scripts, cfg: cfg, deps: deps, ctx: ctx, cancel: cancel,
-		live: map[int64]*liveTurn{}, seen: map[int64]map[int64]int64{}, marked: map[int64]time.Time{}, stderrCut: map[int64]bool{}, warned: map[int64]int64{},
+		live: map[int64]*liveTurn{}, marked: map[int64]time.Time{}, stderrCut: map[int64]bool{}, warned: map[int64]int64{},
 		slots: map[int64]int{}, hearing: map[int64]bool{}}
 }
 

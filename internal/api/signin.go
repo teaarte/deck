@@ -75,6 +75,9 @@ type riteIn struct {
 	Held bool `json:"held"`
 }
 
+// maxRite is the largest body of a step of signing in: a passkey's answer is a few kilobytes.
+const maxRite = 64 << 10
+
 // rite counts a try of signing in by address and takes a step only from a page of deck's origin.
 func (s *Server) rite(step func(http.ResponseWriter, *http.Request, riteIn)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +92,7 @@ func (s *Server) rite(step func(http.ResponseWriter, *http.Request, riteIn)) htt
 		}
 		var body []byte
 		var err error
-		within(w, time.Minute, func() { body, err = registry.ReadBody(w, r) })
+		within(w, time.Minute, func() { body, err = registry.ReadBody(w, r, maxRite) })
 		if err != nil {
 			return
 		}

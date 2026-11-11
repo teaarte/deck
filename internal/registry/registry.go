@@ -793,13 +793,20 @@ func compile(name string, raw json.RawMessage) (*jsonschema.Schema, error) {
 	return schemas.Compile(raw, "mem://input/"+name+".json")
 }
 
-// ReadBody reads the body of a call up to 32 MB and answers 413 or 400 itself when it cannot.
-func ReadBody(w http.ResponseWriter, r *http.Request) ([]byte, error) {
-	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 32<<20))
+// MaxBody is the largest body of a call.
+const MaxBody = 32 << 20
+
+// ReadBody reads the body of a call up to max bytes and answers 413 or 400 itself when it cannot.
+func ReadBody(w http.ResponseWriter, r *http.Request, max int64) ([]byte, error) {
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, max))
 	var tooBig *http.MaxBytesError
 	switch {
 	case errors.As(err, &tooBig):
-		http.Error(w, "deck: the body of a call is larger than 32 MB", http.StatusRequestEntityTooLarge)
+		size := fmt.Sprintf("%d KB", max>>10)
+		if max%(1<<20) == 0 {
+			size = fmt.Sprintf("%d MB", max>>20)
+		}
+		http.Error(w, "deck: the body of a call is larger than "+size, http.StatusRequestEntityTooLarge)
 	case err != nil:
 		http.Error(w, err.Error(), http.StatusBadRequest)
 	}

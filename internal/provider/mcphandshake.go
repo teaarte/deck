@@ -7,6 +7,9 @@ import (
 	"net/http"
 )
 
+// maxMCP is the largest message to deck's MCP server of a process.
+const maxMCP = 32 << 20
+
 // Stateful serves h, a stateful MCP server, without server/discover, so a client such as Goose opens a session
 // with initialize rather than send requests without one, which h refuses.
 func Stateful(h http.Handler) http.Handler {
@@ -15,7 +18,7 @@ func Stateful(h http.Handler) http.Handler {
 			h.ServeHTTP(w, r)
 			return
 		}
-		body, err := io.ReadAll(r.Body)
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxMCP))
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return

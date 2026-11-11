@@ -16,7 +16,7 @@ import (
 func (g *Gateway) Handler(tok string) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /commands/{name}", func(w http.ResponseWriter, r *http.Request) {
-		body, err := registry.ReadBody(w, r)
+		body, err := registry.ReadBody(w, r, registry.MaxBody)
 		if err != nil {
 			return
 		}

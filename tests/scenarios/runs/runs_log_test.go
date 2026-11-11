@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -136,5 +137,35 @@ func TestAThoughtWithoutTextIsNoLineOfTheLog(t *testing.T) {
 	}
 	if len(lines) == 0 {
 		t.Fatal("the thought with text is a line")
+	}
+}
+
+// TestTheLogOfAProcessKeepsNoEndlessStderr: blank lines of stderr are no lines of the log, and past its limit the log
+// says it keeps no more stderr; what the agent says after that is still in it.
+func TestTheLogOfAProcessKeepsNoEndlessStderr(t *testing.T) {
+	t.Parallel()
+	line := strings.Repeat("x", 1000)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		for range 20000 {
+			c.Req.OnEvent(provider.Event{Kind: provider.EventStderr, Text: ""})
+			c.Req.OnEvent(provider.Event{Kind: provider.EventStderr, Text: line})
+		}
+		c.Req.OnEvent(provider.Event{Kind: provider.EventMessage, Text: "the end"})
+		return provider.Result{Text: "ok"}
+	}))
+	id := e.Run(e.Project("plain", harness.PlainManifest), "work")
+	e.WaitState(id, "done", "error")
+	fi, err := os.Stat(e.App.Home.Stream(id))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fi.Size() > 9<<20 {
+		t.Fatalf("20 MB of stderr make a log of %d MB", fi.Size()>>20)
+	}
+	var out []struct{ Kind, Text string }
+	e.Must("deck.process_log_get", map[string]any{"process": id}, &out)
+	log := fmt.Sprint(out)
+	if !strings.Contains(log, "the end") || !strings.Contains(log, "no more of its stderr") {
+		t.Fatalf("the log says where stderr stops and keeps what the agent said after: %.400s", log[max(0, len(log)-400):])
 	}
 }

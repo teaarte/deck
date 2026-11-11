@@ -9,6 +9,9 @@ services:
     init: true
     restart: unless-stopped
     shm_size: 512m
+    # A fork bomb of a program in a box stops here; memory has a ceiling only by DECK_MEM_LIMIT in .env (README).
+    pids_limit: 4096
+    mem_limit: ${DECK_MEM_LIMIT:-0}
     # bubblewrap builds the box of every foreign program: namespaces, its own /proc, mount; nothing else is loosened.
     security_opt:
       - seccomp=./seccomp.json

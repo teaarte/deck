@@ -148,7 +148,7 @@ func (s *Server) ownerOnly(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
-	body, err := registry.ReadBody(w, r)
+	body, err := registry.ReadBody(w, r, registry.MaxBody)
 	if err != nil {
 		return
 	}

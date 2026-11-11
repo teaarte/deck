@@ -121,6 +121,11 @@ docker compose exec deck deck pair        # a link that pairs a device
 deck restarts with Docker and the machine; its data and the agents' logins stay in the volume `deck`. Its settings
 are the file `.env` beside `compose.yaml` (in `~/deck`); the installer keeps an existing one.
 
+**Memory and processes.** The image takes about 2.3 GB of disk; deck alone holds a few hundred MB of memory, each
+agent at work and the browser more. The container runs at most 4096 processes. Its memory has no ceiling unless you
+give one, as `DECK_MEM_LIMIT=6g` in `.env`: then memory eaten past it kills a process inside deck's container, deck
+itself maybe (Docker starts it again), instead of the host's other services.
+
 **First steps.** Open the link, then sign in to the agents in Settings → Models → **Sign in** (Codex shows a link and a
 code, Claude Code a link whose page gives the code). An empty deck says "Tell Deki what to do": describe a routine in
 the chat and Deki builds the module, or add the starter module it offers as a draft. The models, agents and folders of

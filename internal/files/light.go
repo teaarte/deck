@@ -20,7 +20,10 @@ import (
 const ThumbWidth = 720
 
 // maxPixels is the largest picture deck makes a light copy of; a larger one is shown itself.
-const maxPixels = 50_000_000
+const maxPixels = 25_000_000
+
+// decoding holds the pictures decoded at once, as one takes hundreds of megabytes.
+var decoding = make(chan struct{}, 2)
 
 // Light is the light copy of a picture as JPEG, no wider than ThumbWidth, with the size of the picture and its main
 // color as #rrggbb.
@@ -42,6 +45,8 @@ func Thumb(r io.ReadSeeker) (Light, error) {
 	if _, err := r.Seek(0, io.SeekStart); err != nil {
 		return Light{}, err
 	}
+	decoding <- struct{}{}
+	defer func() { <-decoding }()
 	src, _, err := image.Decode(r)
 	if err != nil {
 		return Light{}, err

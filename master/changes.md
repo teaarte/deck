@@ -374,3 +374,7 @@ and bring the modules in line.
   page `web_fetch` reads that answers an error status is `network` (502). A failed `tts` keeps the type of its
   failure (a refusal of the service as before, a bad answer `model.unavailable`) with the hint about a voice in its
   details; it is no longer always `input.invalid` (422).
+- 2026-11-11: limits of a program's output: a blank line of stderr is no line of the process log, and past 8 MB of
+  the log its stderr is dropped with one line that says so (what the agent says and does stays); a picture of the data
+  folder past 25 million pixels gets no light copy, a media block shows it itself; the container of deck's compose runs
+  at most 4096 processes.

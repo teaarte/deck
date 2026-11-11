@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -33,24 +34,28 @@ type logLine struct {
 }
 
 // event appends a top-level provider event to the process log and moves its last output time, at most once a second;
-// a thought or message without text, such as a thinking block a model keeps to itself, is no line.
+// a thought, message or stderr without text, such as a thinking block a model keeps to itself, is no line.
 func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e provider.Event) {
+	program := e.Kind == provider.EventStderr
 	if e.Kind == provider.EventWarning {
 		r.warnOf(ctx, processID, e.Text, e.Title)
 		e.Kind, e.Title = provider.EventStderr, ""
 	}
 	said := r.sign(processID, e)
-	if (e.Kind == provider.EventThought || e.Kind == provider.EventMessage) && strings.TrimSpace(e.Text) == "" {
+	quiet := e.Kind == provider.EventThought || e.Kind == provider.EventMessage || e.Kind == provider.EventStderr
+	if quiet && strings.TrimSpace(e.Text) == "" {
 		return
 	}
 	now := r.now()
-	b, _ := json.Marshal(logLine{At: store.Time(now), Kind: e.Kind, ID: e.ID, Title: e.Title, Status: e.Status, Text: untrusted.Cut(e.Text, 4000)})
-	_, _ = stream.Write(append(b, '\n'))
-	if said != "" {
-		b, _ := json.Marshal(logLine{At: store.Time(now), Kind: provider.EventStderr, Text: said})
+	if !program || r.stderrRoom(processID, stream, now) {
+		b, _ := json.Marshal(logLine{At: store.Time(now), Kind: e.Kind, ID: e.ID, Title: e.Title, Status: e.Status, Text: untrusted.Cut(e.Text, 4000)})
 		_, _ = stream.Write(append(b, '\n'))
+		if said != "" {
+			b, _ := json.Marshal(logLine{At: store.Time(now), Kind: provider.EventStderr, Text: said})
+			_, _ = stream.Write(append(b, '\n'))
+		}
+		r.logged(ctx, processID)
 	}
-	r.logged(ctx, processID)
 	r.mu.Lock()
 	last, seen := r.marked[processID]
 	due := !seen || now.Sub(last) >= time.Second
@@ -64,6 +69,27 @@ func (r *Runner) event(ctx context.Context, processID int64, stream *os.File, e 
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.SetProcessOutput(ctx, db.SetProcessOutputParams{OutputMs: now.UnixMilli(), ID: processID})
 	})
+}
+
+// maxStderr is how large the log of a process grows by the stderr of its programs; past it the log keeps only what
+// the agent says and does.
+const maxStderr = 8 << 20
+
+// stderrRoom says the log has room for the stderr of a program; the first line it has none for leaves a line that says
+// so, once a process.
+func (r *Runner) stderrRoom(processID int64, stream *os.File, now time.Time) bool {
+	if fi, err := stream.Stat(); err != nil || fi.Size() < maxStderr {
+		return true
+	}
+	r.mu.Lock()
+	cut := r.stderrCut[processID]
+	r.stderrCut[processID] = true
+	r.mu.Unlock()
+	if !cut {
+		b, _ := json.Marshal(logLine{At: store.Time(now), Kind: provider.EventStderr, Text: fmt.Sprintf("the log is past %d MB: it keeps no more of its stderr", maxStderr>>20)})
+		_, _ = stream.Write(append(b, '\n'))
+	}
+	return false
 }
 
 // runDir is the folder of an open process: its work, results and log.

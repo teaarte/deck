@@ -37,7 +37,7 @@ type Policy struct {
 // the hops, passing the answer on as it comes.
 func Handler(p Policy) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := registry.ReadBody(w, r)
+		body, err := registry.ReadBody(w, r, registry.MaxBody)
 		if err != nil {
 			return
 		}

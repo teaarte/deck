@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"deck2/internal/fault"
-	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/provider"
 	"deck2/internal/untrusted"
@@ -23,16 +22,9 @@ const (
 	// quietLocal for a model on the owner's hardware, which may load first.
 	quietAfter = 5 * time.Minute
 	quietLocal = 15 * time.Minute
-	// loopWarn is how many same calls of a tool in a row (sameCall) get the agent a warning; loopAfter how many are a
-	// loop.
-	loopWarn  = 3
+	// loopAfter is how many same calls of a tool in a row (sameCall) are a loop.
 	loopAfter = 6
 )
-
-// loopWarning is what deck tells an agent when it repeats a call; an ACP agent takes no live input, so only the
-// journal has it.
-const loopWarning = "deck: you called %s %d times in a row with the same input and got the same answer. Change what you do " +
-	"or end your turn; if you go on, deck stops your turn as a loop."
 
 // digits are the numbers a loop of calls may change, such as a counter in a command.
 var digits = regexp.MustCompile(`[0-9]+`)
@@ -70,7 +62,6 @@ type watch struct {
 	answer    string
 	title     string
 	same      int
-	warned    bool
 }
 
 // leaving is why deck took a turn from its model: the failure and, for a provider that went down, its health.
@@ -99,8 +90,8 @@ func (r *Runner) watchCall(processID, workspace int64, pv provider.Provider) (st
 	}
 }
 
-// sign notes an event of the model of a running turn; the same call of a tool warns the agent at loopWarn calls in a
-// row and takes the turn from the model at loopAfter. It gives what deck said of it for the journal.
+// sign notes an event of the model of a running turn; the same call of a tool loopAfter times in a row takes the turn
+// from the model. It gives what deck said of it for the journal.
 func (r *Runner) sign(processID int64, e provider.Event) (said string) {
 	if e.Kind == provider.EventStderr || e.Kind == provider.EventRateLimit {
 		return ""
@@ -122,7 +113,7 @@ func (r *Runner) sign(processID int64, e provider.Event) (said string) {
 			return ""
 		}
 		delete(w.open, e.ID)
-		answer, warned := gateway.Unwarned(e.Text)
+		answer := e.Text
 		if strings.TrimSpace(answer) == "" {
 			// An empty answer, such as that of an edit, tells nothing of what the agent got back.
 			w.last, w.same = "", 0
@@ -130,35 +121,18 @@ func (r *Runner) sign(processID int64, e provider.Event) (said string) {
 		}
 		call += "\x00" + e.Status
 		if !sameCall(call, answer, w.last, w.answer) {
-			w.same, w.warned = 0, false
+			w.same = 0
 		}
 		w.last, w.answer, w.title = call, answer, strings.SplitN(call, "\x00", 2)[0]
-		w.warned = w.warned || warned
 		w.same++
-		switch {
-		case w.same >= loopAfter:
+		if w.same >= loopAfter {
 			f := fault.With(fault.AgentLoop, fmt.Sprintf("%s called %s %d times in a row with the same input and got the same answer",
 				w.pv.Name(), w.title, w.same), untrusted.Cut(strings.ReplaceAll(call+"\x00"+answer, "\x00", "\n"), 2000))
 			lt.cancel(&leaving{f: f})
 			return "deck: the turn stops as a loop: " + f.Text
-		case w.same >= loopWarn && !w.warned:
-			w.warned = true
-			text := fmt.Sprintf(loopWarning, w.title, w.same)
-			if lt.input != nil {
-				go tell(lt.input, text)
-			}
-			return text
 		}
 	}
 	return ""
-}
-
-// tell hands deck's message to a turn that takes live input, unless it does not take it soon.
-func tell(in chan provider.Message, text string) {
-	select {
-	case in <- provider.Message{Text: text, Taken: make(chan bool, 1)}:
-	case <-time.After(time.Second):
-	}
 }
 
 // answered notes that the model of a running turn answered a call or called a tool of deck.
@@ -250,24 +224,6 @@ func (r *Runner) leaveModel(ctx context.Context, t *turn, l *leaving) {
 	if l.f.Type == fault.ModelUnavailable {
 		r.deps.Broke(ctx, pv.Name())
 	}
-}
-
-// Polled notes that a running turn looked at a process, with a wait or without, and tells how many looks without a
-// wait it made at that process in a row.
-func (r *Runner) Polled(turn, at int64, waits bool) int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	lt := r.live[turn]
-	if lt == nil {
-		return 0
-	}
-	if waits || lt.polled != at {
-		lt.polled, lt.polls = at, 0
-	}
-	if !waits {
-		lt.polls++
-	}
-	return lt.polls
 }
 
 // Saw notes the revision of a document an open process read or saved; it stays through the turns of the process.

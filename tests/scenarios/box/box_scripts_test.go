@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -224,7 +225,9 @@ func tarNames(t *testing.T, path string) map[string]bool {
 	}
 }
 
-func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
+// TestScriptCeilingAndFailures: a script stops at its ceiling; a failing one is an error with its stderr each time,
+// and its failures in a row are one row of the failed with their count, not a warning of their own.
+func TestScriptCeilingAndFailures(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock())
 	e.Project("slow", harness.ScriptManifest("wait", "", ""))
@@ -249,14 +252,19 @@ func TestScriptCeilingAndThreeFailuresInARow(t *testing.T) {
 		if p.State != "error" || !strings.Contains(p.Error, "boom") {
 			t.Fatalf("a failing script is an error with its stderr: %+v", p)
 		}
-		want := 0
-		if i >= 3 {
-			want = 1
-			e.Until("the warning", func() bool { return e.Warnings("failed 3 times in a row") > 0 })
-		}
-		if n := e.Warnings("failed 3 times in a row"); n != want {
-			t.Fatalf("after failure %d: %d warnings, want %d", i, n, want)
-		}
+	}
+	var rows []struct {
+		Command string
+		Repeats int64
+	}
+	e.Must("deck.processes_list", map[string]any{"failed": true}, &rows)
+	if !slices.ContainsFunc(rows, func(r struct {
+		Command string
+		Repeats int64
+	}) bool {
+		return r.Command == "break" && r.Repeats == 4
+	}) {
+		t.Fatalf("four failures in a row are one row of the failed, counted: %+v", rows)
 	}
 }
 

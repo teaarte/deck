@@ -80,9 +80,6 @@ func (r *Runner) settle(ctx context.Context, u *run, result string, f *fault.F) 
 	if f != nil {
 		clear()
 		r.finish(ctx, u.process, StateError, "", false, f)
-		if u.cmd.Executor.Type == KindScript {
-			r.failedInARow(ctx, u.turn, f.Error())
-		}
 		return
 	}
 	if left := r.leftWork(ctx, u, result); left != nil {
@@ -107,9 +104,6 @@ func (r *Runner) settle(ctx context.Context, u *run, result string, f *fault.F) 
 			result = ""
 		}
 		r.finish(ctx, u.process, StateError, result, false, fault.Of(err))
-		if u.cmd.Executor.Type == KindScript {
-			r.failedInARow(ctx, u.turn, err.Error())
-		}
 		return
 	}
 	r.finish(ctx, u.process, StateDone, kept, false, nil)

@@ -2606,7 +2606,7 @@ func (q *Queries) RecentDurations(ctx context.Context, arg RecentDurationsParams
 const recentOutcomes = `-- name: RecentOutcomes :many
 SELECT state FROM process
 WHERE project_id = ? AND command = ? AND finished_at IS NOT NULL
-ORDER BY id DESC LIMIT 4
+ORDER BY id DESC LIMIT 3
 `
 
 type RecentOutcomesParams struct {

@@ -159,19 +159,3 @@ func (r *Runner) warnOf(ctx context.Context, processID int64, text, cause string
 		return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(r.now()), ProjectID: p.ProjectID, Text: text, Cause: cause})
 	})
 }
-
-// failedInARow warns once when a command script has just failed for the third time in a row.
-func (r *Runner) failedInARow(ctx context.Context, t turn, last string) {
-	p, err := r.st.Q.GetProcess(ctx, t.process)
-	if err != nil {
-		return
-	}
-	states, err := r.st.Q.RecentOutcomes(ctx, db.RecentOutcomesParams{ProjectID: p.ProjectID, Command: p.Command})
-	if err != nil || len(states) < 3 || states[0] != StateError || states[1] != StateError || states[2] != StateError ||
-		len(states) > 3 && states[3] == StateError {
-		return
-	}
-	proj, _ := r.st.Q.GetProject(ctx, p.ProjectID)
-	r.warn(ctx, p.ID, fmt.Sprintf("Script command %s.%s failed 3 times in a row; fix the script or let an agent do the work. Last error: %s",
-		proj.Name, p.Command, untrusted.Cut(strings.TrimSpace(last), 500)))
-}

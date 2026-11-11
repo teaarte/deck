@@ -13,32 +13,43 @@ import (
 	"deck2/tests/harness"
 )
 
-// TestALiveAgentIsWarnedOnceOfALoopBeforeItStops: an agent that takes live input hears once, at the third same call,
-// that deck stops its turn if it goes on, though its answers quote such a warning; the sixth stops it.
-func TestALiveAgentIsWarnedOnceOfALoopBeforeItStops(t *testing.T) {
+// TestASixthSameCallStopsTheTurnAndNothingWarnsBefore: five same calls and a different one go on; six same calls in
+// a row stop the turn as a loop, with no warning to the agent before, however its answers quote one.
+func TestASixthSameCallStopsTheTurnAndNothingWarnsBefore(t *testing.T) {
 	t.Parallel()
-	heard := make(chan []string, 1)
+	heard := make(chan string, 1)
 	fake := &harness.Fake{Live: true, Script: func(ctx context.Context, c *harness.Call) provider.Result {
-		var told []string
-		for i := range 6 {
-			id := harness.Itoa(int64(i))
-			c.Req.Emit(provider.Event{Kind: provider.EventTool, ID: id, Title: "Bash", Text: `{"command": "sleep 1; echo tick ` + id + `"}`})
+		call := func(id, cmd string) {
+			c.Req.Emit(provider.Event{Kind: provider.EventTool, ID: id, Title: "Bash", Text: `{"command": "` + cmd + `"}`})
 			c.Req.Emit(provider.Event{Kind: provider.EventToolUpdate, ID: id, Status: "completed",
-				Text: "tick " + id + "\nquoted: deck: you called Bash 9 times in a row with the same input and got the same answer. Then"})
-			if i == 2 {
-				told = append(told, harness.Heard(ctx, c))
-			}
+				Text: cmd + "\nquoted: deck: you called Bash 9 times in a row with the same input and got the same answer. Then"})
 		}
-		<-ctx.Done()
-		heard <- told
+		for i := range 5 {
+			call("a"+harness.Itoa(int64(i)), "date")
+		}
+		call("b", "uptime")
+		for i := range 6 {
+			call("c"+harness.Itoa(int64(i)), "date")
+		}
+		select {
+		case m := <-c.Req.Live:
+			heard <- m.Text
+		case <-ctx.Done():
+			heard <- ""
+		}
 		return provider.Result{}
 	}}
 	e := harness.New(t, harness.WithProvider(fake))
 	id := e.Run(e.Project("job", tellManifest), "work")
 	e.WaitState(id, "error")
-	told := <-heard
-	if fl := e.Fault(id); fl.ErrorType != "agent.loop" || len(told) != 1 || !strings.Contains(told[0], "deck: you called Bash 3 times in a row") {
-		t.Fatalf("one warning at the third same call, the stop at the sixth: %q %+v", told, fl)
+	if fl := e.Fault(id); fl.ErrorType != "agent.loop" || !strings.Contains(fl.Error, "6 times in a row") {
+		t.Fatalf("the sixth same call in a row stops the turn as a loop: %+v", fl)
+	}
+	if m := <-heard; m != "" {
+		t.Fatalf("deck says nothing to an agent before it stops its loop: %q", m)
+	}
+	if journal := fmt.Sprint(e.Log(id)); strings.Contains(journal, "deck: you called Bash 3 times") || !strings.Contains(journal, "deck: the turn stops as a loop") {
+		t.Fatalf("the journal tells only the stop: %s", journal)
 	}
 }
 
@@ -62,8 +73,8 @@ func TestACPAgentThatRepeatsAShellCallStopsAsALoop(t *testing.T) {
 		t.Fatalf("the sixth same call, numbers aside, stops the turn as a loop: %+v %+v", got, fl)
 	}
 	journal := fmt.Sprint(e.Log(id))
-	if !strings.Contains(journal, "deck: you called echo STOP-LOOP-IMMEDIATELY-2 3 times in a row") || !strings.Contains(journal, "deck: the turn stops as a loop") {
-		t.Fatalf("the journal tells the warning an ACP agent cannot hear and the stop: %s", journal)
+	if strings.Contains(journal, "deck: you called") || !strings.Contains(journal, "deck: the turn stops as a loop") {
+		t.Fatalf("the journal tells the stop and no warning before: %s", journal)
 	}
 	failed := false
 	for _, r := range e.FailedRuns() {

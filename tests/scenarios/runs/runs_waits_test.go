@@ -37,12 +37,12 @@ func toolCall(ctx context.Context, c *harness.Call, id, name string, args map[st
 	return out
 }
 
-// TestAWeakModelThatPollsWithoutAWaitIsToldHowAndGetsItsResult: an agent that looks at a running process again and
-// again without a wait is not stopped as a loop: its first look tells it how to wait, the next waits in deck.
-func TestAWeakModelThatPollsWithoutAWaitIsToldHowAndGetsItsResult(t *testing.T) {
+// TestAModelThatLooksWithoutAWaitIsToldHowToWait: a look at a running process without a wait answers at once and
+// says how to wait; the look with a wait gives the result when the process ends.
+func TestAModelThatLooksWithoutAWaitIsToldHowToWait(t *testing.T) {
 	t.Parallel()
 	release, looked := make(chan struct{}), make(chan string, 1)
-	answers := make(chan []string, 1)
+	answers := make(chan string, 1)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "child" {
 			<-release
@@ -51,18 +51,8 @@ func TestAWeakModelThatPollsWithoutAWaitIsToldHowAndGetsItsResult(t *testing.T) 
 		out := toolCall(ctx, c, "start", "waits__child", map[string]any{})
 		var started struct{ Process int64 }
 		_ = json.Unmarshal([]byte(out), &started)
-		var seen []string
-		for i := range 6 {
-			out := toolCall(ctx, c, "look"+harness.Itoa(int64(i)), "process_get", map[string]any{"process": started.Process})
-			seen = append(seen, out)
-			if i == 0 {
-				looked <- out
-			}
-			if strings.Contains(out, `"state":"done"`) {
-				break
-			}
-		}
-		answers <- seen
+		looked <- toolCall(ctx, c, "look", "process_get", map[string]any{"process": started.Process})
+		answers <- toolCall(ctx, c, "wait", "process_get", map[string]any{"process": started.Process, "wait": 600})
 		return provider.Result{Structured: json.RawMessage(`{"n": 2}`)}
 	}))
 	e.Project("waits", waitsManifest)
@@ -70,65 +60,75 @@ func TestAWeakModelThatPollsWithoutAWaitIsToldHowAndGetsItsResult(t *testing.T) 
 	if first := <-looked; !strings.Contains(first, `"hint"`) || !strings.Contains(first, "process_get with wait=600") {
 		t.Fatalf("a look without a wait at a running process says how to wait: %s", first)
 	}
-	at := time.Now()
 	time.AfterFunc(time.Second, func() { close(release) })
-	seen := <-answers
-	if len(seen) != 2 || !strings.Contains(seen[1], `"state":"done"`) || time.Since(at) > 30*time.Second {
-		t.Fatalf("the second look waits in deck until the process ends: %d looks in %s: %q", len(seen), time.Since(at), seen)
+	if got := <-answers; !strings.Contains(got, `"state":"done"`) {
+		t.Fatalf("the look with a wait gives the result when the process ends: %s", got)
 	}
 	if p := e.WaitState(id, "done", "error"); p.State != "done" {
-		t.Fatalf("the turn that polled is not stopped as a loop: %+v", e.Fault(id))
+		t.Fatalf("the turn that waited ends its work: %+v", e.Fault(id))
 	}
 }
 
-// TestTheSameReadInARowIsWarnedOnceBeforeTheTurnStops: the third same read with the same answer gets a warning with
-// how to wait instead of a stop; an agent that heeds it ends its work, one that goes on is stopped as a loop.
-func TestTheSameReadInARowIsWarnedOnceBeforeTheTurnStops(t *testing.T) {
+// TestPollingARunningProcessWithoutAWaitStopsAsALoop: looks without a wait at a process that has not ended answer
+// the same each time, so the sixth stops the turn as a loop; the process it looked at goes on.
+func TestPollingARunningProcessWithoutAWaitStopsAsALoop(t *testing.T) {
 	t.Parallel()
-	answers := make(chan []string, 2)
+	release := make(chan struct{})
+	child := make(chan int64, 1)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		heed := c.N == 1
-		var seen []string
-		for i := range 8 {
-			out := toolCall(ctx, c, "read"+harness.Itoa(int64(i)), "records_list", map[string]any{"project": "waits", "collection": "items"})
-			seen = append(seen, out)
-			if heed && strings.Contains(out, "deck: you called") {
-				break
-			}
+		if c.Command() == "child" {
+			<-release
+			return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+		}
+		var started struct{ Process int64 }
+		_ = json.Unmarshal([]byte(toolCall(ctx, c, "start", "waits__child", map[string]any{})), &started)
+		child <- started.Process
+		for i := range 10 {
 			if ctx.Err() != nil {
 				break
 			}
+			toolCall(ctx, c, "look"+harness.Itoa(int64(i)), "process_get", map[string]any{"process": started.Process})
 		}
-		answers <- seen
-		if ctx.Err() != nil {
-			return provider.Result{}
-		}
-		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+		return provider.Result{}
 	}))
 	e.Project("waits", waitsManifest)
+	id := e.Start("waits", "work", nil)
+	kid := <-child
+	e.WaitState(id, "error")
+	if got := e.Fault(id); got.ErrorType != "agent.loop" || !strings.Contains(got.Error, "process_get 6 times in a row") {
+		t.Fatalf("the sixth look without a wait stops the turn as a loop: %+v", got)
+	}
+	close(release)
+	e.WaitState(kid, "done")
+}
 
-	heeds := e.Start("waits", "work", nil)
+// TestSixSameReadsInARowStopTheTurnAsALoop: the same read with the same answer six times in a row stops the turn as a
+// loop; deck does not warn the agent before, nor change its answers.
+func TestSixSameReadsInARowStopTheTurnAsALoop(t *testing.T) {
+	t.Parallel()
+	answers := make(chan []string, 1)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		var seen []string
+		for i := range 8 {
+			if ctx.Err() != nil {
+				break
+			}
+			seen = append(seen, toolCall(ctx, c, "read"+harness.Itoa(int64(i)), "records_list", map[string]any{"project": "waits", "collection": "items"}))
+		}
+		answers <- seen
+		return provider.Result{}
+	}))
+	e.Project("waits", waitsManifest)
+	id := e.Start("waits", "work", nil)
 	seen := <-answers
-	if len(seen) != 3 || !strings.Contains(seen[2], "deck: you called records_list 3 times in a row") ||
-		!strings.Contains(seen[2], "process_get with wait=600") || strings.Contains(seen[1], "deck: you called") {
-		t.Fatalf("the third same read is warned of once: %q", seen)
+	e.WaitState(id, "error")
+	if got := e.Fault(id); got.ErrorType != "agent.loop" || !strings.Contains(got.Error, "records_list 6 times in a row") {
+		t.Fatalf("the sixth same read stops the turn as a loop: %+v", got)
 	}
-	if p := e.WaitState(heeds, "done", "error"); p.State != "done" {
-		t.Fatalf("a warned agent that stops reading ends its work: %+v", e.Fault(heeds))
-	}
-
-	goesOn := e.Start("waits", "work", nil)
-	seen = <-answers
-	e.WaitState(goesOn, "error")
-	if got := e.Fault(goesOn); got.ErrorType != "agent.loop" {
-		t.Fatalf("an agent that goes on after the warning is stopped as a loop: %+v", got)
-	}
-	warned := 0
-	for _, s := range seen {
-		warned += strings.Count(s, "deck: you called")
-	}
-	if warned != 1 || len(seen) < 6 {
-		t.Fatalf("one warning, then the stop after three more same reads: %d warnings in %d reads", warned, len(seen))
+	for _, s := range seen[:min(len(seen), 6)] {
+		if strings.Contains(s, "deck: you called") || s != seen[0] {
+			t.Fatalf("every read answers the same, without a warning: %q", seen)
+		}
 	}
 }
 

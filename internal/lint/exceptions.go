@@ -5,8 +5,8 @@ var exceptions = map[string][]string{
 	"now": {
 		"internal/app/asks/process_asks.go:80", "internal/app/asks/process_asks.go:84",
 		"internal/app/asks/process_asks.go:86", "internal/app/config.go:63", "internal/app/files/thumbs.go:31",
-		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:331",
-		"internal/app/processes/processes.go:335", "internal/app/processes/processes.go:328",
+		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:320",
+		"internal/app/processes/processes.go:324", "internal/app/processes/processes.go:317",
 		"internal/models/hops.go:154", "internal/models/hops.go:164",
 		"internal/models/meter.go:23", "internal/models/meter.go:32",
 		"internal/provider/acp/acp.go:189",
@@ -18,7 +18,7 @@ var exceptions = map[string][]string{
 	},
 	"write": {
 		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:60", "cmd/deck/main.go:276",
-		"internal/app/snapshots/snapshot.go:101", "internal/app/updates/updates.go:315", "internal/process/settle.go:131",
+		"internal/app/snapshots/snapshot.go:101", "internal/app/updates/updates.go:315", "internal/process/settle.go:125",
 		"internal/provider/codex/gen/main.go:93", "internal/provider/codex/gen/main.go:104",
 		"internal/provider/shellcheck.go:79", "internal/provider/shellcheck.go:80", "internal/script/run.go:72",
 	},

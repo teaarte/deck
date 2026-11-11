@@ -340,3 +340,9 @@ and bring the modules in line.
   confirmation (`confirm_hours`, a day): then the agent is told the owner did not answer and finishes with what it has.
   A lost login waits a week, a red provider a day, and then the process fails (`model.login`, `model.unavailable`); a
   turn without deck's tools waits for its provider an hour (`deck.tools`) instead of three tries.
+- 2026-11-11: one guard of loops: the same call of a tool with the same answer six times in a row stops the turn as
+  `agent.loop`, as before, but nothing warns at the third any more — neither the agent nor the answer of a read;
+  `process_get` without `wait` answers at once each time instead of waiting a minute on its own after the first look,
+  and its `hint` no longer counts the seconds, so six such looks in a row stop the turn as a loop; a script failing
+  three times in a row no longer writes a warning of its own (the failed list counts it, the master hears it as
+  before).

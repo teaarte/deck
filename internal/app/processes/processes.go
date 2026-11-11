@@ -294,9 +294,6 @@ func (s *Service) Open(ctx context.Context, act registry.Actor) (map[string]int6
 // maxWait is the longest process_get waits; an agent whose tool calls time out sooner waits a little less than that.
 const maxWait = 30 * time.Minute
 
-// pollWait is how long process_get waits for an agent that looks at an open process again without a wait.
-const pollWait = time.Minute
-
 // open says a process still works, rather than ended or waiting for the owner.
 func open(p db.Process) bool {
 	return !p.FinishedAt.Valid && !process.Waits(p, process.WaitAnswer) && !process.Waits(p, process.WaitSignIn)
@@ -316,15 +313,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	if err != nil {
 		return processView{}, err
 	}
-	// An agent that looks at an open process again without a wait gets the wait from deck.
-	looks, asked := 0, in.Wait
 	turn := gateway.Live(ctx) && act.ProcessID != 0 && act.ProcessID != p.ID
-	if turn {
-		looks = s.Runner.Polled(act.ProcessID, p.ID, in.Wait > 0)
-		if in.Wait <= 0 && looks > 1 && open(p) {
-			in.Wait = int64(pollWait / time.Second)
-		}
-	}
 	until := time.Now().Add(min(time.Duration(max(in.Wait, 0))*time.Second, waitLimit(act)))
 	if self, err := s.St.Q.GetProcess(ctx, act.ProcessID); act.ProcessID != 0 && err == nil && self.DeadlineMs.Valid {
 		left := time.UnixMilli(self.DeadlineMs.Int64).Sub(s.Now()) - ceilingMargin
@@ -366,13 +355,10 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		}
 	}
 	v.Terminal = s.terminal(ctx, p)
-	if turn && asked <= 0 && open(p) {
-		started, _ := store.ParseTime(p.StartedAt)
-		ran := s.Now().Sub(started).Round(time.Second)
-		v.Hint = fmt.Sprintf("process %d is still running (for %s). To wait for it, call process_get with wait=600 instead of calling it again", p.ID, ran)
-		if looks > 1 {
-			v.Hint = fmt.Sprintf("deck waited up to %d seconds for it: ", int(pollWait.Seconds())) + v.Hint
-		}
+	// The hint says the same each time, so a turn that polls without a wait gives its loop away.
+	if turn && in.Wait <= 0 && open(p) {
+		v.Hint = fmt.Sprintf("process %d has not ended. To wait for it, call process_get with wait=600 once: while you wait, "+
+			"your agent slot is free for it; a look without a wait answers at once and holds your slot", p.ID)
 	}
 	s.shown(ctx, p, &v, registry.Lang(ctx))
 	if process.Waits(p, process.WaitSlot) {
@@ -560,9 +546,9 @@ func (s *Service) processCommands() []*registry.Command {
 			"Lists recent processes, newest first, or only the open ones.",
 			registry.Everyone, s.processesList).On(events.Processes, events.Asks, events.Projects, events.Documents),
 		registry.Read("process_get", "Process status",
-			"Returns the state and result of a process, the models it called and their cost_usd; with wait, once it finishes or waits for the owner, and an agent's slot is free for others meanwhile; a process waiting for an agent slot names in slot_ahead how many wait before it.",
+			"Returns the state and result of a process, the models it called and their cost_usd; with wait, once it finishes or waits for the owner, and an agent's slot is free for others meanwhile; a process waiting for an agent slot names in slot_ahead how many wait before it. To wait for a process, call it once with wait (such as 600) rather than again and again without one.",
 			registry.Everyone, s.processGet).On(events.Processes, events.Usage, events.Asks).
-			Answers(`Answer: {"id", "project", "command", "state", "result": what the command handed in, by its result schema, "error", "error_type", "input", "started_at", "finished_at", …}; result and error come once the state is final (done, error, interrupted, stopped); a result with not_by_schema true does not follow the schema.`),
+			Answers(`Answer: {"id", "project", "command", "state", "wait": {"reason", "on", "until", "silence"} while the state is waiting, "result": what the command handed in, by its result schema, "error", "error_type", "input", "started_at", "finished_at", …}; result and error come once the state is final (done, error, interrupted, stopped); a result with not_by_schema true does not follow the schema.`),
 		registry.Read("process_left_list", "Left by a process",
 			"Lists what a process and the processes it started left: the changes of documents of an enabled project with whether they can be undone, the records and the files of deck they made; not what was written into the data folder.",
 			registry.Everyone, s.processLeft).On(events.Collection, events.Files, events.Feed, events.Processes),

@@ -208,6 +208,8 @@ type change struct {
 	lines    []string
 }
 
+func (c change) grows() bool { return len(c.lines) > c.to-c.from }
+
 func changes(base, side []string) []change {
 	var out []change
 	at := 0
@@ -223,14 +225,14 @@ func changes(base, side []string) []change {
 }
 
 // beside merges a place diff3 calls a conflict where the changes of the two sides only touch: they share no line of
-// base and do not both add lines at one place; lines added before a changed line go first.
+// base and, where they meet, not both add lines; lines added before a changed line go first.
 func beside(a, base, b []string) ([]string, bool) {
 	all := append(changes(base, a), changes(base, b)...)
 	slices.SortStableFunc(all, func(x, y change) int { return cmp.Or(cmp.Compare(x.from, y.from), cmp.Compare(x.to, y.to)) })
 	var out []string
 	at := 0
 	for i, c := range all {
-		if c.from < at || i > 0 && c.from == c.to && all[i-1].from == all[i-1].to && c.from == all[i-1].from {
+		if c.from < at || i > 0 && c.from == at && all[i-1].grows() && c.grows() {
 			return nil, false
 		}
 		out = append(append(out, base[at:c.from]...), c.lines...)

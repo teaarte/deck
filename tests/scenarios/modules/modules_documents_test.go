@@ -488,16 +488,20 @@ func TestAShippedPromptKeepsTheLineTheMasterAddedBesideALineDeckChanged(t *testi
 	for _, c := range []struct {
 		name     string
 		edit     func(older []string, at int) []string
+		grown    bool
 		conflict bool
 	}{
-		{"before", func(l []string, at int) []string { return slices.Insert(slices.Clone(l), at, added) }, false},
-		{"after", func(l []string, at int) []string { return slices.Insert(slices.Clone(l), at+1, added) }, false},
-		{"far", func(l []string, at int) []string { return slices.Insert(slices.Clone(l), at+5, added) }, false},
+		{"before", func(l []string, at int) []string { return slices.Insert(slices.Clone(l), at, added) }, false, false},
+		{"after", func(l []string, at int) []string { return slices.Insert(slices.Clone(l), at+1, added) }, false, false},
+		{"far", func(l []string, at int) []string { return slices.Insert(slices.Clone(l), at+5, added) }, false, false},
 		{"same", func(l []string, at int) []string {
 			l = slices.Clone(l)
 			l[at] = "- The master's own words of this rule."
 			return l
-		}, true},
+		}, false, true},
+		// Deck's new rule has a line more: lines added on both sides of one place have no order.
+		{"before grown", func(l []string, at int) []string { return slices.Insert(slices.Clone(l), at, added) }, true, true},
+		{"after grown", func(l []string, at int) []string { return slices.Insert(slices.Clone(l), at+1, added) }, true, true},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -513,6 +517,9 @@ func TestAShippedPromptKeepsTheLineTheMasterAddedBesideALineDeckChanged(t *testi
 			}
 			older := slices.Clone(shipped)
 			older[i] = "- Attached files are in the data folder."
+			if c.grown {
+				older = slices.Delete(older, i+1, i+2)
+			}
 			edit := c.edit(older, i)
 			e.Must("deck.document_save", map[string]any{"project": "master", "name": d.Name, "kind": d.Kind, "text": strings.Join(edit, "\n")}, nil)
 			// A history in which an older deck shipped the older rule and the master added its line.

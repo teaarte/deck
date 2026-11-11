@@ -21,7 +21,7 @@ export function ActionButton({ act, params, inMenu, quiet }: { act: Action; para
   const variant = inMenu ? 'subtle' : act.primary ? (quiet ? 'light' : 'filled') : 'default';
   if (act.input && !params) {
     const confirm = act.confirm && typed && (
-      <ConfirmModal opened={asking} label={label} params={{ ...act.params, ...typed }} onCancel={() => setAsking(false)}
+      <ConfirmModal opened={asking} label={label} command={act.command} params={{ ...act.params, ...typed }} onCancel={() => setAsking(false)}
         onConfirm={() => { setAsking(false); void send(typed).then((r) => { if (r && !r.error) setTyping(false); }); }} />
     );
     if (typing) {
@@ -47,7 +47,7 @@ export function ActionButton({ act, params, inMenu, quiet }: { act: Action; para
   return (
     <>
       {button}
-      <ConfirmModal opened={asking} label={label} parts={act.parts} params={act.params} onCancel={() => setAsking(false)} onConfirm={() => { setAsking(false); void send(params); }} />
+      <ConfirmModal opened={asking} label={label} command={act.command} parts={act.parts} params={act.params} onCancel={() => setAsking(false)} onConfirm={() => { setAsking(false); void send(params); }} />
     </>
   );
 }

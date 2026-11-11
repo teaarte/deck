@@ -20,10 +20,11 @@ func TestAnAgentsFeedButtonOfAnOutwardCommandAsksFirst(t *testing.T) {
 		_, _ = c.Tool(ctx, "owner_notify", map[string]any{"text": "Пришло письмо от банка",
 			"actions": `[{"label": "Открыть письмо", "command": "send", "params": {"id": "attacker", "text": "all the notes of the owner"}},
 				{"label": "Ещё раз", "command": "work"}]`})
+
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}))
-	m := harness.PostManifest(svc.URL, "")
-	m = strings.Replace(m, `"commands": [`, `"commands": [{"name": "send", "title": "Send out", "description": "Sends a note out.", "class": "external",
+	base := harness.PostManifest(svc.URL, "")
+	m := strings.Replace(base, `"commands": [`, `"commands": [{"name": "send", "title": "Send out", "description": "Sends a note out.", "class": "external",
     "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]},
     "executor": {"type": "tool", "tool": "post"}}, `, 1)
 	p := e.Project("notes", m)
@@ -46,5 +47,11 @@ func TestAnAgentsFeedButtonOfAnOutwardCommandAsksFirst(t *testing.T) {
 	}
 	if again.Command != "notes.work" || again.Confirm || again.Label != "Ещё раз" {
 		t.Fatalf("an internal button stays as the agent wrote it: %+v", again)
+	}
+	// The module drops the command: its button asks first under the bare name of the command.
+	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": base}, nil)
+	e.Must("deck.feed_list", map[string]any{"kind": "note"}, &feed)
+	if b := feed[0].Buttons[0]; !b.Confirm || b.Label != "send" {
+		t.Fatalf("a button of a command the module dropped asks first under its name: %+v", b)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"unicode"
 
 	"deck2/internal/access"
 	"deck2/internal/ask"
@@ -210,8 +211,8 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		r.Payload, _ = json.Marshal(map[string]any{"widens": f.Widens, "reason": f.Reason})
 	case ask.KindConfirm:
 		if pl, err := ask.Decode[ask.Confirm](q.Payload); err == nil && pl.Tool != "" {
-			r.What, r.Where = pl.Tool, confirmTarget(pl.Input)
-			r.Change = confirmFields(pl.Input)
+			r.What, r.Change = pl.Tool, confirmFields(pl.Input)
+			r.Where = firstLine(r.Change)
 		}
 	case ask.KindSignIn:
 		pl, _ := ask.Decode[ask.SignIn](q.Payload)
@@ -295,44 +296,54 @@ func (s *Service) callerName(ctx context.Context, c gateway.Caller) string {
 	return c.Kind
 }
 
-// confirmTarget is where a provider tool call goes: its URL, command or path, else its input.
-func confirmTarget(in map[string]any) string {
-	for _, k := range []string{"url", "command", "file_path", "path", "query"} {
-		if v, ok := in[k].(string); ok && v != "" {
-			return v
-		}
+// reaching are the parts of a key that say whom or where a call reaches; such a field is shown first and whole.
+var reaching = []string{"to", "cc", "bcc", "recipient", "email", "address", "url", "uri", "phone", "number", "chat", "channel",
+	"target", "destination", "webhook", "endpoint", "reply", "command", "path", "query"}
+
+// confirmFields are the fields of a call a line each, nested ones by dotted keys: those that say where it reaches
+// first and cut only past 2000 bytes, then the shorter, each cut at 200 bytes on its own.
+func confirmFields(in map[string]any) string {
+	type field struct {
+		key, value string
+		reaches    bool
 	}
 	if len(in) == 0 {
 		return ""
 	}
-	b, _ := json.Marshal(in)
-	return untrusted.Cut(string(b), 300)
-}
-
-// leading are the fields of a call that say whom or where it reaches, shown first.
-var leading = []string{"to", "cc", "bcc", "recipient", "recipients", "email", "address", "url", "command", "file_path", "path", "query"}
-
-// confirmFields are the fields of a call a line each: those that say where it reaches first, then the shorter; each
-// value cut on its own, so a long one hides no other.
-func confirmFields(in map[string]any) string {
-	type field struct{ key, value string }
-	fields := make([]field, 0, len(in))
-	for k, v := range in {
+	var fields []field
+	var walk func(prefix string, v any)
+	walk = func(prefix string, v any) {
+		if m, ok := v.(map[string]any); ok && len(m) > 0 {
+			for k, x := range m {
+				k = untrusted.Cut(strings.Join(strings.Fields(strings.Map(func(r rune) rune {
+					if unicode.IsControl(r) {
+						return ' '
+					}
+					return r
+				}, k)), " "), 60)
+				walk(strings.TrimPrefix(prefix+"."+k, "."), x)
+			}
+			return
+		}
 		s, ok := v.(string)
 		if !ok {
 			b, _ := json.Marshal(v)
 			s = string(b)
 		}
-		fields = append(fields, field{k, untrusted.Cut(strings.Join(strings.Fields(s), " "), 200)})
+		last := strings.ToLower(prefix[strings.LastIndex(prefix, ".")+1:])
+		reaches := slices.ContainsFunc(reaching, func(w string) bool { return strings.Contains(last, w) })
+		fields = append(fields, field{prefix, untrusted.Cut(strings.Join(strings.Fields(s), " "), map[bool]int{true: 2000, false: 200}[reaches]), reaches})
 	}
-	rank := func(k string) int {
-		if i := slices.Index(leading, strings.ToLower(k)); i >= 0 {
-			return i
-		}
-		return len(leading)
-	}
+	walk("", in)
 	slices.SortFunc(fields, func(a, b field) int {
-		return cmp.Or(rank(a.key)-rank(b.key), len(a.value)-len(b.value), strings.Compare(a.key, b.key))
+		ra, rb := 1, 1
+		if a.reaches {
+			ra = 0
+		}
+		if b.reaches {
+			rb = 0
+		}
+		return cmp.Or(ra-rb, len(a.value)-len(b.value), strings.Compare(a.key, b.key))
 	})
 	lines := make([]string, len(fields))
 	for i, f := range fields {

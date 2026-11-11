@@ -33,8 +33,8 @@ function Parts({ from, params, onReady }: { from: string; params?: Record<string
 
 // ConfirmModal asks before a call goes: what it does and with which parameters, or what it deletes when the server
 // names a read of that; then the yes waits for the list.
-export function ConfirmModal({ opened, label, parts, params, onCancel, onConfirm }: {
-  opened: boolean; label: string; parts?: string; params?: Record<string, unknown>; onCancel: () => void; onConfirm: () => void;
+export function ConfirmModal({ opened, label, command, parts, params, onCancel, onConfirm }: {
+  opened: boolean; label: string; command?: string; parts?: string; params?: Record<string, unknown>; onCancel: () => void; onConfirm: () => void;
 }) {
   const { t } = useTranslation();
   const [ready, setReady] = useState(false);
@@ -42,6 +42,7 @@ export function ConfirmModal({ opened, label, parts, params, onCancel, onConfirm
   return (
     <Modal opened={opened} onClose={onCancel} title={t('{{action}}?', { action: label })}>
       <Stack gap="sm" data-confirm>
+        {command && <Text size="sm" data-confirm-command>{t('Command')}: <Code>{command}</Code></Text>}
         {parts ? opened && <Parts from={parts} params={params} onReady={setReady} /> : <Code block>{JSON.stringify(params ?? {}, null, 2)}</Code>}
         <Group justify="flex-end">
           <Button variant="default" onClick={onCancel}>{t('Cancel')}</Button>

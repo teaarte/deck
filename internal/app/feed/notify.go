@@ -38,7 +38,7 @@ func outward(b Button, m *manifest.Manifest, lang string) Button {
 	if c != nil && c.Class == registry.Internal {
 		return b
 	}
-	b.Confirm = true
+	b.Confirm, b.Label = true, b.Command
 	if c != nil {
 		b.Label = cmp.Or(m.I18n[lang][c.Title], c.Title, c.Name)
 	}

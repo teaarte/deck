@@ -656,7 +656,8 @@ func TestRunningNowKeepsALongProcessBehindManyShortOnes(t *testing.T) {
 	e.WaitState(long, "stopped")
 }
 
-// TestProviderConfirmationSaysWhatAndWhere: a provider tool waiting for the owner names the tool and where it goes.
+// TestProviderConfirmationSaysWhatAndWhere: a provider tool waiting for the owner names the tool and its fields, where
+// it goes first.
 func TestProviderConfirmationSaysWhatAndWhere(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
@@ -668,7 +669,7 @@ func TestProviderConfirmationSaysWhatAndWhere(t *testing.T) {
 	e.Run(p, "fetch")
 	e.Until("the confirmation", func() bool { return len(e.CockpitItems()) == 1 })
 	it := e.CockpitItems()[0]
-	if it.Title != "WebFetch" || it.Text != "https://example.com/page" || !strings.Contains(it.Details, "read it") {
+	if it.Title != "WebFetch" || it.Text != "url: https://example.com/page\nprompt: read it" || !strings.Contains(it.Details, "read it") {
 		t.Fatalf("the confirmation says the tool and where it goes, with its whole input: %+v", it)
 	}
 }

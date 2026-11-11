@@ -3,6 +3,7 @@ package real
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -127,5 +128,35 @@ func TestRealMasterSwitchesProvider(t *testing.T) {
 	s3, pv := replySession(e, topic, 3)
 	if pv != "claude-code" || s1 != s3 {
 		t.Fatalf("back on Claude Code its first session goes on: %s %q %q", pv, s1, s3)
+	}
+}
+
+// TestRealClaudeCodeMasterSearchesThroughDeck: the master on the installed Claude Code answers a question of the web by
+// deck's web_search, whose line in the journal keeps the query and the results; its shell has no web of its own.
+func TestRealClaudeCodeMasterSearchesThroughDeck(t *testing.T) {
+	realCLI(t)
+	home := realHome(t)
+	search := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		harness.JsonReply(w, `{"results": [{"title": "Quillfern 2031 release", "url": "https://example.com/quillfern",
+			"content": "The 2031 release of the Quillfern project is code-named VELVET HERON."}]}`)
+	})
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home, nil)), harness.WithConfig(realWaits), harness.WithWait(5*time.Minute))
+	e.Must("deck.connection_set", map[string]any{"name": "searxng", "api": "raw", "url": search.URL, "local": true}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "searxng", "model": "searxng", "name": "searxng", "kind": "search", "free": true}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
+	topic := e.Say(0, "Search the web: what is the code name of the 2031 release of the Quillfern project? Answer with the code name.")
+	said := masterReplies(e, topic, 1)
+	t.Logf("master: %s", said[0].Text)
+	if !strings.Contains(strings.ToUpper(said[0].Text), "VELVET HERON") {
+		t.Fatalf("the master answers from deck's search: %q", said[0].Text)
+	}
+	var calls []struct{ Tool, Outcome, Params string }
+	e.Must("deck.calls_list", map[string]any{"project": "master"}, &calls)
+	searched := false
+	for _, c := range calls {
+		searched = searched || c.Tool == "deck.web_search" && c.Outcome == "done" && strings.Contains(c.Params, "https://example.com/quillfern")
+	}
+	if !searched || len(search.Requests()) == 0 {
+		t.Fatalf("the master searched through deck, and the journal keeps the results: %+v", calls)
 	}
 }

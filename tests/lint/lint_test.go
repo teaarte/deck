@@ -196,3 +196,38 @@ func TestLayersCatchAnImportUp(t *testing.T) {
 		t.Errorf("a domain imports a lower layer freely:\n%s", all)
 	}
 }
+
+func TestRepositoryKeepsTablesToTheirList(t *testing.T) {
+	vs, err := lint.Tables("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range vs {
+		t.Error(v)
+	}
+}
+
+func TestTablesCatchTestsOffTheList(t *testing.T) {
+	vs, err := lint.TablesOf("testdata/tables", map[string][]string{
+		"internal/egress": {"Public", "Local"},
+		"internal/store":  {"Q"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, v := range vs {
+		got = append(got, v.String())
+	}
+	want := []string{
+		"internal/egress/table_test.go:1: FuzzPublic tests no function of lint.Tabled for internal/egress",
+		"internal/egress/table_test.go:1: TestOther tests no function of lint.Tabled for internal/egress",
+		"internal/egress/table_test.go:1: internal/egress.Local is in lint.Tabled without its table test TestLocal",
+		"internal/home/within_test.go:1: a test outside tests/ is only the table test table_test.go of a function in lint.Tabled",
+		"internal/store/table_test.go:1: a table test takes no harness: rows of input and answer only",
+		"web/embed_test.go:1: a test outside tests/ is only the table test table_test.go of a function in lint.Tabled",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}

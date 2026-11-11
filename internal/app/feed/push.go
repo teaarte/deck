@@ -138,7 +138,9 @@ type pushSource struct {
 // pushSources are what waits for the owner and the notes of the feed, pushed while no client is open, in the words
 // say, only the module each is of when hidden.
 func (s *Service) pushSources(hidden bool) []pushSource {
-	sayOf := func(ctx context.Context, ws, process int64) map[string]string { return words.In(s.Lang(ctx, ws, process)) }
+	sayOf := func(ctx context.Context, ws, process int64) map[string]string {
+		return words.In(s.Lang(ctx, ws, process))
+	}
 	id := func(str string) int64 { n, _ := strconv.ParseInt(str, 10, 64); return n }
 	return []pushSource{
 		{"ask", func(ctx context.Context, ws int64) string { n, _ := s.St.Q.MaxAskID(ctx, ws); return fmt.Sprint(n) },

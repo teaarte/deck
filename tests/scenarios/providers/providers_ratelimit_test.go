@@ -201,9 +201,9 @@ func TestALimitPausesUntilTheResetOfItsHeaders(t *testing.T) {
 	}
 }
 
-// TestALimitWithoutAResetPausesByItsKind: a limit a minute without a reset time waits a minute, not the hour of an
-// unknown one; a limit a day waits until the day ends in UTC.
-func TestALimitWithoutAResetPausesByItsKind(t *testing.T) {
+// TestALimitPausesByItsKind: a limit a minute without a reset time waits a minute, not the hour of an
+// unknown one; a limit a day waits until the day ends in UTC, though Gemini tells seconds.
+func TestALimitPausesByItsKind(t *testing.T) {
 	t.Parallel()
 	t.Run("minute", func(t *testing.T) {
 		t.Parallel()
@@ -212,12 +212,26 @@ func TestALimitWithoutAResetPausesByItsKind(t *testing.T) {
 			t.Fatalf("a limit a minute pauses for minutes, not an hour: %s", left)
 		}
 	})
-	t.Run("day", func(t *testing.T) {
+	gemini := `[{"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "details": [{"@type": "type.googleapis.com/google.rpc.QuotaFailure",
+		"violations": [{"quotaId": "GenerateRequestsPer%sPerProjectPerModel-FreeTier"}]}, {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "%s"}]}}]`
+	for name, body := range map[string]string{
+		"day":        `{"error": {"message": "Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day", "code": 429}}`,
+		"gemini day": fmt.Sprintf(gemini, "Day", "51s"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			left := limitedTurn(t, harness.ChatReply{Status: 429, Body: body})
+			y, m, d := time.Now().UTC().Date()
+			if want := time.Until(time.Date(y, m, d+1, 0, 0, 0, 0, time.UTC)); left < want-time.Minute || left > want+time.Second {
+				t.Fatalf("a limit a day pauses until the day ends in UTC, %s: %s", want, left)
+			}
+		})
+	}
+	t.Run("gemini minute", func(t *testing.T) {
 		t.Parallel()
-		left := limitedTurn(t, harness.ChatReply{Status: 429, Body: `{"error": {"message": "Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day", "code": 429}}`})
-		y, m, d := time.Now().UTC().Date()
-		if want := time.Until(time.Date(y, m, d+1, 0, 0, 0, 0, time.UTC)); left < want-time.Minute || left > want+time.Second {
-			t.Fatalf("a limit a day pauses until the day ends in UTC, %s: %s", want, left)
+		left := limitedTurn(t, harness.ChatReply{Status: 429, Body: fmt.Sprintf(gemini, "Minute", "540s")})
+		if left < 5*time.Minute || left > 9*time.Minute {
+			t.Fatalf("a limit a minute pauses for the retryDelay Gemini told: %s", left)
 		}
 	})
 }

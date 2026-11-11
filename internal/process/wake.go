@@ -188,6 +188,11 @@ func (r *Runner) wake(ctx context.Context) {
 	}
 }
 
+// reached ends the wait a turn came out of once it calls deck's tools: a wait after it gets a term of its own.
+func (r *Runner) reached(ctx context.Context, processID int64) {
+	_ = r.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return q.EndWait(ctx, processID) })
+}
+
 // unclaim puts a process claimed back to running that could not start back to the wait it had.
 func (r *Runner) unclaim(ctx context.Context, processID int64) {
 	_ = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

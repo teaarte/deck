@@ -214,7 +214,7 @@
   "Nothing to decide. One failure is in the feed below.": "Решать нечего. Один сбой — в ленте ниже.",
   "Nothing to decide. Failures in the feed below: %d.": "Решать нечего. Сбоев в ленте ниже: %d.",
   "All is well: nothing to decide, no failures.": "Всё в порядке: решать нечего, сбоев нет.",
-  "How long a confirmation waits for the owner, hours": "Сколько подтверждение ждёт владельца, часов",
+  "How long a confirmation or a question of an agent waits for the owner, hours": "Сколько подтверждение или вопрос агента ждёт владельца, часов",
   "Agent processes that run at once; scripts and tools do not count": "Сколько агентских процессов идёт одновременно; скрипты и инструменты не считаются",
   "Language of the interface; auto follows the device": "Язык интерфейса; auto — как на устройстве",
   "What a push shows on a locked screen": "Что показывает уведомление на заблокированном экране",

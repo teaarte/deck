@@ -59,6 +59,9 @@ func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang 
 		if i < 0 && process.Waits(p, process.WaitAnswer) {
 			i = slices.IndexFunc(asks, func(a db.Ask) bool { return a.State == ask.StateOpen })
 		}
+		if v.Wait != nil && v.Wait.Reason == process.WaitAnswer {
+			v.Wait.On, v.Wait.Until = answerWait(asks)
+		}
 		if i >= 0 {
 			v.Ask, v.Question = asks[i].ID, asks[i].Text
 			if k := asks[i].Kind; k == ask.KindCall || k == ask.KindGrant || k == ask.KindUnknown {
@@ -75,6 +78,22 @@ func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang 
 	ws := words.In(lang)
 	v.Shown = process.Show(p, question, v.Long, func(phrase string) string { return manifest.Tr(ws, phrase) })
 	v.Error = deckError(ws, p, v.Error)
+}
+
+// answerWait is what a process that waits for the owner waits on now: its first open ask and the first term of them.
+func answerWait(asks []db.Ask) (on, until string) {
+	for _, a := range asks {
+		if a.State != ask.StateOpen {
+			continue
+		}
+		if on == "" {
+			on = fmt.Sprint(a.ID)
+		}
+		if a.ExpiresAt.Valid && (until == "" || a.ExpiresAt.String < until) {
+			until = a.ExpiresAt.String
+		}
+	}
+	return on, until
 }
 
 // deckError is the failure of p in the owner's words when deck wrote it; a script's own failure stays as it wrote it.

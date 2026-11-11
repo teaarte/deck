@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"deck2/internal/boxes"
@@ -173,9 +174,10 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 			a.sub.Kept(json.RawMessage(p.Result))
 		}
 	}
+	var reached sync.Once
 	u, f := r.begin(ctx, *t, proj, &gateway.Session{ProcessID: t.process, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: a.sub,
 		Question: pv.QuestionTool(), Wait: callLimit(pv), Master: proj.Builtin == 1, Commands: t.cmd.Executor.Calls,
-		Heard: func() { r.answered(t.process) }})
+		Heard: func() { r.answered(t.process); reached.Do(func() { r.reached(ctx, t.process) }) }})
 	if f != nil {
 		fail(f)
 		return nil, false

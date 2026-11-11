@@ -39,7 +39,7 @@ type settingDef struct {
 }
 
 var settingDefs = []settingDef{
-	{name: "confirm_hours", title: "How long a confirmation waits for the owner, hours", min: 1, max: 720,
+	{name: "confirm_hours", title: "How long a confirmation or a question of an agent waits for the owner, hours", min: 1, max: 720,
 		steps: []string{"1", "2", "6", "12", "24", "48", "72", "168", "336", "720"},
 		def:   func(s *Service) any { return int64(s.DefaultTTL / time.Hour) }},
 	{name: "agent_limit", title: "Agent processes that run at once; scripts and tools do not count", min: 1, max: 20,

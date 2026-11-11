@@ -285,6 +285,16 @@ func (q *Queries) EarlierRun(ctx context.Context, arg EarlierRunParams) (int64, 
 	return id, err
 }
 
+const endWait = `-- name: EndWait :exec
+UPDATE process SET wait_reason = '', wait_on = '', wait_silence = '', wait_until_ms = NULL
+WHERE id = ? AND state = 'running' AND wait_reason != ''
+`
+
+func (q *Queries) EndWait(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, endWait, id)
+	return err
+}
+
 const findActiveProcess = `-- name: FindActiveProcess :one
 SELECT id, project_id, command, kind, state, provider, session_id, input, result, not_by_schema, error, start_note, parent_id, depth, trigger_id, retry_key, manifest_revision, trial, folder, pgid, ceiling_ms, deadline_ms, output_ms, silent_since_ms, wait_until_ms, wait_message, wait_fresh, started_at, finished_at, alone, dismissed, reopened_at, error_type, error_details, follows_id, again, allows, wrote, submitted_at, wait_reason, wait_on, wait_silence FROM process
 WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' AND trial = ?

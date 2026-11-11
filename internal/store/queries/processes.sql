@@ -131,6 +131,11 @@ GROUP BY 1;
 UPDATE process SET state = 'running' WHERE id = sqlc.arg(id) AND state = 'waiting' AND wait_reason = sqlc.arg(reason);
 
 
+-- name: EndWait :exec
+UPDATE process SET wait_reason = '', wait_on = '', wait_silence = '', wait_until_ms = NULL
+WHERE id = ? AND state = 'running' AND wait_reason != '';
+
+
 -- name: UnclaimProcess :execrows
 -- A process claimed back to running that could not start waits again as it did.
 UPDATE process SET state = 'waiting' WHERE id = ? AND state = 'running';

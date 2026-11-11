@@ -1,6 +1,6 @@
 -- +goose Up
 -- A process waits in one state: why (wait_reason), on what (wait_on), until when (wait_until_ms) and what its
--- silence comes to (wait_silence).
+-- silence comes to (wait_silence); a wait for a provider of an older deck gets a day from the start of its process.
 ALTER TABLE process RENAME COLUMN pause_until_ms TO wait_until_ms;
 ALTER TABLE process ADD COLUMN wait_reason TEXT NOT NULL DEFAULT '';
 ALTER TABLE process ADD COLUMN wait_on TEXT NOT NULL DEFAULT '';
@@ -13,7 +13,8 @@ UPDATE process SET wait_reason = CASE state
     WHEN 'waiting_answer' THEN 'go_on' WHEN 'needs_login' THEN 'fail:model.login' WHEN 'rate_limited' THEN 'retry'
     WHEN 'waiting_provider' THEN 'fail:model.unavailable' ELSE '' END,
   wait_on = CASE WHEN state IN ('rate_limited', 'waiting_provider') THEN provider ELSE '' END,
-  wait_until_ms = CASE WHEN state = 'rate_limited' THEN wait_until_ms ELSE NULL END,
+  wait_until_ms = CASE WHEN state = 'rate_limited' THEN wait_until_ms
+    WHEN state = 'waiting_provider' THEN CAST(unixepoch(started_at) AS INTEGER) * 1000 + 86400000 ELSE NULL END,
   state = 'waiting'
 WHERE state IN ('waiting_answer', 'needs_login', 'rate_limited', 'waiting_provider', 'waiting_slot', 'waiting_folder', 'waiting_run');
 UPDATE chat_message SET context = replace(context, '"state":"waiting_answer"', '"state":"waiting"')

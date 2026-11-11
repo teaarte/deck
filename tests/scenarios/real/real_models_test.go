@@ -1,6 +1,8 @@
 package real
 
 import (
+	"context"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +21,7 @@ func realModelResume(t *testing.T, e *harness.Env, connection, name, first, seco
 	e.Must("deck.provider_check", map[string]any{"provider": name}, nil)
 	h := checked(e, "provider:"+name)
 	t.Logf("%s on %s low: self-check %s %s", name, first, h.Status, h.Error)
-	if h.Status != "ok" {
+	if !green(h) {
 		t.Fatalf("the self-check of %s on %s is green: %+v", name, first, h)
 	}
 	p := e.Project("plain", strings.Replace(harness.PlainManifest, "Do the work.", "Answer with the one word done. Do not ask anything and run no tool.", 1))
@@ -30,7 +32,7 @@ func realModelResume(t *testing.T, e *harness.Env, connection, name, first, seco
 	}
 	e.Must("deck.model_set", map[string]any{"connection": connection, "model": second, "name": name}, nil)
 	e.Must("deck.provider_check", map[string]any{"provider": name}, nil)
-	if h := checked(e, "provider:"+name); h.Status != "ok" {
+	if h := checked(e, "provider:"+name); !green(h) {
 		t.Fatalf("the self-check of %s on %s is green: %+v", name, second, h)
 	}
 	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "Say in one word that you are done."}, nil)
@@ -45,6 +47,11 @@ func realModelResume(t *testing.T, e *harness.Env, connection, name, first, seco
 	last, before := calls[0]["gen_ai.response.model"].(string), calls[len(calls)-1]["gen_ai.response.model"].(string)
 	t.Logf("the first turn ran on %s, the resumed one on %s", before, last)
 	return before, last
+}
+
+// green says a self-check passed: ok, or a warning only that the installed CLI is not the version CI tests.
+func green(h harness.HealthRow) bool {
+	return h.Status == "ok" || h.Status == "warning" && strings.HasPrefix(h.Error, "deck is tested with version ")
 }
 
 // checked waits for a health row out of its self-check, green or not.
@@ -63,13 +70,26 @@ func checked(e *harness.Env, subject string) harness.HealthRow {
 	return got
 }
 
-// TestRealClaudeCodeModels: on the installed CLI, Haiku is refused for want of auto mode, Sonnet on low effort
-// passes its self-check and works, and its session resumes on Opus.
+// TestRealClaudeCodeModels: on the installed CLI, Haiku is refused when the CLI says it has no auto mode and taken when
+// it has, Sonnet on low effort passes its self-check and works, and its session resumes on Opus.
 func TestRealClaudeCodeModels(t *testing.T) {
 	realCLI(t)
 	home := realHome(t)
-	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home, nil)), harness.WithConfig(realWaits), harness.WithWait(10*time.Minute))
-	e.Refused("deck.model_set", map[string]any{"connection": "claude-code", "model": "haiku", "name": "cc-haiku"}, 422, "no auto mode")
+	cli := claudecode.New(home, nil)
+	e := harness.New(t, harness.WithHome(home), harness.WithProvider(cli), harness.WithConfig(realWaits), harness.WithWait(10*time.Minute))
+	listed, err := cli.Models(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	auto := false
+	for _, m := range listed {
+		auto = auto || slices.Contains(m.Names, "haiku") && m.Refused == ""
+	}
+	if haiku := map[string]any{"connection": "claude-code", "model": "haiku", "name": "cc-haiku"}; auto {
+		e.Must("deck.model_set", haiku, nil)
+	} else {
+		e.Refused("deck.model_set", haiku, 422, "no auto mode")
+	}
 	first, second := realModelResume(t, e, "claude-code", "cc-live", "sonnet", "opus")
 	if !strings.Contains(first, "sonnet") || !strings.Contains(second, "opus") {
 		t.Fatalf("each turn ran on its model: %s, %s", first, second)

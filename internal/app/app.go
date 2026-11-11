@@ -151,7 +151,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			For:   a.Work.For, Next: a.Work.Next, Ahead: a.Work.Ahead, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Documents.Prompt,
 			Text: a.Documents.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
 			Folders: a.Folders.Paths, ScriptsAt: a.Folders.ScriptsAt,
-			Memory: a.Chats.Memory, Lang: a.Chats.LangOf, Programs: a.Documents.Programs})
+			Memory: a.Chats.Memory, Lang: a.Chats.Gives, Programs: a.Documents.Programs})
 	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
 
 	a.Secrets = secrets.Service{St: st, Emit: a.Bus.Emit, Home: h}
@@ -207,7 +207,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}
 	a.Feed = feed.Service{St: st, Now: cfg.Now,
-		Home: h, Invoke: a.Registry.Invoke, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.LangOf}
+		Home: h, Invoke: a.Registry.Invoke, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.Gives, Reads: a.Chats.LangOf}
 	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
 		Works: a.Work.Works}
 	a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Work.Unassigned, NoSearch: a.Work.NoSearch, Missing: a.Work.Missing,

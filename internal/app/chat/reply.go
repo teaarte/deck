@@ -270,7 +270,7 @@ func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.C
 		Notes                  string
 		Projects, Open         string
 		Language               string
-	}{Topic: t.ID, Summary: summaryName(t.ID), Language: words.Name(s.Lang(ctx, t.WorkspaceID, t.ID))}
+	}{Topic: t.ID, Summary: summaryName(t.ID), Language: words.Name(s.gives(ctx, t.WorkspaceID, t.ID))}
 	if notes != "" {
 		v.Notes = untrusted.Block("notes", notes)
 	}

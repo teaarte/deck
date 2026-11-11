@@ -25,16 +25,31 @@ func (s *Service) Lang(ctx context.Context, workspace, topic int64) string {
 	if l := registry.Lang(ctx); l != "" {
 		return l
 	}
-	if l := s.Language(ctx, workspace); l != "auto" {
-		return l
-	}
-	return ""
+	return s.gives(ctx, workspace, 0)
 }
 
 // LangOf is the language of what a process says to the owner: that of the topic it or a process that started it
 // came from, else as Lang says.
 func (s *Service) LangOf(ctx context.Context, workspace, process int64) string {
 	return s.Lang(ctx, workspace, s.TopicOf(ctx, process))
+}
+
+// Gives is the language deck gives an agent of a process: that of its topic, else that of the settings; "" when the
+// settings follow the device and no reply marked it, whoever's call started the process.
+func (s *Service) Gives(ctx context.Context, workspace, process int64) string {
+	return s.gives(ctx, workspace, s.TopicOf(ctx, process))
+}
+
+func (s *Service) gives(ctx context.Context, workspace, topic int64) string {
+	if topic != 0 {
+		if t, err := s.St.Q.GetTopic(ctx, topic); err == nil && t.Lang != "" {
+			return t.Lang
+		}
+	}
+	if l := s.Language(ctx, workspace); l != "auto" {
+		return l
+	}
+	return ""
 }
 
 // TopicOf is the chat topic a process of the master came from, itself or through the processes that started it;

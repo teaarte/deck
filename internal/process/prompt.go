@@ -81,6 +81,9 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 		return "", err
 	}
 	v.Thread = r.thread(ctx, proc)
-	v.Language = words.Name(r.deps.Lang(ctx, proj.WorkspaceID, proc.ID))
+	if t.m.EventCommand(manifest.OnMessage) != t.cmd.Name {
+		// The command that answers the owner's messages gets the language with each of them.
+		v.Language = words.Name(r.deps.Lang(ctx, proj.WorkspaceID, proc.ID))
+	}
 	return master.Text("command", v), nil
 }

@@ -192,3 +192,28 @@ func TestWithoutATopicTheSettingsSpeak(t *testing.T) {
 		}
 	}
 }
+
+// With the settings following the device, whatever language the client sending reads, deck gives the reply no
+// language: the reply marks the one of the message, and the work and pushes of the topic follow it.
+func TestUnderAutoSettingsTheReplyMarksTheTopic(t *testing.T) {
+	t.Parallel()
+	e, said := langEnv(t, "auto")
+
+	var sent struct{ Topic int64 }
+	e.In("ru").Must("deck.chat_send", map[string]any{"text": "поставь модель для films"}, &sent)
+	topic := sent.Topic
+	waits := e.Told(topic, "waiting_answer", "en")
+	if reply := said.of("reply"); len(reply) != 1 || !strings.Contains(reply[0], "deck knows no language of this topic yet") ||
+		strings.Contains(reply[0], "deck gives this topic the language") {
+		t.Fatalf("the reply is given no language of a client: %q", reply)
+	}
+	if len(said.marked) != 1 || !strings.HasPrefix(said.marked[0], "false ") {
+		t.Fatalf("the reply marks the topic: %q", said.marked)
+	}
+	if work := said.of("work"); len(work) != 1 || !strings.Contains(work[0], "in Russian, the language deck gives") {
+		t.Fatalf("the work of the marked topic writes in Russian: %q", work)
+	}
+	if !strings.HasPrefix(waits.Told.Word, "ждёт") {
+		t.Fatalf("deck's words of the work are Russian: %+v", waits.Told)
+	}
+}

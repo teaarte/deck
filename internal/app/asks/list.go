@@ -83,14 +83,19 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 	all := append(open, expired...)
 	slices.SortFunc(all, func(x, y db.Ask) int { return cmp.Compare(x.ID, y.ID) })
 	out := make([]askView, 0, len(all))
+	langs := map[int64]string{}
 	for _, q := range all {
 		if !keep(q) {
 			continue
 		}
-		lang := s.langOf(ctx, act.Workspace, q.ProcessID.Int64, lang)
-		ws := words.In(lang)
+		in, ok := langs[q.ProcessID.Int64]
+		if !ok {
+			in = s.langOf(ctx, act.Workspace, q.ProcessID.Int64, lang)
+			langs[q.ProcessID.Int64] = in
+		}
+		ws := words.In(in)
 		tr := func(text string) string { return manifest.TrText(ws, text) }
-		r := s.askRow(ctx, q, names, lang)
+		r := s.askRow(ctx, q, names, in)
 		r.Who, r.Always = tr(r.Who), tr(r.Always)
 		switch {
 		case q.Kind == ask.KindGrant, q.Kind == ask.KindQuestion:

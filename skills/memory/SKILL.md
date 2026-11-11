@@ -26,14 +26,14 @@ change of another fact the master proposes with `document_propose` (the whole te
 
 ```
 ---
-name: replies-in-russian
-description: The owner wants replies in Russian, short, no greetings
+name: short-replies
+description: The owner wants short replies, no greetings
 type: feedback
 expires: 2026-12-31
 ---
 
-The owner wants replies in Russian, two or three sentences, without greetings.
-**Why:** said so on 2026-10-01 after a long English reply.
+The owner wants replies of two or three sentences, without greetings.
+**Why:** said so on 2026-10-01 after a long reply.
 **How to apply:** every reply in a chat topic.
 ```
 
@@ -42,7 +42,7 @@ The owner wants replies in Russian, two or three sentences, without greetings.
 - `expires` (a date) only for a fact that stops being true by itself; the sleep removes it after that day.
 - The body is the fact; for `feedback` and `project` add **Why** and **How to apply**.
 
-Then one line in the index: `- [Title](replies-in-russian.md) — the hook that tells when it matters`. The
+Then one line in the index: `- [Title](short-replies.md) — the hook that tells when it matters`. The
 index is one line per fact, no frontmatter, most important lines first: deck gives only the start of a long
 index, and says what it cut.
 

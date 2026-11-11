@@ -45,8 +45,8 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
 	topic := e.Say(0, "count the records")
 	done := e.Told(topic, "done", "ru")
-	for _, c := range e.Fake.Calls()[:2] {
-		if !strings.Contains(c.Prompt, "in Russian, the language deck gives") {
+	for i, want := range []string{"deck gives this topic the language Russian", "in Russian, the language deck gives"} {
+		if c := e.Fake.Calls()[i]; !strings.Contains(c.Prompt, want) {
 			t.Fatalf("the reply and the work it handed over are told the owner's language:\n%s", c.Prompt)
 		}
 	}

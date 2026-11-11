@@ -170,7 +170,8 @@ func (s *Service) pushSources(hidden bool) []pushSource {
 					if n.Screen != "" && n.RecordID.Valid {
 						url += fmt.Sprintf("/%d", n.RecordID.Int64)
 					}
-					items = append(items, pushItem{s.pushText(ctx, sayOf(ctx, ws, n.ProcessID.Int64), hidden, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
+					say := sayOf(ctx, ws, n.ProcessID.Int64)
+					items = append(items, pushItem{s.pushText(ctx, say, hidden, n.ProjectID, row.ProjectName, deckText(say, n.Kind, n.Author, n.Text), url), fmt.Sprint(n.ID)})
 				}
 				return items
 			}},

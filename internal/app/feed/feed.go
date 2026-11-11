@@ -35,10 +35,11 @@ type Service struct {
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	// Waiting are how many things wait for the owner, by project, as the menu counts them.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
-	// Hidden says the owner's pushes show only the module they are of; Lang is the language the owner reads what a
-	// process says in, that of its topic or of the settings.
+	// Hidden says the owner's pushes show only the module they are of; Lang is the language a push of a process
+	// speaks, that of its topic or of the settings, and Reads the one a reader reads a row of it in.
 	Hidden func(ctx context.Context, workspace int64) bool
 	Lang   func(ctx context.Context, workspace, process int64) string
+	Reads  func(ctx context.Context, workspace, process int64) string
 	// Tailnet is the https address of deck on the owner's tailnet, empty while it is not on one.
 	Tailnet atomic.Pointer[string]
 
@@ -197,7 +198,7 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 	for _, f := range rows {
 		ws, ok := langs[f.ProcessID.Int64]
 		if !ok {
-			ws = words.In(s.Lang(ctx, act.Workspace, f.ProcessID.Int64))
+			ws = words.In(s.Reads(ctx, act.Workspace, f.ProcessID.Int64))
 			langs[f.ProcessID.Int64] = ws
 		}
 		r := feedView{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: deckText(ws, f.Kind, f.Author, f.Text), Screen: f.Screen,

@@ -3,6 +3,7 @@ package home
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -91,6 +92,32 @@ func Overlap(a, b string) bool { return Within(a, b) || Within(b, a) }
 
 // ErrNotRegular is a name that is no regular file.
 var ErrNotRegular = errors.New("not a regular file")
+
+// ErrTooBig is a file longer than its reader takes.
+var ErrTooBig = errors.New("larger than deck reads")
+
+// ReadIn reads the regular file name of dir whole, never through a link out of dir nor past limit bytes: a file of a
+// folder a box writes is read only so.
+func ReadIn(dir, name string, limit int64) ([]byte, error) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+	f, err := OpenRegular(root, name)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, fmt.Errorf("%s: %w (%d bytes)", name, ErrTooBig, limit)
+	}
+	return b, nil
+}
 
 // OpenRegular opens a regular file of root for reading; the root keeps every link inside it, and a pipe opens without
 // waiting for a writer.

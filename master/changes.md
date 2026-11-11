@@ -382,3 +382,6 @@ and bring the modules in line.
   goes through a link, or a folder swapped for a link meanwhile, is refused (`conflict`, read the folder again);
   nothing of deck's own folder goes into the trash of a project or comes out of it. On macOS a program in a box
   writes inside the folders it may write, but no longer removes, renames or replaces those folders themselves.
+- 2026-11-11: deck reads a file of a folder a box writes only as a regular file inside that folder and up to a limit:
+  `.claude/settings*.json` of a repo (1 MB), a screenshot of the browser (32 MB); a link out of the folder, a pipe or a
+  device is not read (a snapshot skips it and names it); `project_import` skips such a file as not a regular one.

@@ -86,6 +86,8 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		"internal/tools/t.go:9: an HTTP client or transport built outside internal/egress",
 		"internal/tools/t.go:10: a file written by hand",
 		"internal/tools/t.go:11: the environment of deck read outside cmd/deck",
+		"internal/tools/t.go:15: a file opened by its path outside home",
+		"internal/tools/t.go:16: a file opened by its path outside home",
 		"internal/tools/t.go:13: an HTTP client or transport built outside internal/egress",
 		"internal/app/y/y.go:6: a topic of events written out",
 		"internal/app/y/y.go:7: a topic of events written out",

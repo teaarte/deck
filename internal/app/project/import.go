@@ -3,9 +3,9 @@ package project
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -220,18 +220,14 @@ func readFolder(root string) (files []folderFile, skipped []string, err error) {
 			skipped = append(skipped, rel+": a symbolic link")
 			return nil
 		}
-		info, err := os.Stat(path)
-		if err != nil || !info.Mode().IsRegular() {
-			skipped = append(skipped, rel+": not a regular file")
-			return nil
-		}
-		if info.Size() > docs.MaxFile {
+		b, err := home.ReadIn(root, rel, docs.MaxFile)
+		switch {
+		case errors.Is(err, home.ErrTooBig):
 			skipped = append(skipped, rel+": larger than 1 MB")
 			return nil
-		}
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return err
+		case err != nil:
+			skipped = append(skipped, rel+": not a regular file")
+			return nil
 		}
 		if !utf8.Valid(b) {
 			skipped = append(skipped, rel+": not text")

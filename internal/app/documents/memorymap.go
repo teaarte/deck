@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -324,9 +323,9 @@ func (s *Service) picture(ctx context.Context, mp db.Project, m memoryMap) (stri
 	}
 	svg := []byte(mapSVG(m, words.In(lang)))
 	sum := sha256.Sum256(svg)
-	path := filepath.Join(s.Home.Data(mp.ID), MapPicture)
-	if old, err := os.ReadFile(path); err != nil || !bytes.Equal(old, svg) {
-		if err := home.WriteFile(path, svg); err != nil {
+	dir := s.Home.Data(mp.ID)
+	if old, err := home.ReadIn(dir, MapPicture, int64(len(svg))); err != nil || !bytes.Equal(old, svg) {
+		if err := home.WriteFile(filepath.Join(dir, MapPicture), svg); err != nil {
 			return "", err
 		}
 	}

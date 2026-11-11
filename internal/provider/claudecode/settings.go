@@ -3,7 +3,6 @@ package claudecode
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -93,7 +92,7 @@ func blank(repo string, env map[string]string) {
 			var set struct {
 				Env map[string]any `json:"env"`
 			}
-			if b, err := os.ReadFile(filepath.Join(root, ".claude", f)); err == nil && json.Unmarshal(b, &set) == nil {
+			if b, err := home.ReadIn(root, filepath.Join(".claude", f), 1<<20); err == nil && json.Unmarshal(b, &set) == nil {
 				for name := range set.Env {
 					if apiVariable(name) {
 						env[name] = ""

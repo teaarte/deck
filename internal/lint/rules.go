@@ -40,6 +40,8 @@ var rules = []rule{
 		[]string{"internal/egress/"}, clientLit},
 	{"write", "a file written by hand: take home.WriteFile, home.Create or home.Fresh", []string{"internal/", "cmd/"},
 		[]string{"internal/home/"}, fileWrite},
+	{"read", "a file opened by its path outside home: a file of a folder a box writes is read by home.ReadIn or home.OpenRegular under a root",
+		[]string{"internal/", "cmd/"}, []string{"internal/home/", "internal/lint/"}, fileRead},
 	{"env", "the environment of deck read outside cmd/deck: take it from the config", []string{"internal/", "cmd/"},
 		[]string{"cmd/deck/"}, envRead},
 	{"failure", "an error that calls itself deck's by its text: take fault.New with its type, or a constructor of registry", []string{"internal/"},
@@ -297,6 +299,11 @@ func clientLit(f *ast.File, fset *token.FileSet) []int {
 // fileWrite are the lines that call os.Rename, os.CreateTemp or os.WriteFile.
 func fileWrite(f *ast.File, fset *token.FileSet) []int {
 	return calls(f, fset, "os", "Rename", "CreateTemp", "WriteFile")
+}
+
+// fileRead are the lines that open a file by its path.
+func fileRead(f *ast.File, fset *token.FileSet) []int {
+	return calls(f, fset, "os", "ReadFile", "Open")
 }
 
 // envRead are the lines that read the environment of deck.

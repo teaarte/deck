@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"deck2/internal/fault"
+	"deck2/internal/home"
 	"deck2/internal/sandbox"
 	"deck2/internal/untrusted"
 )
@@ -191,10 +192,10 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	if !ok {
 		return c
 	}
-	written, _ := os.ReadFile(filepath.Join(work, "word.txt"))
-	read, _ := os.ReadFile(filepath.Join(work, "skill.txt"))
-	code, codeErr := os.ReadFile(filepath.Join(work, "probe.code"))
-	probed, _ := os.ReadFile(filepath.Join(work, "probe.out"))
+	written, _ := home.ReadIn(work, "word.txt", 1<<16)
+	read, _ := home.ReadIn(work, "skill.txt", 1<<16)
+	code, codeErr := home.ReadIn(work, "probe.code", 1<<16)
+	probed, _ := home.ReadIn(work, "probe.out", 1<<16)
 	// The box of the agent's kind may leave the files or the network of the machine open, as it did on macOS.
 	files, network := sandbox.Leaves(s.Kind)
 	switch {
@@ -233,7 +234,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 	if _, _, _, ok = step("turn without network", off); !ok || network {
 		return c
 	}
-	switch got, err := os.ReadFile(filepath.Join(work, "net.out")); {
+	switch got, err := home.ReadIn(work, "net.out", 1<<16); {
 	case err != nil:
 		model(fmt.Errorf("turn without network: the probe that runs curl did not run: %v", err))
 	case strings.TrimSpace(string(got)) != "000":
@@ -244,7 +245,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 
 // wrote reports whether the first step of the check wrote its word.
 func wrote(work, word string) bool {
-	got, _ := os.ReadFile(filepath.Join(work, "word.txt"))
+	got, _ := home.ReadIn(work, "word.txt", 1<<16)
 	return strings.TrimSpace(string(got)) == word
 }
 

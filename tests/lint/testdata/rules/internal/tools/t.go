@@ -12,3 +12,5 @@ var _ = os.Getenv("HOME")
 var _ = exec.Command
 var _, _ = http.Get("http://x")
 var _, _ = exec.LookPath("claude")
+var _, _ = os.ReadFile("x")
+var _, _ = os.Open("x")

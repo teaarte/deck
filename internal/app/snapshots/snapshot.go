@@ -252,7 +252,7 @@ func writeSnapshot(path string, h home.Layout, copyDB, files string, project, bu
 	gz := gzip.NewWriter(f)
 	tw := tar.NewWriter(gz)
 	db, _ := filepath.Rel(string(h), h.DB())
-	if _, err := addFile(tw, copyDB, filepath.ToSlash(db)); err != nil {
+	if _, err := addFile(tw, filepath.Dir(copyDB), filepath.Base(copyDB), filepath.ToSlash(db)); err != nil {
 		return leftOut{}, err
 	}
 	stored, _ := filepath.Rel(string(h), h.Files())
@@ -297,7 +297,7 @@ func writeSnapshot(path string, h home.Layout, copyDB, files string, project, bu
 			}
 			rel, _ := filepath.Rel(dir, p)
 			name := filepath.ToSlash(filepath.Join(dirs[dir], rel))
-			skip, err := addFile(tw, p, name)
+			skip, err := addFile(tw, dir, rel, name)
 			if skip != nil && !os.IsNotExist(skip) {
 				left.unread = append(left.unread, fmt.Sprintf("%s: %v", name, skip))
 			}
@@ -316,10 +316,18 @@ func writeSnapshot(path string, h home.Layout, copyDB, files string, project, bu
 	return left, f.Close()
 }
 
-// addFile puts a file in the archive. A file it cannot open is skipped; one that shrinks while it is copied is
-// padded with zeros, so the archive stays whole, and named too. err is a failure of the archive itself.
-func addFile(tw *tar.Writer, path, name string) (skip, err error) {
-	src, err := os.Open(path)
+// addFile puts a file in the archive; one it cannot open, a link or no regular file, is skipped, one that shrinks
+// while copied is padded with zeros and named. err is a failure of the archive itself.
+func addFile(tw *tar.Writer, dir, rel, name string) (skip, err error) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return err, nil
+	}
+	defer root.Close()
+	if err := home.Plain(root, rel); err != nil {
+		return err, nil
+	}
+	src, err := home.OpenRegular(root, rel)
 	if err != nil {
 		return err, nil
 	}

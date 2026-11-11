@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -200,12 +199,15 @@ func (s *Service) picture(res *mcp.CallToolResult) ([]byte, error) {
 		if !filepath.IsAbs(path) {
 			path = filepath.Join(s.dir("out"), path)
 		}
-		if rel, err := filepath.Rel(s.dir("out"), path); err == nil && !strings.HasPrefix(rel, "..") {
-			return os.ReadFile(path)
+		if rel, err := filepath.Rel(s.dir("out"), path); err == nil && filepath.IsLocal(rel) {
+			return home.ReadIn(s.dir("out"), rel, maxPicture)
 		}
 	}
 	return nil, fault.New(fault.DeckInternal, "deck: the browser of the shots gave no picture")
 }
+
+// maxPicture is the largest screenshot deck reads from the folder of the browser.
+const maxPicture = 32 << 20
 
 var saved = regexp.MustCompile(`([^\s()\[\]]+\.png)`)
 

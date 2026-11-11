@@ -157,8 +157,9 @@ func TestAllowsComeOnlyFromAButtonDeckDrew(t *testing.T) {
 	apply := e.RowAction("picker", "main", "picker.apply", nil)
 	params := apply["params"].(map[string]any)
 	signed, _ := params["allows"].(string)
-	_, calls, ok := strings.Cut(signed, ".")
-	if !ok || !strings.HasPrefix(calls, "[") {
+	parts := strings.SplitN(signed, ".", 3)
+	calls := parts[len(parts)-1]
+	if len(parts) != 3 || !strings.HasPrefix(calls, "[") {
 		t.Fatalf("the button carries its calls signed by deck: %q", signed)
 	}
 
@@ -167,7 +168,8 @@ func TestAllowsComeOnlyFromAButtonDeckDrew(t *testing.T) {
 	if strings.HasPrefix(signed, "00") {
 		forged = "ff" + signed[2:]
 	}
-	for what, allows := range map[string]string{"bare": calls, "forged": forged, "of another": "ab." + calls} {
+	for what, allows := range map[string]string{"bare": calls, "forged": forged, "of another": "ab." + parts[1] + "." + calls,
+		"with another end": parts[0] + ".9999999999." + calls} {
 		code, out := e.Call("picker.apply", map[string]any{"id": params["id"], "allows": allows})
 		if code < 400 || !strings.Contains(string(out), "only with a button deck drew") {
 			t.Fatalf("allows %s is refused: %d %s", what, code, out)
@@ -192,7 +194,7 @@ func TestAllowsComeOnlyFromAButtonDeckDrew(t *testing.T) {
 // press of a screen drawn before a restart is the yes it was.
 func TestAButtonDrawnBeforeARestartStillAllowsItsCall(t *testing.T) {
 	t.Parallel()
-	e := harness.New(t)
+	e := harness.New(t, harness.WithClock())
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	for _, m := range []string{"qwen", "gemma"} {
 		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
@@ -204,6 +206,7 @@ func TestAButtonDrawnBeforeARestartStillAllowsItsCall(t *testing.T) {
 	e.Must("deck.record_upsert", map[string]any{"project": "picker", "collection": "proposals",
 		"records": harness.Jsonl(map[string]any{"name": "a", "project": "films", "models": "openrouter/qwen"})}, nil)
 	apply := e.RowAction("picker", "main", "picker.apply", nil)
+	stale := e.RowAction("picker", "main", "picker.apply", nil)
 
 	e2 := e.Restart()
 	code, out := e2.Press(apply)
@@ -217,6 +220,11 @@ func TestAButtonDrawnBeforeARestartStillAllowsItsCall(t *testing.T) {
 	}
 	if got := e2.Assigned("films", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("the press applies the models its row shows: %v", got)
+	}
+	// A button allows its calls a week: past that its press is refused.
+	e2.Clock.Add(9 * 24 * time.Hour)
+	if code, out := e2.Press(stale); code < 400 || !strings.Contains(string(out), "press it again") {
+		t.Fatalf("a button drawn more than a week ago allows nothing: %d %s", code, out)
 	}
 	// The key is of this deck's folder: another deck does not take its buttons.
 	if code, out := harness.New(t).Press(apply); code < 400 || !strings.Contains(string(out), "press it again") {

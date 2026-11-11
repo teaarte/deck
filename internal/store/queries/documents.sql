@@ -122,3 +122,6 @@ SELECT revision FROM process_read WHERE process_id = ? AND document_id = ?;
 
 -- name: DeleteFinishedProcessReads :exec
 DELETE FROM process_read WHERE process_id IN (SELECT id FROM process WHERE finished_at IS NOT NULL);
+
+-- name: AnyFinishedProcessRead :one
+SELECT EXISTS (SELECT 1 FROM process_read r JOIN process p ON p.id = r.process_id WHERE p.finished_at IS NOT NULL);

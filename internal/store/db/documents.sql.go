@@ -44,6 +44,17 @@ func (q *Queries) AddRevision(ctx context.Context, arg AddRevisionParams) (Docum
 	return i, err
 }
 
+const anyFinishedProcessRead = `-- name: AnyFinishedProcessRead :one
+SELECT EXISTS (SELECT 1 FROM process_read r JOIN process p ON p.id = r.process_id WHERE p.finished_at IS NOT NULL)
+`
+
+func (q *Queries) AnyFinishedProcessRead(ctx context.Context) (bool, error) {
+	row := q.db.QueryRowContext(ctx, anyFinishedProcessRead)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const countMemoryRead = `-- name: CountMemoryRead :exec
 INSERT INTO memory_read (document_id, reads, last_read_at) VALUES (?, 1, ?)
 ON CONFLICT (document_id) DO UPDATE SET reads = reads + 1, last_read_at = excluded.last_read_at

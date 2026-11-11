@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -187,11 +188,12 @@ type Registry struct {
 	issued   bool
 	// key signs the calls a button deck drew allows; it is kept in deck's folder, so a restart keeps it.
 	key []byte
+	now func() time.Time
 }
 
-// New is a registry of the modules' commands beside deck's own; key signs the calls of buttons.
-func New(modules Modules, key []byte) *Registry {
-	return &Registry{builtins: map[string]*Command{}, modules: modules, key: key}
+// New is a registry of the modules' commands beside deck's own; key signs the calls of buttons, now is deck's clock.
+func New(modules Modules, key []byte, now func() time.Time) *Registry {
+	return &Registry{builtins: map[string]*Command{}, modules: modules, key: key, now: now}
 }
 
 // Add registers a builtin command; it panics on a malformed description.
@@ -488,21 +490,30 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 	return c.Handler(ctx, a, input)
 }
 
-// SignAllows is the field of the calls a button of command allows, as deck draws it: a client cannot make or move one.
+// allowsKept is how long a button deck drew allows its calls; its end is a whole day, so a screen redrawn that day
+// gives the same field.
+const allowsKept = 7 * 24 * time.Hour
+
+// SignAllows is the field of the calls a button of command allows, as deck draws it, <mac>.<end>.<calls>: a client
+// cannot make, move or keep one past its end.
 func (r *Registry) SignAllows(command, calls string) string {
-	return hex.EncodeToString(r.allowsMAC(command, calls)) + "." + calls
+	end := strconv.FormatInt(r.now().Add(allowsKept+24*time.Hour).Truncate(24*time.Hour).Unix(), 10)
+	return hex.EncodeToString(r.allowsMAC(command, end, calls)) + "." + end + "." + calls
 }
 
-// verified are the calls of a signed field when deck signed them for command.
+// verified are the calls of a signed field when deck signed them for command and its end has not come.
 func (r *Registry) verified(command, signed string) (string, bool) {
-	mac, calls, ok := strings.Cut(signed, ".")
+	mac, rest, ok := strings.Cut(signed, ".")
+	end, calls, ok2 := strings.Cut(rest, ".")
 	got, err := hex.DecodeString(mac)
-	return calls, ok && err == nil && hmac.Equal(got, r.allowsMAC(command, calls))
+	until, err2 := strconv.ParseInt(end, 10, 64)
+	return calls, ok && ok2 && err == nil && err2 == nil && hmac.Equal(got, r.allowsMAC(command, end, calls)) &&
+		r.now().Unix() < until
 }
 
-func (r *Registry) allowsMAC(command, calls string) []byte {
+func (r *Registry) allowsMAC(command, end, calls string) []byte {
 	m := hmac.New(sha256.New, r.key)
-	m.Write([]byte(command + "\x00" + calls))
+	m.Write([]byte(command + "\x00" + end + "\x00" + calls))
 	return m.Sum(nil)
 }
 

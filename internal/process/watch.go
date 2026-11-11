@@ -3,6 +3,7 @@ package process
 import (
 	"cmp"
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -238,13 +239,22 @@ func (r *Runner) Saw(ctx context.Context, process, doc, revision int64) {
 }
 
 // Seen is the revision of a document an open process read or saved last, 0 when none.
-func (r *Runner) Seen(ctx context.Context, q *db.Queries, process, doc int64) int64 {
-	n, _ := q.GetProcessRead(ctx, db.GetProcessReadParams{ProcessID: process, DocumentID: doc})
-	return n
+func (r *Runner) Seen(ctx context.Context, q *db.Queries, process, doc int64) (int64, error) {
+	n, err := q.GetProcessRead(ctx, db.GetProcessReadParams{ProcessID: process, DocumentID: doc})
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, nil
+	}
+	return n, err
 }
 
 // forgetSeen drops what the processes that ended read.
 func (r *Runner) forgetSeen(ctx context.Context) {
+	if some, err := r.st.Q.AnyFinishedProcessRead(ctx); err != nil || !some {
+		if err != nil {
+			slog.Error("look for read revisions to forget", "err", err)
+		}
+		return
+	}
 	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteFinishedProcessReads(ctx) }); err != nil {
 		slog.Error("forget read revisions", "err", err)
 	}

@@ -394,4 +394,5 @@ and bring the modules in line.
   blocks see the data their screens give them and may carry it out of deck. Files shared to deck go only into the
   forms of the share screen, and a page of another site shares nothing.
 - 2026-11-11: what a process read of a document is kept in deck's base, so a whole text it saves after deck restarted
-  is refused over the owner's edit as before the restart; a button drawn before a restart still allows its calls.
+  is refused over the owner's edit as before the restart; a button drawn before a restart still allows its calls,
+  for a week after deck drew it (then: press it again).

@@ -43,7 +43,7 @@ type Service struct {
 	Language func(ctx context.Context, workspace int64) string
 	// Saw notes the revision of a document a running turn read or saved; Seen gives it back, 0 when none.
 	Saw  func(ctx context.Context, turn, doc, revision int64)
-	Seen func(ctx context.Context, q *db.Queries, turn, doc int64) int64
+	Seen func(ctx context.Context, q *db.Queries, turn, doc int64) (int64, error)
 }
 
 type documentView struct {
@@ -457,7 +457,11 @@ func (s *Service) behind(ctx context.Context, q *db.Queries, act registry.Actor,
 	if err != nil {
 		return err
 	}
-	return docs.Since(ctx, q, d, s.Seen(ctx, q, act.ProcessID, d.ID))
+	seen, err := s.Seen(ctx, q, act.ProcessID, d.ID)
+	if err != nil {
+		return err
+	}
+	return docs.Since(ctx, q, d, seen)
 }
 
 // editText checks if_revision and, for old and new parts, makes the text of the save from the current one.

@@ -83,7 +83,10 @@ func (s *Service) manifestSave(ctx context.Context, act registry.Actor, in manif
 	}
 	if whole && gateway.Live(ctx) && act.ProcessID != 0 {
 		// A whole manifest of a turn goes only over the revision the turn read.
-		base := s.Seen(ctx, s.St.Q, act.ProcessID, d.ID)
+		base, err := s.Seen(ctx, s.St.Q, act.ProcessID, d.ID)
+		if err != nil {
+			return nil, err
+		}
 		if err := docs.Since(ctx, s.St.Q, d, base); err != nil {
 			return nil, err
 		}

@@ -203,11 +203,12 @@ func TestRealClaudeCodeSeesSkills(t *testing.T) {
 		}
 		return res
 	}
-	if res := run(map[string]string{"probe/SKILL.md": skill}); !strings.Contains(res.Text, "PERSIMMON") {
-		t.Fatalf("the session must see the skill: %q", res.Text)
-	}
+	// The control runs first: a CLI outside a box would find the skill of the other run in a folder beside its own.
 	if res := run(nil); strings.Contains(res.Text, "PERSIMMON") {
 		t.Fatalf("without the skill the word is unknown, or the test proves nothing: %q", res.Text)
+	}
+	if res := run(map[string]string{"probe/SKILL.md": skill}); !strings.Contains(res.Text, "PERSIMMON") {
+		t.Fatalf("the session must see the skill: %q", res.Text)
 	}
 }
 

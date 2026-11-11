@@ -655,14 +655,11 @@ func ToolName(name string) string {
 }
 
 // ToolDescription is what the tool of a command tells an agent: its description, then the answer of a builtin, or the
-// result schema of a module's command and an input of the examples of its parameters.
+// result of a module's command and an input of the examples of its parameters.
 func (c *Command) ToolDescription() string {
 	parts := []string{c.Description, c.Answer}
-	if !IsBuiltin(c.Name) && len(c.Result) > 0 {
-		var b bytes.Buffer
-		if json.Compact(&b, c.Result) == nil {
-			parts = append(parts, "Result of its process: "+b.String()+".")
-		}
+	if res := resultText(c.Result); !IsBuiltin(c.Name) && res != "" {
+		parts = append(parts, "Result of its process: "+res+".")
 	}
 	if ex := exampleInput(c.Input); ex != "" {
 		parts = append(parts, "Example input: "+ex+".")
@@ -670,15 +667,100 @@ func (c *Command) ToolDescription() string {
 	return strings.Join(slices.DeleteFunc(parts, func(p string) bool { return p == "" }), " ")
 }
 
-// exampleInput is an input of the first example of each parameter that gives some; empty when none does.
+// resultMost is the bytes of a result schema a tool gives whole; a longer one gives its fields and their types.
+const resultMost = 500
+
+// resultText is a result schema without its titles and descriptions, or past resultMost its fields and their types.
+func resultText(raw json.RawMessage) string {
+	var s any
+	if len(raw) == 0 || json.Unmarshal(raw, &s) != nil {
+		return ""
+	}
+	bare(s)
+	b, _ := json.Marshal(s)
+	if len(b) <= resultMost {
+		return string(b)
+	}
+	var top struct {
+		Type       any                        `json:"type"`
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	_ = json.Unmarshal(raw, &top)
+	if len(top.Properties) == 0 {
+		return typeText(top.Type)
+	}
+	var fields []string
+	for _, name := range slices.Sorted(maps.Keys(top.Properties)) {
+		var p struct {
+			Type any `json:"type"`
+		}
+		_ = json.Unmarshal(top.Properties[name], &p)
+		k, _ := json.Marshal(name)
+		fields = append(fields, string(k)+": "+typeText(p.Type))
+	}
+	return "{" + strings.Join(fields, ", ") + "}"
+}
+
+// bare takes the titles and descriptions out of a schema and the schemas within it, not out of the names of fields.
+func bare(s any) {
+	m, ok := s.(map[string]any)
+	if !ok {
+		return
+	}
+	delete(m, "title")
+	delete(m, "description")
+	if props, ok := m["properties"].(map[string]any); ok {
+		for _, p := range props {
+			bare(p)
+		}
+	}
+	for _, k := range []string{"items", "additionalProperties", "not"} {
+		bare(m[k])
+	}
+	for _, k := range []string{"anyOf", "oneOf", "allOf", "prefixItems"} {
+		if l, ok := m[k].([]any); ok {
+			for _, x := range l {
+				bare(x)
+			}
+		}
+	}
+}
+
+// typeText is the type of a schema as a word, types joined by |; any when it names none.
+func typeText(t any) string {
+	switch t := t.(type) {
+	case string:
+		return t
+	case []any:
+		var ts []string
+		for _, x := range t {
+			if s, ok := x.(string); ok {
+				ts = append(ts, s)
+			}
+		}
+		if len(ts) > 0 {
+			return strings.Join(ts, "|")
+		}
+	}
+	return "any"
+}
+
+// exampleInput is an input of the first example of each parameter that gives some; empty when none does or a required
+// one gives none, as a partial input copied whole would be refused.
 func exampleInput(input json.RawMessage) string {
 	var s struct {
 		Properties map[string]struct {
 			Examples []json.RawMessage `json:"examples"`
 		} `json:"properties"`
+		Required []string `json:"required"`
 	}
 	if json.Unmarshal(input, &s) != nil {
 		return ""
+	}
+	for _, r := range s.Required {
+		if len(s.Properties[r].Examples) == 0 {
+			return ""
+		}
 	}
 	var fields []string
 	for _, name := range slices.Sorted(maps.Keys(s.Properties)) {

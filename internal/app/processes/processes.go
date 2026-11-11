@@ -553,7 +553,7 @@ func (s *Service) processCommands() []*registry.Command {
 		registry.Read("process_get", "Process status",
 			"Returns the state and result of a process, the models it called and their cost_usd; with wait, once it finishes or waits for the owner, and an agent's slot is free for others meanwhile; a process waiting for an agent slot names in slot_ahead how many wait before it.",
 			registry.Everyone, s.processGet).On(events.Processes, events.Usage, events.Asks).
-			Answers(`Answer: {"id", "project", "command", "state", "result": what the command handed in, by its result schema, "error", "error_type", "input", "started_at", "finished_at", …}; result and error come once state is done or error.`),
+			Answers(`Answer: {"id", "project", "command", "state", "result": what the command handed in, by its result schema, "error", "error_type", "input", "started_at", "finished_at", …}; result and error come once the state is final (done, error, interrupted, stopped); a result with not_by_schema true does not follow the schema.`),
 		registry.Read("process_left_list", "Left by a process",
 			"Lists what a process and the processes it started left: the changes of documents of an enabled project with whether they can be undone, the records and the files of deck they made; not what was written into the data folder.",
 			registry.Everyone, s.processLeft).On(events.Collection, events.Files, events.Feed, events.Processes),

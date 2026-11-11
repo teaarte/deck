@@ -196,6 +196,6 @@ func (s *Service) writeCommands() []*registry.Command {
 		registry.Def("record_update", "Edit record",
 			"Replaces the data of one record; key fields cannot change.",
 			registry.Everyone, s.recordUpdate).
-			Answers(`Answer: {"ok": true}. data is the whole new data as a JSON object: every field of the data record_get gives with the change, key fields as they are. Example input: {"record": 7, "data": {"title": "Call the bank", "status": "done"}}.`),
+			Answers(`Answer: {"ok": true}. data: the whole new data, a JSON object or its JSON text: every field of the data record_get gives with the change, key fields as they are. Example input: {"record": 7, "data": {"title": "Call the bank", "status": "done"}}.`),
 	}
 }

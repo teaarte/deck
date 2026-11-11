@@ -322,7 +322,8 @@ and bring the modules in line.
   hour; a limit a day waits until 00:00 UTC. Work whose assignment has another model still goes on there at once.
 - 2026-11-11: the tools of `records_list`, `record_get`, `record_upsert`, `record_update`, `document_get`,
   `document_save` and `process_get` tell an agent the shape of their answer and an example input where the schema
-  leaves it open; the tool of a module's command adds its `result` schema and an input of the `examples` of its
-  parameters. `manifest_check`, `manifest_save` and an import warn of an agent command whose `calls` name a command of
-  the module (`<project>.<name>`) without a `result` schema; the save and the import still take it. A prompt of an
+  leaves it open; the tool of a module's command adds its `result` schema without titles and descriptions (past 500
+  bytes only its fields and their types) and an input of the `examples` of its parameters when they fill every
+  required one. `manifest_check`, `manifest_save` and an import warn of an agent command whose `calls` name a command of
+  the module (`<project>.<name>`) an agent may call without a `result` schema; the save and the import still take it. A prompt of an
   agent command says what each of its calls answers and gives one to three inputs (module-conventions).

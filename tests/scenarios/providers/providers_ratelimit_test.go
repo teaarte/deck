@@ -210,7 +210,7 @@ func TestALimitPausesByItsKind(t *testing.T) {
 	t.Parallel()
 	t.Run("minute", func(t *testing.T) {
 		t.Parallel()
-		left := limitedTurn(t, harness.ChatReply{Status: 429, Body: `{"error": {"message": "Rate limit exceeded: free-models-per-min. ", "code": 429}}`})
+		left := limitedTurn(t, harness.ChatReply{Status: 429, Body: `{"error": {"message": "Rate limit exceeded: free-models-per-min. Add 10 credits to unlock 1000 free model requests per day", "code": 429}}`})
 		if left > 2*time.Minute {
 			t.Fatalf("a limit a minute pauses for minutes, not an hour: %s", left)
 		}

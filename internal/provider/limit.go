@@ -61,14 +61,16 @@ func LimitEnds(h http.Header, words string, now time.Time) int64 {
 	}
 	text := strings.ToLower(words)
 	says := func(w string) bool { return strings.Contains(text, w) }
+	// A minute's limit goes first: OpenRouter's may also offer more requests per day.
+	minute := slices.ContainsFunc([]string{"per-min", "per_min", "per min", "perminute", "rpm", "tpm"}, says)
 	switch {
-	case slices.ContainsFunc([]string{"per-day", "per_day", "per day", "perday", "rpd", "tpd", "daily"}, says):
+	case !minute && slices.ContainsFunc([]string{"per-day", "per_day", "per day", "perday", "rpd", "tpd", "daily"}, says):
 		// A day's limit lasts the day, though Gemini's retryDelay says seconds.
 		y, m, d := now.UTC().Date()
 		return max(end.Unix(), time.Date(y, m, d+1, 0, 0, 0, 0, time.UTC).Unix())
 	case end.After(now):
 		return end.Unix()
-	case slices.ContainsFunc([]string{"per-min", "per_min", "per min", "perminute", "rpm", "tpm"}, says):
+	case minute:
 		return now.Add(time.Minute).Unix()
 	}
 	return 0

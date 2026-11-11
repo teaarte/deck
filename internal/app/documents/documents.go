@@ -603,10 +603,12 @@ func (s *Service) documentsCommands() []*registry.Command {
 			registry.Everyone, s.documentsList).Enum("kind", docs.Kinds...).On(events.Documents),
 		registry.Read("document_get", "Get document",
 			"Returns a document by id, or by project and name; the current revision unless one is given.",
-			registry.Everyone, s.documentGet).On(events.Documents),
+			registry.Everyone, s.documentGet).On(events.Documents).
+			Answers(`Answer: {"id", "project", "kind", "name", "revision", "text"}.`),
 		registry.Def("document_save", "Save document",
 			"Writes a new revision of a document, creating it on first save.",
-			registry.Everyone, s.documentSave).Enum("kind", docs.Kinds...),
+			registry.Everyone, s.documentSave).Enum("kind", docs.Kinds...).
+			Answers(`Answer: {"id", "project", "kind", "name", "revision", "warning"}; the text is not in it. Example input: {"name": "notes/plan.md", "old": ["- [ ] call"], "new": ["- [x] call"], "reason": "called"}.`),
 		registry.Def("document_delete", "Delete document",
 			"Deletes a document; its revisions stay and the owner can bring it back. Agents delete only the memory of their project.",
 			registry.Everyone, s.documentDelete),

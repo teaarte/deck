@@ -613,7 +613,12 @@ models that fit it (`choices`; `commands_list` only when `fields` asks for them)
 name — routine judgement suits a local model in an ACP agent (the name the owner gave it, from
 `models_list`), heavy reasoning Claude Code or Codex. Write the
 prompt so it works on a small model too: say which deck tool to call for what, and that the result is handed in
-at the end; a provider without output by schema gets the `result_submit` tool for it. An agent command that changes
+at the end; a provider without output by schema gets the `result_submit` tool for it. A small model errs in deck's
+calls mostly by not knowing what a call answers and how to fill its input: the prompt says what each call of
+`calls` answers, its exact shape (a record's `data` is an object, not a JSON text), and gives one to three inputs
+where the schema does not say all (`record_update` takes the whole data, key fields as they are). The tool of a
+command of the module shows the agent its `result` schema and an input of the `examples` of its parameters, so a
+command an agent calls has both; `manifest_check` warns of a called one without `result`. An agent command that changes
 records, documents or files gives in its result `changes`, an array of strings, one short line each: what changed,
 where and why (the module-conventions skill). A small model copies
 examples from the prompt word for word and misses checks that are plain in the text: give it the shape of the

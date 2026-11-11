@@ -65,13 +65,13 @@ func (s *Service) unassigned(ctx context.Context, p db.Project, m *manifest.Mani
 	return out
 }
 
-// unreported are the warnings of the agent commands of a module that may change what is stored and do not say what
-// they changed; the built-in project tells the owner in its topic.
-func unreported(p db.Project, m *manifest.Manifest) []string {
+// untold are the warnings of the agent commands of a module that may change what is stored and do not say what they
+// changed, or call its commands whose answer no schema tells; the built-in project tells the owner in its topic.
+func untold(p db.Project, m *manifest.Manifest) []string {
 	if p.Builtin == 1 {
 		return nil
 	}
-	return m.Unreported()
+	return slices.Concat(m.Unreported(), m.Unshaped(p.Name))
 }
 
 // unpaged are the blocks without a limit on a collection that holds more records than a page: each shows a page and

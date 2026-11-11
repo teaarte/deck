@@ -191,9 +191,11 @@ func (s *Service) writeCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("record_upsert", "Write records",
 			"Writes records into a collection; records with an existing key are updated.",
-			registry.Everyone, s.recordUpsert),
+			registry.Everyone, s.recordUpsert).
+			Answers(`Answer: {"written", "ids": the ids of the records written, in order, "errors": a line for each record not written}. Example input: {"collection": "notes", "records": "{\"title\": \"A\"}\n{\"title\": \"B\"}"}.`),
 		registry.Def("record_update", "Edit record",
 			"Replaces the data of one record; key fields cannot change.",
-			registry.Everyone, s.recordUpdate),
+			registry.Everyone, s.recordUpdate).
+			Answers(`Answer: {"ok": true}. data is the whole new data as a JSON object: every field of the data record_get gives with the change, key fields as they are. Example input: {"record": 7, "data": {"title": "Call the bank", "status": "done"}}.`),
 	}
 }

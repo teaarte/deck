@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"slices"
 	"sort"
@@ -81,6 +82,8 @@ type Command struct {
 	Topics   []string `json:"-"`
 	// Gate is how the gateway lets a call that is not internal through.
 	Gate Gate `json:"-"`
+	// Answer is what the tool of a builtin tells an agent beyond its description: its answer and an example input.
+	Answer string `json:"-"`
 
 	Handler Handler `json:"-"`
 	schema  *jsonschema.Schema
@@ -114,6 +117,12 @@ func (c *Command) Foreign() *Command {
 // NoTokens keeps a command from automation tokens, whatever commands they list.
 func (c *Command) NoTokens() *Command {
 	c.untokened = true
+	return c
+}
+
+// Answers gives a builtin the shape of its answer and an example input its tool tells an agent.
+func (c *Command) Answers(text string) *Command {
+	c.Answer = text
 	return c
 }
 
@@ -643,6 +652,48 @@ func ToolName(name string) string {
 		}
 		return '_'
 	}, strings.ReplaceAll(name, ".", "__"))
+}
+
+// ToolDescription is what the tool of a command tells an agent: its description, then the answer of a builtin, or the
+// result schema of a module's command and an input of the examples of its parameters.
+func (c *Command) ToolDescription() string {
+	parts := []string{c.Description, c.Answer}
+	if !IsBuiltin(c.Name) && len(c.Result) > 0 {
+		var b bytes.Buffer
+		if json.Compact(&b, c.Result) == nil {
+			parts = append(parts, "Result of its process: "+b.String()+".")
+		}
+	}
+	if ex := exampleInput(c.Input); ex != "" {
+		parts = append(parts, "Example input: "+ex+".")
+	}
+	return strings.Join(slices.DeleteFunc(parts, func(p string) bool { return p == "" }), " ")
+}
+
+// exampleInput is an input of the first example of each parameter that gives some; empty when none does.
+func exampleInput(input json.RawMessage) string {
+	var s struct {
+		Properties map[string]struct {
+			Examples []json.RawMessage `json:"examples"`
+		} `json:"properties"`
+	}
+	if json.Unmarshal(input, &s) != nil {
+		return ""
+	}
+	var fields []string
+	for _, name := range slices.Sorted(maps.Keys(s.Properties)) {
+		if ex := s.Properties[name].Examples; len(ex) > 0 {
+			var b bytes.Buffer
+			if json.Compact(&b, ex[0]) == nil {
+				k, _ := json.Marshal(name)
+				fields = append(fields, string(k)+": "+b.String())
+			}
+		}
+	}
+	if len(fields) == 0 {
+		return ""
+	}
+	return "{" + strings.Join(fields, ", ") + "}"
 }
 
 // Typed adapts a handler that takes a decoded input struct.

@@ -268,7 +268,7 @@ func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pro
 	}
 	saved.Screens = s.CheckScreens(ctx, act, p, pm.m)
 	saved.Unused, saved.Untranslated = s.words(ctx, p, pm.m)
-	saved.Warnings = slices.Concat(s.unassigned(ctx, p, pm.m), s.unpaged(ctx, p, pm.m), unreported(p, pm.m))
+	saved.Warnings = slices.Concat(s.unassigned(ctx, p, pm.m), s.unpaged(ctx, p, pm.m), untold(p, pm.m))
 	return saved, nil
 }
 

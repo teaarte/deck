@@ -91,7 +91,7 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in manifestChec
 		out.Warnings = append(append(out.Warnings, s.unassigned(ctx, p, pm.m)...), s.unpaged(ctx, p, pm.m)...)
 		out.Enable = p.Status != store.ProjectEnabled
 	}
-	out.Warnings = append(out.Warnings, unreported(p, pm.m)...)
+	out.Warnings = append(out.Warnings, untold(p, pm.m)...)
 	out.Widens = append(out.Widens, manifest.Widens(prev, pm.m)...)
 	out.Waits = len(out.Widens) > 0 && act.Kind != registry.Owner && !out.Enable
 	unused, untranslated := s.words(ctx, p, pm.m)

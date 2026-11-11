@@ -3,6 +3,7 @@ package manifest
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"deck2/internal/registry"
 )
@@ -76,6 +77,26 @@ func (m *Manifest) Unreported() []string {
 		}
 		if writes {
 			out = append(out, fmt.Sprintf("command %s: its agent may change records, documents or files, and its result schema has no changes: add changes, an array of strings, a line for each change", c.Name))
+		}
+	}
+	return out
+}
+
+// Unshaped are the warnings of the agent commands whose calls name a command of the module without a result schema, as
+// <project>.<name>; any project counts when project is empty.
+func (m *Manifest) Unshaped(project string) []string {
+	var out []string
+	for _, c := range m.Commands {
+		if c.Executor.Type != "agent" {
+			continue
+		}
+		for _, call := range c.Executor.Calls {
+			p, name, ok := strings.Cut(call, ".")
+			o := m.Command(name)
+			if !ok || p == registry.Builtin || project != "" && p != project || o == nil || len(o.Result) > 0 {
+				continue
+			}
+			out = append(out, fmt.Sprintf("command %s: its agent calls %s, which has no result schema: give %s a result schema, so its tool tells the agent the shape of its answer", c.Name, name, name))
 		}
 	}
 	return out

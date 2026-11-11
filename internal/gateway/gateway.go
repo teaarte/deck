@@ -352,7 +352,7 @@ func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session) 
 		}
 		seen[tool] = name
 		tools = append(tools, tool)
-		srv.AddTool(&mcp.Tool{Name: tool, Title: c.Title, Description: c.Description, InputSchema: c.Input},
+		srv.AddTool(&mcp.Tool{Name: tool, Title: c.Title, Description: c.ToolDescription(), InputSchema: c.Input},
 			func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 				defer g.progress(ctx, req)()
 				return g.invoke(ctx, s, name, req.Params.Arguments, c.Readable), nil
@@ -547,7 +547,7 @@ func (g *Gateway) Command(ctx context.Context, workspace int64, name string) (*r
 func commandsOf(cmds []*registry.Command) string {
 	var b strings.Builder
 	for _, c := range cmds {
-		fmt.Fprintf(&b, "%s\x00%s\x00%s\x00%s\n", c.Name, c.Title, c.Description, c.Input)
+		fmt.Fprintf(&b, "%s\x00%s\x00%s\x00%s\n", c.Name, c.Title, c.ToolDescription(), c.Input)
 	}
 	return b.String()
 }

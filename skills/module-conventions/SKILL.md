@@ -69,6 +69,10 @@ Style:
 - Write for a small model too: the shape of the result without sample values, every check a pattern can do left
   to a script whose findings come in the input, and the script, not the verdict, decides what reaches the owner.
 - An agent that reads what strangers wrote gets `calls`, the list of commands it may call.
+- The prompt says what each call of its `calls` answers, its exact shape (a record's `data` is an object, not a JSON
+  text), and gives one to three inputs of a call where its schema does not say all (`record_update` takes the whole
+  data, key fields as they are). A command of the module an agent calls has a `result` schema and `examples` of its
+  parameters: its tool shows both to the agent, and `manifest_check` warns of a called command without `result`.
 - An agent command that changes records, documents or files declares in its result schema `changes`, an array of
   strings, and its prompt says to fill it: one short line each, what changed, where and why.
 
@@ -96,6 +100,8 @@ each with the file, the line and the case that fails:
 - the manifest: an expression that breaks on a record without a field, a text without `i18n`, a right wider
   than the work needs (`external` tools that only read, `"*"` domains);
 - a prompt that leaves the result shape or the tools to guess, or asks a small model to check what a script can;
+- a prompt that does not say what each of its `calls` answers or how to fill an input its schema leaves open, a
+  called command of the module without `result`;
 - an agent command that changes records, documents or files without `changes` in its result schema and prompt;
 - a trial that was not run, or that ended `done` without what the owner will see.
 

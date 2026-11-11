@@ -183,8 +183,7 @@ func (a *answer) release() {
 
 // said is the answer with the words of its refusal.
 func (a *answer) said(words string) provider.Answer {
-	return provider.Answer{Status: a.code, RetryAfter: a.Header().Get("Retry-After"), Past: a.Header().Get(provider.PastLimit) != "",
-		Words: words}
+	return provider.Answer{Status: a.code, Header: a.Header().Clone(), Past: a.Header().Get(provider.PastLimit) != "", Words: words}
 }
 
 // echoed are the fields of reasoning an agent hands back in the messages of its history, which no OpenAI-compatible

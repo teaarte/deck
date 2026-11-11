@@ -170,7 +170,7 @@ func (s *Server) model(side string, h provider.ModelHooks) http.Handler {
 		if h.Answer == nil {
 			return nil
 		}
-		a := provider.Answer{Status: resp.StatusCode, RetryAfter: resp.Header.Get("Retry-After"), Past: resp.Header.Get(provider.PastLimit) != ""}
+		a := provider.Answer{Status: resp.StatusCode, Header: resp.Header.Clone(), Past: resp.Header.Get(provider.PastLimit) != ""}
 		if resp.StatusCode >= 400 {
 			b, _ := io.ReadAll(io.LimitReader(resp.Body, 2000))
 			resp.Body = struct {

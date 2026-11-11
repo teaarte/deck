@@ -21,11 +21,8 @@ type entry struct {
 	now     func() time.Time
 
 	mu sync.Mutex
-	// last is the status and Retry-After of the last answer of the model API, with the words of one that refused.
-	last       int
-	retryAfter string
-	past       bool
-	refusal    string
+	// last is the last answer of the model API, with the words of one that refused.
+	last provider.Answer
 	// answered hears each answer of the model API, a refusal too.
 	answered func()
 }
@@ -47,7 +44,7 @@ func (e *entry) heard(a provider.Answer) {
 		e.answered()
 	}
 	e.mu.Lock()
-	e.last, e.retryAfter, e.past, e.refusal = a.Status, a.RetryAfter, a.Past, a.Words
+	e.last = a
 	e.mu.Unlock()
 }
 
@@ -55,15 +52,15 @@ func (e *entry) heard(a provider.Answer) {
 // needs a login, another refusal keeps the words of the API.
 func (e *entry) refused(res provider.Result) provider.Result {
 	e.mu.Lock()
-	status, after, words, past := e.last, e.retryAfter, e.refusal, e.past
+	a := e.last
 	e.mu.Unlock()
-	if past {
-		res.Past = untrusted.Flat(words, 500)
+	if a.Past {
+		res.Past = untrusted.Flat(a.Words, 500)
 		res.Fail(fault.TaskFailed)
 		return res
 	}
-	if !provider.Refused(&res, status, after, e.now()) && status >= 400 {
-		res.Refusal = fmt.Sprintf("%d %s", status, untrusted.Line(words, 500))
+	if !provider.Refused(&res, a, e.now()) && a.Status >= 400 {
+		res.Refusal = fmt.Sprintf("%d %s", a.Status, untrusted.Line(a.Words, 500))
 	}
 	return res
 }

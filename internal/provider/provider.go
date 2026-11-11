@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -182,17 +181,13 @@ func (r Request) Emit(e Event) {
 // PastLimit marks deck's own refusal of a call of a model past a limit in its settings: no model got the call.
 const PastLimit = "X-Deck-Past-Limit"
 
-// Refused marks a result by the status deck's proxy answered a call of a model with: a usage limit pauses until
-// Retry-After, a refused key needs a login, a fault is a model that did not answer; false for any other status.
-func Refused(res *Result, status int, retryAfter string, now time.Time) bool {
-	switch fault.OfStatus(status, true) {
+// Refused marks a result by the answer deck's proxy gave a call of a model: a usage limit pauses until the end
+// LimitEnds reads, a refused key needs a login, a fault is a model that did not answer; false for any other status.
+func Refused(res *Result, a Answer, now time.Time) bool {
+	switch fault.OfStatus(a.Status, true) {
 	case fault.ModelLimit:
 		res.Fail(fault.ModelLimit)
-		if s, err := strconv.Atoi(retryAfter); err == nil && s > 0 {
-			res.ResetsAt = now.Add(time.Duration(s) * time.Second).Unix()
-		} else if t, err := http.ParseTime(retryAfter); err == nil {
-			res.ResetsAt = t.Unix()
-		}
+		res.ResetsAt = LimitEnds(a.Header, a.Words, now)
 	case fault.ModelLogin:
 		res.Fail(fault.ModelLogin)
 	case fault.ModelUnavailable:
@@ -320,13 +315,13 @@ type Terminal interface {
 	Terminal(project int64, session string) (string, error)
 }
 
-// Answer is what deck's proxy of a model answered a call of a turn: the status, its Retry-After, Past for deck's
-// own refusal past a limit, and the words of a refusal.
+// Answer is what deck's proxy of a model answered a call of a turn: the status, its header, Past for deck's own
+// refusal past a limit, and the words of a refusal.
 type Answer struct {
-	Status     int
-	RetryAfter string
-	Past       bool
-	Words      string
+	Status int
+	Header http.Header
+	Past   bool
+	Words  string
 }
 
 // ModelHooks hear what deck's proxy of the model of a turn did: the usage of each call and each answer.

@@ -316,3 +316,7 @@ and bring the modules in line.
   a line a place in the owner's words (`change` of asks_list); JSON, diffs and command names go under the details.
   A call that changes nothing — the same models, a text already in force — makes no request and answers
   `unchanged`. deck's message of a work that waits for a request says its why.
+- 2026-11-11: a process paused on a model's usage limit (`rate_limited`) and the model's health wait until the reset
+  the model API told: Retry-After, X-RateLimit-Reset (OpenRouter puts it in the metadata of its error, in unix
+  milliseconds), a reset as a duration (Groq), Gemini's retryDelay; without one, a limit a minute waits a minute and a
+  limit a day until 00:00 UTC, not an hour. Work whose assignment has another model still goes on there at once.

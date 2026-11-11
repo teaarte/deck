@@ -3,12 +3,15 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"deck2/internal/provider"
+	"deck2/internal/store"
 	"deck2/tests/harness"
 )
 
@@ -141,5 +144,112 @@ func TestAnAnswerDuringAPauseReachesTheNextTry(t *testing.T) {
 	defer mu.Unlock()
 	if len(prompts) != 2 || !strings.Contains(prompts[1], "limit should have reset") || !strings.Contains(prompts[1], "notes.post") {
 		t.Fatalf("the next try carries the answer: %q", prompts)
+	}
+}
+
+// limitedTurn runs a turn of the fake Goose whose model API answers its call with reply, and how long it pauses.
+func limitedTurn(t *testing.T, reply harness.ChatReply) time.Duration {
+	t.Helper()
+	f := harness.NewACP(t)
+	llm := harness.NewLLM(t, func(n int, _ harness.ChatRequest) harness.ChatReply {
+		if n <= 3 {
+			return harness.TextReply("ok")
+		}
+		return reply
+	})
+	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
+		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Ran into this error: Rate limit exceeded."}}}`,
+		`{"end": "end_turn"}`))
+	e := harness.New(t, harness.WithACP(f, llm))
+	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
+	if got := e.WaitState(id, "done", "error", "rate_limited"); got.State != "rate_limited" {
+		t.Fatalf("a 429 pauses the turn: %+v", got)
+	}
+	p, _ := e.App.Store.Q.GetProcess(t.Context(), id)
+	if h := e.WaitHealth("provider:acp", "paused"); !strings.Contains(h.Error, "next try at "+store.Time(time.UnixMilli(p.PauseUntilMs.Int64))) {
+		t.Fatalf("the model waits as long as the process: %+v", h)
+	}
+	return time.Until(time.UnixMilli(p.PauseUntilMs.Int64))
+}
+
+// TestAnOpenRouterLimitPausesUntilTheResetInItsError: OpenRouter tells the reset in unix milliseconds among the
+// headers in the metadata of its error, with no Retry-After.
+func TestAnOpenRouterLimitPausesUntilTheResetInItsError(t *testing.T) {
+	t.Parallel()
+	reset := time.Now().Add(10 * time.Minute).UnixMilli()
+	left := limitedTurn(t, harness.ChatReply{Status: 429, Body: fmt.Sprintf(`{"error": {"message": "Rate limit exceeded: free-models-per-min. ", "code": 429,
+		"metadata": {"headers": {"X-RateLimit-Limit": "20", "X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "%d"}, "provider_name": null}}}`, reset)})
+	if left < 5*time.Minute || left > 10*time.Minute {
+		t.Fatalf("the pause lasts until the reset OpenRouter told: %s", left)
+	}
+}
+
+// TestALimitPausesUntilTheResetOfItsHeaders: a reset in X-RateLimit-* as a duration (Groq) or in unix milliseconds.
+func TestALimitPausesUntilTheResetOfItsHeaders(t *testing.T) {
+	t.Parallel()
+	for name, h := range map[string]http.Header{
+		"duration": {"X-Ratelimit-Remaining-Requests": {"0"}, "X-Ratelimit-Reset-Requests": {"9m30s"}, "X-Ratelimit-Remaining-Tokens": {"500"}, "X-Ratelimit-Reset-Tokens": {"20m"}},
+		"epoch":    {"X-Ratelimit-Reset": {fmt.Sprint(time.Now().Add(10 * time.Minute).UnixMilli())}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			left := limitedTurn(t, harness.ChatReply{Status: 429, Header: h, Body: `{"error": {"message": "Rate limit reached"}}`})
+			if left < 5*time.Minute || left > 10*time.Minute {
+				t.Fatalf("the pause lasts until the reset of the exhausted limit: %s", left)
+			}
+		})
+	}
+}
+
+// TestALimitWithoutAResetPausesByItsKind: a limit a minute without a reset time waits a minute, not the hour of an
+// unknown one; a limit a day waits until the day ends in UTC.
+func TestALimitWithoutAResetPausesByItsKind(t *testing.T) {
+	t.Parallel()
+	t.Run("minute", func(t *testing.T) {
+		t.Parallel()
+		left := limitedTurn(t, harness.ChatReply{Status: 429, Body: `{"error": {"message": "Rate limit exceeded: free-models-per-min. ", "code": 429}}`})
+		if left > 2*time.Minute {
+			t.Fatalf("a limit a minute pauses for minutes, not an hour: %s", left)
+		}
+	})
+	t.Run("day", func(t *testing.T) {
+		t.Parallel()
+		left := limitedTurn(t, harness.ChatReply{Status: 429, Body: `{"error": {"message": "Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000 free model requests per day", "code": 429}}`})
+		y, m, d := time.Now().UTC().Date()
+		if want := time.Until(time.Date(y, m, d+1, 0, 0, 0, 0, time.UTC)); left < want-time.Minute || left > want+time.Second {
+			t.Fatalf("a limit a day pauses until the day ends in UTC, %s: %s", want, left)
+		}
+	})
+}
+
+// TestALimitOfAnAgentsModelHandsTheWorkOnWithoutWaiting: work whose assignment has another model goes on there at
+// once; only the model waits for its reset.
+func TestALimitOfAnAgentsModelHandsTheWorkOnWithoutWaiting(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	llm := harness.NewLLM(t, func(n int, _ harness.ChatRequest) harness.ChatReply {
+		if n <= 3 {
+			return harness.TextReply("ok")
+		}
+		return harness.ChatReply{Status: 429, Body: `{"error": {"message": "Rate limit exceeded: free-models-per-min. ", "code": 429}}`}
+	})
+	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
+		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Ran into this error: Rate limit exceeded."}}}`,
+		`{"end": "end_turn"}`))
+	backup := &harness.Fake{ProviderName: "backup", Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{"color": "blue"}`)}
+	}}
+	e := harness.New(t, harness.WithACP(f, llm), harness.WithProvider(backup))
+	e.AcpProject("paint", harness.ColorManifest)
+	e.UseModels("paint.work", "acp", "backup")
+	id := e.Start("paint", "work", nil)
+	if got := e.WaitState(id, "error", "done", "rate_limited"); got.State != "error" || e.Fault(id).ErrorType != "model.limit" {
+		t.Fatalf("the refused process closes on the model's limit, it does not wait: %+v %+v", got, e.Fault(id))
+	}
+	if got := e.WaitState(e.Following(id), "done", "error"); got.State != "done" || len(backup.Calls()) != 1 {
+		t.Fatalf("the next model of the assignment does the work: %+v", got)
+	}
+	if h := e.WaitHealth("provider:acp", "paused"); !strings.Contains(h.Error, "usage limit reached") {
+		t.Fatalf("the model at its limit waits for its reset: %+v", h)
 	}
 }

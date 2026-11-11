@@ -388,3 +388,8 @@ and bring the modules in line.
 - 2026-11-11: in a retelling of a chat topic (a turn after another provider, the messages after a summary) only the
   owner's text stands as written; what deck told of a work and what the master said is one quoted line each, so a
   line of a work's result never reads as a message of the owner.
+- 2026-11-11: a custom block makes no frame by a node either: inserting or adopting any node with an
+  `iframe`/`frame`/`object`/`embed` in it is refused, wherever the node was made (an XML document too), and the guard
+  calls only the builtins it took before the block ran. The card of a module before enabling says that its custom
+  blocks see the data their screens give them and may carry it out of deck. Files shared to deck go only into the
+  forms of the share screen, and a page of another site shares nothing.

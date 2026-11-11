@@ -717,15 +717,25 @@ func TestRealBrowserTheChatOpensBesideTheScreenInANewTopic(t *testing.T) {
 	b.until("the chat from the address in a new topic, the microphone at hand", `document.querySelector('[data-chat-panel] [data-chat-input]') && !location.hash.includes('chat=') && !document.querySelector('[data-chat-panel] [data-message]') && document.activeElement?.matches('[data-mic]')`)
 }
 
-// TestRealBrowserCustomBlockSendsNothingByWebRTC: a custom block sends nothing by WebRTC past its CSP, from its window
-// or a frame of its own; it makes no frame by any way the guard names, each of which calls a STUN server of its own.
+// TestRealBrowserCustomBlockSendsNothingByWebRTC: a custom block, in Chromium and WebKit, sends nothing by WebRTC and
+// makes no frame by any way the guard names, a node made elsewhere or a changed builtin too, each with its STUN server.
 func TestRealBrowserCustomBlockSendsNothingByWebRTC(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()
+	for _, kind := range [][]string{nil, {"webkit"}} {
+		t.Run(fmt.Sprint(append(kind, "chromium")[0]), func(t *testing.T) {
+			t.Parallel()
+			customBlockSendsNothingByWebRTC(t, kind)
+		})
+	}
+}
+
+func customBlockSendsNothingByWebRTC(t *testing.T, kind []string) {
 	ways := []string{"createElement", "createElementObject", "createElementNS", "createDocument", "innerHTML", "innerHTMLObject",
 		"outerHTML", "shadowInnerHTML", "insertAdjacentHTML", "setHTMLUnsafe", "shadowSetHTMLUnsafe", "write", "writeln",
 		"execCommand", "parseFromString", "createContextualFragment", "parseHTMLUnsafe", "xslt", "customElement",
-		"cloneFrameOfBlock", "importFrameOfBlock", "moveFrameOfBlock"}
+		"cloneFrameOfBlock", "importFrameOfBlock", "moveFrameOfBlock", "xmlAdopted", "xmlAppended", "xmlWindow", "xmlRange",
+		"xmlReplaceChildren", "poisonedExec", "poisonedApply", "poisonedCall"}
 	got := make(chan string, len(ways)+3)
 	ports := map[string]string{}
 	for _, w := range append([]string{"window", "html", "root"}, ways...) {
@@ -748,6 +758,7 @@ const leaks = (way) => '<script>try { const pc = new RTCPeerConnection({ iceServ
 const F = "ifr" + "ame";
 const T = (way) => "<" + F + " srcdoc='" + leaks(way).replace(/&/g, "&amp;").replace(/'/g, "&#39;") + "'></" + F + ">";
 const frame = (way, f) => { f.srcdoc = leaks(way); return f; };
+const xml = () => new DOMParser().parseFromString("<!DOCTYPE x [<!ENTITY e \"&#60;" + F + " xmlns='http://www.w3.org/1999/xhtml'/&#62;\">]><x>&e;</x>", "application/xml").documentElement.firstChild;
 `
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("web", harness.WebNotesMark)
@@ -789,6 +800,37 @@ const ways = {
   cloneFrameOfBlock: (d, w) => d.appendChild(frame(w, frameElement.cloneNode())),
   importFrameOfBlock: (d, w) => d.appendChild(frame(w, document.importNode(frameElement))),
   moveFrameOfBlock: (d, w) => parent.document.body.appendChild(frameElement),
+  xmlAdopted: (d, w) => d.appendChild(frame(w, document.adoptNode(xml()))),
+  xmlAppended: (d, w) => d.appendChild(frame(w, xml())),
+  xmlWindow: (d, w) => {
+    d.append(xml());
+    const pc = new (d.firstChild.contentWindow.RTCPeerConnection)({ iceServers: [{ urls: "stun:" + at[w] }] });
+    pc.createDataChannel("l");
+    pc.createOffer().then((o) => pc.setLocalDescription(o));
+  },
+  xmlRange: (d, w) => { const r = document.createRange(); r.selectNodeContents(d); r.insertNode(frame(w, xml())); },
+  xmlReplaceChildren: (d, w) => d.replaceChildren(frame(w, xml())),
+  poisonedExec: (d, w) => {
+    const was = RegExp.prototype.exec;
+    RegExp.prototype.exec = () => null;
+    try { d.innerHTML = T(w); } finally { RegExp.prototype.exec = was; }
+  },
+  poisonedApply: (d, w) => {
+    const was = Function.prototype.apply;
+    let got;
+    Function.prototype.apply = function (...a) { got ??= this; return Reflect.apply(was, this, a); };
+    try { document.createElement("div"); } finally { Function.prototype.apply = was; }
+    d.appendChild(frame(w, Reflect.apply(got, document, [F])));
+  },
+  poisonedCall: (d, w) => {
+    const was = Function.prototype.call;
+    let got;
+    Function.prototype.call = function (...a) { got ??= this; return Reflect.apply(was, this, a); };
+    try { d.innerHTML = ""; } finally { Function.prototype.call = was; }
+    const div = document.createElement("div");
+    Reflect.apply(got, div, [T(w)]);
+    d.appendChild(div);
+  },
 };
 window.made = [];
 for (const [way, make] of Object.entries(ways)) {
@@ -803,7 +845,7 @@ const app = new App({ name: "rtc", version: "1" });
 await app.connect();
 await app.callServerTool({ name: "web.mark", arguments: { text: "made [" + window.made.join(",") + "]" } });
 </script></body></html>`}, nil)
-	b := Open(t)
+	b := Open(t, kind...)
 	b.Open(e, "#/p/web/main")
 	b.until("the custom block", `document.querySelector('iframe[data-custom]')`)
 	e.Until("the block to tell the frames it made", func() bool {

@@ -1,10 +1,19 @@
 // deck works only online; the worker is here for installing and for files shared to it.
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
+// asked says a share came from the owner: a page of deck, or the share sheet of a browser that has one (Chromium's,
+// which names the page that starts a request); a worker sees no Sec-Fetch-Site, and WebKit names no page.
+const asked = async (e) => {
+  const origin = e.request.headers.get('origin');
+  if (origin && origin !== 'null' && origin !== self.location.origin) return false;
+  if (!e.clientId) return 'userAgentData' in self.navigator;
+  return (await self.clients.get(e.clientId))?.url.startsWith(self.location.origin + '/') === true;
+};
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'POST' || url.pathname !== '/share') return;
   e.respondWith((async () => {
+    if (!(await asked(e))) return Response.redirect('/', 303);
     const form = await e.request.formData();
     await caches.delete('deck-share');
     const cache = await caches.open('deck-share');

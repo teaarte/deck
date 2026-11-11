@@ -7,51 +7,83 @@
 <body>
 <script>
 const host = "{{HOST}}";
-// guard, the first script of a block in a frame of an origin of its own, keeps WebRTC, which no CSP of every browser
-// stops, out of its window and makes no frame, where it would come back: by name, parsed text, custom element, XSLT.
+// guard, the first script of a block in a frame of its own origin, keeps WebRTC out of its window and lets no frame in
+// by name, text, custom element, XSLT or node; it calls only what it took before the block ran.
 const guard = (w) => {
-  const tagged = /<\s*([\w-]+:)?(iframe|frame|object|embed)\b/i;
-  const refuse = () => { throw new Error("deck: a custom block holds no frames"); };
-  for (const k of Object.getOwnPropertyNames(w)) {
-    if (/^(webkit)?RTC/.test(k)) try { Object.defineProperty(w, k, { value: undefined, configurable: false }); } catch {}
+  const apply = w.Reflect.apply, exec = w.RegExp.prototype.exec, str = w.String, own = w.Object.getOwnPropertyDescriptor;
+  const hasOwn = w.Object.hasOwn, define = w.Object.defineProperty, Err = w.Error;
+  const tagged = /<\s*([\w-]+:)?(iframe|frame|object|embed)\b/i, named = /^([\w-]+:)?(iframe|frame|object|embed)$/i;
+  const refuse = () => { throw new Err("deck: a custom block holds no frames"); };
+  for (const k of w.Object.getOwnPropertyNames(w)) {
+    if (/^(webkit)?RTC/.test(k)) try { define(w, k, { value: undefined, configurable: false }); } catch {}
   }
-  try { Object.defineProperty(w, "XSLTProcessor", { value: undefined, configurable: false }); } catch {}
-  const html = (s) => { if (tagged.test(s)) refuse(); };
-  const name = (s) => { if (/^(iframe|frame|object|embed)$/i.test(s.split(":").pop())) refuse(); };
-  // text turns the arguments at the places given into strings once, so what is checked is what the browser reads.
-  const text = (proto, m, at, check) => {
-    const was = proto && Object.hasOwn(proto, m) && proto[m];
+  try { define(w, "XSLTProcessor", { value: undefined, configurable: false }); } catch {}
+  const html = (s) => { if (apply(exec, tagged, [s]) !== null) refuse(); };
+  const name = (s) => { if (apply(exec, named, [s]) !== null) refuse(); };
+  const frame = (n) => n === "iframe" || n === "frame" || n === "object" || n === "embed";
+  const nodeType = own(w.Node.prototype, "nodeType").get, localName = own(w.Element.prototype, "localName").get;
+  const allE = w.Element.prototype.querySelectorAll, allD = w.Document.prototype.querySelectorAll;
+  const allF = w.DocumentFragment.prototype.querySelectorAll;
+  const count = own(w.NodeList.prototype, "length").get, item = w.NodeList.prototype.item;
+  // holds says a node is a frame or has one in it, by the browser's own getters, whatever the node says of itself.
+  const holds = (n) => {
+    let t;
+    try { t = apply(nodeType, n, []); } catch { return false; }
+    if (t === 1 && frame(apply(localName, n, []))) return true;
+    const all = t === 1 ? allE : t === 9 ? allD : t === 11 ? allF : null;
+    if (all === null) return false;
+    const list = apply(all, n, ["*"]);
+    for (let i = 0, k = apply(count, list, []); i < k; i++) if (frame(apply(localName, apply(item, list, [i]), []))) return true;
+    return false;
+  };
+  // wrap checks the arguments at the places given, all when none, before the method runs: a text turned into a
+  // string once, so what is checked is what the browser reads, or a node.
+  const wrap = (proto, m, at, check) => {
+    const was = proto && hasOwn(proto, m) && proto[m];
     if (typeof was !== "function") return;
     proto[m] = function (...a) {
-      for (const i of at ?? a.keys()) if (i < a.length && a[i] != null) check(a[i] = String(a[i]));
-      return was.apply(this, a);
+      for (let j = 0, k = at === null ? a.length : at.length; j < k; j++) {
+        const i = at === null ? j : at[j];
+        if (i >= a.length || a[i] == null) continue;
+        if (check === holds) {
+          if (holds(a[i])) refuse();
+        } else check(a[i] = str(a[i]));
+      }
+      return apply(was, this, a);
     };
   };
-  const D = w.Document.prototype, E = w.Element.prototype, S = w.ShadowRoot?.prototype;
-  text(D, "createElement", [0], name);
-  text(D, "createElementNS", [1], name);
-  text(w.DOMImplementation?.prototype, "createDocument", [1], name);
-  text(E, "insertAdjacentHTML", [1], html);
-  text(E, "setHTMLUnsafe", [0], html);
-  text(S, "setHTMLUnsafe", [0], html);
-  text(D, "write", null, html);
-  text(D, "writeln", null, html);
-  text(D, "execCommand", [2], html);
-  text(w.DOMParser?.prototype, "parseFromString", [0], html);
-  text(w.Range?.prototype, "createContextualFragment", [0], html);
-  text(w.Document, "parseHTMLUnsafe", [0], html);
+  const D = w.Document.prototype, E = w.Element.prototype, S = w.ShadowRoot?.prototype, N = w.Node.prototype;
+  const F = w.DocumentFragment.prototype, C = w.CharacterData.prototype, T = w.DocumentType.prototype;
+  wrap(D, "createElement", [0], name);
+  wrap(D, "createElementNS", [1], name);
+  wrap(w.DOMImplementation?.prototype, "createDocument", [1], name);
+  wrap(E, "insertAdjacentHTML", [1], html);
+  wrap(E, "setHTMLUnsafe", [0], html);
+  wrap(S, "setHTMLUnsafe", [0], html);
+  wrap(D, "write", null, html);
+  wrap(D, "writeln", null, html);
+  wrap(D, "execCommand", [2], html);
+  wrap(w.DOMParser?.prototype, "parseFromString", [0], html);
+  wrap(w.Range?.prototype, "createContextualFragment", [0], html);
+  wrap(w.Document, "parseHTMLUnsafe", [0], html);
+  for (const m of ["appendChild", "insertBefore", "replaceChild"]) wrap(N, m, [0], holds);
+  for (const m of ["adoptNode", "importNode"]) wrap(D, m, [0], holds);
+  wrap(E, "insertAdjacentElement", [1], holds);
+  for (const m of ["insertNode", "surroundContents"]) wrap(w.Range?.prototype, m, [0], holds);
+  for (const p of [D, E, F]) for (const m of ["append", "prepend", "replaceChildren", "moveBefore"]) wrap(p, m, null, holds);
+  for (const p of [E, C, T]) for (const m of ["before", "after", "replaceWith"]) wrap(p, m, null, holds);
   for (const [p, n] of [[E, "innerHTML"], [E, "outerHTML"], [S, "innerHTML"]]) {
-    const d = p && Object.getOwnPropertyDescriptor(p, n);
-    if (d) Object.defineProperty(p, n, { ...d, set(v) { v = v == null ? "" : String(v); html(v); d.set.call(this, v); } });
+    const d = p && own(p, n);
+    if (d) define(p, n, { ...d, set(v) { v = v == null ? "" : str(v); html(v); apply(d.set, this, [v]); } });
   }
-  const define = w.CustomElementRegistry?.prototype.define;
-  if (define) w.CustomElementRegistry.prototype.define = function (n, c, o) {
+  const reg = w.CustomElementRegistry?.prototype, def = reg?.define;
+  if (def) reg.define = function (n, c, o) {
     const ext = o?.extends;
     if (ext !== undefined) {
-      o = { ...o, extends: String(ext) };
+      o = { ...o, extends: str(ext) };
       name(o.extends);
     }
-    return define.call(this, n, c, o);
+    return apply(def, this, [n, c, o]);
   };
 };
 // told sends deck a file or code the browser refused a block, as an MCP log line, so the block is not left empty

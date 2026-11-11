@@ -1,9 +1,10 @@
 import { useEffect, useState, type RefObject } from 'react';
 import { sharedFiles } from '../../lib/share';
+import { useRoute } from '../../app/router';
 import { isFile, type Schema } from './schema';
 
 // useFormValues holds what the owner typed over the values the server sends: a field the owner changed stays theirs
-// until the server holds the same, and a form for files takes the files shared to deck.
+// until the server holds the same, and a form for files on the share screen takes the files shared to deck.
 export function useFormValues(server: Record<string, unknown> | undefined, record: unknown, cmd: { name: string; input?: Schema } | undefined, alive: RefObject<boolean>) {
   const [edited, setEdited] = useState<Record<string, unknown>>({});
   const [files, setFiles] = useState<Record<string, File[]>>({});
@@ -14,11 +15,13 @@ export function useFormValues(server: Record<string, unknown> | undefined, recor
       return kept.length === Object.keys(e).length ? e : Object.fromEntries(kept);
     });
   }, [server]);
+  const route = useRoute();
+  const sharing = !route.project && route.screen === 'share';
   useEffect(() => {
-    const field = cmd && Object.entries(cmd.input?.properties ?? {}).find(([, s]) => isFile(s))?.[0];
+    const field = sharing && cmd && Object.entries(cmd.input?.properties ?? {}).find(([, s]) => isFile(s))?.[0];
     if (!field) return;
     void sharedFiles().then((got) => { if (got.length && alive.current) setFiles((f) => (f[field]?.length ? f : { ...f, [field]: got })); });
-  }, [cmd?.name]);
+  }, [cmd?.name, sharing]);
   return {
     values: { ...(server ?? {}), ...edited },
     files,

@@ -332,3 +332,23 @@ func TestACustomBlockReadsOnlyTheFilesOfItsModule(t *testing.T) {
 		t.Fatalf("the other module reads its own file: %d", code)
 	}
 }
+
+// TestTheCardOfAModuleWithACustomBlockSaysTheBlockMayCarryItsDataOut: before enabling a module the owner reads that its
+// custom blocks see what their screens give them and may carry it out of deck; a module without one says nothing so.
+func TestTheCardOfAModuleWithACustomBlockSaysTheBlockMayCarryItsDataOut(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("web", harness.WebNotesMark)
+	rights := func() string {
+		var out []struct{ Rights string }
+		e.Must("deck.project_draft_list", map[string]any{"project": "web"}, &out)
+		return out[0].Rights
+	}
+	if got := rights(); strings.Contains(got, "custom blocks") {
+		t.Fatalf("a module without a custom block says nothing of one: %s", got)
+	}
+	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>chart</p>"}, nil)
+	if got := rights(); !strings.Contains(got, "its custom blocks see the data their screens give them and may carry it out of deck") {
+		t.Fatalf("the card says what a custom block may do: %s", got)
+	}
+}

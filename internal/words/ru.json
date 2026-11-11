@@ -890,6 +890,7 @@
   "Record": "Запись",
   "File": "Файл",
   "Process it stops": "Остановится процесс",
+  "its custom blocks see the data their screens give them and may carry it out of deck": "его свои блоки видят данные, которые им даёт экран, и могут унести их за пределы deck",
   "A custom block wants to run a command that goes outside deck": "Блок хочет запустить команду, которая выходит за пределы deck",
   "Back into the screen": "Вернуть в экран",
   "The block did not work: {{why}}": "Блок не заработал: {{why}}",

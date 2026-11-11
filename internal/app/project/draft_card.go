@@ -10,6 +10,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/words"
 )
@@ -64,6 +65,10 @@ func (s *Service) draftOf(ctx context.Context, act registry.Actor, in projectDra
 	var lines []string
 	for _, r := range rights {
 		lines = append(lines, "- "+bullet(tr(r.What), r.Detail))
+	}
+	// A custom block holds what its screen gives it, and deck cannot keep every way out of a browser shut.
+	if cs, err := s.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Kind: docs.KindCustom}); err == nil && len(cs) > 0 {
+		lines = append(lines, "- "+tr("its custom blocks see the data their screens give them and may carry it out of deck"))
 	}
 	out.Rights = strings.Join(lines, "\n")
 	if len(v.Models) > 0 {

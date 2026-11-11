@@ -53,6 +53,9 @@ func (s *Service) Return(raw string) {
 	delete(s.loans.of, raw)
 }
 
+// IsLent says raw has the form of a lent token, live or not.
+func (s *Service) IsLent(raw string) bool { return strings.HasPrefix(raw, lentPrefix) }
+
 // Lent is the actor a lent token acts as while it lasts.
 func (s *Service) Lent(raw string) (registry.Actor, bool) {
 	if !strings.HasPrefix(raw, lentPrefix) {

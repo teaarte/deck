@@ -55,8 +55,6 @@ type Config struct {
 	Exe func() (string, error)
 	// Origins are the addresses deck signs the owner in at, each with its second origin; none when nil.
 	Origins *auth.Origins
-	// Routes is the routing table of Linux the proxy gateway of -proxy is read from; /proc/net/route when empty.
-	Routes string
 }
 
 // wall is the clock of a deck given none.
@@ -109,9 +107,6 @@ func (c *Config) defaults() {
 	}
 	if c.Restart == nil {
 		c.Restart = func(release.Restart) {}
-	}
-	if c.Routes == "" {
-		c.Routes = "/proc/net/route"
 	}
 	if c.Browser == nil {
 		c.Browser = DefaultBrowser

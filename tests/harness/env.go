@@ -3,11 +3,8 @@ package harness
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"net/http/httptest"
-	"net/netip"
-	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
@@ -151,33 +148,9 @@ func WithWait(d time.Duration) Option {
 // OnEveryAddress serves deck on every address of the machine, as -addr 0.0.0.0:7700 does; Env.URL stays loopback.
 func OnEveryAddress(s *setup) { s.every = true }
 
-// WithProxies names the proxies before deck whose X-Forwarded-For it takes besides loopback, as -proxy does.
+// WithProxies names the proxies before deck whose X-Forwarded-For it takes, as -proxy does.
 func WithProxies(list ...string) Option {
 	return func(s *setup) { s.proxies = list }
-}
-
-// WithGateway makes ip the default gateway of deck's network in the routing table deck reads, as in a container.
-func WithGateway(ip string) Option {
-	return func(s *setup) {
-		routes := filepath.Join(s.t.TempDir(), "route")
-		writeRoutes(s.t, routes, ip)
-		s.cfg = append(s.cfg, func(c *app.Config) { c.Routes = routes })
-	}
-}
-
-// Gateway moves the default gateway of deck's network to ip, as WithGateway set it.
-func (e *Env) Gateway(ip string) {
-	writeRoutes(e.T, e.App.Cfg.Routes, ip)
-}
-
-func writeRoutes(t *testing.T, routes, ip string) {
-	a := netip.MustParseAddr(ip).As4()
-	table := "Iface\tDestination\tGateway\tFlags\tRefCnt\tUse\tMetric\tMask\tMTU\tWindow\tIRTT\n" +
-		fmt.Sprintf("eth0\t00000000\t%02X%02X%02X%02X\t0003\t0\t0\t0\t00000000\t0\t0\t0\n", a[3], a[2], a[1], a[0]) +
-		"eth0\t000011AC\t00000000\t0001\t0\t0\t0\t0000FFFF\t0\t0\t0\n"
-	if err := os.WriteFile(routes, []byte(table), 0o600); err != nil {
-		t.Fatal(err)
-	}
 }
 
 // LAN is an IPv4 address of this machine on its network, empty when it has none.

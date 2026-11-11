@@ -163,8 +163,8 @@ the health row `update`. Its `deck.update_install` puts the binary of its build 
 **Server image.** After the release the same workflow builds `Dockerfile` on native amd64 and arm64 runners and
 pushes `ghcr.io/teaarte/deck:<version>` and `:latest`. `compose.yaml` runs it on 127.0.0.1:7700 and 7701, where a browser of
 the machine opens deck at deck.localhost; with a domain (`DECK_DOMAIN` and the profile `domain`) Caddy is in front,
-HTTPS on 443 and the second origin on 8443, deck takes `-public` and X-Forwarded-For only from Caddy and from the gateway of its docker network, where the
-host's own connections, as those of `tailscale serve`, come from (`-proxy caddy,gateway`);
+HTTPS on 443 and the second origin on 8443, deck takes `-public` and X-Forwarded-For only from Caddy (`-proxy caddy`); a request from any other address,
+loopback and the gateway of its docker network too, counts by the address it came from;
 optionally on the tailnet (`DECK_TAILSCALE`, going away: the README says how to move off it). A deck in an image (`DECK_IMAGE`) does not replace itself: a newer one is a newer image.
 Claude Code and Codex are signed in from Settings → Models (`deck.agent_login`); their logins live in the volume
 `deck`, one for all projects (`agents/<cli>/login`). `move-to-docker.sh` brings the folder of a deck that ran

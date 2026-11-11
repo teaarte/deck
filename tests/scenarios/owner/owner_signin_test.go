@@ -304,8 +304,8 @@ func TestADeviceIsABrowserOrANode(t *testing.T) {
 	}
 }
 
-// TestATokenIsTakenOnlyFromTheHeaderAndGuessesRunOut: an automation token calls in the header Authorization as
-// before, never in the address; ten wrong tokens from an address and its tokens wait, a signed-in device not.
+// TestATokenIsTakenOnlyFromTheHeaderAndGuessesRunOut: an automation token calls in the header Authorization, never in
+// the address; after ten wrong tokens from an address its wrong ones wait, a right one and a signed-in device not.
 func TestATokenIsTakenOnlyFromTheHeaderAndGuessesRunOut(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
@@ -324,11 +324,11 @@ func TestATokenIsTakenOnlyFromTheHeaderAndGuessesRunOut(t *testing.T) {
 			t.Fatalf("a wrong token is refused: %d", code)
 		}
 	}
-	if code, out := e.As(tok).Call("deck.menu_get", map[string]any{}); code != 429 {
+	if code, out := e.As("deck_wrong").Call("deck.menu_get", map[string]any{}); code != 429 {
 		t.Fatalf("after ten wrong tokens the address waits: %d %s", code, out)
 	}
 	req, _ := http.NewRequest("POST", e.URL+"/mcp", strings.NewReader("{}"))
-	harness.Bearer(tok)(req)
+	harness.Bearer("deck_wrong")(req)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
@@ -337,6 +337,7 @@ func TestATokenIsTakenOnlyFromTheHeaderAndGuessesRunOut(t *testing.T) {
 	if resp.StatusCode != 429 {
 		t.Fatalf("the MCP entry of tokens waits too: %d", resp.StatusCode)
 	}
+	e.As(tok).Must("deck.menu_get", map[string]any{}, nil)
 	e.Must("deck.menu_get", map[string]any{}, nil)
 }
 

@@ -20,23 +20,23 @@ var (
 	errTries    = registry.Limited("too many tries from this address; wait a few minutes")
 )
 
-// Who is the one place that says whom a call comes from: a lent or automation token in the header, else a browser's
-// cookie at an origin where it signs in, a write with it only from deck's origin and a read from its page.
+// Who is the one place that says whom a call comes from: a lent or automation token in the header (a wrong one counts
+// against its address), else a browser's cookie where it signs in, a write only from deck's origin, a read its page.
 func (s *Server) Who(w http.ResponseWriter, r *http.Request) (registry.Actor, error) {
 	if raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
 		if act, ok := s.app.Owners.Lent(raw); ok {
 			return act, nil
-		}
-		ip := s.clientIP(r)
-		if s.app.Auth.Misses.Over(ip) {
-			return registry.Actor{}, errTries
-		}
-		act, err := s.app.Owners.Automation(r.Context(), raw)
-		if err != nil {
-			s.app.Auth.Misses.Allow(ip)
+		} else if s.app.Owners.IsLent(raw) {
 			return registry.Actor{}, s.unsigned(r)
 		}
-		return act, nil
+		act, err := s.app.Owners.Automation(r.Context(), raw)
+		if err == nil {
+			return act, nil
+		}
+		if !s.app.Auth.Misses.Allow(s.clientIP(r)) {
+			return registry.Actor{}, errTries
+		}
+		return registry.Actor{}, s.unsigned(r)
 	}
 	o := originOf(r)
 	c, err := r.Cookie(cookieOf(o))
@@ -166,12 +166,12 @@ func hostPort(host string) (string, int) {
 	return name, port
 }
 
-// clientIP is the address a request comes from: the one a proxy saw, when the request came from this machine, as
-// through tailscale serve, or from a proxy deck was told of, as Caddy of deck's compose.
+// clientIP is the address a request comes from: the one a proxy saw when it came from a proxy deck was told of, as
+// Caddy of deck's compose, else its own.
 func (s *Server) clientIP(r *http.Request) string {
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
 	ip, err := netip.ParseAddr(host)
-	if err != nil || r.TLS != nil || !ip.Unmap().IsLoopback() && !s.proxies.Has(r.Context(), ip.Unmap()) {
+	if err != nil || r.TLS != nil || !s.proxies.Has(r.Context(), ip.Unmap()) {
 		return host
 	}
 	fwd := r.Header.Values("X-Forwarded-For")

@@ -152,7 +152,8 @@ device:
 2. On that machine: `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701`; `tailscale serve status`
    shows the address, `https://<machine>.<tailnet>.ts.net`.
 3. Put `DECK_DOMAIN=<machine>.<tailnet>.ts.net` in `~/deck/.env` (no `COMPOSE_PROFILES=domain`: Tailscale serves
-   https, not Caddy) and run `docker compose up -d`.
+   https, not Caddy) and run `docker compose up -d`. deck counts the sign-in tries of every client of `tailscale serve`
+   as one address ([docs/install.md](docs/install.md#behind-the-hosts-tailscale-serve)).
 4. `docker compose exec deck deck pair` and open the https link on the phone; it makes a passkey there. Add deck to the
    phone's home screen: pushes and sharing a link or a file into a module work as in a native app.
 

@@ -425,6 +425,21 @@ func (a *App) Plain(address string, port int) {
 	}
 }
 
+// Proxied says in health whether -proxy names the gateway of deck's network, as the compose of before did: deck takes
+// no X-Forwarded-For from it.
+func (a *App) Proxied(gateway bool) {
+	err := a.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+		if !gateway {
+			return health.Clear(ctx, q, health.Of{}, health.Proxy)
+		}
+		_, err := health.Set(ctx, q, a.Store.Now(), health.Of{}, health.Proxy, health.Warning, "DECK_PROXY names gateway, and deck takes X-Forwarded-For from it no more: any container of the host comes from it; drop gateway from DECK_PROXY in .env or take compose.yaml of this release, and the clients of the host's tailscale serve count as one address")
+		return err
+	})
+	if err != nil {
+		slog.Error("write health", "err", err)
+	}
+}
+
 // Tailnet says at the start whether deck joins the tailnet itself: on it, the log and a warning of health say that
 // the built-in Tailscale goes away and how to move to the host's; off it, the rows of the tailnet go.
 func (a *App) Tailnet(name string, port int) {

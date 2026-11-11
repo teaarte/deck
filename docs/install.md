@@ -37,13 +37,13 @@ tried yet.
 
 ## Behind the host's tailscale serve
 
-deck counts the failed sign-in tries of each client by its address. Behind `tailscale serve` of the host every client
-reaches the container from the gateway of its docker network, so `compose.yaml` sets `DECK_PROXY: caddy,gateway` and
-deck takes the client's address from X-Forwarded-For of that gateway. This is safe while the ports stay bound to
-`127.0.0.1`, on any engine: only the host's own programs reach them. Published wider (`0.0.0.0` or a LAN address), on
-Docker Desktop, OrbStack, rootless Docker or an engine with the userland proxy clients from outside may arrive from the
-gateway too and name any address to get past the limit; then put `DECK_PROXY=caddy` into `.env`, and deck counts all
-clients of `tailscale serve` as one.
+deck counts the failed sign-in tries of each client by its address, and takes X-Forwarded-For only from Caddy of
+`compose.yaml` (`DECK_PROXY: caddy`). Behind `tailscale serve` of the host every client reaches the container from the
+gateway of its docker network, so deck counts them all as one address: thirty steps of signing in a minute together.
+The gateway is no proxy of deck, as any container of the host comes from it too; a `.env` or compose of before that
+names it (`DECK_PROXY=caddy,gateway`) works, and Settings → Health says to drop `gateway`. Without Docker deck takes
+X-Forwarded-For from no address, loopback too, unless `-proxy` names it (`-proxy 127.0.0.1` behind the host's own
+proxy).
 
 ## Windows
 

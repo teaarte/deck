@@ -4,7 +4,7 @@ package lint
 var exceptions = map[string][]string{
 	"now": {
 		"internal/app/asks/process_asks.go:80", "internal/app/asks/process_asks.go:84",
-		"internal/app/asks/process_asks.go:86", "internal/app/config.go:63", "internal/app/files/thumbs.go:31",
+		"internal/app/asks/process_asks.go:86", "internal/app/config.go:61", "internal/app/files/thumbs.go:31",
 		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:325",
 		"internal/app/processes/processes.go:329", "internal/app/processes/processes.go:322",
 		"internal/models/hops.go:200", "internal/models/hops.go:210",

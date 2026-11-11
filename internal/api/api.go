@@ -37,10 +37,11 @@ type Server struct {
 	proxies *proxies
 }
 
-// New serves a; proxies are those besides loopback whose X-Forwarded-For deck takes: addresses, networks, names or
-// Gateway.
+// New serves a; proxies are those whose X-Forwarded-For deck takes: addresses, networks or names.
 func New(a *app.App, web fs.FS, proxies []string) *Server {
-	return &Server{app: a, web: web, origins: a.Auth.Origins(), proxies: newProxies(proxies, a.Cfg.Now, a.Cfg.Routes)}
+	p, gw := newProxies(proxies, a.Cfg.Now)
+	a.Proxied(gw)
+	return &Server{app: a, web: web, origins: a.Auth.Origins(), proxies: p}
 }
 
 // maxUpload is how much one upload of files may hold together.
@@ -65,16 +66,26 @@ func (s *Server) Handler() http.Handler {
 	return s.hosted(mux)
 }
 
-// loopbackOnly serves the processes of this machine, which come from loopback or from deck's own address;
-// the tailnet and the network do not reach their tokens.
+// loopbackOnly serves the processes of this machine, which come from loopback or from deck's own address and through
+// no proxy; the tailnet and the network do not reach their tokens.
 func loopbackOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if !fromHere(r) {
+		if !fromHere(r) || forwarded(r) {
 			http.NotFound(w, r)
 			return
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// forwarded says a proxy passed a request on: it names the client or the host it came to.
+func forwarded(r *http.Request) bool {
+	for _, h := range []string{"X-Forwarded-For", "Forwarded", "X-Real-Ip", "X-Forwarded-Host", "Tailscale-User-Login"} {
+		if len(r.Header.Values(h)) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // fromHere says a request comes from this machine: from loopback or from deck's own address.

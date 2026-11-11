@@ -29,15 +29,13 @@ func (s *Server) rites(mux *http.ServeMux) {
 // nodeSide serves a node's call of deck's side of a turn it runs, by the node's key: deck's MCP server of the turn
 // and the model of an agent in it.
 func (s *Server) nodeSide(w http.ResponseWriter, r *http.Request) {
-	ip := s.clientIP(r)
 	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if s.app.Auth.Misses.Over(ip) {
-		refuse(w, r, errTries.Error(), http.StatusTooManyRequests)
-		return
-	}
 	p, ok := s.app.Auth.NodeKey(r.Context(), raw)
 	if raw == "" || !ok {
-		s.app.Auth.Misses.Allow(ip)
+		if !s.app.Auth.Misses.Allow(s.clientIP(r)) {
+			refuse(w, r, errTries.Error(), http.StatusTooManyRequests)
+			return
+		}
 		refuse(w, r, "deck: this node is not paired with deck, or it was revoked: pair it again with deck pair --node", http.StatusUnauthorized)
 		return
 	}
@@ -47,15 +45,13 @@ func (s *Server) nodeSide(w http.ResponseWriter, r *http.Request) {
 
 // node holds the connection of a node signed in by its key, until it breaks or the node is revoked.
 func (s *Server) node(w http.ResponseWriter, r *http.Request) {
-	ip := s.clientIP(r)
 	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if s.app.Auth.Misses.Over(ip) {
-		refuse(w, r, errTries.Error(), http.StatusTooManyRequests)
-		return
-	}
 	p, ok := s.app.Auth.NodeKey(r.Context(), raw)
 	if raw == "" || !ok {
-		s.app.Auth.Misses.Allow(ip)
+		if !s.app.Auth.Misses.Allow(s.clientIP(r)) {
+			refuse(w, r, errTries.Error(), http.StatusTooManyRequests)
+			return
+		}
 		refuse(w, r, "deck: this node is not paired with deck, or it was revoked: pair it again with deck pair --node", http.StatusUnauthorized)
 		return
 	}

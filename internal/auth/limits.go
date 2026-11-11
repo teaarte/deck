@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"net/netip"
 	"sync"
 	"time"
 )
@@ -23,7 +24,7 @@ func NewLimiter(n int, window time.Duration, now func() time.Time) *Limiter {
 	return &Limiter{n: n, window: window, now: now, of: map[string]*tries{}}
 }
 
-// most is how many addresses a limiter counts in a window; past it a new address waits as one past its tries.
+// most is how many addresses a limiter counts; past it a new address takes the place of the one counted longest.
 const most = 10000
 
 // Allow counts a try of addr and says whether it is within the limit.
@@ -31,34 +32,53 @@ func (l *Limiter) Allow(addr string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	t := l.at(addr)
-	if t == nil {
-		return false
-	}
 	t.n++
 	return t.n <= l.n
 }
 
-// Over says addr used up its tries, without counting one.
-func (l *Limiter) Over(addr string) bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	t := l.at(addr)
-	return t == nil || t.n >= l.n
-}
-
-// at is the count of addr in the window now, nil when the limiter counts as many addresses as it may; it drops the
-// counts of windows past.
+// at is the count of addr in its window now.
 func (l *Limiter) at(addr string) *tries {
 	now := l.now()
+	k := keyOf(addr)
+	t := l.of[k]
+	if t != nil && now.Sub(t.from) > l.window {
+		t.from, t.n = now, 0
+	}
+	if t == nil {
+		if len(l.of) >= most {
+			l.drop(now)
+		}
+		t = &tries{from: now}
+		l.of[k] = t
+	}
+	return t
+}
+
+// drop forgets the counts of windows past, and the one counted longest when none has passed.
+func (l *Limiter) drop(now time.Time) {
+	var oldest string
 	for k, t := range l.of {
 		if now.Sub(t.from) > l.window {
 			delete(l.of, k)
+		} else if oldest == "" || t.from.Before(l.of[oldest].from) {
+			oldest = k
 		}
 	}
-	t := l.of[addr]
-	if t == nil && len(l.of) < most {
-		t = &tries{from: now}
-		l.of[addr] = t
+	if len(l.of) >= most {
+		delete(l.of, oldest)
 	}
-	return t
+}
+
+// keyOf is what an address counts as: an IPv6 address by its /64, which one holder has whole.
+func keyOf(addr string) string {
+	ip, err := netip.ParseAddr(addr)
+	if err != nil {
+		return addr
+	}
+	ip = ip.WithZone("").Unmap()
+	if ip.Is4() {
+		return ip.String()
+	}
+	p, _ := ip.Prefix(64)
+	return p.String()
 }

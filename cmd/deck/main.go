@@ -69,7 +69,7 @@ func run() (*release.Restart, error) {
 	addr := flag.String("addr", cmp.Or(os.Getenv("DECK_ADDR"), "127.0.0.1:7700"), "listen address; the next port is the second origin of custom blocks")
 	tailnet := flag.String("tailscale", os.Getenv("DECK_TAILSCALE"), "join the owner's tailnet under this name and serve HTTPS there")
 	public := flag.String("public", os.Getenv("DECK_PUBLIC"), "the https addresses of proxies deck is reached through, comma-separated, such as https://deck.example.com; port 8443 of each is its second origin")
-	proxy := flag.String("proxy", os.Getenv("DECK_PROXY"), "the proxies before deck whose X-Forwarded-For it takes besides loopback, comma-separated addresses, networks or names, such as caddy; gateway is the default gateway of deck's network, as the host's tailscale serve before deck in a container")
+	proxy := flag.String("proxy", os.Getenv("DECK_PROXY"), "the proxies before deck whose X-Forwarded-For it takes, comma-separated addresses, networks or names, such as caddy; from any other address, loopback too, deck counts a request by the address it came from")
 	version := flag.Bool("version", false, "print the version, commit and build of deck and quit")
 	flag.Parse()
 	if *version {
@@ -233,7 +233,7 @@ func run() (*release.Restart, error) {
 	for _, l := range links {
 		slog.Info("pair the first device", "link", l)
 	}
-	go proxied(ctx, *proxy, a.Cfg.Routes, len(publics) > 0)
+	go proxied(ctx, *proxy, len(publics) > 0)
 	if !a.Auth.Signed(ctx) && len(links) == 0 {
 		slog.Info("no device is paired yet: a browser signs in only over https or at deck.localhost on this machine; start deck with -tailscale or -public")
 	}
@@ -304,17 +304,9 @@ func mcpBase(a *net.TCPAddr) string {
 	return "http://" + a.String()
 }
 
-// proxied says in the log when the gateway named by -proxy is not found, and with a public address when no proxy
-// named is found a while after the start, as Caddy of deck's compose with a domain but without its profile.
-func proxied(ctx context.Context, list, routes string, public bool) {
-	for _, n := range strings.Split(list, ",") {
-		if strings.TrimSpace(n) != api.Gateway {
-			continue
-		}
-		if _, err := api.GatewayOf(routes); err != nil {
-			slog.Warn("the gateway of deck's network named by -proxy is not found: X-Forwarded-For from it counts nothing", "err", err)
-		}
-	}
+// proxied says in the log, with a public address, when no proxy named is found a while after the start, as Caddy of
+// deck's compose with a domain but without its profile.
+func proxied(ctx context.Context, list string, public bool) {
 	if !public {
 		return
 	}
@@ -325,7 +317,7 @@ func proxied(ctx context.Context, list, routes string, public bool) {
 	}
 	var names []string
 	for _, n := range strings.Split(list, ",") {
-		if n = strings.TrimSpace(n); n == "" || n == api.Gateway || net.ParseIP(n) != nil || strings.Contains(n, "/") {
+		if n = strings.TrimSpace(n); n == "" || n == "gateway" || net.ParseIP(n) != nil || strings.Contains(n, "/") {
 			continue
 		}
 		if _, err := net.DefaultResolver.LookupHost(ctx, n); err == nil {

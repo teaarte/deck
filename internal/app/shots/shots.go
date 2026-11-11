@@ -99,6 +99,10 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in screenCapture
 	}
 	token := s.Lend(act, 2*time.Minute)
 	defer s.Return(token)
+	// The page leaves on every way out, so it hears no more of the workspace once its token is back.
+	defer func() {
+		_, _ = s.call(context.WithoutCancel(ctx), key, spec, "browser_navigate", map[string]any{"url": "about:blank"})
+	}()
 	q := url.Values{"shot": {"1"}}
 	if in.Theme != "" {
 		q.Set("theme", in.Theme)
@@ -149,8 +153,6 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in screenCapture
 	if drawn.Grown {
 		_, _ = s.call(ctx, key, spec, "browser_run_code_unsafe", map[string]any{"code": fmt.Sprintf("async (page) => { await page.setViewportSize(%s); }", drawn.Window)})
 	}
-	// The page leaves, so it hears no more of the workspace once its token is back.
-	_, _ = s.call(ctx, key, spec, "browser_navigate", map[string]any{"url": "about:blank"})
 	if err != nil {
 		return nil, err
 	}

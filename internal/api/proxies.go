@@ -2,27 +2,18 @@ package api
 
 import (
 	"context"
-	"encoding/binary"
-	"encoding/hex"
-	"errors"
 	"net"
 	"net/netip"
-	"os"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 )
 
-// Gateway names among the proxies the default gateway of deck's network: in a container, the address the host's own
-// connections to a published port come from, as those of tailscale serve.
-const Gateway = "gateway"
-
-// proxies are the proxies besides loopback deck takes X-Forwarded-For from, by address, network or name, as Caddy of
-// deck's compose; a name is looked up again after a minute, beside the requests, which go by the addresses before.
+// proxies are the proxies deck takes X-Forwarded-For from, by address, network or name, as Caddy of deck's compose;
+// a name is looked up again after a minute, beside the requests, which go by the addresses before.
 type proxies struct {
 	now     func() time.Time
-	routes  string
 	names   []string
 	fixed   []netip.Prefix
 	mu      sync.Mutex
@@ -32,10 +23,16 @@ type proxies struct {
 	last    map[string][]netip.Addr
 }
 
-func newProxies(list []string, now func() time.Time, routes string) *proxies {
-	p := &proxies{now: now, routes: routes, last: map[string][]netip.Addr{}}
+// gateway is the name the compose of before gave the gateway of deck's network, which deck takes as no proxy: any
+// container of the host comes from it.
+const gateway = "gateway"
+
+// newProxies are the proxies of a list; gateway says the list names the gateway, which is left out.
+func newProxies(list []string, now func() time.Time) (p *proxies, gw bool) {
+	p = &proxies{now: now, last: map[string][]netip.Addr{}}
 	for _, x := range list {
-		if x = strings.TrimSpace(x); x == "" {
+		if x = strings.TrimSpace(x); x == "" || x == gateway {
+			gw = gw || x == gateway
 			continue
 		}
 		if pre, err := netip.ParsePrefix(x); err == nil {
@@ -46,7 +43,7 @@ func newProxies(list []string, now func() time.Time, routes string) *proxies {
 			p.names = append(p.names, x)
 		}
 	}
-	return p
+	return p, gw
 }
 
 // Has says ip is a proxy of deck.
@@ -76,12 +73,6 @@ func (p *proxies) look(ctx context.Context) []netip.Addr {
 	defer cancel()
 	now := map[string][]netip.Addr{}
 	for _, name := range p.names {
-		if name == Gateway {
-			if ip, err := GatewayOf(p.routes); err == nil {
-				now[name] = []netip.Addr{ip}
-			}
-			continue
-		}
 		ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", name)
 		if err != nil {
 			continue
@@ -102,28 +93,4 @@ func (p *proxies) look(ctx context.Context) []netip.Addr {
 	}
 	p.found = found
 	return found
-}
-
-// GatewayOf is the IPv4 gateway of the default route in a routing table of Linux, as /proc/net/route.
-func GatewayOf(routes string) (netip.Addr, error) {
-	b, err := os.ReadFile(routes)
-	if err != nil {
-		return netip.Addr{}, err
-	}
-	for _, line := range strings.Split(string(b), "\n")[1:] {
-		f := strings.Fields(line)
-		if len(f) < 8 || f[1] != "00000000" || f[7] != "00000000" {
-			continue
-		}
-		raw, err := hex.DecodeString(f[2])
-		if err != nil || len(raw) != 4 {
-			continue
-		}
-		var ip [4]byte
-		binary.BigEndian.PutUint32(ip[:], binary.LittleEndian.Uint32(raw))
-		if a := netip.AddrFrom4(ip); !a.IsUnspecified() {
-			return a, nil
-		}
-	}
-	return netip.Addr{}, errors.New("no default gateway in " + routes)
 }

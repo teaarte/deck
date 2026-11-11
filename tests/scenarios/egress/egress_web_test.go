@@ -191,3 +191,68 @@ func TestHealthSaysHowToSetUpSearch(t *testing.T) {
 		}
 	}
 }
+
+// TestTheJournalKeepsTheAddressOfEveryPageRead: each search and page an agent reads through deck is a line of the
+// journal: the query, service and results; the address asked, the one read after a redirect; a refusal and why.
+func TestTheJournalKeepsTheAddressOfEveryPageRead(t *testing.T) {
+	t.Parallel()
+	var failing atomic.Int32
+	search := searxng(t, &failing)
+	page := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		if r.URL.Path == "/moved" {
+			http.Redirect(w, r, "/landed", http.StatusFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		fmt.Fprint(w, "words of "+r.URL.Path)
+	})
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		c.Tool(ctx, "web_search", map[string]any{"query": "deck journal", "count": 2})
+		c.Tool(ctx, "web_fetch", map[string]any{"url": page.URL + "/doc"})
+		c.Tool(ctx, "web_fetch", map[string]any{"url": page.URL + "/moved"})
+		c.Tool(ctx, "web_fetch", map[string]any{"url": "https://example.com/outside"})
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}))
+	useSearch(e, "searxng", search.URL)
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
+	m := harness.Manifest(`{"domains": {"read": ["127.0.0.1"]}, "commands": [`) + harness.AgentCommand("look", "") + `]}`
+	e.WaitState(e.Run(e.Project("reader", m), "look"), "done")
+
+	var calls []struct{ Tool, Outcome, Params, Error string }
+	e.Must("deck.calls_list", map[string]any{"project": "reader"}, &calls)
+	got := map[string]string{}
+	for _, c := range calls {
+		if c.Tool == "deck.web_search" || c.Tool == "deck.web_fetch" {
+			var p struct {
+				URL, Read, Query, Search string
+				Results                  []string
+			}
+			if err := json.Unmarshal([]byte(c.Params), &p); err != nil {
+				t.Fatalf("the line of %s keeps what it read as JSON: %q", c.Tool, c.Params)
+			}
+			key := p.URL
+			if c.Tool == "deck.web_search" {
+				key = "search " + p.Query
+			}
+			got[key] = fmt.Sprint(c.Outcome, " ", p.Read, p.Search, p.Results, " ", c.Error)
+		}
+	}
+	want := map[string]func(string) bool{
+		"search deck journal": func(s string) bool {
+			return s == "done searxng[https://example.com/a https://example.com/b] "
+		},
+		page.URL + "/doc":   func(s string) bool { return s == "done [] " },
+		page.URL + "/moved": func(s string) bool { return s == "done "+page.URL+"/landed[] " },
+		"https://example.com/outside": func(s string) bool {
+			return strings.HasPrefix(s, "rejected [] deck: ") && strings.Contains(s, "domains")
+		},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("a line of the journal for each read of the web: %v", got)
+	}
+	for k, ok := range want {
+		if !ok(got[k]) {
+			t.Fatalf("the line of %s keeps what it read: %q (all %v)", k, got[k], got)
+		}
+	}
+}

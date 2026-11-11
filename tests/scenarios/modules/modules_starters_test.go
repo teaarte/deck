@@ -117,11 +117,11 @@ func TestWhatAModuleNeedsReadsInTheOwnersLanguage(t *testing.T) {
 	has := func(what, detail string) bool {
 		return slices.ContainsFunc(needs, func(n needView) bool { return n.Kind == "right" && n.What == what && n.Detail == detail })
 	}
-	if !has("чтение домена", "openrouter.ai") || !has("вызывает модели через nvidia", "") || !has("видит, какие модели делают работу всех проектов", "") {
+	if !has("достаёт и может выгружать данные на", "openrouter.ai") || !has("вызывает модели через nvidia", "") || !has("видит, какие модели делают работу всех проектов", "") {
 		t.Fatalf("the rights of a draft read in Russian: %+v", needs)
 	}
 	e.Must("deck.project_readiness_get", map[string]any{"project": "free-models"}, &needs)
-	if !has("read domain", "openrouter.ai") {
+	if !has("reaches and may send data to", "openrouter.ai") {
 		t.Fatalf("in English the rights stay as deck wrote them: %+v", needs)
 	}
 }

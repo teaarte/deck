@@ -98,7 +98,7 @@ func (s *Service) deviceRevoke(ctx context.Context, act registry.Actor, in devic
 		return nil, registry.NotFound("no device %d that may still sign in", in.Device)
 	}
 	s.Kick(in.Device)
-	s.Journal(ctx, act, 0, registry.Deck("device_revoke"), registry.External, "done", fmt.Sprintf(`{"device": %d}`, in.Device))
+	s.Journal(ctx, act, 0, registry.Deck("device_revoke"), registry.External, "done", fmt.Sprintf(`{"device": %d}`, in.Device), "")
 	return map[string]any{"revoked": in.Device}, nil
 }
 
@@ -192,7 +192,7 @@ func (s *Service) passkeyRevoke(ctx context.Context, act registry.Actor, in pass
 	for _, d := range devices {
 		s.Kick(d)
 	}
-	s.Journal(ctx, act, 0, registry.Deck("passkey_revoke"), registry.External, "done", fmt.Sprintf(`{"passkey": %d}`, in.Passkey))
+	s.Journal(ctx, act, 0, registry.Deck("passkey_revoke"), registry.External, "done", fmt.Sprintf(`{"passkey": %d}`, in.Passkey), "")
 	return map[string]any{"revoked": in.Passkey, "devices": devices}, nil
 }
 

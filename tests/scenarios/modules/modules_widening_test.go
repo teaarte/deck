@@ -26,7 +26,7 @@ func TestWideningChangeWaitsForTheOwnersButton(t *testing.T) {
 	}
 	code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": wider, "reason": "go faster"})
 	if code != 200 || json.Unmarshal(out, &w) != nil || w.Waiting == 0 || w.Revision != 0 ||
-		!slices.Equal(w.Widens, []string{"read domain: example.com"}) {
+		!slices.Equal(w.Widens, []string{"reaches and may send data to: example.com"}) {
 		t.Fatalf("a change that widens rights waits: %d %s", code, out)
 	}
 	if rev := e.ManifestRevision("notes"); rev != 1 {

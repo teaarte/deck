@@ -77,7 +77,7 @@ func (s *Service) projectDelete(ctx context.Context, act registry.Actor, in proj
 		}
 	}
 	params, _ := json.Marshal(map[string]any{"project": p.Name, "snapshot": snapshot})
-	s.Gateway.Journal(ctx, act, 0, registry.Deck("project_delete"), registry.External, "done", string(params))
+	s.Gateway.Journal(ctx, act, 0, registry.Deck("project_delete"), registry.External, "done", string(params), "")
 	out := map[string]any{"deleted": p.Name, "snapshot": snapshot}
 	if left != "" {
 		out["folder"] = left

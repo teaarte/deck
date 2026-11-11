@@ -151,7 +151,7 @@ func TestADomainIsAHostThatResolvesOnceToWhereItMayGo(t *testing.T) {
 	}
 	_, tok := e.Token("terminal", "deck.*")
 	e.As(tok).Call("deck.project_create", map[string]any{"name": "masks", "manifest": harness.ScriptManifest("collect", "", `, "domains": {"read": ["*.hf.co"]}`)})
-	if r := e.ProjectRow("masks").Rights; len(r) != 1 || r[0] != "read domain: hf.co" {
+	if r := e.ProjectRow("masks").Rights; len(r) != 1 || r[0] != "reaches and may send data to: hf.co" {
 		t.Fatalf("*.hf.co is hf.co with its subdomains: %v", r)
 	}
 

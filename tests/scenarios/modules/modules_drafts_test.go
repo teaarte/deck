@@ -45,7 +45,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	if p := e.ProjectRow("notes"); p.Status != store.ProjectDraft || !slices.Equal(p.Rights, []string{"read domain: example.com"}) {
+	if p := e.ProjectRow("notes"); p.Status != store.ProjectDraft || !slices.Equal(p.Rights, []string{"reaches and may send data to: example.com"}) {
 		t.Fatalf("a project the master creates is a draft that shows the rights it asks for: %+v", p)
 	}
 
@@ -190,7 +190,7 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 	if len(feed) != 0 {
 		t.Fatalf("changes to a draft are not done without the owner: %v", feed)
 	}
-	if p := e.ProjectRow("notes"); !slices.Equal(p.Rights, []string{"read domain: example.com"}) {
+	if p := e.ProjectRow("notes"); !slices.Equal(p.Rights, []string{"reaches and may send data to: example.com"}) {
 		t.Fatalf("the draft shows the rights enabling it grants: %+v", p)
 	}
 }

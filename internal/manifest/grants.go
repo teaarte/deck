@@ -50,7 +50,7 @@ var rights = []right{
 	}},
 	{func(prev, next *Manifest, add say) {
 		for _, d := range uncovered(readGrant(prev), next.Domains.Read) {
-			add("read domain: %s", d)
+			add("reaches and may send data to: %s", d)
 			local(d, add)
 		}
 	}, func(granted, m, c *Manifest) { c.Domains.Read = covered(readGrant(granted), m.Domains.Read) }},

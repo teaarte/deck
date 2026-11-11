@@ -104,7 +104,7 @@ func TestAGrantOfEveryAddressSaysItReachesTheLocalNetwork(t *testing.T) {
 	e.As(tok).Call("deck.project_create", map[string]any{"name": "all", "manifest": harness.ScriptManifest("collect", "",
 		`, "domains": {"read": ["0.0.0.0/0", "example.com"], "act": ["192.168.1.7"]}`)})
 	r := e.ProjectRow("all").Rights
-	for _, want := range []string{"read domain: 0.0.0.0/0", "local network: 0.0.0.0/0", "read domain: example.com", "local network: 192.168.1.7"} {
+	for _, want := range []string{"reaches and may send data to: 0.0.0.0/0", "local network: 0.0.0.0/0", "reaches and may send data to: example.com", "local network: 192.168.1.7"} {
 		if !slices.Contains(r, want) {
 			t.Errorf("the rights show %q: %v", want, r)
 		}

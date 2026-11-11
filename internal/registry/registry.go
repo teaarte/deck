@@ -147,7 +147,7 @@ const RetryKey = "retry_key"
 
 // Gate is the policy of the gateway for the calls of a command.
 type Gate struct {
-	// Journals marks a command that writes its own intent to the gateway journal.
+	// Journals marks a command that writes its own line to the gateway journal.
 	Journals bool
 	// Fingerprint is what a call would act on beside its input, a tool's request or what it changes, as it is now, so
 	// an old yes does not make a changed call.

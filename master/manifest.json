@@ -1,11 +1,6 @@
 {
   "version": 16,
   "icon": "sparkles",
-  "domains": {
-    "read": [
-      "*"
-    ]
-  },
   "i18n": {
     "ru": {
       "Reply": "Ответ",

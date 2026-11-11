@@ -522,9 +522,10 @@ func (g *Gateway) log(ctx context.Context, s *Session, tool, class, outcome, par
 	g.journal(ctx, s.actor(), s.ProjectID, tool, class, outcome, params, "")
 }
 
-// Journal writes a call the owner made past the gateway, such as a delete from a screen, to the journal.
-func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params string) {
-	g.journal(ctx, act, project, tool, class, outcome, params, "")
+// Journal writes a call to the journal for a command that writes its own line: one the owner made past the gateway,
+// such as a delete from a screen, or a read of the web with the address it read.
+func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params, errText string) {
+	g.journal(ctx, act, project, tool, class, outcome, params, errText)
 }
 
 func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params, errText string) {

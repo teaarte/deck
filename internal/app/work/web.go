@@ -59,8 +59,11 @@ type searchView struct {
 	Snippet string `json:"snippet"`
 }
 
-// webSearch asks the search services assigned to search, the fallbacks after the first.
-func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearchIn) (any, error) {
+// webSearch asks the search services assigned to search, the fallbacks after the first; the journal keeps the query,
+// the service and the address of each result.
+func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearchIn) (_ any, err error) {
+	read := map[string]any{"query": in.Query}
+	defer func() { s.journalRead(ctx, act, "web_search", read, err) }()
 	if strings.TrimSpace(in.Query) == "" {
 		return nil, registry.Invalid("a search needs a query")
 	}
@@ -93,6 +96,7 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 	if err != nil {
 		return nil, err
 	}
+	read["search"] = h.Name
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxPage))
 	if resp.StatusCode >= 400 {
@@ -108,13 +112,15 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 	if count <= 0 {
 		count = 10
 	}
-	out := []searchView{}
+	out, urls := []searchView{}, []string{}
 	for _, r := range v.Results {
 		if len(out) == min(count, 20) {
 			break
 		}
 		out = append(out, searchView{Title: untrusted.Cut(r.Title, 300), URL: r.URL, Snippet: untrusted.Cut(r.Content, 1000)})
+		urls = append(urls, r.URL)
 	}
+	read["results"] = urls
 	return map[string]any{"results": out, "search": h.Name}, nil
 }
 
@@ -122,8 +128,11 @@ type webFetchIn struct {
 	URL string `desc:"Address of the page, http or https"`
 }
 
-// webFetch reads a page of the caller's sites as text: the words of an HTML page, a text or JSON one as it is.
-func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchIn) (any, error) {
+// webFetch reads a page of the caller's sites as text: the words of an HTML page, a text or JSON one as it is; the
+// journal keeps the address asked and the one read after redirects.
+func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchIn) (_ any, err error) {
+	read := map[string]any{"url": in.URL}
+	defer func() { s.journalRead(ctx, act, "web_fetch", read, err) }()
 	domains, err := s.webDomains(ctx, act)
 	if err != nil {
 		return nil, err
@@ -133,6 +142,9 @@ func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchI
 		return nil, registry.Refuse("%v; an agent reads the pages of its project's domains.read", err)
 	}
 	defer resp.Body.Close()
+	if at := resp.Request.URL.String(); at != in.URL {
+		read["read"] = at
+	}
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("deck: %s answered %s", in.URL, resp.Status)
 	}
@@ -151,6 +163,16 @@ func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchI
 	}
 	return map[string]any{"url": resp.Request.URL.String(), "title": untrusted.Cut(title, 300), "text": untrusted.Cut(text, maxPageText),
 		"truncated": len(text) > maxPageText}, nil
+}
+
+// journalRead writes a read of the web to the journal of the gateway with what it read, done or rejected.
+func (s *Service) journalRead(ctx context.Context, act registry.Actor, name string, read map[string]any, err error) {
+	outcome, text := "done", ""
+	if err != nil {
+		outcome, text = "rejected", err.Error()
+	}
+	raw, _ := json.Marshal(read)
+	s.Journal(ctx, act, act.ProjectID, registry.Deck(name), registry.Internal, outcome, string(raw), text)
 }
 
 // skipped are the elements whose content is no text of a page.
@@ -207,9 +229,10 @@ func pageText(r io.Reader) (string, string) {
 	}
 }
 
-// webCommands are the web of deck's agents, whose boxes reach only their rights.
+// webCommands are the web of deck's agents, whose boxes reach only their rights; each writes its line of the journal
+// with the addresses it read.
 func (s *Service) webCommands() []*registry.Command {
-	return []*registry.Command{
+	cs := []*registry.Command{
 		registry.Def("web_search", "Search the web",
 			"Searches the web through the search service of deck's settings and gives titles, addresses and snippets.",
 			registry.Everyone, s.webSearch),
@@ -217,4 +240,8 @@ func (s *Service) webCommands() []*registry.Command {
 			"Reads a web page as text: the words of an HTML page, a text or JSON one as it is; an agent of a project reads only the sites of its domains.read (\"*\" for any).",
 			registry.Everyone, s.webFetch),
 	}
+	for _, c := range cs {
+		c.Gate.Journals = true
+	}
+	return cs
 }

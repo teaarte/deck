@@ -1183,7 +1183,7 @@
   "MCP server %s did not start: %w": "MCP-сервер %s не запустился: %s",
   "gpu: its programs use the graphics card": "видеокарта: его программы используют видеокарту",
   "allowed external: %s": "внешний вызов без вопроса: %s",
-  "read domain: %s": "чтение домена: %s",
+  "reaches and may send data to: %s": "достаёт и может выгружать данные на: %s",
   "act domain: %s": "действия на домене: %s",
   "local network: %s": "локальная сеть: %s",
   "secret: %s": "секрет: %s",

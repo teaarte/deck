@@ -1,6 +1,7 @@
 package feed
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"strings"
@@ -25,6 +26,23 @@ type Button struct {
 	Icon    string `json:"icon,omitempty"`
 	Confirm bool   `json:"confirm,omitempty"`
 	Input   string `json:"input,omitempty"`
+}
+
+// outward is a button not the owner wrote whose command is not internal: deck asks first, under the title of the
+// command, the client showing its params. A patch until Т5 makes such a press the call of its writer.
+func outward(b Button, m *manifest.Manifest, lang string) Button {
+	var c *manifest.Command
+	if m != nil {
+		c = m.Command(b.Command)
+	}
+	if c != nil && c.Class == registry.Internal {
+		return b
+	}
+	b.Confirm = true
+	if c != nil {
+		b.Label = cmp.Or(m.I18n[lang][c.Title], c.Title, c.Name)
+	}
+	return b
 }
 
 type ownerNotifyIn struct {

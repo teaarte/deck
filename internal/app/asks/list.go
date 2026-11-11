@@ -211,7 +211,7 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 	case ask.KindConfirm:
 		if pl, err := ask.Decode[ask.Confirm](q.Payload); err == nil && pl.Tool != "" {
 			r.What, r.Where = pl.Tool, confirmTarget(pl.Input)
-			r.Change = r.Where
+			r.Change = confirmFields(pl.Input)
 		}
 	case ask.KindSignIn:
 		pl, _ := ask.Decode[ask.SignIn](q.Payload)
@@ -307,6 +307,38 @@ func confirmTarget(in map[string]any) string {
 	}
 	b, _ := json.Marshal(in)
 	return untrusted.Cut(string(b), 300)
+}
+
+// leading are the fields of a call that say whom or where it reaches, shown first.
+var leading = []string{"to", "cc", "bcc", "recipient", "recipients", "email", "address", "url", "command", "file_path", "path", "query"}
+
+// confirmFields are the fields of a call a line each: those that say where it reaches first, then the shorter; each
+// value cut on its own, so a long one hides no other.
+func confirmFields(in map[string]any) string {
+	type field struct{ key, value string }
+	fields := make([]field, 0, len(in))
+	for k, v := range in {
+		s, ok := v.(string)
+		if !ok {
+			b, _ := json.Marshal(v)
+			s = string(b)
+		}
+		fields = append(fields, field{k, untrusted.Cut(strings.Join(strings.Fields(s), " "), 200)})
+	}
+	rank := func(k string) int {
+		if i := slices.Index(leading, strings.ToLower(k)); i >= 0 {
+			return i
+		}
+		return len(leading)
+	}
+	slices.SortFunc(fields, func(a, b field) int {
+		return cmp.Or(rank(a.key)-rank(b.key), len(a.value)-len(b.value), strings.Compare(a.key, b.key))
+	})
+	lines := make([]string, len(fields))
+	for i, f := range fields {
+		lines[i] = f.key + ": " + f.value
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (s *Service) listCommands() []*registry.Command {

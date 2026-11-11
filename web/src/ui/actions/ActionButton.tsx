@@ -16,12 +16,21 @@ export function ActionButton({ act, params, inMenu, quiet }: { act: Action; para
   const { busy, label, send, error, clear } = usePress(act);
   const [typing, setTyping] = useState(false);
   const [asking, setAsking] = useState(false);
+  // typed is what the owner typed for a button that also asks first, kept until the yes.
+  const [typed, setTyped] = useState<Record<string, unknown>>();
   const variant = inMenu ? 'subtle' : act.primary ? (quiet ? 'light' : 'filled') : 'default';
   if (act.input && !params) {
+    const confirm = act.confirm && typed && (
+      <ConfirmModal opened={asking} label={label} params={{ ...act.params, ...typed }} onCancel={() => setAsking(false)}
+        onConfirm={() => { setAsking(false); void send(typed).then((r) => { if (r && !r.error) setTyping(false); }); }} />
+    );
     if (typing) {
       return (
         <Failed error={error} onClose={clear}>
-          <div><ActionInput act={act} busy={busy} onCancel={() => setTyping(false)} onSend={(text) => void send({ [act.input!]: text }).then((r) => { if (r && !r.error) setTyping(false); })} /></div>
+          <div><ActionInput act={act} busy={busy} onCancel={() => setTyping(false)} onSend={(text) => {
+            if (act.confirm) { setTyped({ [act.input!]: text }); setAsking(true); return; }
+            void send({ [act.input!]: text }).then((r) => { if (r && !r.error) setTyping(false); });
+          }} />{confirm}</div>
         </Failed>
       );
     }

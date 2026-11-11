@@ -194,6 +194,7 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 		return nil, err
 	}
 	langs := map[int64]map[string]string{}
+	mans := map[int64]*manifest.Manifest{}
 	out := make([]feedView, 0, len(rows))
 	for _, f := range rows {
 		ws, ok := langs[f.ProcessID.Int64]
@@ -237,6 +238,16 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 			if f.Author == "deck" && registry.IsBuiltin(b.Command) {
 				r.Buttons[i].Label = manifest.TrText(ws, b.Label)
 				continue
+			}
+			if f.Author != registry.Owner {
+				m, ok := mans[f.ProjectID]
+				if !ok {
+					if p, err := s.St.Q.GetProject(ctx, f.ProjectID); err == nil {
+						m, _ = docs.Manifest(ctx, s.St.Q, p)
+					}
+					mans[f.ProjectID] = m
+				}
+				r.Buttons[i] = outward(r.Buttons[i], m, s.Reads(ctx, act.Workspace, f.ProcessID.Int64))
 			}
 			r.Buttons[i].Command = r.Project + "." + b.Command
 		}

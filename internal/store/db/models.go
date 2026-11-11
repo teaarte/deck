@@ -79,6 +79,7 @@ type ChatTopic struct {
 	CreatedAt   string
 	UpdatedAt   string
 	Model       string
+	Lang        string
 }
 
 type Connection struct {

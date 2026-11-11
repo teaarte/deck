@@ -25,6 +25,8 @@ With document_save you may write artifacts and the memory of this project (memor
 The data folder of this project keeps indexes, caches and state between runs: {{.Data}}
 {{with .Folder}}
 You work in the project folder {{.}}: the owner's own folder, not a scratch copy. No other agent of deck works in it while you do.
+{{end}}{{with .Language}}
+Write what the owner reads — replies, notes, questions, results, the reason of a request — in {{.}}, the language deck gives, even when the task is written in another; names and terms stay as they are.
 {{end}}{{with .Memory}}
 {{.}}
 {{end}}{{with .Lessons}}

@@ -340,6 +340,8 @@ func TestABaseWithTheTriggersOfTheFeedJoinsItsNotesInDeck(t *testing.T) {
 	e.Must("deck.owner_notify", map[string]any{"project": "films", "text": "Groq does not answer; move films to nemotron", "cause": "provider:groq"}, &first)
 	// A base an older deck left, before the notes joined in deck.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 75`)
+	// Nor had its topics a language.
+	e.SQL(`ALTER TABLE chat_topic DROP COLUMN lang`)
 	// Its trigger joined deck's same unread note.
 	e.SQL(`CREATE TRIGGER feed_repeat BEFORE INSERT ON feed
 WHEN NEW.author = 'deck' AND NEW.kind = 'note' AND NEW.for_master = 0 AND EXISTS (SELECT 1 FROM feed f

@@ -45,9 +45,6 @@ func (s *Service) Memory(ctx context.Context, p db.Process, again bool) (memory,
 	return memory, out[1], nil
 }
 
-// languages name the languages of the interface for an agent; auto names none.
-var languages = map[string]string{"en": "English", "ru": "Russian"}
-
 // masterMemory is the memory an agent of the master gets with the lessons of its command, and a sign that changes
 // when the memory does.
 func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64, less *part, count bool) (memory, lessons, sign string, err error) {
@@ -55,8 +52,8 @@ func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64, 
 	if err != nil {
 		return "", "", "", err
 	}
-	v := struct{ Own, Project, Language string }{Language: languages[s.Language(ctx, mp.WorkspaceID)]}
-	sign = fmt.Sprint(rev) + v.Language
+	var v struct{ Own, Project string }
+	sign = fmt.Sprint(rev)
 	var idx *part
 	if cp, ok := s.topicProject(ctx, topic); ok && cp.ID != mp.ID {
 		var crev int64

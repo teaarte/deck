@@ -132,6 +132,7 @@ func (s *Service) asksOf(ctx context.Context, act registry.Actor, id, project in
 	out := []pressAsk{}
 	for _, q := range open {
 		if q.Kind == ask.KindCall && q.ProjectID.Int64 == project && (q.ProcessID.Int64 == id || slices.Contains(named, q.ID)) {
+			lang := s.langOf(ctx, act.Workspace, q.ProcessID.Int64, lang)
 			r := s.askRow(ctx, q, names, lang)
 			r.Who = manifest.TrText(words.In(lang), r.Who)
 			out = append(out, pressAsk{askView: r, Allow: answer(q.ID, "allow"), Deny: answer(q.ID, "deny")})

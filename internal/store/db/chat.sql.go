@@ -157,7 +157,7 @@ func (q *Queries) CountMessagesAfter(ctx context.Context, arg CountMessagesAfter
 }
 
 const createTopic = `-- name: CreateTopic :one
-INSERT INTO chat_topic (workspace_id, title) VALUES (?, ?) RETURNING id, workspace_id, title, archived, deleted_at, created_at, updated_at, model
+INSERT INTO chat_topic (workspace_id, title) VALUES (?, ?) RETURNING id, workspace_id, title, archived, deleted_at, created_at, updated_at, model, lang
 `
 
 type CreateTopicParams struct {
@@ -177,6 +177,7 @@ func (q *Queries) CreateTopic(ctx context.Context, arg CreateTopicParams) (ChatT
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Model,
+		&i.Lang,
 	)
 	return i, err
 }
@@ -312,7 +313,7 @@ func (q *Queries) GetMessage(ctx context.Context, id int64) (ChatMessage, error)
 }
 
 const getTopic = `-- name: GetTopic :one
-SELECT id, workspace_id, title, archived, deleted_at, created_at, updated_at, model FROM chat_topic WHERE id = ? AND deleted_at IS NULL
+SELECT id, workspace_id, title, archived, deleted_at, created_at, updated_at, model, lang FROM chat_topic WHERE id = ? AND deleted_at IS NULL
 `
 
 func (q *Queries) GetTopic(ctx context.Context, id int64) (ChatTopic, error) {
@@ -327,6 +328,7 @@ func (q *Queries) GetTopic(ctx context.Context, id int64) (ChatTopic, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Model,
+		&i.Lang,
 	)
 	return i, err
 }
@@ -933,6 +935,23 @@ UPDATE project SET builtin = 1 WHERE id = ?
 func (q *Queries) SetProjectBuiltin(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, setProjectBuiltin, id)
 	return err
+}
+
+const setTopicLang = `-- name: SetTopicLang :execrows
+UPDATE chat_topic SET lang = ? WHERE id = ? AND deleted_at IS NULL
+`
+
+type SetTopicLangParams struct {
+	Lang string
+	ID   int64
+}
+
+func (q *Queries) SetTopicLang(ctx context.Context, arg SetTopicLangParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setTopicLang, arg.Lang, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setTopicModel = `-- name: SetTopicModel :exec

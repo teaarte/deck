@@ -20,6 +20,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
+	"deck2/internal/words"
 	"deck2/master"
 )
 
@@ -268,7 +269,8 @@ func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.C
 		Revision, After, Grown int64
 		Notes                  string
 		Projects, Open         string
-	}{Topic: t.ID, Summary: summaryName(t.ID)}
+		Language               string
+	}{Topic: t.ID, Summary: summaryName(t.ID), Language: words.Name(s.Lang(ctx, t.WorkspaceID, t.ID))}
 	if notes != "" {
 		v.Notes = untrusted.Block("notes", notes)
 	}

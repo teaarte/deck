@@ -137,7 +137,8 @@ type pushSource struct {
 
 // pushSources are what waits for the owner and the notes of the feed, pushed while no client is open, in the words
 // say, only the module each is of when hidden.
-func (s *Service) pushSources(say map[string]string, hidden bool) []pushSource {
+func (s *Service) pushSources(hidden bool) []pushSource {
+	sayOf := func(ctx context.Context, ws, process int64) map[string]string { return words.In(s.Lang(ctx, ws, process)) }
 	id := func(str string) int64 { n, _ := strconv.ParseInt(str, 10, 64); return n }
 	return []pushSource{
 		{"ask", func(ctx context.Context, ws int64) string { n, _ := s.St.Q.MaxAskID(ctx, ws); return fmt.Sprint(n) },
@@ -145,6 +146,7 @@ func (s *Service) pushSources(say map[string]string, hidden bool) []pushSource {
 				asks, _ := s.St.Q.ListAsksAfter(ctx, db.ListAsksAfterParams{WorkspaceID: ws, ID: id(cursor)})
 				var items []pushItem
 				for _, q := range asks {
+					say := sayOf(ctx, ws, q.ProcessID.Int64)
 					items = append(items, pushItem{s.pushText(ctx, say, hidden, q.ProjectID.Int64, tr(say, "Waiting for you"), strings.SplitN(q.Text, "\n", 2)[0], "/"+ask.Link(q.ID)),
 						fmt.Sprint(q.ID)})
 				}
@@ -168,7 +170,7 @@ func (s *Service) pushSources(say map[string]string, hidden bool) []pushSource {
 					if n.Screen != "" && n.RecordID.Valid {
 						url += fmt.Sprintf("/%d", n.RecordID.Int64)
 					}
-					items = append(items, pushItem{s.pushText(ctx, say, hidden, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
+					items = append(items, pushItem{s.pushText(ctx, sayOf(ctx, ws, n.ProcessID.Int64), hidden, n.ProjectID, row.ProjectName, n.Text, url), fmt.Sprint(n.ID)})
 				}
 				return items
 			}},
@@ -203,10 +205,10 @@ func (s *Service) PushNew(ctx context.Context, workspace int64) {
 		}
 		return n
 	})
-	say, hidden := words.In(s.Lang(ctx, workspace)), s.Hidden(ctx, workspace)
+	hidden := s.Hidden(ctx, workspace)
 	for _, sub := range subs {
 	sources:
-		for _, src := range s.pushSources(say, hidden) {
+		for _, src := range s.pushSources(hidden) {
 			name := fmt.Sprintf("feed:push:%d:%s", sub.ID, src.key)
 			cursor, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: name})
 			if err != nil {

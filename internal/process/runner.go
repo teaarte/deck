@@ -186,6 +186,8 @@ type Deps struct {
 	// Memory is the memory a fresh session of the process gets, as data: the indexes and the lessons of its command
 	// in the memory of its project; empty when there are none. again is the same turn asking anew, its reads counted.
 	Memory func(ctx context.Context, p db.Process, again bool) (memory, lessons string, err error)
+	// Lang is the language the owner reads what a process says in, as a code; "" when deck does not know it.
+	Lang func(ctx context.Context, workspace, process int64) string
 	// Programs looks for the programs of the scripts of a project again and writes the health of its commands.
 	Programs func(ctx context.Context, projectID int64) error
 }

@@ -13,6 +13,9 @@ UPDATE chat_topic SET updated_at = sqlc.arg(now), archived = 0 WHERE id = sqlc.a
 -- name: SetTopicModel :exec
 UPDATE chat_topic SET model = ? WHERE id = ? AND deleted_at IS NULL;
 
+-- name: SetTopicLang :execrows
+UPDATE chat_topic SET lang = ? WHERE id = ? AND deleted_at IS NULL;
+
 -- name: ArchiveTopic :execrows
 UPDATE chat_topic SET archived = ? WHERE id = ? AND deleted_at IS NULL;
 

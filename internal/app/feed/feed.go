@@ -35,9 +35,10 @@ type Service struct {
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	// Waiting are how many things wait for the owner, by project, as the menu counts them.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
-	// Hidden says the owner's pushes show only the module they are of; Lang is the language the owner picked.
+	// Hidden says the owner's pushes show only the module they are of; Lang is the language the owner reads what a
+	// process says in, that of its topic or of the settings.
 	Hidden func(ctx context.Context, workspace int64) bool
-	Lang   func(ctx context.Context, workspace int64) string
+	Lang   func(ctx context.Context, workspace, process int64) string
 	// Tailnet is the https address of deck on the owner's tailnet, empty while it is not on one.
 	Tailnet atomic.Pointer[string]
 
@@ -191,9 +192,14 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 	if err != nil {
 		return nil, err
 	}
-	ws := words.In(registry.Lang(ctx))
+	langs := map[int64]map[string]string{}
 	out := make([]feedView, 0, len(rows))
 	for _, f := range rows {
+		ws, ok := langs[f.ProcessID.Int64]
+		if !ok {
+			ws = words.In(s.Lang(ctx, act.Workspace, f.ProcessID.Int64))
+			langs[f.ProcessID.Int64] = ws
+		}
 		r := feedView{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: deckText(ws, f.Kind, f.Author, f.Text), Screen: f.Screen,
 			Record: f.RecordID.Int64, Buttons: []Button{}, CanUndo: f.Command != "" && !f.UndoneAt.Valid, Undone: f.UndoneAt.Valid,
 			Read: f.ReadAt.Valid, CanRead: f.Kind == store.FeedNote && !f.ReadAt.Valid, CreatedAt: f.CreatedAt, Repeats: f.Repeats}

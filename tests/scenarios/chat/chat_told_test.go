@@ -46,7 +46,7 @@ func TestAWorkFromATopicTellsTheTopicHowItEnded(t *testing.T) {
 	topic := e.Say(0, "count the records")
 	done := e.Told(topic, "done", "ru")
 	for _, c := range e.Fake.Calls()[:2] {
-		if !strings.Contains(c.Prompt, "The owner reads deck in Russian") {
+		if !strings.Contains(c.Prompt, "in Russian, the language deck gives") {
 			t.Fatalf("the reply and the work it handed over are told the owner's language:\n%s", c.Prompt)
 		}
 	}

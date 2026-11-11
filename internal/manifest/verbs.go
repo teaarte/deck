@@ -28,6 +28,15 @@ var verbs = map[string]button{
 	"revert": {"Back to this", "history"}, "save": {"Save", "device-floppy"}, "use": {"Use", "check"},
 }
 
+// Verb is the label of a built-in button in ws and its icon; empty for a name that is no verb.
+func Verb(ws map[string]string, name string) (label, icon string) {
+	vb, ok := verbs[name]
+	if !ok {
+		return "", ""
+	}
+	return Tr(ws, vb.Label), vb.Icon
+}
+
 // IsVerb says deck has a built-in button of this name.
 func IsVerb(name string) bool { _, ok := verbs[name]; return ok }
 

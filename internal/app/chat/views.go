@@ -336,7 +336,8 @@ func (s *Service) chat(ctx context.Context, act registry.Actor, in chatGetIn) (c
 		if err != nil {
 			return v, err
 		}
-		v.Messages = s.messages(ctx, t.ID, rows, words.In(registry.Lang(ctx)), tr)
+		lang := s.Lang(ctx, act.Workspace, t.ID)
+		v.Messages = s.messages(ctx, t.ID, rows, words.In(lang), s.words(lang))
 	}
 	if len(v.Messages) == 0 {
 		v.Suggest = s.suggest(ctx, act.Workspace, in.Project, registry.Lang(ctx))
@@ -409,6 +410,8 @@ func (s *Service) chatTurn(ctx context.Context, act registry.Actor, in chatGetIn
 	if err != nil || t == nil {
 		return v, err
 	}
+	lang := s.Lang(ctx, act.Workspace, t.ID)
+	tr = s.words(lang)
 	v.Running, v.Recent = s.running(ctx, act.Workspace, t.ID, tr)
 	if t.Reply == nil {
 		return v, nil
@@ -424,7 +427,7 @@ func (s *Service) chatTurn(ctx context.Context, act registry.Actor, in chatGetIn
 	for _, c := range v.Turn.Processes {
 		turn = append(turn, c.ID)
 	}
-	if v.Asks, err = s.Decisions(ctx, act, turn, registry.Lang(ctx)); err != nil {
+	if v.Asks, err = s.Decisions(ctx, act, turn, lang); err != nil {
 		return v, err
 	}
 	asks, err := s.St.Q.ListOpenAsksOfProcess(ctx, open.Process)

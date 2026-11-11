@@ -248,7 +248,7 @@ func TestTheMarksOfAnOlderDeckBeginWithTheirDomain(t *testing.T) {
 		"incident:7.running": "processes:incident:7.running", "manifest_problems:1": "project:manifest_problems:1",
 		"widened:1": "project:widened:1", "push:2:ask": "feed:push:2:ask"}
 	// The marks under the names of an older deck, and the base before the update.
-	for _, q := range []string{`INSERT INTO project (workspace_id, name) VALUES (1, 'alpha')`, `DELETE FROM goose_db_version WHERE version_id >= 76`} {
+	for _, q := range []string{`INSERT INTO project (workspace_id, name) VALUES (1, 'alpha')`, `DELETE FROM goose_db_version WHERE version_id >= 76`, `ALTER TABLE chat_topic DROP COLUMN lang`} {
 		if _, err := st.DB.Exec(q); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}

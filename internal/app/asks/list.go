@@ -82,13 +82,14 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 	}
 	all := append(open, expired...)
 	slices.SortFunc(all, func(x, y db.Ask) int { return cmp.Compare(x.ID, y.ID) })
-	ws := words.In(lang)
-	tr := func(text string) string { return manifest.TrText(ws, text) }
 	out := make([]askView, 0, len(all))
 	for _, q := range all {
 		if !keep(q) {
 			continue
 		}
+		lang := s.langOf(ctx, act.Workspace, q.ProcessID.Int64, lang)
+		ws := words.In(lang)
+		tr := func(text string) string { return manifest.TrText(ws, text) }
 		r := s.askRow(ctx, q, names, lang)
 		r.Who, r.Always = tr(r.Who), tr(r.Always)
 		switch {
@@ -108,9 +109,26 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 			r.Allow = tr(fmt.Sprintf("Allow: %s", r.What))
 		}
 		r.Actions = buttons(r)
+		for _, a := range r.Actions {
+			// The buttons of an ask speak its language, not the reader's.
+			if label, icon := manifest.Verb(ws, fmt.Sprint(a["verb"])); label != "" && a["label"] == nil {
+				a["label"] = label
+				if a["icon"] == nil {
+					a["icon"] = icon
+				}
+			}
+		}
 		out = append(out, r)
 	}
 	return out, nil
+}
+
+// langOf is the language an ask of a process reads in: that of the topic it came from, else lang.
+func (s *Service) langOf(ctx context.Context, workspace, process int64, lang string) string {
+	if process == 0 {
+		return lang
+	}
+	return s.Lang(registry.WithLang(ctx, lang), workspace, process)
 }
 
 // Waiting are how many things wait for the owner, as asks_list gives them, by project, deck's own under "".

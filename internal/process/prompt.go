@@ -11,6 +11,7 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
+	"deck2/internal/words"
 	"deck2/master"
 )
 
@@ -41,6 +42,7 @@ type commandText struct {
 	Writes, Data, Folder, Memory   string
 	Lessons                        string
 	Thread, StartNote              string
+	Language                       string
 }
 
 // commandPrompt mentions only the tools the provider session really has.
@@ -79,5 +81,6 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 		return "", err
 	}
 	v.Thread = r.thread(ctx, proc)
+	v.Language = words.Name(r.deps.Lang(ctx, proj.WorkspaceID, proc.ID))
 	return master.Text("command", v), nil
 }

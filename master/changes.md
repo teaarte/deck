@@ -302,3 +302,9 @@ and bring the modules in line.
   path deck names with the message, in an input folder the turn reads and does not write; the paths named in earlier
   turns of the same session and in the process a turn continues stay readable. A turn on a node gets them as a turn
   starts there: files given while it runs, or with an answer to its question, come with its next turn.
+- 2026-11-11: one language rule. A chat topic has a language (`lang`): the master's reply marks the one the owner's
+  latest message is written in with `deck.chat_topic_lang_set` when it differs from the one deck gives, and the last
+  message decides. What comes of a topic — the reply, works and commands started from it, their requests and
+  questions, deck's words of its work in the chat, the feed and pushes of those processes — is in its language; without
+  a topic, in the language of the settings. Every agent's prompt says the language deck gives; prompts and skills keep
+  no languages of their own.

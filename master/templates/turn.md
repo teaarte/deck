@@ -8,7 +8,8 @@
 {{else if .Missed}}deck: these messages of the topic came after your last turn; another provider may have answered them.
 {{.Missed}}
 
-{{end}}{{if gt (len .Pending) 1}}The owner's {{len .Pending}} new messages in chat topic {{.Topic}}, oldest first:
+{{end}}{{if .Language}}deck gives this topic the language {{.Language}}: reply in it. When the owner's latest message is written in another language, first mark that one with `deck.chat_topic_lang_set` and reply in it; what comes of the topic follows.{{else}}deck knows no language of this topic yet: mark the one the owner's latest message is written in with `deck.chat_topic_lang_set` and reply in it.{{end}}
+{{if gt (len .Pending) 1}}The owner's {{len .Pending}} new messages in chat topic {{.Topic}}, oldest first:
 {{else}}The owner's new message in chat topic {{.Topic}}:
 {{end}}{{range .Pending}}{{if .Where}}(written on {{.Where}})
 {{end}}{{.Text}}

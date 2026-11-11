@@ -61,7 +61,12 @@ func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang 
 		}
 		if i >= 0 {
 			v.Ask, v.Question = asks[i].ID, asks[i].Text
-			question = untrusted.Cut(asks[i].Text, 200)
+			if k := asks[i].Kind; k == ask.KindCall || k == ask.KindGrant || k == ask.KindUnknown {
+				// A request is said by its why; what it changes is on the request.
+				why, _ := ask.Decode[struct{ Reason string }](asks[i].Payload)
+				v.Question = why.Reason
+			}
+			question = untrusted.Cut(v.Question, 200)
 		}
 		if t, err := s.St.Q.TopicOfProcess(ctx, p.ID); err == nil {
 			v.Topic = t.Title

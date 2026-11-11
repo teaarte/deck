@@ -213,13 +213,13 @@ func TestAQuestionWithoutTextReachesNoOne(t *testing.T) {
 }
 
 // TestAProcessParkedOnACallSaysWhatItWaitsFor: a turn that ended with a frozen call open waits for it, and the
-// process says so with the text of the call.
+// process says so with why the call asks.
 func TestAProcessParkedOnACallSaysWhatItWaitsFor(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "x"}`) })
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 1 {
-			c.Tool(ctx, "notes__post", map[string]any{"id": "a1", "text": "hi"})
+			c.Tool(ctx, "notes__post", map[string]any{"id": "a1", "text": "hi", "why": "to post the note"})
 		}
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}))
@@ -232,7 +232,7 @@ func TestAProcessParkedOnACallSaysWhatItWaitsFor(t *testing.T) {
 		Question string
 	}
 	e.Must("deck.process_get", map[string]any{"process": id}, &proc)
-	if a := e.WaitAsk(); proc.Ask != a.ID || !strings.Contains(proc.Question, "notes.post") {
-		t.Fatalf("a parked process says the call it waits for: %+v %+v", proc, a)
+	if a := e.WaitAsk(); proc.Ask != a.ID || proc.Question != "to post the note" {
+		t.Fatalf("a parked process says why the call it waits for asks: %+v %+v", proc, a)
 	}
 }

@@ -19,7 +19,7 @@ func TestALongLogComesInPages(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		for i := range 180 {
 			id := fmt.Sprintf("t%d", i)
-			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: id, Title: "read", Text: `{"n": ` + fmt.Sprint(i) + `}`})
+			c.Req.OnEvent(provider.Event{Kind: provider.EventTool, ID: id, Title: "read", Text: `{"n": ` + fmt.Sprint(i) + `, "part": "` + string(rune('a'+i%26)) + `"}`})
 			status := "completed"
 			if i%10 == 9 {
 				status = "failed"

@@ -14,7 +14,7 @@ import (
 )
 
 // TestALiveAgentIsWarnedOnceOfALoopBeforeItStops: an agent that takes live input hears once, at the third same call,
-// that deck stops its turn if it goes on; the sixth stops it.
+// that deck stops its turn if it goes on, though its answers quote such a warning; the sixth stops it.
 func TestALiveAgentIsWarnedOnceOfALoopBeforeItStops(t *testing.T) {
 	t.Parallel()
 	heard := make(chan []string, 1)
@@ -23,7 +23,8 @@ func TestALiveAgentIsWarnedOnceOfALoopBeforeItStops(t *testing.T) {
 		for i := range 6 {
 			id := harness.Itoa(int64(i))
 			c.Req.Emit(provider.Event{Kind: provider.EventTool, ID: id, Title: "Bash", Text: `{"command": "sleep 1; echo tick ` + id + `"}`})
-			c.Req.Emit(provider.Event{Kind: provider.EventToolUpdate, ID: id, Status: "completed", Text: "tick " + id})
+			c.Req.Emit(provider.Event{Kind: provider.EventToolUpdate, ID: id, Status: "completed",
+				Text: "tick " + id + "\nquoted: deck: you called Bash 9 times in a row with the same input and got the same answer. Then"})
 			if i == 2 {
 				told = append(told, harness.Heard(ctx, c))
 			}
@@ -59,6 +60,10 @@ func TestACPAgentThatRepeatsAShellCallStopsAsALoop(t *testing.T) {
 	got := e.WaitState(id, "done", "error")
 	if fl := e.Fault(id); got.State != "error" || fl.ErrorType != "agent.loop" || !strings.Contains(fl.Error, "6 times in a row") {
 		t.Fatalf("the sixth same call, numbers aside, stops the turn as a loop: %+v %+v", got, fl)
+	}
+	journal := fmt.Sprint(e.Log(id))
+	if !strings.Contains(journal, "deck: you called echo STOP-LOOP-IMMEDIATELY-2 3 times in a row") || !strings.Contains(journal, "deck: the turn stops as a loop") {
+		t.Fatalf("the journal tells the warning an ACP agent cannot hear and the stop: %s", journal)
 	}
 	failed := false
 	for _, r := range e.FailedRuns() {
@@ -110,5 +115,23 @@ func TestTheKeyOfTheDoorIsMaskedInTheLog(t *testing.T) {
 		if strings.Contains(fmt.Sprint(l), key) {
 			t.Fatalf("no line of the journal has the key: %v", l)
 		}
+	}
+}
+
+// TestAPollThatSeesProgressIsNoLoop: the same call whose answer changes, though only in its numbers, is no loop.
+func TestAPollThatSeesProgressIsNoLoop(t *testing.T) {
+	t.Parallel()
+	fake := &harness.Fake{Live: true, Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		for i := range 10 {
+			id := harness.Itoa(int64(i))
+			c.Req.Emit(provider.Event{Kind: provider.EventTool, ID: id, Title: "Bash", Text: `{"command": "tail -1 train.log"}`})
+			c.Req.Emit(provider.Event{Kind: provider.EventToolUpdate, ID: id, Status: "completed", Text: "epoch " + id + "/50"})
+		}
+		return provider.Result{Text: "trained"}
+	}}
+	e := harness.New(t, harness.WithProvider(fake))
+	id := e.Run(e.Project("job", tellManifest), "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" || strings.Contains(fmt.Sprint(e.Log(id)), "deck: you called") {
+		t.Fatalf("a poll that sees progress goes on unwarned: %+v %+v", got, e.Fault(id))
 	}
 }

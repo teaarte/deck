@@ -23,18 +23,40 @@ const (
 	// quietLocal for a model on the owner's hardware, which may load first.
 	quietAfter = 5 * time.Minute
 	quietLocal = 15 * time.Minute
-	// loopWarn is how many calls of a tool in a row with the same input and answer, numbers aside, get the agent a
-	// warning; loopAfter how many are a loop.
+	// loopWarn is how many same calls of a tool in a row (sameCall) get the agent a warning; loopAfter how many are a
+	// loop.
 	loopWarn  = 3
 	loopAfter = 6
 )
 
-// loopWarning is what deck tells an agent that took live input when it repeats a call.
+// loopWarning is what deck tells an agent when it repeats a call; an ACP agent takes no live input, so only the
+// journal has it.
 const loopWarning = "deck: you called %s %d times in a row with the same input and got the same answer. Change what you do " +
 	"or end your turn; if you go on, deck stops your turn as a loop."
 
 // digits are the numbers a loop of calls may change, such as a counter in a command.
 var digits = regexp.MustCompile(`[0-9]+`)
+
+// sameCall says a call and its answer repeat the one before: the same input and answer, or an input that differs
+// only in numbers and an answer that differs only in the numbers of the input.
+func sameCall(call, answer, lastCall, lastAnswer string) bool {
+	if call == lastCall {
+		return answer == lastAnswer
+	}
+	return digits.ReplaceAllString(call, "#") == digits.ReplaceAllString(lastCall, "#") &&
+		echoed(answer, call) == echoed(lastAnswer, lastCall)
+}
+
+// echoed is answer with the numbers of call in it as #.
+func echoed(answer, call string) string {
+	of := digits.FindAllString(call, -1)
+	return digits.ReplaceAllStringFunc(answer, func(n string) string {
+		if slices.Contains(of, n) {
+			return "#"
+		}
+		return n
+	})
+}
 
 // watch is what deck sees of a provider call of a running turn: when it began, whether its model gave a sign, the
 // tool calls under way and the last one done.
@@ -45,6 +67,7 @@ type watch struct {
 	heard     bool
 	open      map[string]string
 	last      string
+	answer    string
 	title     string
 	same      int
 	warned    bool
@@ -76,17 +99,17 @@ func (r *Runner) watchCall(processID, workspace int64, pv provider.Provider) (st
 	}
 }
 
-// sign notes an event of the model of a running turn; the same call of a tool with the same answer, numbers aside,
-// warns the agent at loopWarn calls in a row and takes the turn from the model at loopAfter.
-func (r *Runner) sign(processID int64, e provider.Event) {
+// sign notes an event of the model of a running turn; the same call of a tool warns the agent at loopWarn calls in a
+// row and takes the turn from the model at loopAfter. It gives what deck said of it for the journal.
+func (r *Runner) sign(processID int64, e provider.Event) (said string) {
 	if e.Kind == provider.EventStderr || e.Kind == provider.EventRateLimit {
-		return
+		return ""
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	lt := r.live[processID]
 	if lt == nil || lt.watch == nil {
-		return
+		return ""
 	}
 	w := lt.watch
 	w.heard = true
@@ -96,30 +119,38 @@ func (r *Runner) sign(processID int64, e provider.Event) {
 	case provider.EventToolUpdate:
 		call, ok := w.open[e.ID]
 		if !ok {
-			return
+			return ""
 		}
 		delete(w.open, e.ID)
 		answer, warned := gateway.Unwarned(e.Text)
 		if strings.TrimSpace(answer) == "" {
 			// An empty answer, such as that of an edit, tells nothing of what the agent got back.
 			w.last, w.same = "", 0
-			return
+			return ""
 		}
-		done := call + "\x00" + e.Status + "\x00" + answer
-		if key := digits.ReplaceAllString(done, "#"); key != w.last {
-			w.last, w.title, w.same, w.warned = key, strings.SplitN(call, "\x00", 2)[0], 0, false
+		call += "\x00" + e.Status
+		if !sameCall(call, answer, w.last, w.answer) {
+			w.same, w.warned = 0, false
 		}
+		w.last, w.answer, w.title = call, answer, strings.SplitN(call, "\x00", 2)[0]
 		w.warned = w.warned || warned
 		w.same++
 		switch {
 		case w.same >= loopAfter:
-			lt.cancel(&leaving{f: fault.With(fault.AgentLoop, fmt.Sprintf("%s called %s %d times in a row with the same input and got the same answer",
-				w.pv.Name(), w.title, w.same), untrusted.Cut(strings.ReplaceAll(done, "\x00", "\n"), 2000))})
-		case w.same >= loopWarn && !w.warned && lt.input != nil:
+			f := fault.With(fault.AgentLoop, fmt.Sprintf("%s called %s %d times in a row with the same input and got the same answer",
+				w.pv.Name(), w.title, w.same), untrusted.Cut(strings.ReplaceAll(call+"\x00"+answer, "\x00", "\n"), 2000))
+			lt.cancel(&leaving{f: f})
+			return "deck: the turn stops as a loop: " + f.Text
+		case w.same >= loopWarn && !w.warned:
 			w.warned = true
-			go tell(lt.input, fmt.Sprintf(loopWarning, w.title, w.same))
+			text := fmt.Sprintf(loopWarning, w.title, w.same)
+			if lt.input != nil {
+				go tell(lt.input, text)
+			}
+			return text
 		}
 	}
+	return ""
 }
 
 // tell hands deck's message to a turn that takes live input, unless it does not take it soon.

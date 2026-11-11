@@ -106,8 +106,9 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 			r.What, r.Text = tr(r.What), tr(r.Text)
 		case registry.IsBuiltin(r.Command):
 			// A call of several, as assignments, says each on its line.
-			r.Where, r.Change = trLines(tr, r.Where), trLines(tr, r.Change)
+			r.Where = trLines(tr, r.Where)
 		}
+		r.Change = trLines(tr, r.Change)
 		if slices.Contains([]string{ask.KindCall, ask.KindConfirm, ask.KindGrant}, q.Kind) && r.What != "" {
 			r.Allow = tr(fmt.Sprintf("Allow: %s", r.What))
 		}
@@ -184,6 +185,9 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 				r.Where = c.Gate.Target(f.Tool, f.Call.Input)
 			}
 			r.Change = r.Where
+			if r.Change == "" && r.Project != "" {
+				r.Change = fmt.Sprintf("Runs %s of %s", r.What, r.Project)
+			}
 			if c.Gate.Changes != nil {
 				r.Change = strings.Join(c.Gate.Changes(f.Tool, f.Call.Input), "\n")
 			}

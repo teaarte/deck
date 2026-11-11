@@ -1,6 +1,7 @@
 package project
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -37,6 +38,11 @@ func (s *Service) widens(ctx context.Context, q *db.Queries, act registry.Actor,
 // ask holds a change that widens rights until the owner allows it: the manifest proposed on top of the current
 // revision, which the owner's yes merges into the manifest as it is then; a revert applies only to its revision.
 func (s *Service) ask(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, cur db.Document, revertTo int64, widens []string, reason string, proposed []byte) (Saved, error) {
+	reason = cmp.Or(reason, act.Why)
+	if reason == "" && act.Run == "" && (act.Kind == registry.Master || act.Kind == registry.Agent) {
+		return Saved{}, registry.Invalid("this change widens the rights of %s (%s), which waits for the owner's yes: call it again with %s, "+
+			"one short sentence in the language deck gives of why the module needs it; nothing was saved", p.Name, strings.Join(widens, "; "), registry.WhyKey)
+	}
 	command, input := "manifest_save", map[string]any{"project": p.Name, "manifest": string(proposed), "reason": reason, "if_revision": cur.Current}
 	if revertTo > 0 {
 		own := strings.TrimPrefix(strings.TrimPrefix(reason, docs.RevertReason(revertTo, "")), ": ")

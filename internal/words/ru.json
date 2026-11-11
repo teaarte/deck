@@ -264,6 +264,7 @@
   "Rewrite %s": "Изменить %s",
   "Rewrite %s: %d lines added, %d removed": "Изменить %s: строк добавлено — %d, убрано — %d",
   "Delete %s": "Удалить %s",
+  "Runs %s of %s": "Запуск: %s, модуль %s",
   "%s by your press: %s": "%s по вашему нажатию: %s",
   "deck: this request is out of date: what it would change changed since it was asked for, so deck closed it and told the caller": "deck: запрос устарел — то, что он менял, уже изменилось; deck закрыл его и сообщил тому, кто спрашивал",
   "deck: what this call acts on changed after it was asked for: the tool, or what it would change; deny it, and the caller asks again": "deck: то, на что действует этот вызов, изменилось после запроса; отклоните его, и тот, кто спрашивал, спросит заново",

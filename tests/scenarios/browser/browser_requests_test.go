@@ -13,9 +13,8 @@ import (
 // visibleText is the text of an element a person sees: folded details are not.
 const visibleText = `((sel) => document.querySelector(sel)?.innerText ?? '')`
 
-// TestRealBrowserARequestInWords: a request of four assignments reads on Today and in the chat as what changes, a
-// line a place, and why, in the language of the topic; the call itself only under its details, on a desktop and a
-// phone: DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowserARequestInWords -v.
+// TestRealBrowserARequestInWords: a request of four assignments reads on Today and in the chat, on a desktop and a
+// phone, as what changes and why in the topic's language, the call only under its details.
 func TestRealBrowserARequestInWords(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()

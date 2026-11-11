@@ -51,7 +51,7 @@ func (s screenSources) Command(ctx context.Context, workspace int64, name string
 	_ = json.Unmarshal(c.Input, &in)
 	if props, ok := in["properties"].(map[string]any); ok {
 		for k := range props {
-			if registry.Reserved(k) {
+			if c.Added(k) {
 				delete(props, k)
 			}
 		}
@@ -60,7 +60,7 @@ func (s screenSources) Command(ctx context.Context, workspace int64, name string
 	if c.of != nil {
 		raw = c.of.InputSchema()
 	}
-	order := slices.DeleteFunc(manifest.PropertyOrder(raw), registry.Reserved)
+	order := slices.DeleteFunc(manifest.PropertyOrder(raw), c.Added)
 	out := map[string]any{"name": c.Name, "title": c.Title, "description": c.Description, "input": in, "order": order}
 	if c.project != "" {
 		out["project"] = c.project

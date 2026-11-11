@@ -422,7 +422,7 @@ func assignmentLines(print string, input json.RawMessage) []assignmentLine {
 			where = in.Project
 		}
 		lines[i] = assignmentLine{fmt.Sprintf("%s of %s: %s → %s", in.Role, where, listed(before, "deck's default"), listed(after, "none, the default above it")),
-			!slices.Equal(before, after)}
+			print == "" || !slices.Equal(before, after)}
 	}
 	return lines
 }

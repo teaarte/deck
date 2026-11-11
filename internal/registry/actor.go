@@ -45,6 +45,8 @@ type Actor struct {
 	// Allows are the calls the owner's press names for the run its command starts, as the press gave them; only an
 	// owner's call has them.
 	Allows string
+	// Why is why the call asks, as its input said; the registry takes it out of a command that does not read it.
+	Why string
 	// Key is the retry key of the call of a command of a module, which the registry took out of its input.
 	Key string
 	// CallLimit is how long a tool call of the calling agent may last; zero when it has no such limit.

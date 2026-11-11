@@ -2,6 +2,7 @@ package registry
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -299,10 +300,13 @@ func hasField(in json.RawMessage, name string) bool {
 // WhyOf is why a call asks, as its input says.
 func WhyOf(input json.RawMessage) string {
 	var in struct {
-		Why string `json:"why"`
+		Why json.RawMessage `json:"why"`
 	}
-	_ = json.Unmarshal(input, &in)
-	return strings.TrimSpace(in.Why)
+	var why string
+	if json.Unmarshal(input, &in) == nil && json.Unmarshal(in.Why, &why) != nil {
+		why = string(in.Why)
+	}
+	return strings.TrimSpace(why)
 }
 
 // unasked is an input without the why the registry takes, which no command of its own reads.
@@ -353,9 +357,12 @@ func keyed(h Handler) Handler {
 	}
 }
 
-// Reserved says a field of an input is the registry's own, not of the command: the retry key, the calls a press
-// allows or why a call asks.
-func Reserved(field string) bool { return field == RetryKey || field == AllowsKey || field == WhyKey }
+// Reserved says a field of an input is the registry's own, not of the command: the retry key or the calls a press
+// allows.
+func Reserved(field string) bool { return field == RetryKey || field == AllowsKey }
+
+// Added says a field of the input schema of the command is one the registry added: reserved, or the why it asks.
+func (c *Command) Added(field string) bool { return Reserved(field) || field == WhyKey && c.asked }
 
 // jsonFields are the properties of an input schema of format json.
 func jsonFields(input json.RawMessage) []string {
@@ -447,6 +454,7 @@ const AllowsKey = "allows"
 
 // Invoke checks the caller, validates the input against the command schema and runs the command.
 func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.RawMessage) (any, error) {
+	a.Why = cmp.Or(a.Why, WhyOf(input))
 	signed, input := allows(input)
 	switch {
 	case signed == "":

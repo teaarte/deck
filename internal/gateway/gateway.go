@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -462,6 +463,7 @@ func (s *Session) again(key, answer string) bool {
 // owner's press that named it, or waits for the owner; the journal keeps it with the class of the command.
 func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, args json.RawMessage) (any, error) {
 	why := registry.WhyOf(args)
+	act.Why = cmp.Or(act.Why, why)
 	c, input, err := g.reg.Resolve(ctx, act, name, args)
 	class, project := registry.Internal, act.ProjectID
 	if c != nil {
@@ -487,7 +489,11 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 				}
 				var out any
 				if out, err = g.hold(ctx, act, c, project, input, why); err == nil {
-					g.wrote(ctx, act, c)
+					if _, same := out.(Unchanged); same {
+						g.journal(ctx, act, project, name, class, "unchanged", params, "")
+					} else {
+						g.wrote(ctx, act, c)
+					}
 					return out, nil
 				}
 			}

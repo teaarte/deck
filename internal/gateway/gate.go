@@ -195,7 +195,9 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	if c.Gate.Holds != nil && c.Gate.Holds(ctx, act.Workspace, input) || c.Gate.Changes != nil && len(c.Gate.Changes(print, input)) == 0 {
 		return Unchanged{Unchanged: true, Text: fmt.Sprintf("deck: %s changes nothing, it is so already; no request went to the owner.", c.Name)}, nil
 	}
-	why = cmp.Or(why, reasonOf(input))
+	if registry.IsBuiltin(c.Name) {
+		why = cmp.Or(why, reasonOf(input))
+	}
 	if why == "" && act.Run == "" && (act.Kind == registry.Master || act.Kind == registry.Agent) {
 		return nil, registry.Invalid("%s waits for the owner's yes, and the owner says yes only to what they understand: call it again with %s, "+
 			"one short sentence in the language deck gives of why you need it; nothing was asked or made", c.Name, registry.WhyKey)
@@ -260,7 +262,7 @@ type Unchanged struct {
 	Text      string `json:"text"`
 }
 
-// reasonOf is the reason a command's own input gives, as document_propose does.
+// reasonOf is the reason the input of one of deck's commands gives, as document_propose does.
 func reasonOf(input json.RawMessage) string {
 	var in struct {
 		Reason string `json:"reason"`
@@ -270,21 +272,28 @@ func reasonOf(input json.RawMessage) string {
 }
 
 // replacedBy are the calls of a process waiting for the owner that a new call of the same command sets all the places
-// of; same is an open call of the same command and input, which the new call is.
+// of; same is an open call of the same command, input and tool, which the new call is whatever its why.
 func replacedBy(ctx context.Context, q *db.Queries, c *registry.Command, process int64, f Frozen) (db.Ask, []db.Ask, bool) {
-	if process == 0 || c.Gate.Sets == nil {
+	if process == 0 {
 		return db.Ask{}, nil, false
 	}
 	open, _ := q.ListOpenAsksOfProcess(ctx, process)
-	sets := c.Gate.Sets(f.Call.Input)
+	var sets []string
+	if c.Gate.Sets != nil {
+		sets = c.Gate.Sets(f.Call.Input)
+	}
 	var out []db.Ask
 	for _, o := range open {
 		old, err := ask.Decode[Frozen](o.Payload)
 		if o.Kind != ask.KindCall || o.State != ask.StateOpen || err != nil || old.Call.Command != f.Call.Command {
 			continue
 		}
-		if string(old.Call.Input) == string(f.Call.Input) {
+		// The same call asked again, in other words of why, is the request already open.
+		if string(old.Call.Input) == string(f.Call.Input) && old.Tool == f.Tool {
 			return o, nil, true
+		}
+		if c.Gate.Sets == nil {
+			continue
 		}
 		if was := c.Gate.Sets(old.Call.Input); len(was) > 0 && !slices.ContainsFunc(was, func(s string) bool { return !slices.Contains(sets, s) }) {
 			out = append(out, o)

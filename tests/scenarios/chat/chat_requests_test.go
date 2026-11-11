@@ -2,7 +2,9 @@ package chat
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"testing"
@@ -135,5 +137,63 @@ func TestARequestWithoutWhyIsRefused(t *testing.T) {
 	}
 	if rows := requestsIn(e, "en"); len(rows) != 0 {
 		t.Fatalf("nothing waits for the owner: %+v", rows)
+	}
+}
+
+// The same call asked again in other words of why is the request already open, not a second one.
+func TestTheSameRequestInOtherWordsIsOne(t *testing.T) {
+	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "x"}`) })
+	var mu sync.Mutex
+	var said []string
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		for _, why := range []string{"to post the note", "so the note is out"} {
+			out, _ := c.Tool(ctx, "notes__post", map[string]any{"id": "a1", "text": "hi", "why": why})
+			mu.Lock()
+			said = append(said, out)
+			mu.Unlock()
+		}
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	}))
+	p := e.Project("notes", harness.PostManifest(svc.URL, ""))
+	e.Secret("notes", "svc", "k")
+	e.WaitState(e.Run(p, "work"), "waiting_answer")
+	rows := requestsIn(e, "en")
+	mu.Lock()
+	defer mu.Unlock()
+	if len(said) != 2 || len(rows) != 1 || !strings.Contains(said[1], fmt.Sprintf("(ask %d)", rows[0].ID)) || rows[0].Why != "to post the note" {
+		t.Fatalf("the call asked again is the request open: %q %+v", said, rows)
+	}
+}
+
+// A change of a manifest that widens rights waits for the owner with why, and an agent's one without why is refused.
+func TestAWiderManifestNeedsWhy(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	var said []string
+	wider := strings.Replace(harness.PlainManifest, `"collections": []`, `"collections": [], "writes": ["report.md"]`, 1)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if !strings.Contains(c.Req.Prompt, "widen it") {
+			return provider.Result{Text: "ok"}
+		}
+		bare, bad := c.Bare(ctx, "manifest_save", map[string]any{"project": "notes", "manifest": wider})
+		with, _ := c.Bare(ctx, "manifest_save", map[string]any{"project": "notes", "manifest": wider, "why": "Отчёт пишется в report.md."})
+		mu.Lock()
+		said = append(said, fmt.Sprint(bad, " ", bare), with)
+		mu.Unlock()
+		return provider.Result{Text: "asked"}
+	}))
+	if !strings.Contains(wider, `"writes"`) {
+		t.Fatalf("the wider manifest writes a document: %s", wider)
+	}
+	e.Project("notes", harness.PlainManifest)
+	e.Say(0, "widen it")
+	e.Until("both saves", func() bool { mu.Lock(); defer mu.Unlock(); return len(said) == 2 })
+	if !strings.HasPrefix(said[0], "true ") || !strings.Contains(said[0], "with why") || !strings.Contains(said[0], "nothing was saved") {
+		t.Fatalf("a wider manifest without why is refused: %q", said)
+	}
+	rows := requestsIn(e, "ru")
+	if len(rows) != 1 || rows[0].Why != "Отчёт пишется в report.md." || rows[0].Change == "" {
+		t.Fatalf("one request with its why and what it widens: %+v", rows)
 	}
 }

@@ -366,38 +366,65 @@ func (s *Service) assignmentCommands() []*registry.Command {
 		return out
 	}
 	c.Gate.Target = func(print string, input json.RawMessage) string {
-		list, err := assignmentInput(input)
-		if err != nil {
-			return ""
-		}
-		befores := make([][]string, len(list))
-		if several(input) {
-			_ = json.Unmarshal([]byte(print), &befores)
-		} else {
-			_ = json.Unmarshal([]byte(print), &befores[0])
-		}
-		lines := make([]string, len(list))
-		for i, in := range list {
-			var before []string
-			if i < len(befores) {
-				before = befores[i]
-			}
-			after := slices.Compact(slices.Clone(in.Models))
-			if in.Model != "" {
-				after = picked(in.Model, before)
-			}
-			where := "the workspace"
-			switch {
-			case in.Command != "":
-				where = in.Project + "." + in.Command
-			case in.Project != "":
-				where = in.Project
-			}
-			lines[i] = fmt.Sprintf("%s of %s: %s → %s", in.Role, where, listed(before, "deck's default"), listed(after, "none, the default above it"))
+		var lines []string
+		for _, l := range assignmentLines(print, input) {
+			lines = append(lines, l.text)
 		}
 		return strings.Join(lines, "\n")
 	}
+	c.Gate.Changes = func(print string, input json.RawMessage) []string {
+		var lines []string
+		for _, l := range assignmentLines(print, input) {
+			if l.changes {
+				lines = append(lines, l.text)
+			}
+		}
+		return lines
+	}
 	return []*registry.Command{c}
+}
+
+// assignmentLine is a place an assignment sets as the owner reads it, with its models before and after, and whether
+// they differ.
+type assignmentLine struct {
+	text    string
+	changes bool
+}
+
+// assignmentLines are the places a call of assignment_set sets, with the models in force before as its fingerprint
+// gives them.
+func assignmentLines(print string, input json.RawMessage) []assignmentLine {
+	list, err := assignmentInput(input)
+	if err != nil {
+		return nil
+	}
+	befores := make([][]string, len(list))
+	if several(input) {
+		_ = json.Unmarshal([]byte(print), &befores)
+	} else {
+		_ = json.Unmarshal([]byte(print), &befores[0])
+	}
+	lines := make([]assignmentLine, len(list))
+	for i, in := range list {
+		var before []string
+		if i < len(befores) {
+			before = befores[i]
+		}
+		after := slices.Compact(slices.Clone(in.Models))
+		if in.Model != "" {
+			after = picked(in.Model, before)
+		}
+		where := "the workspace"
+		switch {
+		case in.Command != "":
+			where = in.Project + "." + in.Command
+		case in.Project != "":
+			where = in.Project
+		}
+		lines[i] = assignmentLine{fmt.Sprintf("%s of %s: %s → %s", in.Role, where, listed(before, "deck's default"), listed(after, "none, the default above it")),
+			!slices.Equal(before, after)}
+	}
+	return lines
 }
 
 func assignmentInput(input json.RawMessage) ([]assignmentSetIn, error) {

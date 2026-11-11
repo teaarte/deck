@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"sync"
@@ -27,7 +28,21 @@ type Call struct {
 	Fake    *Fake
 }
 
+// Tool calls a tool as an agent that follows deck's rules: a map of input without why gets one, which deck takes out
+// of a call that does not wait for the owner.
 func (c *Call) Tool(ctx context.Context, name string, args any) (string, bool) {
+	if m, ok := args.(map[string]any); ok && m["why"] == nil {
+		with := map[string]any{"why": "for the test"}
+		maps.Copy(with, m)
+		args = with
+	} else if args == nil {
+		args = map[string]any{"why": "for the test"}
+	}
+	return c.Bare(ctx, name, args)
+}
+
+// Bare calls a tool with its input as it is.
+func (c *Call) Bare(ctx context.Context, name string, args any) (string, bool) {
 	res, err := c.Session.CallTool(ctx, &mcp.CallToolParams{Name: name, Arguments: args})
 	if err != nil {
 		return err.Error(), true

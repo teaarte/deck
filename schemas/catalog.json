@@ -391,7 +391,7 @@
         "suggest": {"type": "array", "description": "of a topic without messages: commands of the module of the owner's screen, as texts to put in the field", "items": {"type": "object", "additionalProperties": false, "required": ["icon", "text"], "properties": {
           "icon": {"type": "string"}, "text": {"type": "string"}}}},
         "asks": {"type": "array", "description": "what the turn going on and the processes it started wait for the owner to decide, its questions apart: items of deck.asks_list with their buttons", "items": {"type": "object", "required": ["id", "kind", "what", "actions"], "properties": {
-          "id": {"type": "integer"}, "kind": {"type": "string"}, "project": {"type": "string"}, "who": {"type": "string"}, "what": {"type": "string"}, "why": {"type": "string"}, "where": {"type": "string"},
+          "id": {"type": "integer"}, "kind": {"type": "string"}, "project": {"type": "string"}, "who": {"type": "string"}, "what": {"type": "string"}, "change": {"type": "string"}, "why": {"type": "string"}, "where": {"type": "string"},
           "text": {"type": "string"}, "command": {"type": "string"}, "by": {"type": "string"}, "payload": {}, "expires_at": {"type": "string"}, "expired": {"type": "boolean"},
           "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}}}}}
     },

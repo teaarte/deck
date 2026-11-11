@@ -71,6 +71,34 @@ func (s *Service) proposeCommands() []*registry.Command {
 		}
 		return where + ": " + in.Reason + "\n" + docs.Diff(old.Text, in.Text)
 	}
+	c.Gate.Changes = func(print string, input json.RawMessage) []string {
+		var in documentProposeIn
+		_ = json.Unmarshal(input, &in)
+		if in.Delete {
+			return []string{fmt.Sprintf("Delete %s", in.Name)}
+		}
+		var r db.GetRevisionParams
+		if _, err := fmt.Sscanf(print, "document %d revision %d", &r.DocumentID, &r.N); err != nil {
+			return []string{fmt.Sprintf("Rewrite %s", in.Name)}
+		}
+		old, err := s.St.Q.GetRevision(context.Background(), r)
+		if err != nil {
+			return []string{fmt.Sprintf("Rewrite %s", in.Name)}
+		}
+		added, removed := 0, 0
+		for _, l := range strings.Split(docs.Diff(old.Text, in.Text), "\n") {
+			switch {
+			case strings.HasPrefix(l, "+ "):
+				added++
+			case strings.HasPrefix(l, "- "):
+				removed++
+			}
+		}
+		if added+removed == 0 {
+			return nil
+		}
+		return []string{fmt.Sprintf("Rewrite %s: %d lines added, %d removed", in.Name, added, removed)}
+	}
 	return []*registry.Command{c}
 }
 

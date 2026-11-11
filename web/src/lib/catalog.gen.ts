@@ -1349,6 +1349,7 @@ export interface ChatValue {
     project?: string;
     who?: string;
     what: string;
+    change?: string;
     why?: string;
     where?: string;
     text?: string;

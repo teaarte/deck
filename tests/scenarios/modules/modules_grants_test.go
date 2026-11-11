@@ -238,6 +238,7 @@ func TestARequestForRightsListsWhatItWidens(t *testing.T) {
 		ID                                 int64
 		Kind, Who, What, Where, Text, Link string
 		Payload                            map[string]any
+		Why                                string
 	}
 	if err := json.Unmarshal(out, &rows); err != nil || len(rows) != 1 {
 		t.Fatalf("one request: %s", out)
@@ -247,8 +248,8 @@ func TestARequestForRightsListsWhatItWidens(t *testing.T) {
 		r.Where != "writes document report.md" || r.Text != "keep the weekly report" || r.Link != "#/deck/cockpit?focus="+harness.Itoa(r.ID) {
 		t.Fatalf("who, what, where, why and the link: %+v", r)
 	}
-	if _, ok := r.Payload["widens"]; !ok || strings.Contains(string(out), "Do the work.") || strings.Count(string(out), "keep the weekly report") != 2 {
-		t.Fatalf("the payload names what widens, not the manifest, and the reason is not repeated: %s", out)
+	if _, ok := r.Payload["widens"]; !ok || strings.Contains(string(out), "Do the work.") || strings.Count(string(out), "keep the weekly report") != 3 || r.Why != "keep the weekly report" {
+		t.Fatalf("the payload names what widens, not the manifest, and the reason is its why: %s", out)
 	}
 }
 

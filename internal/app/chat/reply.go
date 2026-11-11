@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -395,13 +396,21 @@ func (s *Service) topicProcesses(ctx context.Context, t db.ChatTopic) string {
 	return untrusted.Block("Processes of the topic", strings.Join(lines, "\n"))
 }
 
+// toldNothing says what a message of deck without a text of its work told.
+func toldNothing(state string) string {
+	if state == process.StateWaitingAnswer {
+		return "waits for the owner's answer to its request"
+	}
+	return "no text"
+}
+
 func transcript(ms []db.ChatMessage) string {
 	var b strings.Builder
 	for _, m := range ms {
 		if m.Role == roleDeck {
 			var s toldState
 			_ = json.Unmarshal([]byte(m.Context), &s)
-			fmt.Fprintf(&b, "deck: process #%d %s: %s\n", m.ProcessID, s.State, strings.TrimSpace(m.Text))
+			fmt.Fprintf(&b, "deck: process #%d %s: %s\n", m.ProcessID, s.State, cmp.Or(strings.TrimSpace(m.Text), toldNothing(s.State)))
 			continue
 		}
 		fmt.Fprintf(&b, "%s: %s%s\n", m.Role, strings.TrimSpace(m.Text), shownLine(m))

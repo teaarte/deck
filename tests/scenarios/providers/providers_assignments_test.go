@@ -87,24 +87,16 @@ func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 		t.Fatalf("the refused yes changes nothing: %v", got)
 	}
 
-	if c := e.ScriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/qwen"}}); c.Status != 202 {
-		t.Fatalf("a proposal of what is in force is held like any: %+v", c)
-	}
-	e.Until("a proposal already in force to close as done", func() bool {
-		var left []harness.Ask
-		e.Must("deck.asks_list", nil, &left)
-		return len(left) == 0
-	})
 	pin := map[string]any{"role": "text", "project": "films", "command": "cut", "models": []string{"openrouter/qwen"}}
-	if c := e.ScriptCall("picker", "deck.assignment_set", pin); c.Status != 202 {
-		t.Fatalf("a proposal to pin a command to what it inherits waits: %+v", c)
+	for _, same := range []map[string]any{{"role": "text", "project": "films", "models": []string{"openrouter/qwen"}}, pin} {
+		if c := e.ScriptCall("picker", "deck.assignment_set", same); c.Status != 200 || !strings.Contains(c.Body, `"unchanged":true`) {
+			t.Fatalf("a proposal of the models a place has, in force or inherited, asks the owner nothing: %+v", c)
+		}
 	}
-	ask, _ = callAsk(e, "deck.assignment_set")
-	e.App.Answers.Settle(t.Context())
-	if state := e.AskState(ask); state != "open" {
-		t.Fatalf("a pin of what a place only inherits is not in force there: %s", state)
+	var left []harness.Ask
+	if e.Must("deck.asks_list", nil, &left); len(left) != 0 {
+		t.Fatalf("nothing waits for the owner: %+v", left)
 	}
-	e.Answer(ask, "deny")
 
 	if c := e.ScriptCall("picker", "deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"nope"}}); c.Status != 404 {
 		t.Fatalf("a proposal deck cannot apply is refused at once, not held: %+v", c)

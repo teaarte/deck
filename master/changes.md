@@ -308,3 +308,9 @@ and bring the modules in line.
   questions, deck's words of its work in the chat, the feed and pushes of those processes — is in its language; without
   a topic, in the language of the settings. Every agent's prompt says the language deck gives; prompts and skills keep
   no languages of their own.
+- 2026-11-11: a request is plain for the owner. A call that waits for the owner's yes takes `why` (a field every such
+  command now has; `reason` of document_propose stands for it): one short sentence in the language deck gives; an
+  agent's call without it is refused at once and nothing is asked. On top of a request deck writes what changes,
+  a line a place in the owner's words (`change` of asks_list); JSON, diffs and command names go under the details.
+  A call that changes nothing — the same models, a text already in force — makes no request and answers
+  `unchanged`. deck's message of a work that waits for a request says its why.

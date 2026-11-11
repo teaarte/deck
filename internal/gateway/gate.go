@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -186,17 +187,25 @@ func (g *Gateway) confirmTTL(ctx context.Context, workspace int64) time.Duration
 
 // hold freezes a call until the owner decides; the caller goes on with other work. An identical call that is
 // already waiting returns the same ask.
-func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (any, error) {
+func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, why string) (any, error) {
 	var print string
 	if c.Gate.Fingerprint != nil {
 		print = c.Gate.Fingerprint(ctx, act.Workspace, project, input)
+	}
+	if c.Gate.Holds != nil && c.Gate.Holds(ctx, act.Workspace, input) || c.Gate.Changes != nil && len(c.Gate.Changes(print, input)) == 0 {
+		return Unchanged{Unchanged: true, Text: fmt.Sprintf("deck: %s changes nothing, it is so already; no request went to the owner.", c.Name)}, nil
+	}
+	why = cmp.Or(why, reasonOf(input))
+	if why == "" && act.Run == "" && (act.Kind == registry.Master || act.Kind == registry.Agent) {
+		return nil, registry.Invalid("%s waits for the owner's yes, and the owner says yes only to what they understand: call it again with %s, "+
+			"one short sentence in the language deck gives of why you need it; nothing was asked or made", c.Name, registry.WhyKey)
 	}
 	target := ""
 	if c.Gate.Target != nil {
 		target = c.Gate.Target(print, input)
 	}
 	f := Freeze(act, c.Name, input)
-	f.Tool, f.Target = print, target
+	f.Tool, f.Target, f.Reason = print, target, why
 	payload := f.String()
 	process := act.ProcessID
 	if act.Kind == registry.Trigger {
@@ -211,6 +220,9 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 		where = " (" + target + ")"
 	}
 	text := fmt.Sprintf("%s wants %s%s with %s", act.Author(), c.Name, where, untrusted.Cut(Canonical(input), 500))
+	if why != "" {
+		text = untrusted.Line(why, 300) + "\n" + text
+	}
 	var a db.Ask
 	var replaced []db.Ask
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -240,6 +252,21 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	}
 	return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s is %s, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
 		"Go on with other work: once the owner allows it, deck makes exactly this call and tells you the result.", c.Name, c.Class, a.ID), Link: ask.Link(a.ID)}, nil
+}
+
+// Unchanged is the answer to a call that would change nothing: no request goes to the owner.
+type Unchanged struct {
+	Unchanged bool   `json:"unchanged"`
+	Text      string `json:"text"`
+}
+
+// reasonOf is the reason a command's own input gives, as document_propose does.
+func reasonOf(input json.RawMessage) string {
+	var in struct {
+		Reason string `json:"reason"`
+	}
+	_ = json.Unmarshal(input, &in)
+	return strings.TrimSpace(in.Reason)
 }
 
 // replacedBy are the calls of a process waiting for the owner that a new call of the same command sets all the places

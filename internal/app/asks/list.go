@@ -37,7 +37,9 @@ type askView struct {
 	// Command is the command a call waits to make and By the process that asks, for the details of a decision.
 	Command string `json:"command,omitempty"`
 	By      string `json:"by,omitempty"`
-	// Why is the last thing the agent said before it asked, its reason in its own words.
+	// Change is what a yes changes, a line a place, in the owner's words.
+	Change string `json:"change,omitempty"`
+	// Why is why the caller asks, in its own words: the why of its call, else the last thing its agent said.
 	Why string `json:"why,omitempty"`
 	// Always says what a yes for always would allow from now on; empty where a call is allowed only once.
 	Always string `json:"always,omitempty"`
@@ -104,11 +106,7 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 			r.What, r.Text = tr(r.What), tr(r.Text)
 		case registry.IsBuiltin(r.Command):
 			// A call of several, as assignments, says each on its line.
-			lines := strings.Split(r.Where, "\n")
-			for i := range lines {
-				lines[i] = tr(lines[i])
-			}
-			r.Where = strings.Join(lines, "\n")
+			r.Where, r.Change = trLines(tr, r.Where), trLines(tr, r.Change)
 		}
 		if slices.Contains([]string{ask.KindCall, ask.KindConfirm, ask.KindGrant}, q.Kind) && r.What != "" {
 			r.Allow = tr(fmt.Sprintf("Allow: %s", r.What))
@@ -126,6 +124,18 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 		out = append(out, r)
 	}
 	return out, nil
+}
+
+// trLines is text with each line in the words tr puts it in.
+func trLines(tr func(string) string, text string) string {
+	if text == "" {
+		return ""
+	}
+	lines := strings.Split(text, "\n")
+	for i := range lines {
+		lines[i] = tr(lines[i])
+	}
+	return strings.Join(lines, "\n")
 }
 
 // langOf is the language an ask of a process reads in: that of the topic it came from, else lang.
@@ -167,13 +177,19 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 			r.By = s.processName(ctx, f.Caller.Process)
 		}
 		r.Payload = json.RawMessage(cmp.Or(string(f.Call.Input), "null"))
+		r.Why = cmp.Or(f.Reason, r.Why)
 		if c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command); err == nil {
 			r.What = c.Tr(words.In(lang), lang, c.Title)
 			if f.Target == "" && c.Gate.Target != nil {
 				r.Where = c.Gate.Target(f.Tool, f.Call.Input)
 			}
+			r.Change = r.Where
+			if c.Gate.Changes != nil {
+				r.Change = strings.Join(c.Gate.Changes(f.Tool, f.Call.Input), "\n")
+			}
 			for _, id := range f.Replaces {
 				r.Where = strings.TrimSpace(r.Where + "\n" + fmt.Sprintf("Replaces request %d", id))
+				r.Change = strings.TrimSpace(r.Change + "\n" + fmt.Sprintf("Replaces request %d", id))
 			}
 			r.Always = s.always(r.Project, f, c, r.What)
 		} else if r.Project != "" && strings.HasPrefix(f.Call.Command, r.Project+".") {
@@ -185,11 +201,13 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		if f.Caller.Process != 0 {
 			r.By = s.processName(ctx, f.Caller.Process)
 		}
-		r.Text = cmp.Or(f.Reason, "no reason given")
+		r.Text, r.Change = cmp.Or(f.Reason, "no reason given"), r.Where
+		r.Why = cmp.Or(f.Reason, r.Why)
 		r.Payload, _ = json.Marshal(map[string]any{"widens": f.Widens, "reason": f.Reason})
 	case ask.KindConfirm:
 		if pl, err := ask.Decode[ask.Confirm](q.Payload); err == nil && pl.Tool != "" {
 			r.What, r.Where = pl.Tool, confirmTarget(pl.Input)
+			r.Change = r.Where
 		}
 	case ask.KindSignIn:
 		pl, _ := ask.Decode[ask.SignIn](q.Payload)

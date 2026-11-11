@@ -253,7 +253,7 @@ export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; 
         {marked}
         <Stack gap={2} miw={0} className="deck-grow">
           <Text fw={600} lh={1.35} className={s.itemTitle}>{it.title}</Text>
-          {it.text && <Text size="sm" c="var(--deck-text-2)" lh={1.45}>{it.text}</Text>}
+          {it.text && <Text size="sm" c="var(--deck-text-2)" lh={1.45} className="deck-pre">{it.text}</Text>}
           {(it.meta || it.since || until) && (
             <Group gap={8} wrap="wrap" mt={2}>
               {until && <Deadline until={until} />}

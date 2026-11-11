@@ -75,6 +75,9 @@ func (s *Service) tell(ctx context.Context, p db.Process) {
 		text, key = "", fmt.Sprintf("deck:%d:ask:%d", p.ID, last.ID)
 		if last.Kind == ask.KindQuestion || last.Kind == ask.KindConfirm {
 			text = untrusted.Cut(last.Text, 500)
+		} else if why, _ := ask.Decode[struct{ Reason string }](last.Payload); why.Reason != "" {
+			// A request says why its caller asks.
+			text = untrusted.Cut(why.Reason, 500)
 		}
 	}
 	state, _ := json.Marshal(toldState{State: p.State, ErrorType: p.ErrorType})

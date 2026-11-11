@@ -50,7 +50,7 @@ func langAgent(said *spoken, from *atomic.Int64) harness.Option {
 			said.mu.Lock()
 			said.refused = fmt.Sprint(bad, " ", out)
 			said.mu.Unlock()
-			out, _ = c.Tool(ctx, "assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/qwen"}})
+			out, _ = c.Tool(ctx, "assignment_set", map[string]any{"why": "for the test", "role": "text", "project": "films", "models": []string{"openrouter/qwen"}})
 			return provider.Result{Text: "held: " + out}
 		}
 		cmd = "reply"
@@ -80,7 +80,9 @@ func askIn(e *harness.Env, process int64, lang string) map[string]any {
 	return nil
 }
 
-func cyrillic(s string) bool { return strings.ContainsAny(s, "абвгдеёжзиклмнопрстуфхцчшщыэюяАБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЭЮЯ") }
+func cyrillic(s string) bool {
+	return strings.ContainsAny(s, "абвгдеёжзиклмнопрстуфхцчшщыэюяАБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЩЭЮЯ")
+}
 
 func langEnv(t *testing.T, setting string) (*harness.Env, *spoken) {
 	said := &spoken{}

@@ -274,7 +274,7 @@ func TestACPExternalToolStillWaitsForYes(t *testing.T) {
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "ext-1"}`) })
 	f := harness.NewACP(t)
 	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
-		`{"mcp": {"tool": "notes__post", "arguments": {"id": "a1", "text": "hi"}}}`, `{"end": "end_turn"}`))
+		`{"mcp": {"tool": "notes__post", "arguments": {"id": "a1", "text": "hi", "why": "to post the note"}}}`, `{"end": "end_turn"}`))
 	f.StreamText(5, harness.AcpStream(harness.AcpInit, `{"reply": "session/resume", "result": {}}`, `{"reply": "session/prompt"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"posted": true}}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))

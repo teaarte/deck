@@ -66,7 +66,9 @@ function DecisionCard({ d }: { d: Decision }) {
   const { t } = useTranslation();
   const [held, setHeld] = useState(false);
   if (held) return null;
-  const details = [d.by ?? '', d.command ?? '', d.payload !== undefined && d.payload !== null ? JSON.stringify(d.payload, null, 2) : ''].filter(Boolean).join('\n');
+  const change = d.change || d.where;
+  const details = [d.by ?? '', d.command ?? '', d.change && d.where !== d.change ? d.where : '',
+    d.payload !== undefined && d.payload !== null ? JSON.stringify(d.payload, null, 2) : ''].filter(Boolean).join('\n');
   return (
     <Stack gap={8} className={s.decision} data-chat-ask={d.id} data-kind={d.kind}>
       <Group justify="space-between" gap="xs" wrap="nowrap">
@@ -78,7 +80,8 @@ function DecisionCard({ d }: { d: Decision }) {
       </Group>
       <Stack gap={2}>
         <Text size="sm" fw={650}>{d.what}</Text>
-        {(d.why || d.where) && <Text size="sm" className="deck-wrap">{d.why || d.where}</Text>}
+        {change && <Text size="sm" className="deck-pre" data-change>{change}</Text>}
+        {d.why && <Text size="sm" c="var(--deck-text-2)" className="deck-wrap" data-why>{d.why}</Text>}
         <Text size="xs" c="dimmed">{[d.who && t('Asked by {{who}}', { who: d.who }), d.project].filter(Boolean).join(' · ')}</Text>
       </Stack>
       {details && <Details text={details} />}

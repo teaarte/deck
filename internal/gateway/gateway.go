@@ -461,6 +461,7 @@ func (s *Session) again(key, answer string) bool {
 // call runs a registry command for a caller other than the owner: the class rules decide whether it runs now, by the
 // owner's press that named it, or waits for the owner; the journal keeps it with the class of the command.
 func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, args json.RawMessage) (any, error) {
+	why := registry.WhyOf(args)
 	c, input, err := g.reg.Resolve(ctx, act, name, args)
 	class, project := registry.Internal, act.ProjectID
 	if c != nil {
@@ -472,16 +473,23 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 	params := ""
 	if class != registry.Internal {
 		params = Canonical(args)
+		if err == nil {
+			params = Canonical(input)
+		}
 	}
 	if err == nil && class != registry.Internal && !act.Cleared(c.Name) && act.Kind != registry.Owner {
 		var now, press bool
 		if now, err = g.gate(ctx, act, c, project, input); err == nil && !now {
 			if press, err = g.pressed(ctx, act, c, input); err == nil {
-				g.wrote(ctx, act, c)
 				if press {
+					g.wrote(ctx, act, c)
 					return g.byPress(ctx, act, c, project, input)
 				}
-				return g.hold(ctx, act, c, project, input)
+				var out any
+				if out, err = g.hold(ctx, act, c, project, input, why); err == nil {
+					g.wrote(ctx, act, c)
+					return out, nil
+				}
 			}
 		}
 		act = g.clear.Clear(act, c.Name)

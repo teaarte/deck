@@ -546,7 +546,7 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 		return out
 	}
 	by := fmt.Sprintf("#%d work", second)
-	if fresh.Title != "post" || !strings.HasSuffix(fresh.Text, "POST "+svc.URL+"/items/n2") || fresh.Meta != "notes · Work" ||
+	if fresh.Title != "post" || !strings.HasSuffix(fresh.Text, "POST "+svc.URL+"/items/n2\nfor the test") || fresh.Meta != "notes · Work" ||
 		!strings.HasPrefix(fresh.Details, by+"\nnotes.post\n") {
 		t.Fatalf("a confirmation says what, where, its module and who asks in words; the process and the command under its details: %+v", fresh)
 	}

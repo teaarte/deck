@@ -93,6 +93,8 @@ type Command struct {
 	// foreign marks an input schema from elsewhere, not held to App Intents types; retries one that takes a retry key;
 	// untokened one no automation token calls; page one a page reads that is not a read of its own.
 	foreign, retries, keyed, untokened, page bool
+	// asked marks a schema the registry gave the field why, owns one with a why of its own.
+	asked, owns bool
 }
 
 // Loose declares a command not written in Go: of a module, an HTTP tool, an MCP server or the browser, its input
@@ -159,6 +161,9 @@ type Gate struct {
 	Undo func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool)
 	// OwnYes marks a command only the owner's answer to its ask allows, money or a skill's text: a press never does.
 	OwnYes bool
+	// Changes are what a call would change, a line a place as the owner reads it, leaving out the places it leaves
+	// as they are; none when it changes nothing. print is the Fingerprint.
+	Changes func(print string, input json.RawMessage) []string
 	// Sets names the places a call sets: a later call of the same caller that sets all of them replaces it while it waits.
 	Sets func(input json.RawMessage) []string
 }
@@ -253,11 +258,21 @@ func Prepare(c *Command) error {
 		return fmt.Errorf("command %q input: %w", c.Name, err)
 	}
 	if c.retries && !c.keyed {
-		in, err := withRetryKey(c.Input)
+		in, err := withField(c.Input, RetryKey, "Optional: while a process of this command with the same key is still going, the call returns it instead of starting another")
 		if err != nil {
 			return fmt.Errorf("command %q input: %w", c.Name, err)
 		}
 		c.Input, c.Handler, c.keyed = in, keyed(c.Handler), true
+	}
+	if !c.asked {
+		c.owns = hasField(c.Input, WhyKey)
+	}
+	if c.Class != Internal && !c.asked && !c.owns {
+		in, err := withField(c.Input, WhyKey, whyField)
+		if err != nil {
+			return fmt.Errorf("command %q input: %w", c.Name, err)
+		}
+		c.Input, c.asked = in, true
 	}
 	s, err := compile(c.Name, c.Input)
 	if err != nil {
@@ -268,8 +283,44 @@ func Prepare(c *Command) error {
 	return nil
 }
 
-// withRetryKey is an input schema with the optional retry key among its properties.
-func withRetryKey(in json.RawMessage) (json.RawMessage, error) {
+// WhyKey is the field of the input of a call that may wait for the owner's yes: why the caller asks, in its words.
+const WhyKey = "why"
+
+const whyField = "Why you call it: one short sentence for the owner, in the language deck gives; a call that waits for the owner's yes is refused without it"
+
+// hasField says an input schema has a property of the name.
+func hasField(in json.RawMessage, name string) bool {
+	var s struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+	}
+	return json.Unmarshal(in, &s) == nil && s.Properties[name] != nil
+}
+
+// WhyOf is why a call asks, as its input says.
+func WhyOf(input json.RawMessage) string {
+	var in struct {
+		Why string `json:"why"`
+	}
+	_ = json.Unmarshal(input, &in)
+	return strings.TrimSpace(in.Why)
+}
+
+// unasked is an input without the why the registry takes, which no command of its own reads.
+func (c *Command) unasked(input json.RawMessage) json.RawMessage {
+	if c.owns || !bytes.Contains(input, []byte(`"`+WhyKey+`"`)) {
+		return input
+	}
+	var in map[string]json.RawMessage
+	if json.Unmarshal(input, &in) != nil || in[WhyKey] == nil {
+		return input
+	}
+	delete(in, WhyKey)
+	out, _ := json.Marshal(in)
+	return out
+}
+
+// withField is an input schema with an optional string field among its properties.
+func withField(in json.RawMessage, name, desc string) (json.RawMessage, error) {
 	d := json.NewDecoder(bytes.NewReader(in))
 	d.UseNumber()
 	var s map[string]any
@@ -280,8 +331,7 @@ func withRetryKey(in json.RawMessage) (json.RawMessage, error) {
 	if props == nil {
 		props = map[string]any{}
 	}
-	props[RetryKey] = map[string]any{"type": "string",
-		"description": "Optional: while a process of this command with the same key is still going, the call returns it instead of starting another"}
+	props[name] = map[string]any{"type": "string", "description": desc}
 	s["properties"] = props
 	return json.Marshal(s)
 }
@@ -303,9 +353,9 @@ func keyed(h Handler) Handler {
 	}
 }
 
-// Reserved says a field of an input is the registry's own, not of the command: the retry key or the calls a press
-// allows.
-func Reserved(field string) bool { return field == RetryKey || field == AllowsKey }
+// Reserved says a field of an input is the registry's own, not of the command: the retry key, the calls a press
+// allows or why a call asks.
+func Reserved(field string) bool { return field == RetryKey || field == AllowsKey || field == WhyKey }
 
 // jsonFields are the properties of an input schema of format json.
 func jsonFields(input json.RawMessage) []string {
@@ -480,7 +530,7 @@ func (c *Command) Validate(input json.RawMessage) (json.RawMessage, error) {
 	if t := bytes.TrimSpace(input); len(t) == 0 || string(t) == "null" {
 		input = json.RawMessage(`{}`)
 	}
-	input = c.jsonText(input)
+	input = c.jsonText(c.unasked(input))
 	v, err := jsonschema.UnmarshalJSON(bytes.NewReader(input))
 	if err != nil {
 		return nil, Invalid("input of %s is not JSON: %v", c.Name, err)

@@ -441,13 +441,14 @@ func TestConfirmationRejectedWithReason(t *testing.T) {
 	}
 }
 
-// TestADecisionSaysWhoAsksWhyAndWhatChanges: a held call says who asks, why in the agent's last words and what it
+// TestADecisionSaysWhoAsksWhyAndWhatChanges: a held call says who asks, why in the words of its call and what it
 // changes; the raw call is only in its details, and a call allowed only once has no button to allow it always.
 func TestADecisionSaysWhoAsksWhyAndWhatChanges(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		c.Req.Emit(provider.Event{Kind: provider.EventMessage, Text: "groq answers 413 on this work, so nemotron should take it"})
-		c.Tool(ctx, "assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "models": []string{"quiet"}})
+		c.Req.Emit(provider.Event{Kind: provider.EventMessage, Text: "let me set the models"})
+		c.Tool(ctx, "assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "models": []string{"quiet"},
+			"why": "groq answers 413 on this work, so nemotron should take it"})
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}))
 

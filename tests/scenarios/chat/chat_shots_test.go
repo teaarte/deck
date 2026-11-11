@@ -4,8 +4,10 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -135,5 +137,67 @@ func TestALentTokenOnlyReadsWhileItLasts(t *testing.T) {
 	e.App.Owners.Return(tok)
 	if code, _ := e.As(tok).Call("deck.menu_get", map[string]any{}); code != 401 {
 		t.Fatalf("a returned token opens nothing: %d", code)
+	}
+}
+
+// A reply of the master reads the topic it answers as the owner sees it, by the chat's read and by its screen: its
+// messages and the work over them; another topic is refused, and the list of topics stays the owner's.
+func TestTheMasterSeesTheTopicItAnswers(t *testing.T) {
+	t.Parallel()
+	var other atomic.Int64
+	seen := make(chan map[string]string, 1)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		var in struct{ Topic int64 }
+		if m := harness.InputOf.FindStringSubmatch(c.Req.Prompt); m != nil {
+			_ = json.Unmarshal([]byte(m[1]), &in)
+		}
+		if other.Load() == 0 {
+			other.Store(in.Topic)
+			return provider.Result{Text: "Noted the plan."}
+		}
+		got := map[string]string{}
+		read := func(key, tool string, args map[string]any) {
+			out, bad := c.Tool(ctx, tool, args)
+			if bad {
+				out = "refused: " + out
+			}
+			got[key] = out
+		}
+		own, foreign := fmt.Sprint(in.Topic), fmt.Sprint(other.Load())
+		read("own", "chat_get", map[string]any{"topic": own})
+		read("foreign", "chat_get", map[string]any{"topic": foreign})
+		read("all", "chat_get", map[string]any{})
+		read("screen", "screen_get", map[string]any{"screen": "chat", "filter": `{"b0": {"topic": "` + own + `"}}`})
+		read("foreign screen", "screen_get", map[string]any{"screen": "chat", "filter": `{"b0": {"topic": "` + foreign + `"}}`})
+		seen <- got
+		return provider.Result{Text: "I see it."}
+	}))
+
+	first := e.Say(0, "the secret plan")
+	e.MasterSaid(first, 1)
+	e.Say(0, "look at the strip over the work")
+	got := <-seen
+	for _, k := range []string{"own", "all"} {
+		if !strings.Contains(got[k], "look at the strip over the work") || strings.Contains(got[k], "the secret plan") {
+			t.Fatalf("the master reads the messages of the topic it answers, also when it names none (%s): %s", k, got[k])
+		}
+	}
+	if !strings.HasPrefix(got["foreign"], "refused: ") || !strings.Contains(got["foreign"], "reads only the topic") {
+		t.Fatalf("the master reads no other topic: %s", got["foreign"])
+	}
+	var msgs []map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(got["screen"]), &msgs); err != nil {
+		t.Fatalf("the screen of the topic: %v %s", err, got["screen"])
+	}
+	data := harness.DataOf(t, msgs)
+	if !strings.Contains(string(data["b0"]["value"]), "look at the strip over the work") || string(data["b0-topics"]["state"]) != `"empty"` {
+		t.Fatalf("the screen shows the master its topic, not the list of topics: %s", got["screen"])
+	}
+	if err := json.Unmarshal([]byte(got["foreign screen"]), &msgs); err != nil {
+		t.Fatalf("the screen of another topic: %v %s", err, got["foreign screen"])
+	}
+	data = harness.DataOf(t, msgs)
+	if string(data["b0"]["state"]) != `"error"` || strings.Contains(got["foreign screen"], "the secret plan") {
+		t.Fatalf("the screen of another topic shows the master nothing of it: %s", got["foreign screen"])
 	}
 }

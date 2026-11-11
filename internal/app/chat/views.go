@@ -312,6 +312,10 @@ func (s *Service) picked(ctx context.Context, workspace int64, topic string, tr 
 func (s *Service) chat(ctx context.Context, act registry.Actor, in chatGetIn) (chatView, error) {
 	v := chatView{Messages: []messageView{}, Suggest: []suggestView{}, Send: chatAction("send", registry.Deck("chat_send"), map[string]any{}),
 		Transcribe: action{"label": "Speak", "command": registry.Deck("recording_transcribe"), "input": "file"}}
+	var err error
+	if in.Topic, err = s.readable(ctx, act, in.Topic); err != nil {
+		return v, err
+	}
 	tr := s.words(registry.Lang(ctx))
 	t, err := s.picked(ctx, act.Workspace, in.Topic, tr)
 	if err != nil {
@@ -396,6 +400,10 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 // chatTurn is the turn going on in the topic picked.
 func (s *Service) chatTurn(ctx context.Context, act registry.Actor, in chatGetIn) (turnPartView, error) {
 	v := turnPartView{Questions: []questionView{}, Asks: []any{}, Running: []runningView{}, Recent: []runningView{}}
+	var err error
+	if in.Topic, err = s.readable(ctx, act, in.Topic); err != nil {
+		return v, err
+	}
 	tr := s.words(registry.Lang(ctx))
 	t, err := s.picked(ctx, act.Workspace, in.Topic, tr)
 	if err != nil || t == nil {
@@ -525,16 +533,33 @@ func (s *Service) suggest(ctx context.Context, workspace int64, project, lang st
 	return out[:min(len(out), suggestions)]
 }
 
+// readable is the topic a read names, refused to any but the owner, save a reply turn of the master reading the topic it
+// answers, which is also the topic of its read that names none.
+func (s *Service) readable(ctx context.Context, act registry.Actor, topic string) (string, error) {
+	if act.Kind == registry.Owner {
+		return topic, nil
+	}
+	if p, err := s.St.Q.GetProcess(ctx, act.ProcessID); err == nil && act.ProcessID != 0 {
+		own := strconv.FormatInt(s.replyOf(ctx, p), 10)
+		if own != "0" && (topic == own || topic == "") {
+			if g, err := s.St.Q.GetTopic(ctx, s.replyOf(ctx, p)); err == nil && g.WorkspaceID == act.Workspace {
+				return own, nil
+			}
+		}
+	}
+	return "", registry.Refuse("the master reads only the topic of the chat it answers in, by its id")
+}
+
 func (s *Service) viewsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("chat_get", "Chat",
 			"Gives the topic picked of the chat with the master as a chat block shows it: its messages, the replies they got and how they went, and its buttons; a topic without messages suggests what to ask.",
-			registry.OwnerOnly, s.chat).On(events.Chat, events.Processes, events.Feed, events.Collection, events.Models),
+			registry.OwnerSide, s.chat).On(events.Chat, events.Processes, events.Feed, events.Collection, events.Models),
 		registry.Read("chat_topics_list", "Chat topics",
 			"Gives the topics of the chat with the master, the archived apart, with the models its replies may go on.",
 			registry.OwnerOnly, s.chatTopics).On(events.Chat, events.Processes, events.Asks, events.Models, events.Assignments, events.Health),
 		registry.Read("chat_turn_get", "Chat turn",
 			"Gives the turn going on in a topic of the chat with the master: the lines of its log, the processes it started, its questions and what it waits for the owner to decide; and the work the replies of the topic started that goes on or ended within the hour.",
-			registry.OwnerOnly, s.chatTurn).On(events.Log, events.Asks, events.Processes),
+			registry.OwnerSide, s.chatTurn).On(events.Log, events.Asks, events.Processes),
 	}
 }

@@ -62,6 +62,45 @@ func TestRealBrowserTheMasterSeesAScreen(t *testing.T) {
 	}
 }
 
+// TestRealBrowserTheMasterSeesItsTopic: a reply of the master takes a shot of the topic it answers, drawn as the owner
+// sees it.
+func TestRealBrowserTheMasterSeesItsTopic(t *testing.T) {
+	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
+	checkBuiltClient(t)
+	shots := make(chan string, 1)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		var in struct{ Topic int64 }
+		if m := harness.InputOf.FindStringSubmatch(c.Req.Prompt); m != nil {
+			_ = json.Unmarshal([]byte(m[1]), &in)
+		}
+		out, bad := c.Tool(ctx, "screen_capture", map[string]any{"address": fmt.Sprintf("#/deck/chat?topic=%d", in.Topic)})
+		if bad {
+			out = "refused: " + out
+		}
+		shots <- out
+		return provider.Result{Text: "Looked."}
+	}), harness.WithConfig(
+
+		func(c *app.Config) { c.Browser = app.DefaultBrowser }))
+
+	e.Say(0, "look at this topic")
+	var shot struct{ Path, Error string }
+	if raw := <-shots; json.Unmarshal([]byte(raw), &shot) != nil || shot.Error != "" {
+		t.Fatalf("the shot of the topic: %s", raw)
+	}
+	b, err := os.ReadFile(shot.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := png.DecodeConfig(bytes.NewReader(b)); err != nil {
+		t.Fatal(err)
+	}
+	if dir := os.Getenv("DECK_SCREENSHOTS"); dir != "" {
+		_ = os.WriteFile(dir+"/shot-topic.png", b, 0o644)
+	}
+}
+
 // customMagenta is a custom block that paints itself one colour once deck gives it its items.
 const customMagenta = `<!doctype html><html><body style="margin:0"><div id="out" style="height:200px"></div><script type="module">
 import { App } from "/ext-apps.js";

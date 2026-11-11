@@ -289,3 +289,6 @@ and bring the modules in line.
   place of an earlier held call of the same process and command (`assignment_set`) replaces it: the earlier closes
   answered `replaced:<id>` (its caller hears so, `on: ask` hears `expired`), and the owner sees `Replaces request
   <id>` on the later.
+- 2026-11-11: A reply of the master reads the topic it answers as the owner sees it: `chat_get` and `chat_turn_get`
+  with `topic` set to that topic, or without one, give its messages, the work over them and what waits, and
+  `screen_capture` of `#/deck/chat` draws it. Any other topic is refused; the list of topics stays the owner's.

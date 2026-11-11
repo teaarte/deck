@@ -3,6 +3,7 @@ package screen
 import (
 	"cmp"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"regexp"
@@ -660,6 +661,10 @@ func (r *renderer) chat(id string, b manifest.Block) {
 		var v any
 		if err == nil {
 			v, err = r.src.Read(r.ctx, from, input, scope)
+		}
+		if errors.Is(err, OwnerOnly) {
+			r.data[path] = map[string]any{"state": "empty", "empty": r.tr(OwnerOnly.Error())}
+			continue
 		}
 		if err != nil {
 			r.data[path] = map[string]any{"state": "error", "error": err.Error()}

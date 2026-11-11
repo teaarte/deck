@@ -165,8 +165,10 @@ func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchI
 		"truncated": len(text) > maxPageText}, nil
 }
 
-// journalRead writes a read of the web to the journal of the gateway with what it read, done or rejected.
+// journalRead writes a read of the web to the journal of the gateway with what it read, done or rejected; a read cut
+// short is written too.
 func (s *Service) journalRead(ctx context.Context, act registry.Actor, name string, read map[string]any, err error) {
+	ctx = context.WithoutCancel(ctx)
 	outcome, text := "done", ""
 	if err != nil {
 		outcome, text = "rejected", err.Error()

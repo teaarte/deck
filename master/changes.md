@@ -327,8 +327,8 @@ and bring the modules in line.
   required one. `manifest_check`, `manifest_save` and an import warn of an agent command whose `calls` name a command of
   the module (`<project>.<name>`) an agent may call without a `result` schema; the save and the import still take it. A prompt of an
   agent command says what each of its calls answers and gives one to three inputs (module-conventions).
-- 2026-11-11: the master has no `domains`: its shell reaches only its model and deck, never another host; it searches
-  with `web_search` and reads pages with `web_fetch`. Both write a line of the gateway journal (`calls_list`, `params`):
+- 2026-11-11: the master has no `domains`: in its box its shell reaches only its model and deck (on a Mac without
+  Docker Claude Code and Codex still run outside the box); it searches with `web_search` and reads pages with `web_fetch`. Both write a line of the gateway journal (`calls_list`, `params`):
   `web_fetch` the address asked and, after a redirect, the one read (`read`); `web_search` the query, the service and
   the address of each result. A widening of `domains.read` reads "reaches and may send data to: <host>": the door
   sees the host, not the method.

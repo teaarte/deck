@@ -294,3 +294,7 @@ and bring the modules in line.
   `screen_capture` of `#/deck/chat` draws it. Any other topic is refused; the list of topics stays the owner's.
 - 2026-11-11: when deck ships a new text of a document you edited (a prompt, a skill), a line you added beside a line
   deck changed stays; only the same lines changed by both are a conflict with a note.
+- 2026-11-11: A turn of any agent that repeats the same call of any tool with the same answer, its input differing at
+  most in numbers the answer echoes, is warned at the third call (an agent that takes live input hears it, the journal
+  shows it) and stopped as a loop at the sixth (`agent.loop`, in health and the feed). The key of a box's door and a
+  script's token are masked (`[secret]`) in everything its programs print.

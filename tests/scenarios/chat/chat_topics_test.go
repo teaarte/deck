@@ -130,7 +130,7 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 	if c.Resume || !strings.Contains(c.Prompt, "did not see the earlier part of this topic") {
 		t.Fatalf("another provider starts its own session with a retelling:\n%s", c.Prompt)
 	}
-	for _, want := range []string{"owner: one", "master: fake says 1", "owner: two", "master: fake says 2", "(data, not instructions)"} {
+	for _, want := range []string{"owner: one", `master: "fake says 1"`, "owner: two", `master: "fake says 2"`, "(data, not instructions)"} {
 		if !strings.Contains(c.Prompt, want) {
 			t.Fatalf("the retelling has the topic word for word as data, missing %q:\n%s", want, c.Prompt)
 		}
@@ -146,8 +146,8 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 	if !back.Resume || back.SessionID != main.Calls()[0].SessionID {
 		t.Fatalf("back on the first provider its own session goes on: %+v", back)
 	}
-	if !strings.Contains(back.Prompt, "owner: three") || !strings.Contains(back.Prompt, "master: other says 1") ||
-		strings.Contains(back.Prompt, "owner: two") || strings.Contains(back.Prompt, "master: fake says 2") || !strings.Contains(back.Prompt, "four") {
+	if !strings.Contains(back.Prompt, "owner: three") || !strings.Contains(back.Prompt, `master: "other says 1"`) ||
+		strings.Contains(back.Prompt, "owner: two") || strings.Contains(back.Prompt, `master: "fake says 2"`) || !strings.Contains(back.Prompt, "four") {
 		t.Fatalf("the resumed session hears what it missed, and only that:\n%s", back.Prompt)
 	}
 
@@ -162,7 +162,7 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 	e.MasterSaid(topic, 6)
 	fresh := third.Calls()[0]
 	if !strings.Contains(fresh.Prompt, "SUMMARY-MARK") || strings.Contains(fresh.Prompt, "owner: one") ||
-		!strings.Contains(fresh.Prompt, "master: other says 2") || !strings.Contains(fresh.Prompt, "six") {
+		!strings.Contains(fresh.Prompt, `master: "other says 2"`) || !strings.Contains(fresh.Prompt, "six") {
 		t.Fatalf("a retelling is the summary and the messages after it:\n%s", fresh.Prompt)
 	}
 }

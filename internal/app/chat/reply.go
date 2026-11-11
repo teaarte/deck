@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -405,16 +406,22 @@ func toldNothing(state string) string {
 	return "no text"
 }
 
+// transcript retells messages a line each; only the owner's text stands as written, what deck and the master said is
+// one quoted line, so no line of a work's result reads as the owner's (until turn marks of the trust project, Т4).
 func transcript(ms []db.ChatMessage) string {
 	var b strings.Builder
 	for _, m := range ms {
+		text := strings.TrimSpace(m.Text)
+		if m.Role != roleOwner && text != "" {
+			text = strconv.Quote(text)
+		}
 		if m.Role == roleDeck {
 			var s toldState
 			_ = json.Unmarshal([]byte(m.Context), &s)
-			fmt.Fprintf(&b, "deck: process #%d %s: %s\n", m.ProcessID, s.State, cmp.Or(strings.TrimSpace(m.Text), toldNothing(s.State)))
+			fmt.Fprintf(&b, "deck: process #%d %s: %s\n", m.ProcessID, s.State, cmp.Or(text, toldNothing(s.State)))
 			continue
 		}
-		fmt.Fprintf(&b, "%s: %s%s\n", m.Role, strings.TrimSpace(m.Text), shownLine(m))
+		fmt.Fprintf(&b, "%s: %s%s\n", m.Role, text, shownLine(m))
 	}
 	return b.String()
 }

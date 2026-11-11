@@ -385,3 +385,6 @@ and bring the modules in line.
 - 2026-11-11: deck reads a file of a folder a box writes only as a regular file inside that folder and up to a limit:
   `.claude/settings*.json` of a repo (1 MB), a screenshot of the browser (32 MB); a link out of the folder, a pipe or a
   device is not read (a snapshot skips it and names it); `project_import` skips such a file as not a regular one.
+- 2026-11-11: in a retelling of a chat topic (a turn after another provider, the messages after a summary) only the
+  owner's text stands as written; what deck told of a work and what the master said is one quoted line each, so a
+  line of a work's result never reads as a message of the owner.

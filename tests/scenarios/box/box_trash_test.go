@@ -88,6 +88,21 @@ t.join()
 print(json.dumps({"deleted": len(ids)}))
 `
 
+// relinkData tries to put a link into deck's state in place of the data folder itself, then deletes a file there.
+const relinkData = harness.PythonLib + `
+import shutil
+data = os.environ["DECK_DATA"]
+replaced = ""
+try:
+    shutil.rmtree(data)
+    os.symlink(os.path.relpath(os.path.join(data, "..", "..", "..", "..", "state", "keys", "1"), os.path.dirname(data)), data)
+    replaced = os.readlink(data)
+except OSError as e:
+    replaced = ""
+st, out = deck("deck.file_delete", {"path": "openrouter"})
+print(json.dumps({"replaced": replaced, "delete": st}))
+`
+
 func trashRace(t *testing.T, script string, owner func(e *harness.Env, data string)) (harness.Proc, string) {
 	e := harness.New(t)
 	keys := deckhome.Layout(e.App.Cfg.Home).Keys(1)
@@ -147,5 +162,20 @@ func TestAScriptRacingFileRestorePutsNothingIntoDecksState(t *testing.T) {
 		if strings.HasPrefix(e.Name(), "f") {
 			t.Errorf("deck put a file of the trash into deck's state: %s", filepath.Join(keys, e.Name()))
 		}
+	}
+}
+
+func TestAScriptCannotPutALinkInPlaceOfItsDataFolder(t *testing.T) {
+	p, keys := trashRace(t, relinkData, nil)
+	var res struct {
+		Replaced string
+		Delete   int
+	}
+	_ = json.Unmarshal(p.Result, &res)
+	if res.Replaced != "" {
+		t.Errorf("the script put a link to %s in place of its data folder", res.Replaced)
+	}
+	if b, err := os.ReadFile(filepath.Join(keys, "openrouter")); err != nil || string(b) != "sk-or-VICTIM-KEY" {
+		t.Errorf("file_delete moved the key of the connection out of deck's state (%d): %v", res.Delete, err)
 	}
 }

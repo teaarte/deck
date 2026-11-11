@@ -380,4 +380,5 @@ and bring the modules in line.
   at most 4096 processes.
 - 2026-11-11: `file_delete` and `file_restore` move a file of a data folder only inside that folder: a path that
   goes through a link, or a folder swapped for a link meanwhile, is refused (`conflict`, read the folder again);
-  nothing of deck's own folder goes into the trash of a project or comes out of it.
+  nothing of deck's own folder goes into the trash of a project or comes out of it. On macOS a program in a box
+  writes inside the folders it may write, but no longer removes, renames or replaces those folders themselves.

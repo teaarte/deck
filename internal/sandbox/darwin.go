@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"slices"
@@ -65,6 +66,12 @@ func profile(p Policy) string {
 	}
 	for _, w := range p.Write {
 		fmt.Fprintf(&b, "(allow file-read* file-write* (subpath %s))\n", quote(w))
+	}
+	for _, w := range p.Write {
+		if fi, err := os.Lstat(w); err == nil && fi.IsDir() {
+			// The folder itself stays the one deck made: never removed, renamed or put back as a link.
+			fmt.Fprintf(&b, "(deny file-write-unlink file-write-create (literal %s))\n", quote(w))
+		}
 	}
 	open := append(slices.Clone(p.Read), p.Write...)
 	for _, d := range ancestors(open) {

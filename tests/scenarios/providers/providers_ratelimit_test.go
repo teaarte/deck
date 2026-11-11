@@ -184,12 +184,14 @@ func TestAnOpenRouterLimitPausesUntilTheResetInItsError(t *testing.T) {
 	}
 }
 
-// TestALimitPausesUntilTheResetOfItsHeaders: a reset in X-RateLimit-* as a duration (Groq) or in unix milliseconds.
+// TestALimitPausesUntilTheResetOfItsHeaders: a reset in X-RateLimit-* as a duration (Groq) or in unix milliseconds;
+// a limit with some left counts when none is used up, as tokens too few for the request.
 func TestALimitPausesUntilTheResetOfItsHeaders(t *testing.T) {
 	t.Parallel()
 	for name, h := range map[string]http.Header{
 		"duration": {"X-Ratelimit-Remaining-Requests": {"0"}, "X-Ratelimit-Reset-Requests": {"9m30s"}, "X-Ratelimit-Remaining-Tokens": {"500"}, "X-Ratelimit-Reset-Tokens": {"20m"}},
 		"epoch":    {},
+		"tokens":   {"X-Ratelimit-Remaining-Tokens": {"120"}, "X-Ratelimit-Reset-Tokens": {"7m"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -230,6 +232,13 @@ func TestALimitPausesByItsKind(t *testing.T) {
 			}
 		})
 	}
+	t.Run("misread", func(t *testing.T) {
+		t.Parallel()
+		h := http.Header{"X-Ratelimit-Reset": {fmt.Sprint(time.Now().Add(10 * time.Minute).UnixMicro())}}
+		if left := limitedTurn(t, harness.ChatReply{Status: 429, Header: h, Body: `{"error": {"message": "Rate limit reached"}}`}); left > 25*time.Hour {
+			t.Fatalf("a reset past the next day is a misread and waits at most a day: %s", left)
+		}
+	})
 	t.Run("gemini minute", func(t *testing.T) {
 		t.Parallel()
 		left := limitedTurn(t, harness.ChatReply{Status: 429, Body: fmt.Sprintf(gemini, "Minute", "540s")})

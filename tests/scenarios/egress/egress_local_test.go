@@ -113,3 +113,27 @@ func TestAGrantOfEveryAddressSaysItReachesTheLocalNetwork(t *testing.T) {
 		t.Fatalf("a name is no local network: %v", r)
 	}
 }
+
+// TestABoxWithEveryHostReachesNoGatewayOfItsHost: "*" is the internet, not the machine deck runs on: the name
+// host.docker.internal, its address in OrbStack, OrbStack's machines and the same in IPv6 forms are refused at the door.
+func TestABoxWithEveryHostReachesNoGatewayOfItsHost(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("box", harness.ScriptManifest("collect", "", `, "domains": {"read": ["*"]}`))
+	e.SaveScript("box", "scripts/main.py", harness.PythonLib+`
+hosts = ["host.docker.internal:7794", "0.250.250.254:7700", "198.19.249.3", "[::ffff:0.250.250.254]:7700", "[64:ff9b::fa:fafe]:7700",
+    "[2002:fa:fafe::1]:7700"]
+print(json.dumps({h: fetch("http://" + h + "/") for h in hosts}))
+`)
+	p := e.WaitState(e.Start("box", "collect", nil), "done", "error")
+	var got map[string]any
+	if err := json.Unmarshal(p.Result, &got); err != nil || len(got) != 6 {
+		t.Fatalf("the script answers each host: %+v %s", p, p.Result)
+	}
+	for host, code := range got {
+		// A name that does not resolve, as host.docker.internal off Docker, is a 502 of the door: it is not reached either.
+		if code != float64(403) && !(strings.HasPrefix(host, "host.") && code == float64(502)) {
+			t.Errorf("the door refuses %s to a box with \"*\": %v", host, code)
+		}
+	}
+}

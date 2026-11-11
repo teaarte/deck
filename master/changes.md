@@ -346,3 +346,7 @@ and bring the modules in line.
   and its `hint` no longer counts the seconds, so six such looks in a row stop the turn as a loop; a script failing
   three times in a row no longer writes a warning of its own (the failed list counts it, the master hears it as
   before).
+- 2026-11-11: `"*"` and any name in `domains` reach only public addresses by the IANA special-purpose registries:
+  `0.0.0.0/8` (OrbStack's `host.docker.internal` is 0.250.250.254), `198.18.0.0/15` (OrbStack's machines),
+  `192.0.0.0/24`, the documentation ranges, `240.0.0.0/4`, Teredo, IPv6 outside `2000::/3` and the same in NAT64,
+  6to4 and mapped forms are refused; a service there is reached only by naming its IP, network or IP:port.

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/egress"
 	"deck2/tests/harness"
 )
 
@@ -70,6 +71,8 @@ func TestBrowserReadsAnySiteWithAStarAndSendsOnlyOwnFiles(t *testing.T) {
 	ag := &harness.SeqAgent{Files: []string{"cv.pdf"}}
 	e := harness.New(t, harness.WithAgent(ag.Script))
 	e.Project("web", harness.BrowserManifest(`{"read": ["*"], "act": ["jobs.example"]}`))
+	// A documentation address stands for a site on the internet.
+	egress.AsPublic("198.51.100.7:443")
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://198.51.100.7/x"), harness.Nav("https://jobs.example/apply"),
 		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"/etc/passwd"}}},
 		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/cv.pdf"}}})), "done")
@@ -136,12 +139,16 @@ func TestAHungBrowserToolFreesTheBrowserForOtherProjects(t *testing.T) {
 	e.App.Host.CallTimeout = 500 * time.Millisecond
 	e.Project("one", harness.BrowserManifest(`{"read": ["*"]}`))
 	e.Project("two", harness.BrowserManifest(`{"read": ["*"]}`))
+	// A documentation address stands for a site on the internet.
+	egress.AsPublic("198.51.100.1:443")
 	e.WaitState(e.Start("one", "browse", harness.Steps(harness.Nav("https://198.51.100.1/"))), "done")
 	if err := os.WriteFile(filepath.Join(e.Browser, "hang"), nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	snap := harness.Step{Tool: "browser_snapshot", Args: map[string]any{}}
 	e.WaitState(e.Start("one", "browse", harness.Steps(snap)), "done")
+	// A documentation address stands for a site on the internet.
+	egress.AsPublic("198.51.100.2:443")
 	e.WaitState(e.Start("two", "browse", harness.Steps(harness.Nav("https://198.51.100.2/"), snap)), "done")
 	got := ag.Last(3)
 	if !got[0].IsErr || !strings.Contains(got[0].Out, "did not answer") || got[1].IsErr || got[2].IsErr {
@@ -231,6 +238,8 @@ func TestAProjectThatReadsAnySiteGetsABrowserWithoutSignIns(t *testing.T) {
 	e.Project("mail", harness.BrowserManifest(`{"read": ["mail.example"]}`))
 	e.Project("research", harness.BrowserManifest(`{"read": ["*"]}`))
 	e.WaitState(e.Start("mail", "browse", harness.Steps(harness.Nav("https://mail.example/inbox/offer-from-acme"))), "done")
+	// A documentation address stands for a site on the internet.
+	egress.AsPublic("198.51.100.3:443")
 	e.WaitState(e.Start("research", "browse", harness.Steps(harness.Nav("https://198.51.100.3/inbox"),
 		harness.Step{Tool: "browser_tabs", Args: map[string]any{"action": "list"}})), "done")
 	got := ag.Last(2)
@@ -303,6 +312,8 @@ func TestTheBrowserWithoutSignInsReachesNoLocalAddress(t *testing.T) {
 	ag := &harness.SeqAgent{}
 	e := harness.New(t, harness.WithAgent(ag.Script))
 	e.Project("research", harness.BrowserManifest(`{"read": ["*"]}`))
+	// A documentation address stands for a site on the internet.
+	egress.AsPublic("198.51.100.4:80")
 	e.WaitState(e.Start("research", "browse", harness.Steps(harness.Nav("http://198.51.100.4/a"))), "done")
 	var config struct {
 		Browser struct {

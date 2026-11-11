@@ -101,24 +101,42 @@ func listed(domains []string, hostport string) bool {
 	return false
 }
 
-// Public reports whether an address is on the internet: not loopback, the local network or a tailnet, nor an IPv6
-// address that carries an IPv4 one that is not.
+// Public reports whether an address is on the internet: in no special-purpose range, and for IPv6 in the global
+// unicast space 2000::/3; an IPv6 address that carries an IPv4 one is public when that one is.
 func Public(ip netip.Addr) bool {
 	ip = ip.Unmap()
 	if v4, ok := embedded(ip); ok {
 		return Public(v4)
 	}
-	return ip.IsGlobalUnicast() && !ip.IsPrivate() && !shared.Contains(ip) && !nat64Local.Contains(ip)
+	if !ip.IsValid() || ip.Is6() && !global6.Contains(ip) {
+		return false
+	}
+	return !slices.ContainsFunc(special, func(p netip.Prefix) bool { return p.Contains(ip) })
 }
 
 var (
-	// shared is the carrier-grade NAT range, which tailnets use.
-	shared = netip.MustParsePrefix("100.64.0.0/10")
-	nat64  = netip.MustParsePrefix("64:ff9b::/96")
-	// nat64Local is the NAT64 prefix of a local network, which may reach any IPv4 address.
-	nat64Local = netip.MustParsePrefix("64:ff9b:1::/48")
-	sixTo4     = netip.MustParsePrefix("2002::/16")
+	nat64   = netip.MustParsePrefix("64:ff9b::/96")
+	sixTo4  = netip.MustParsePrefix("2002::/16")
+	global6 = netip.MustParsePrefix("2000::/3")
 )
+
+// special are the ranges of no public address, from the IANA IPv4 and IPv6 Special-Purpose Address Registries
+// (iana.org/assignments/iana-ipv4-special-registry, iana-ipv6-special-registry, 2025) and multicast.
+var special = prefixes(
+	"0.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "127.0.0.0/8", "169.254.0.0/16", "172.16.0.0/12", "192.0.0.0/24",
+	"192.0.2.0/24", "192.88.99.0/24", "192.168.0.0/16", "198.18.0.0/15", "198.51.100.0/24", "203.0.113.0/24",
+	"224.0.0.0/4", "240.0.0.0/4",
+	"::/8", "64:ff9b:1::/48", "100::/64", "2001::/23", "2001:db8::/32", "3fff::/20", "5f00::/16", "fc00::/7",
+	"fe80::/10", "fec0::/10", "ff00::/8",
+)
+
+func prefixes(ps ...string) []netip.Prefix {
+	out := make([]netip.Prefix, len(ps))
+	for i, p := range ps {
+		out[i] = netip.MustParsePrefix(p)
+	}
+	return out
+}
 
 // embedded is the IPv4 address a NAT64 or 6to4 address reaches.
 func embedded(ip netip.Addr) (netip.Addr, bool) {
@@ -149,19 +167,8 @@ func Local(domain string) bool {
 		return d == "localhost" || strings.HasSuffix(d, ".localhost")
 	}
 	pfx = pfx.Masked()
-	for _, l := range local {
-		if pfx.Overlaps(l) {
-			return true
-		}
-	}
-	return !Public(pfx.Addr())
+	return !Public(pfx.Addr()) || slices.ContainsFunc(special, pfx.Overlaps) || pfx.Overlaps(nat64) || pfx.Overlaps(sixTo4)
 }
-
-// local are the networks of no public address.
-var local = []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("10.0.0.0/8"),
-	netip.MustParsePrefix("172.16.0.0/12"), netip.MustParsePrefix("192.168.0.0/16"), netip.MustParsePrefix("169.254.0.0/16"),
-	netip.MustParsePrefix("100.64.0.0/10"), netip.MustParsePrefix("0.0.0.0/8"), netip.MustParsePrefix("::1/128"),
-	netip.MustParsePrefix("fc00::/7"), netip.MustParsePrefix("fe80::/10"), nat64, nat64Local, sixTo4}
 
 // With is domains and the host of a URL a manifest names, such as of an HTTP tool or an MCP server: a name, or an
 // address that is public; any other address the domains name themselves.

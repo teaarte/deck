@@ -73,8 +73,8 @@ const (
 	codexLogin  = `{"OPENAI_API_KEY":"sk-old"}`
 )
 
-// releaseIP is the address of github.com in the test: one of documentation, which deck takes for a public one.
-const releaseIP = "192.0.2.10"
+// releaseIP is the address of github.com in the test: a public one, bound on the loopback of the test's docker.
+const releaseIP = "1.2.3.4"
 
 // TestServerUpdatesFromEveryRelease: a deck of each release with a module, its records, a secret, a document, the
 // logins of the CLIs and a paired device takes the image of this tree, or its binary over the air, and keeps them.

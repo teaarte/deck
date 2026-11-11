@@ -91,7 +91,7 @@ func Test_listed(t *testing.T) {
 		{[]string{"10.0.0.0/8"}, "11.0.0.1:80", false, "an address outside the network"},
 		{[]string{"10.0.0.0/8"}, "ten.example:80", false, "a name is not in a network"},
 		{[]string{"192.168.1.5"}, "192.168.1.5:22", true, "an address on any port"},
-		{[]string{"192.168.1.5"}, "x.192.168.1.5:22", true, "a name under an address, as written"},
+		{[]string{"192.168.1.5"}, "x.192.168.1.5:22", false, "a name is never under an address"},
 		{[]string{"192.168.1.5"}, "192.168.1.50:22", false, "an address that starts the same"},
 		{[]string{"127.0.0.1:8080"}, "127.0.0.1:8080", true, "an address with its port"},
 		{[]string{"127.0.0.1:8080"}, "127.0.0.1:8081", false, "an address on another port"},

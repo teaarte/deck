@@ -94,7 +94,8 @@ func listed(domains []string, hostport string) bool {
 			continue
 		}
 		d = strings.Trim(d, "[]")
-		if host == d || ipErr != nil && strings.HasSuffix(host, "."+d) {
+		_, dIP := netip.ParseAddr(d)
+		if host == d || ipErr != nil && dIP != nil && strings.HasSuffix(host, "."+d) {
 			return true
 		}
 	}

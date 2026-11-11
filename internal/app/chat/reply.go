@@ -306,7 +306,7 @@ func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.C
 					return "", "", err
 				}
 			case len(lines) > 0:
-				v.Missed = untrusted.Block("Messages new to you, oldest first", transcript(lines))
+				v.Missed = untrusted.Block("Messages new to you, oldest first; what deck and the master said is a quoted string", transcript(lines))
 			}
 		}
 	}
@@ -372,7 +372,7 @@ func (s *Service) retelling(ctx context.Context, t db.ChatTopic, before int64) (
 		v.Summary = untrusted.Block("Summary of the topic", text)
 	}
 	if len(after) > 0 {
-		v.After = untrusted.Block("Messages after the summary, word for word, oldest first", transcript(after))
+		v.After = untrusted.Block("Messages after the summary, word for word, oldest first; what deck and the master said is a quoted string", transcript(after))
 	}
 	return master.Text("retelling", v), nil
 }

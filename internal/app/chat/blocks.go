@@ -21,6 +21,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 	"deck2/master"
 	"deck2/schemas"
 )
@@ -356,7 +357,7 @@ func (s *Service) answerOf(ctx context.Context, b shown, answer string) (string,
 		}
 		raw, _ := json.Marshal(map[string]string{"choice": answer})
 		if b.Title != "" {
-			return string(raw), b.Title + ": " + answer, nil
+			return string(raw), untrusted.Flat(b.Title, 120) + ": " + answer, nil
 		}
 		return string(raw), answer, nil
 	}
@@ -374,7 +375,7 @@ func (s *Service) answerOf(ctx context.Context, b shown, answer string) (string,
 	tr := s.words(registry.Lang(ctx))
 	lines := []string{}
 	if b.Title != "" {
-		lines = append(lines, b.Title)
+		lines = append(lines, untrusted.Flat(b.Title, 120))
 	}
 	for _, k := range manifest.PropertyOrder(schema) {
 		v, ok := values[k]
@@ -387,7 +388,7 @@ func (s *Service) answerOf(ctx context.Context, b shown, answer string) (string,
 				label = t
 			}
 		}
-		lines = append(lines, label+": "+said(v, tr))
+		lines = append(lines, untrusted.Flat(label, 120)+": "+said(v, tr))
 	}
 	raw, _ := json.Marshal(values)
 	return string(raw), strings.Join(lines, "\n"), nil

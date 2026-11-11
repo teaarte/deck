@@ -8,8 +8,7 @@
 {{else if .Missed}}deck: these messages of the topic came after your last turn; another provider may have answered them.
 {{.Missed}}
 
-{{end}}{{if .Language}}deck gives this topic the language {{.Language}}. Is the owner's latest message below written in {{.Language}}? If not, your first call is `deck.chat_topic_lang_set` with the code of its language (such as ru or en), and you reply in it: the works, requests and words of this topic follow that mark, not your reply.{{else}}deck knows no language of this topic yet: your first call is `deck.chat_topic_lang_set` with the code of the language of the owner's latest message below (such as ru or en), and you reply in it.{{end}}
-{{if gt (len .Pending) 1}}The owner's {{len .Pending}} new messages in chat topic {{.Topic}}, oldest first:
+{{end}}{{if gt (len .Pending) 1}}The owner's {{len .Pending}} new messages in chat topic {{.Topic}}, oldest first:
 {{else}}The owner's new message in chat topic {{.Topic}}:
 {{end}}{{range .Pending}}{{if .Where}}(written on {{.Where}})
 {{end}}{{.Text}}
@@ -18,3 +17,4 @@
 {{with .Projects}}{{.}}
 {{end}}{{with .Open}}{{.}}
 {{end}}
+{{if .Language}}deck gives this topic the language {{.Language}}. Is the owner's latest message above written in {{.Language}}? If not, your first call is `deck.chat_topic_lang_set` with the code of its language (such as ru or en), and you reply in it: the works, requests and words of this topic follow that mark, not your reply.{{else}}deck knows no language of this topic yet: your first call is `deck.chat_topic_lang_set` with the code of the language of the owner's latest message above (such as ru or en), and you reply in it.{{end}}

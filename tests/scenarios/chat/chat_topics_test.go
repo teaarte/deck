@@ -135,7 +135,7 @@ func TestAnotherProviderGetsTheRetelling(t *testing.T) {
 			t.Fatalf("the retelling has the topic word for word as data, missing %q:\n%s", want, c.Prompt)
 		}
 	}
-	if !strings.Contains(harness.LastLine(strings.Split(c.Prompt, "The owner's new message")[1]), "summary.md") || !strings.Contains(c.Prompt, "three") {
+	if after := strings.Split(c.Prompt, "The owner's new message"); len(after) != 2 || !strings.Contains(after[1], "summary.md") || !strings.Contains(after[1], "three") {
 		t.Fatalf("the new message comes after the retelling:\n%s", c.Prompt)
 	}
 

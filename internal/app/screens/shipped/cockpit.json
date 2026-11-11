@@ -18,6 +18,8 @@
         "details": "'#' + string(id) + ((parent ?? 0) != 0 ? ' of #' + string(parent) : '') + ' · ' + project + '.' + command + ' · ' + word"},
       "actions": [
         {"verb": "open", "screen": "process", "record": "=id"},
+        {"verb": "answer", "screen": "cockpit", "params": {"focus": "=string((held_ask ?? 0) != 0 ? held_ask : ask)"},
+          "when": "(held_ask ?? 0) != 0 || (wait?.reason ?? '') == 'answer' && (ask ?? 0) != 0"},
         {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
       ]},
     {"type": "list", "title": "What was", "icon": "history", "span": "full", "source": {"from": "deck.feed_list", "input": {"failures": true}, "limit": 20},

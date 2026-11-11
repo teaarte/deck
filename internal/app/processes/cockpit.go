@@ -48,7 +48,7 @@ const usualRuns = 5
 
 // shown says the state of a process in the words of lang; an open one with what it waits for, since when it works
 // and the topic its reply answers.
-func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang string) {
+func (s *Service) shown(ctx context.Context, act registry.Actor, p db.Process, v *processView, lang string) {
 	var question string
 	if !p.FinishedAt.Valid {
 		v.Since = cmp.Or(p.ReopenedAt.String, p.StartedAt)
@@ -76,8 +76,37 @@ func (s *Service) shown(ctx context.Context, p db.Process, v *processView, lang 
 		}
 	}
 	ws := words.In(lang)
-	v.Shown = process.Show(p, question, v.Long, func(phrase string) string { return manifest.Tr(ws, phrase) })
+	tr := func(phrase string) string { return manifest.Tr(ws, phrase) }
+	v.Shown = process.Show(p, question, v.Long, tr)
 	v.Error = deckError(ws, p, v.Error)
+	if process.Waits(p, process.WaitFolder) {
+		s.heldBy(ctx, act, p, v, lang, tr)
+	}
+}
+
+// heldBy says who holds the folder a process waits for and what that one waits for, its term and the button to its
+// question; a holder the caller may not read, or of another workspace, is only another module.
+func (s *Service) heldBy(ctx context.Context, act registry.Actor, p db.Process, v *processView, lang string, tr func(string) string) {
+	id, err := s.St.Q.FolderLockHolder(ctx, p.WaitOn)
+	if err != nil {
+		return
+	}
+	h, err := s.St.Q.GetProcess(ctx, id)
+	if err != nil || process.Waits(h, process.WaitFolder) {
+		return
+	}
+	hp, err := s.St.Q.GetProject(ctx, h.ProjectID)
+	if err != nil || hp.WorkspaceID != act.Workspace || !act.Within(h.ProjectID) {
+		v.Word = fmt.Sprintf(tr("waits for folder %s, which another module holds"), p.Folder)
+		return
+	}
+	held := procView(h, hp.Name)
+	s.shown(ctx, act, h, &held, lang)
+	v.HeldBy, v.HeldAsk = id, held.Ask
+	if held.Wait != nil {
+		v.HeldUntil = held.Wait.Until
+	}
+	v.Word = fmt.Sprintf(tr("waits for folder %s, which process #%d holds: %s"), p.Folder, id, held.Word)
 }
 
 // answerWait is what a process that waits for the owner waits on now: its first open ask and the first term of them.

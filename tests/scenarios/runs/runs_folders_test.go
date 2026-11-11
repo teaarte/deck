@@ -121,7 +121,7 @@ func TestSecondAgentInTheSameFolderWaitsForTheLock(t *testing.T) {
 	})
 	waits := 0
 	for _, it := range e.CockpitRunning() {
-		if it.Text == "waits for folder "+repo {
+		if it.Text == fmt.Sprintf("waits for folder %s, which process #%d holds: runs on fake", repo, first) {
 			waits++
 		}
 	}

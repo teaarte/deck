@@ -97,6 +97,11 @@ type processView struct {
 	// Ask and Question are what an open process waits for the owner to answer.
 	Ask      int64  `json:"ask,omitempty"`
 	Question string `json:"question,omitempty"`
+	// HeldBy is the process that holds the folder a waiting one waits for, HeldAsk what that one waits for the owner
+	// to answer and HeldUntil the term of its wait.
+	HeldBy    int64  `json:"held_by,omitempty"`
+	HeldAsk   int64  `json:"held_ask,omitempty"`
+	HeldUntil string `json:"held_until,omitempty"`
 	// Topic is the chat topic an open reply of the master answers.
 	Topic string `json:"topic,omitempty"`
 	// Models are the models of deck's settings the process called, and CostUSD what they cost, nil when one has no
@@ -233,7 +238,7 @@ func (s *Service) processesList(ctx context.Context, act registry.Actor, in proc
 			v.Retry = err == nil && slices.Contains(c.Callers, registry.Owner)
 			v.Repeats = repeats[p.ID]
 		}
-		s.shown(ctx, p, &v, registry.Lang(ctx))
+		s.shown(ctx, act, p, &v, registry.Lang(ctx))
 		out = append(out, v)
 	}
 	return out, nil
@@ -360,7 +365,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		v.Hint = fmt.Sprintf("process %d has not ended. To wait for it, call process_get with wait=600 once: while you wait, "+
 			"your agent slot is free for it; a look without a wait answers at once and holds your slot", p.ID)
 	}
-	s.shown(ctx, p, &v, registry.Lang(ctx))
+	s.shown(ctx, act, p, &v, registry.Lang(ctx))
 	if process.Waits(p, process.WaitSlot) {
 		ahead, err := s.St.Q.CountSlotAhead(ctx, db.CountSlotAheadParams{WorkspaceID: project.WorkspaceID, ID: p.ID})
 		if err != nil {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -231,4 +232,83 @@ func TestEveryWaitHoldsThroughARestartAndWakesOnItsCondition(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAProcessWaitingForAFolderSaysWhoHoldsItAndLeadsToTheQuestion: a folder's waiter names its holder, what and until
+// when that one waits, and opens its question by Answer; an agent of another module learns only that one holds it.
+func TestAProcessWaitingForAFolderSaysWhoHoldsItAndLeadsToTheQuestion(t *testing.T) {
+	t.Parallel()
+	var waiter atomic.Int64
+	peeked := make(chan string, 1)
+	e := harness.New(t, harness.WithConfig(harness.WithTTL), harness.WithClock(), harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "peek" {
+			out, _ := c.Tool(ctx, "process_get", map[string]any{"process": waiter.Load()})
+			peeked <- out
+			return ok(ctx, c)
+		}
+		if c.N == 1 {
+			askQuestion(ctx, c, "Which branch?")
+			return provider.Result{Text: "stopped"}
+		}
+		return ok(ctx, c)
+	}))
+	m := harness.TestManifest([]string{harness.Many(harness.FolderCommand("run", "true")), harness.AgentCommand("peek", "")}, nil)
+	p, other := e.Project("code", m), e.Project("other", m)
+	repo := harness.RepoFolder(t)
+	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
+	e.Must("deck.folder_add", map[string]any{"project": "other", "path": repo}, nil)
+	first := e.Run(p, "run")
+	e.PassState(first, "waiting:answer")
+	a := e.WaitAsk()
+	second := e.Run(p, "run")
+	e.WaitState(second, "waiting:folder")
+
+	var row harness.ListItem
+	e.Until("Running now names the holder of the folder", func() bool {
+		for _, it := range e.CockpitRunning() {
+			if strings.Contains(it.Text, fmt.Sprintf("which process #%d holds", first)) {
+				row = it
+				return true
+			}
+		}
+		return false
+	})
+	if !strings.Contains(row.Text, "waits for folder "+repo) || !strings.Contains(row.Text, "waits for your answer: Which branch?") {
+		t.Fatalf("the waiting one says what the holder waits for: %q", row.Text)
+	}
+	var answer map[string]any
+	for _, act := range row.Actions {
+		if act["verb"] == "answer" {
+			answer = act
+		}
+	}
+	if params, _ := answer["params"].(map[string]any); answer == nil || answer["screen"] != "cockpit" || params["focus"] != fmt.Sprint(a.ID) {
+		t.Fatalf("an Answer button opens the question of the holder in Today: %+v", row.Actions)
+	}
+	var v struct {
+		HeldBy    int64  `json:"held_by"`
+		HeldAsk   int64  `json:"held_ask"`
+		HeldUntil string `json:"held_until"`
+	}
+	e.Must("deck.process_get", map[string]any{"process": second}, &v)
+	var expires string
+	// The term of the ask, which deck shows only in its own words.
+	_ = e.SQLRow(`SELECT expires_at FROM ask WHERE id = ?`, a.ID).Scan(&expires)
+	if v.HeldBy != first || v.HeldAsk != a.ID || v.HeldUntil != expires {
+		t.Fatalf("process_get names the holder, its ask and the term of its wait: %+v, ask expires %q", v, expires)
+	}
+
+	theirs := e.Run(other, "run")
+	e.WaitState(theirs, "waiting:folder")
+	waiter.Store(theirs)
+	e.Run(other, "peek")
+	if got := <-peeked; strings.Contains(got, "Which branch?") || strings.Contains(got, "held_ask") || strings.Contains(got, "held_by") ||
+		!strings.Contains(got, "which another module holds") {
+		t.Fatalf("an agent of another module learns only that another module holds the folder: %s", got)
+	}
+
+	e.Answer(a.ID, "main")
+	e.WaitState(first, "done")
+	e.WaitState(second, "done")
+	e.WaitState(theirs, "done")
 }

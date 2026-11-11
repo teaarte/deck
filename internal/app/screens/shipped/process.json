@@ -9,6 +9,8 @@
       {"label": "Module", "bind": "project", "format": "tag"},
       {"label": "Model", "bind": "provider", "format": "logo"},
       {"label": "Started", "bind": "started_at", "format": "relative"},
+      {"label": "Waits until", "bind": "wait?.until ?? nil", "format": "relative"},
+      {"label": "Folder held until", "bind": "held_until ?? nil", "format": "relative"},
       {"label": "Speed, tokens a second", "bind": "(speed ?? 0) == 0 ? nil : speed", "format": "number"},
       {"label": "Error", "bind": "error"},
       {"label": "Failure type", "bind": "(error_type ?? '') == '' ? nil : error_type + ' · ' + whose", "format": "tag", "tone": "'error'"},
@@ -18,6 +20,9 @@
     "actions": [
       {"verb": "model", "primary": true, "command": "deck.assignment_set", "params": {"role": "=work.role", "project": "=project", "command": "=command"},
         "input": "model", "options": "=work.choices", "groups": "=work.choice_groups", "notes": "=work.choice_notes ?? nil", "logos": "=work.choice_logos ?? nil", "when": "work != nil"},
+      {"verb": "answer", "screen": "cockpit", "params": {"focus": "=string((held_ask ?? 0) != 0 ? held_ask : ask)"},
+        "when": "(held_ask ?? 0) != 0 || (wait?.reason ?? '') == 'answer' && (ask ?? 0) != 0"},
+      {"verb": "open", "screen": "process", "record": "=held_by", "when": "(held_by ?? 0) != 0"},
       {"verb": "retry", "command": "deck.process_retry", "params": {"process": "=id"}, "when": "retry ?? false"},
       {"verb": "stop", "command": "deck.process_stop", "params": {"process": "=id"}, "when": "(finished_at ?? '') == ''"}
     ]},

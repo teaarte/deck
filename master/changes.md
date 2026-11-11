@@ -354,3 +354,7 @@ and bring the modules in line.
   (`unshare -U` is refused), so it mounts nothing; an older bubblewrap is a red row `sandbox` in health. Chrome
   there runs without its own sandbox (the box is it): a script that starts Chrome itself passes `--no-sandbox`. A
   host with AppArmor loads `deck-box.apparmor` of this version again (README, "Install").
+- 2026-11-11: a process that waits for a folder names who holds it: `process_get` and `processes_list` give `held_by`
+  (the process that holds the folder), `held_ask` (what that one waits for the owner to answer) and `held_until` (the
+  term of its wait); its word says what the holder waits for, and Today and the process screen have an Answer button
+  to that question. A caller that may not read the holder's module learns only that another module holds the folder.

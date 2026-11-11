@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // unpacked numbers the files Unpack writes apart before they move into place.
@@ -91,33 +93,40 @@ var ErrApart = errors.New("the data folder and deck's stored files are on differ
 // ErrMoved is a file that is not the one checked before, or a path that now goes through a link.
 var ErrMoved = errors.New("the file changed meanwhile")
 
-// Trash moves the file name of dir, the one fi says, to the stored file id, through one root of deck's folder.
+// Trash moves the file name of dir, the one fi says, to the stored file id. The file is taken through a root of dir
+// and moved by the descriptor of its folder, so no link leads the move out of dir.
 func (l Layout) Trash(dir, name string, fi os.FileInfo, id int64) error {
-	root, at, err := l.under(dir, name)
+	parent, base, err := parentIn(dir, name, false)
 	if err != nil {
 		return err
 	}
-	defer root.Close()
-	now, err := root.Lstat(at)
+	defer parent.Close()
+	store, stored, err := l.storeOf(id)
 	if err != nil {
 		return err
 	}
-	if !os.SameFile(fi, now) {
+	defer store.Close()
+	if now, err := parent.root.Lstat(base); err != nil {
+		return err
+	} else if !os.SameFile(fi, now) {
 		return ErrMoved
 	}
-	stored, _ := filepath.Rel(string(l), l.File(id))
-	if err := root.MkdirAll(filepath.Dir(stored), 0o700); err != nil {
-		return err
-	}
-	if err := root.Rename(at, stored); errors.Is(err, syscall.EXDEV) {
+	if err := unix.Renameat(parent.fd(), base, int(store.Fd()), stored); errors.Is(err, syscall.EXDEV) {
 		return ErrApart
 	} else if err != nil {
-		return err
+		return &os.LinkError{Op: "rename", Old: name, New: l.File(id), Err: err}
+	}
+	if moved, err := os.Lstat(l.File(id)); err != nil || !os.SameFile(fi, moved) {
+		if unix.Renameat(int(store.Fd()), stored, parent.fd(), base) != nil {
+			_ = os.RemoveAll(l.File(id))
+		}
+		return ErrMoved
 	}
 	return nil
 }
 
-// Untrash puts the stored file id back as the file name of dir, never over a file there: that is os.ErrExist.
+// Untrash puts the stored file id back as the file name of dir, never over a file there (os.ErrExist) and never
+// through a link: the link is made by the descriptor of a folder taken through a root of dir.
 func (l Layout) Untrash(id int64, dir, name string) error {
 	if !filepath.IsLocal(filepath.FromSlash(name)) {
 		return fmt.Errorf("%q is outside %s", name, dir)
@@ -125,39 +134,77 @@ func (l Layout) Untrash(id int64, dir, name string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	root, at, err := l.under(dir, name)
+	parent, base, err := parentIn(dir, name, true)
 	if err != nil {
 		return err
 	}
-	defer root.Close()
-	if err := root.MkdirAll(filepath.Dir(at), 0o700); err != nil {
+	defer parent.Close()
+	store, stored, err := l.storeOf(id)
+	if err != nil {
 		return err
 	}
-	stored, _ := filepath.Rel(string(l), l.File(id))
-	if err := root.Link(stored, at); errors.Is(err, os.ErrExist) {
-		return os.ErrExist
-	} else if err != nil {
-		return err
+	defer store.Close()
+	if err := unix.Linkat(int(store.Fd()), stored, parent.fd(), base, 0); err != nil {
+		return &os.LinkError{Op: "link", Old: l.File(id), New: name, Err: err}
 	}
 	return nil
 }
 
-// under is deck's folder as a root and name of dir in it, refused when its path goes through a link.
-func (l Layout) under(dir, name string) (*os.Root, string, error) {
-	rel, err := filepath.Rel(string(l), dir)
-	if err != nil || !filepath.IsLocal(rel) {
-		return nil, "", fmt.Errorf("%s is outside deck's folder", dir)
+// folder is a folder taken through a root, with the descriptor a move or a link goes by.
+type folder struct {
+	root *os.Root
+	dir  *os.File
+}
+
+func (f folder) fd() int { return int(f.dir.Fd()) }
+
+func (f folder) Close() { _ = f.dir.Close(); _ = f.root.Close() }
+
+// parentIn is the folder of name inside dir and the last part of name, refused (ErrMoved) when the path goes through
+// a link; mkdir makes the missing folders.
+func parentIn(dir, name string, mkdir bool) (folder, string, error) {
+	at := filepath.Clean(filepath.FromSlash(name))
+	if !filepath.IsLocal(at) || at == "." {
+		return folder{}, "", fmt.Errorf("%q is outside %s", name, dir)
 	}
-	at := filepath.Join(rel, filepath.Clean(filepath.FromSlash(name)))
-	root, err := os.OpenRoot(string(l))
+	top, err := os.OpenRoot(dir)
+	if err != nil {
+		return folder{}, "", err
+	}
+	defer top.Close()
+	if err := Plain(top, at); err != nil {
+		return folder{}, "", ErrMoved
+	}
+	if mkdir {
+		if err := top.MkdirAll(filepath.Dir(at), 0o700); err != nil {
+			return folder{}, "", err
+		}
+	}
+	root, err := top.OpenRoot(filepath.Dir(at))
+	if errors.Is(err, os.ErrNotExist) {
+		return folder{}, "", err
+	} else if err != nil {
+		return folder{}, "", ErrMoved
+	}
+	d, err := root.Open(".")
+	if err != nil {
+		_ = root.Close()
+		return folder{}, "", err
+	}
+	return folder{root, d}, filepath.Base(at), nil
+}
+
+// storeOf is the folder of the stored file id, opened, and its name there.
+func (l Layout) storeOf(id int64) (*os.File, string, error) {
+	path := l.File(id)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, "", err
+	}
+	d, err := os.Open(filepath.Dir(path))
 	if err != nil {
 		return nil, "", err
 	}
-	if err := Plain(root, at); err != nil {
-		root.Close()
-		return nil, "", ErrMoved
-	}
-	return root, at, nil
+	return d, filepath.Base(path), nil
 }
 
 // RemoveIn removes the files and folders of names under dir, never past it.

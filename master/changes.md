@@ -378,3 +378,6 @@ and bring the modules in line.
   the log its stderr is dropped with one line that says so (what the agent says and does stays); a picture of the data
   folder past 25 million pixels gets no light copy, a media block shows it itself; the container of deck's compose runs
   at most 4096 processes.
+- 2026-11-11: `file_delete` and `file_restore` move a file of a data folder only inside that folder: a path that
+  goes through a link, or a folder swapped for a link meanwhile, is refused (`conflict`, read the folder again);
+  nothing of deck's own folder goes into the trash of a project or comes out of it.

@@ -73,6 +73,12 @@ func (a *Adapter) settings(req provider.Request) map[string]any {
 			deny = append(deny, tool+"(/"+h+")")
 		}
 	}
+	// The files given with messages are read only, here too where no box mounts them so.
+	for _, g := range req.Given {
+		for _, p := range home.Names(g) {
+			deny = append(deny, "Edit(/"+p+"/**)")
+		}
+	}
 	s["permissions"] = map[string]any{"deny": deny}
 	if req.Repo {
 		s["claudeMdExcludes"] = excludes(req.Cwd)

@@ -154,6 +154,35 @@ chown -R agent:agent /home/agent /var/lib/deck/work/left`)
 	b.calm()
 }
 
+// rollback goes back to the image of v by the steps of docs/install.md, "Restoring a snapshot": the base of the
+// snapshot the update kept, then the older image, which finds what it kept.
+func (b *bare) rollback(cookie, v string) {
+	t := b.t
+	t.Helper()
+	b.compose("stop", "deck")
+	run := []string{"run", "--rm", "--no-deps", "--user", "deck", "--entrypoint"}
+	var snap string
+	for _, f := range strings.Fields(b.compose(append(run, "ls", "deck", "/var/lib/deck/state/backups")...)) {
+		if strings.HasPrefix(f, "update-") && strings.HasSuffix(f, ".tar.gz") {
+			snap = max(snap, f)
+		}
+	}
+	if snap == "" {
+		t.Fatal("the update kept the base before it in backups/update-<time>.tar.gz")
+	}
+	b.compose(append(run, "sh", "deck", "-c", "cd /var/lib/deck && rm -f state/deck.db state/deck.db-wal state/deck.db-shm && tar -xzf state/backups/"+snap+" state/deck.db")...)
+	b.write("/srv/deck/compose.override.yaml", "services:\n  deck:\n    image: ghcr.io/teaarte/deck:"+v+"\n")
+	defer b.in("rm", "-f", "/srv/deck/compose.override.yaml")
+	b.compose("up", "-d")
+	var ver struct{ Version string }
+	harness.UntilWithin(t, 4*time.Minute, "deck of "+v+" to answer again on the base it had", func() bool {
+		out, ok := b.try(cookie, "deck.version_get", map[string]any{})
+		return ok && json.Unmarshal(out, &ver) == nil && ver.Version == v
+	})
+	b.kept(cookie)
+	b.compose("stop", "deck")
+}
+
 // fromImage: a deck of release v, from compose.yaml and its two files of v as its owners downloaded them, takes the
 // image of this tree as docker compose pull brings it.
 func (b *bare) fromImage(v string) {
@@ -186,6 +215,9 @@ func (b *bare) fromImage(v string) {
 	}
 	b.devices(cookie)
 	b.calm()
+	if v == releases[len(releases)-1] {
+		b.rollback(cookie, v)
+	}
 }
 
 // fromBinary: the binary of release v as GitHub keeps it, the key it trusts aside, finds the binary of this tree in a

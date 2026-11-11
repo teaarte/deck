@@ -110,7 +110,8 @@ once, for that alone), starts deck and prints a link that pairs your device (on 
 
 ```bash
 mkdir deck && cd deck
-for f in compose.yaml seccomp.json deck-box.apparmor move-to-docker.sh; do curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/master/$f; done
+v=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/teaarte/deck/releases/latest); v=${v##*/}   # the latest release
+for f in compose.yaml seccomp.json deck-box.apparmor move-to-docker.sh; do curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/$v/$f; done
 # Ubuntu and Debian, once: the AppArmor profile the container runs under
 sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
 docker compose up -d
@@ -157,10 +158,12 @@ device:
 
 ## Updating
 
-Run the install line again: it downloads `compose.yaml`, `seccomp.json`, `deck-box.apparmor` and `move-to-docker.sh`
-anew, pulls the image and restarts deck (it asks before replacing a running deck; without a terminal, `DECK_YES=1`).
+Run the install line again: it pulls the image, downloads `compose.yaml`, `seccomp.json`, `deck-box.apparmor` and
+`move-to-docker.sh` of the release that image is and restarts deck (it asks before replacing a running deck; without a terminal, `DECK_YES=1`).
 `docker compose pull && docker compose up -d` in `~/deck` updates only the image. When a release is out, Settings →
-Advanced and the feed say so. On start, deck migrates its database and the stored manifests.
+Advanced and the feed say so. On start, deck migrates its database and the stored manifests, keeping the base before
+in `state/backups/update-<time>.tar.gz`; an older image refuses to start on the migrated base until that snapshot is
+back ([docs/install.md](docs/install.md#restoring-a-snapshot)).
 
 ### Updating from v0.1 and v0.2 (Обновление с v0.1 и v0.2)
 

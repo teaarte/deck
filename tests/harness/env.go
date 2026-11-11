@@ -304,6 +304,9 @@ func (e *Env) Restart(more ...Option) *Env {
 	return e2
 }
 
+// Stop stops deck as an owner does, leaving its home to the test.
+func (e *Env) Stop() { e.stop(true) }
+
 // Resume resumes the turns a deck before left, as deck does when it starts.
 func (e *Env) Resume() {
 	e.T.Helper()

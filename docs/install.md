@@ -69,6 +69,29 @@ homes of the CLIs, and its tailnet's state.
 
 To go back, `docker compose down` and start the old binary on `~/.deck2`, which the move leaves as it was.
 
+## Restoring a snapshot
+
+deck keeps its snapshots in its volume, `state/backups/`: `deck-<time>.tar.gz` daily and by hand, `deleted-<time>`
+before a module is deleted, and `update-<time>.tar.gz`, the base as it was before a newer deck migrated it on its
+first start. An older deck refuses to start on a base a newer one migrated and says so in
+`docker compose logs deck`. To go back to the older image, put back the base of the last `update-` snapshot:
+
+```bash
+cd ~/deck && docker compose stop deck
+docker compose run --rm --no-deps --user deck --entrypoint ls deck /var/lib/deck/state/backups   # the newest update-<time>.tar.gz
+docker compose run --rm --no-deps --user deck --entrypoint sh deck -c 'cd /var/lib/deck &&
+  rm -f state/deck.db state/deck.db-wal state/deck.db-shm && tar -xzf state/backups/update-<time>.tar.gz state/deck.db'
+```
+
+Then name the older image in `compose.override.yaml` (create it if there is none), under `services:` → `deck:` the
+line `image: ghcr.io/teaarte/deck:<older version>`, and `docker compose up -d`. The files are deck's as the user
+`deck` extracts them; as root they would be root's and deck could not open its base.
+
+What deck wrote to its base after that update is gone; stored files and data folders stay as they are. A daily
+snapshot goes back the same way, with its whole `state/files` and `projects/*/data` too (`tar -xzf <snapshot>` in
+`/var/lib/deck`). Without Docker the same steps run in `~/.deck2` with deck stopped. Back on the newest image, remove
+that line `image` from `compose.override.yaml` before the install line runs again.
+
 ## From a checkout
 
 `sh install.sh` in a checkout of deck takes its master, builds the image `deck:local` and runs it in `~/deck` (its

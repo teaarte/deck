@@ -24,7 +24,7 @@ var renamed = map[string]string{
 	"theme_format": "theme_format_get", "menu": "menu_get", "notify": "owner_notify", "process_asks": "process_asks_list",
 	"process_chat": "process_chat_get", "process_left": "process_left_list", "process_log": "process_log_get",
 	"project_cover": "project_cover_set", "project_covers": "project_covers_list", "project_needs": "project_readiness_get", "project_needs_get": "project_readiness_get",
-	"project_rights": "project_rights_list", "provider_off": "provider_switch", "push_devices": "push_devices_list",
+	"project_rights": "project_rights_list", "provider_off": "provider_switch",
 	"push_key": "push_key_get", "push_reset": "push_key_reset", "record_parts": "record_parts_list", "screen": "screen_get",
 	"screen_shot": "screen_capture", "secure_address": "secure_address_get", "spend_daily": "spend_days_list",
 	"theme": "theme_get", "theme_image": "theme_image_set", "today": "today_get", "transcribe": "recording_transcribe",

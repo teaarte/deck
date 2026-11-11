@@ -118,7 +118,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		return nil, err
 	}
 	cfg.Sandbox.Reap()
-	st, err := store.Open(h.DB(), cfg.Now)
+	st, err := store.Open(h.DB(), cfg.Now, snapshots.BeforeUpdate(h, cfg.Now))
 	if err != nil {
 		return nil, err
 	}

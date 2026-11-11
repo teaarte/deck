@@ -132,7 +132,13 @@ func (g guard) QueryRowContext(ctx context.Context, q string, a ...any) *sql.Row
 	return g.db.QueryRowContext(ctx, q, a...)
 }
 
-func Open(path string, now func() time.Time) (*Store, error) {
+// Before is what Open does before it migrates a base an older deck left from its migration to the last: a copy of
+// the base by backup, which writes it whole to a path.
+type Before func(from, last int64, backup func(to string) error) error
+
+// Open opens the base at path and migrates it, after before when there is something to migrate in a base of an
+// older deck; a base a newer deck migrated it refuses.
+func Open(path string, now func() time.Time, before ...Before) (*Store, error) {
 	uri := "file:" + strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(path)
 	// A write takes the lock at BEGIN: a read before it in the same transaction cannot go stale and fail as busy.
 	base, err := sqlite.NewConnector(uri + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_txlock=immediate")
@@ -148,6 +154,10 @@ func Open(path string, now func() time.Time) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := checkVersion(conn, up, path, before); err != nil {
+		conn.Close()
+		return nil, err
+	}
 	if _, err := up.Up(context.Background()); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
@@ -160,6 +170,37 @@ func Open(path string, now func() time.Time) (*Store, error) {
 	}
 	reads.SetMaxOpenConns(4)
 	return &Store{DB: conn, Q: db.New(guard{reads}), reads: reads, uri: uri, changes: ch, Now: now}, nil
+}
+
+// checkVersion refuses a base of a newer deck and runs before ahead of the migrations of a base of an older one.
+func checkVersion(conn *sql.DB, up *goose.Provider, path string, before []Before) error {
+	var tables int
+	if err := conn.QueryRow(`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'goose_db_version'`).Scan(&tables); err != nil || tables == 0 {
+		return err
+	}
+	var from int64
+	if err := conn.QueryRow(`SELECT COALESCE(max(version_id), 0) FROM goose_db_version`).Scan(&from); err != nil {
+		return err
+	}
+	known := up.ListSources()
+	last := known[len(known)-1].Version
+	switch {
+	case from > last:
+		return fmt.Errorf("the base %s was migrated by a newer deck (migration %d; this deck knows up to %d): run that newer deck, "+
+			"or restore the snapshot backups/update-<time>.tar.gz taken before it migrated the base (docs/install.md, \"Restoring a snapshot\")", path, from, last)
+	case from == 0 || from == last:
+		return nil
+	}
+	backup := func(to string) error {
+		_, err := conn.Exec("VACUUM INTO ?", to)
+		return err
+	}
+	for _, b := range before {
+		if err := b(from, last, backup); err != nil {
+			return fmt.Errorf("keep the base before it is migrated: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *Store) Close() error { return cmp.Or(s.reads.Close(), s.DB.Close()) }

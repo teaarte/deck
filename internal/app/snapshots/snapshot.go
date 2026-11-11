@@ -21,6 +21,7 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/home"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 
 	"github.com/google/uuid"
 )
@@ -84,7 +85,6 @@ func (s *Service) write(ctx context.Context, kind string, project int64) (string
 		_ = os.RemoveAll(p)
 	}
 	id := uuid.NewString()
-	path := filepath.Join(dir, kind+"-"+s.Now().UTC().Format(home.SnapshotLayout)+".tar.gz")
 	copyDB := filepath.Join(dir, ".deck-"+id+".db")
 	files := filepath.Join(dir, ".files-"+id)
 	defer os.Remove(copyDB)
@@ -92,8 +92,47 @@ func (s *Service) write(ctx context.Context, kind string, project int64) (string
 	if err := s.hold(ctx, copyDB, files, project); err != nil {
 		return "", leftOut{}, err
 	}
+	path, left, err := archive(s.Home, kind, s.Now(), id, copyDB, files, project, s.Budget/2)
+	if err != nil {
+		return "", leftOut{}, err
+	}
+	s.fit(dir, path)
+	s.Emit(events.Event{Topic: events.Snapshots})
+	return path, left, nil
+}
+
+// BeforeUpdate keeps the base a start of deck migrates in backups/update-<time>.tar.gz, as a snapshot holds it; a
+// start of the same deck again, after a migration failed halfway, keeps the first one.
+func BeforeUpdate(h home.Layout, now func() time.Time) store.Before {
+	return func(from, last int64, backup func(to string) error) error {
+		if b, err := os.ReadFile(h.UpdateKept()); err == nil && string(b) == fmt.Sprint(last) {
+			return nil
+		}
+		if err := os.MkdirAll(h.Backups(), 0o700); err != nil {
+			return err
+		}
+		id := uuid.NewString()
+		copyDB := filepath.Join(h.Backups(), ".deck-"+id+".db")
+		defer os.Remove(copyDB)
+		if err := backup(copyDB); err != nil {
+			return err
+		}
+		path, _, err := archive(h, home.SnapshotUpdate, now(), id, copyDB, "", -1, 0)
+		if err != nil {
+			return err
+		}
+		slog.Info("the base is kept before it is migrated", "from", from, "to", last, "snapshot", path)
+		return home.WriteFile(h.UpdateKept(), []byte(fmt.Sprint(last)))
+	}
+}
+
+// archive writes kind-<time>.tar.gz of the copy of the base and files to backups/ and keeps the newest of its kind;
+// files "" and project -1 leave the base alone in it.
+func archive(h home.Layout, kind string, at time.Time, id, copyDB, files string, project, budget int64) (string, leftOut, error) {
+	dir := h.Backups()
+	path := filepath.Join(dir, kind+"-"+at.UTC().Format(home.SnapshotLayout)+".tar.gz")
 	part := path + "." + id + ".part"
-	left, err := writeSnapshot(part, s.Home, copyDB, files, project, s.Budget/2)
+	left, err := writeSnapshot(part, h, copyDB, files, project, budget)
 	if err != nil {
 		_ = os.Remove(part)
 		return "", leftOut{}, err
@@ -107,8 +146,6 @@ func (s *Service) write(ctx context.Context, kind string, project int64) (string
 		_ = os.Remove(old[0])
 		old = old[1:]
 	}
-	s.fit(dir, path)
-	s.Emit(events.Event{Topic: events.Snapshots})
 	return path, left, nil
 }
 
@@ -219,9 +256,15 @@ func writeSnapshot(path string, h home.Layout, copyDB, files string, project, bu
 		return leftOut{}, err
 	}
 	stored, _ := filepath.Rel(string(h), h.Files())
-	dirs := map[string]string{files: stored}
+	dirs := map[string]string{}
+	if files != "" {
+		dirs[files] = stored
+	}
 	data, _ := filepath.Glob(filepath.Join(h.Projects(), "*", "data"))
-	if project != 0 {
+	switch {
+	case project < 0:
+		data = nil
+	case project != 0:
 		data = []string{h.Data(project)}
 	}
 	for _, d := range data {

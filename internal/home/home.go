@@ -33,6 +33,9 @@ func (l Layout) DB() string { return l.state("deck.db") }
 // Update is the update a deck put in place and has not yet served in.
 func (l Layout) Update() string { return l.state("update.json") }
 
+// UpdateKept names the newest migration of the deck whose start last kept the base before migrating it.
+func (l Layout) UpdateKept() string { return l.state("update-kept") }
+
 // Lock is the file the one deck of a home holds locked while it runs.
 func (l Layout) Lock() string { return l.state("deck.lock") }
 
@@ -59,12 +62,13 @@ func (l Layout) Backups() string      { return l.state("backups") }
 // Thumbs holds the light copies of the pictures of data folders.
 func (l Layout) Thumbs() string { return l.state("thumbs") }
 
-// SnapshotLayout is the time in the name of a snapshot in backups/, <kind>-<time>.tar.gz: SnapshotDaily for the
-// daily and hand ones, SnapshotDelete for those before a project is deleted.
+// SnapshotLayout is the time in the name of a snapshot in backups/, <kind>-<time>.tar.gz: daily and hand ones,
+// those before a project is deleted, and the base before a start migrates it.
 const (
 	SnapshotLayout = "20060102T150405"
 	SnapshotDaily  = "deck"
 	SnapshotDelete = "deleted"
+	SnapshotUpdate = "update"
 )
 
 func (l Layout) Browser() string   { return l.state("browser") }

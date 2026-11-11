@@ -6,12 +6,26 @@ set -eu
 dir=${DECK_DIR:-$HOME/deck}
 here=$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)
 case $0 in *install.sh) [ -n "${DECK_SOURCE:-}" ] || [ ! -f "$here/Dockerfile" ] || [ ! -f "$here/compose.yaml" ] || DECK_SOURCE=$here ;; esac
-src=${DECK_SOURCE:-https://raw.githubusercontent.com/teaarte/deck/master}
+src=${DECK_SOURCE:-}
 say() { echo "deck: $*"; }
 command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1 || {
   say "install Docker with compose first: OrbStack or Docker Desktop on a Mac, Docker Desktop on Windows, Docker Engine on Linux"
   exit 1
 }
+# The files beside compose.yaml are those of the release the image is.
+if [ -z "$src" ]; then
+  image=ghcr.io/teaarte/deck:latest
+  docker pull -q "$image" >/dev/null
+  tag=$(docker image inspect -f '{{index .Config.Labels "org.opencontainers.image.version"}}' "$image")
+  case $tag in
+  v[0-9]*) src=https://raw.githubusercontent.com/teaarte/deck/$tag ;;
+  *)
+    say "the image $image names no release ($tag); see https://github.com/teaarte/deck/releases"
+    exit 1
+    ;;
+  esac
+  say "taking the files of $tag, the release of $image"
+fi
 mkdir -p "$dir"
 cd "$dir"
 # A deck that runs here is replaced only by a yes in a terminal, by DECK_YES=1, or when DECK_DIR names this folder.

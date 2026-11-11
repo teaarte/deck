@@ -358,3 +358,6 @@ and bring the modules in line.
   (the process that holds the folder), `held_ask` (what that one waits for the owner to answer) and `held_until` (the
   term of its wait); its word says what the holder waits for, and Today and the process screen have an Answer button
   to that question. A caller that may not read the holder's module learns only that another module holds the folder.
+- 2026-11-11: deck keeps its base in `state/backups/update-<time>.tar.gz` before a start migrates it; `snapshots_list`
+  lists it beside the others. An older deck refuses to start on a base a newer one migrated. The installer takes the
+  files beside `compose.yaml` of the release its image is.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"strings"
+	"testing"
 
 	"deck2/internal/docs"
 	"deck2/internal/store/db"
@@ -15,6 +16,16 @@ func (e *Env) SQL(query string, args ...any) {
 	if _, err := e.App.Store.DB.Exec(query, args...); err != nil {
 		e.T.Fatalf("sql: %v\n%s", err, query)
 	}
+}
+
+// OpenBase opens the base at path as the sqlite3 shell would, without deck and its migrations; the caller closes it.
+func OpenBase(t *testing.T, path string) *sql.DB {
+	t.Helper()
+	b, err := sql.Open("sqlite", "file:"+path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
 }
 
 // SQLRow reads one row of what deck shows nowhere.

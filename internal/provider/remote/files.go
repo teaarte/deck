@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"syscall"
 	"time"
 
 	"deck2/internal/home"
@@ -91,12 +90,12 @@ func pack(w io.Writer, dir string, names []string) error {
 		if home.Plain(root, n) != nil {
 			continue
 		}
-		f, err := root.OpenFile(n, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+		f, err := home.OpenRegular(root, n)
 		if err != nil {
 			continue
 		}
 		fi, err := f.Stat()
-		if err != nil || !fi.Mode().IsRegular() {
+		if err != nil {
 			f.Close()
 			continue
 		}

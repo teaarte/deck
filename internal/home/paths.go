@@ -104,6 +104,11 @@ func ReadIn(dir, name string, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	defer root.Close()
+	return ReadRoot(root, name, limit)
+}
+
+// ReadRoot is ReadIn under a root already open.
+func ReadRoot(root *os.Root, name string, limit int64) ([]byte, error) {
 	f, err := OpenRegular(root, name)
 	if err != nil {
 		return nil, err

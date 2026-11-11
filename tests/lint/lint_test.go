@@ -72,7 +72,7 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		got = append(got, v.String())
 	}
 	all := strings.Join(got, "\n")
-	for _, not := range []string{"internal/app/y/y.go:10:", "internal/app/y/y.go:11:", "q.sql:6:", "00099_x.sql:3:"} {
+	for _, not := range []string{"internal/tools/t.go:18:", "internal/app/y/y.go:10:", "internal/app/y/y.go:11:", "q.sql:6:", "00099_x.sql:3:"} {
 		if strings.Contains(all, not) {
 			t.Errorf("a string that is no topic of an event is taken for one: %s in:\n%s", not, all)
 		}
@@ -88,6 +88,7 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		"internal/tools/t.go:11: the environment of deck read outside cmd/deck",
 		"internal/tools/t.go:15: a file opened by its path outside home",
 		"internal/tools/t.go:16: a file opened by its path outside home",
+		"internal/tools/t.go:17: a file opened by its path outside home",
 		"internal/tools/t.go:13: an HTTP client or transport built outside internal/egress",
 		"internal/app/y/y.go:6: a topic of events written out",
 		"internal/app/y/y.go:7: a topic of events written out",

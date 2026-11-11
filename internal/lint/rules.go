@@ -301,9 +301,33 @@ func fileWrite(f *ast.File, fset *token.FileSet) []int {
 	return calls(f, fset, "os", "Rename", "CreateTemp", "WriteFile")
 }
 
-// fileRead are the lines that open a file by its path.
+// fileRead are the lines that open a file by its path to read it: os.ReadFile, os.Open, os.OpenFile with no flag
+// of writing.
 func fileRead(f *ast.File, fset *token.FileSet) []int {
-	return calls(f, fset, "os", "ReadFile", "Open")
+	out := calls(f, fset, "os", "ReadFile", "Open")
+	pkg := importName(f, "os")
+	ast.Inspect(f, func(n ast.Node) bool {
+		c, ok := n.(*ast.CallExpr)
+		if !ok || len(c.Args) < 2 {
+			return true
+		}
+		if s, ok := c.Fun.(*ast.SelectorExpr); ok && s.Sel.Name == "OpenFile" {
+			if x, ok := s.X.(*ast.Ident); ok && pkg != "" && x.Name == pkg && x.Obj == nil {
+				writes := false
+				ast.Inspect(c.Args[1], func(m ast.Node) bool {
+					if id, ok := m.(*ast.Ident); ok && slices.Contains([]string{"O_WRONLY", "O_RDWR", "O_CREATE", "O_APPEND"}, id.Name) {
+						writes = true
+					}
+					return true
+				})
+				if !writes {
+					out = append(out, fset.Position(c.Pos()).Line)
+				}
+			}
+		}
+		return true
+	})
+	return out
 }
 
 // envRead are the lines that read the environment of deck.

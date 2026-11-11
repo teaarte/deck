@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -50,27 +51,28 @@ type projectImportIn struct {
 }
 
 // importable lets someone other than the owner import only from the data of the master and from the folders the
-// owner gave a project of the workspace, before anything in the folder is read.
-func (s *Service) importable(ctx context.Context, act registry.Actor, dir string) error {
+// owner gave a project of the workspace, before anything in the folder is read; it is that folder and dir in it.
+func (s *Service) importable(ctx context.Context, act registry.Actor, dir string) (string, string, error) {
 	refused := registry.Refuse("%s is not a folder %s imports from: a draft comes from the data of the master or "+
 		"from a folder the owner gave a project in Settings", dir, act.As())
 	real, err := filepath.EvalSymlinks(dir)
 	if err != nil {
-		return refused
+		return "", "", refused
 	}
 	roots, err := s.St.Q.ListWorkspaceFolderPaths(ctx, act.Workspace)
 	if err != nil {
-		return err
+		return "", "", err
 	}
 	if mp, err := access.Master(ctx, s.St.Q, act.Workspace); err == nil {
 		roots = append(roots, s.Home.Data(mp.ID))
 	}
 	for _, r := range roots {
 		if r, err := filepath.EvalSymlinks(r); err == nil && home.Within(r, real) {
-			return nil
+			rel, _ := filepath.Rel(r, real)
+			return r, rel, nil
 		}
 	}
-	return refused
+	return "", "", refused
 }
 
 // projectImport creates a draft from a module folder, or from a .zip of one, in one transaction; hidden files are
@@ -102,12 +104,13 @@ func (s *Service) projectImport(ctx context.Context, act registry.Actor, in proj
 		if err != nil {
 			return nil, registry.Invalid("%v", err)
 		}
+		top, rel := dir, "."
 		if act.Kind != registry.Owner {
-			if err := s.importable(ctx, act, dir); err != nil {
+			if top, rel, err = s.importable(ctx, act, dir); err != nil {
 				return nil, err
 			}
 		}
-		if files, skipped, err = readFolder(dir); err != nil {
+		if files, skipped, err = readFolder(top, rel); err != nil {
 			return nil, registry.Invalid("cannot read %s: %v", dir, err)
 		}
 		from, name = dir, filepath.Base(dir)
@@ -192,18 +195,26 @@ type folderFile struct {
 	path, text string
 }
 
-// readFolder reads the text files of a folder and leaves hidden entries out; what it cannot take, symbolic
-// links included, is in skipped.
-func readFolder(root string) (files []folderFile, skipped []string, err error) {
-	root, err = filepath.EvalSymlinks(root)
+// readFolder reads the text files of the folder rel of top, never through a link out of top, and leaves hidden
+// entries out; what it cannot take, symbolic links included, is in skipped.
+func readFolder(top, rel string) (files []folderFile, skipped []string, err error) {
+	root, err := os.OpenRoot(top)
 	if err != nil {
 		return nil, nil, err
 	}
-	err = filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	defer root.Close()
+	if rel != "." {
+		sub, err := root.OpenRoot(rel)
+		if err != nil {
+			return nil, nil, err
+		}
+		defer sub.Close()
+		root = sub
+	}
+	err = fs.WalkDir(root.FS(), ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, _ := filepath.Rel(root, path)
 		if rel == "." {
 			return nil
 		}
@@ -220,7 +231,7 @@ func readFolder(root string) (files []folderFile, skipped []string, err error) {
 			skipped = append(skipped, rel+": a symbolic link")
 			return nil
 		}
-		b, err := home.ReadIn(root, rel, docs.MaxFile)
+		b, err := home.ReadRoot(root, rel, docs.MaxFile)
 		switch {
 		case errors.Is(err, home.ErrTooBig):
 			skipped = append(skipped, rel+": larger than 1 MB")

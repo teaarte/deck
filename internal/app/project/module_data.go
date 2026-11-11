@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
@@ -80,32 +79,38 @@ func (s *Service) writeData(ctx context.Context, zw *zip.Writer, p db.Project) (
 		}
 		n++
 	}
-	root := s.Home.Data(p.ID)
-	err = filepath.WalkDir(root, func(file string, d fs.DirEntry, err error) error {
+	root, err := os.OpenRoot(s.Home.Data(p.ID))
+	if os.IsNotExist(err) {
+		return n, nil
+	} else if err != nil {
+		return n, err
+	}
+	defer root.Close()
+	err = fs.WalkDir(root.FS(), ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
-			if os.IsNotExist(err) {
-				return nil
-			}
 			return err
 		}
 		if !d.Type().IsRegular() {
 			return nil
 		}
-		rel, _ := filepath.Rel(root, file)
-		// A file turned into a link after the walk saw it is not followed out of the data folder.
-		f, err := os.OpenFile(file, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+		// A file turned into a link, a pipe or a way out of the data folder after the walk saw it is left out.
+		if home.Plain(root, rel) != nil {
+			return nil
+		}
+		f, err := home.OpenRegular(root, rel)
 		if err != nil {
 			return nil
 		}
 		defer f.Close()
-		if fi, err := f.Stat(); err != nil || !fi.Mode().IsRegular() {
+		fi, err := f.Stat()
+		if err != nil {
 			return nil
 		}
-		w, err := zw.Create(base + "data/" + filepath.ToSlash(rel))
+		w, err := zw.Create(base + "data/" + rel)
 		if err != nil {
 			return err
 		}
-		if _, err := io.Copy(w, f); err != nil {
+		if _, err := io.Copy(w, io.LimitReader(f, fi.Size())); err != nil {
 			return err
 		}
 		n++

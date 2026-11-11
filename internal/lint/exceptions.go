@@ -19,7 +19,7 @@ var exceptions = map[string][]string{
 	"read": {
 		"cmd/deck-release/main.go:60", "internal/api/proxies.go:109", "internal/app/feed/push.go:66",
 		"internal/app/files/files.go:251", "internal/app/files/light.go:19", "internal/app/files/resource.go:72",
-		"internal/app/files/thumbs.go:87", "internal/app/files/thumbs.go:99", "internal/app/project/module_data.go:331",
+		"internal/app/files/thumbs.go:87", "internal/app/files/thumbs.go:99", "internal/app/project/module_data.go:336",
 		"internal/app/project/module_zip.go:44", "internal/app/secrets/move.go:100", "internal/app/secrets/move.go:68",
 		"internal/app/secrets/secrets.go:124", "internal/app/secrets/secrets.go:52", "internal/app/secrets/secrets.go:77",
 		"internal/app/updates/updates.go:331", "internal/app/updates/updates.go:346",

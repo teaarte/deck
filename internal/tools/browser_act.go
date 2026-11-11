@@ -129,7 +129,11 @@ func copyOut(root *os.Root, rel, dst string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if _, err := io.Copy(out, in); err != nil {
+	fi, err := in.Stat()
+	if err == nil {
+		_, err = io.Copy(out, io.LimitReader(in, fi.Size()))
+	}
+	if err != nil {
 		out.Close()
 		return "", err
 	}

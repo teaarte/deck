@@ -189,10 +189,13 @@ func TestALimitPausesUntilTheResetOfItsHeaders(t *testing.T) {
 	t.Parallel()
 	for name, h := range map[string]http.Header{
 		"duration": {"X-Ratelimit-Remaining-Requests": {"0"}, "X-Ratelimit-Reset-Requests": {"9m30s"}, "X-Ratelimit-Remaining-Tokens": {"500"}, "X-Ratelimit-Reset-Tokens": {"20m"}},
-		"epoch":    {"X-Ratelimit-Reset": {fmt.Sprint(time.Now().Add(10 * time.Minute).UnixMilli())}},
+		"epoch":    {},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+			if len(h) == 0 {
+				h = http.Header{"X-Ratelimit-Reset": {fmt.Sprint(time.Now().Add(10 * time.Minute).UnixMilli())}}
+			}
 			left := limitedTurn(t, harness.ChatReply{Status: 429, Header: h, Body: `{"error": {"message": "Rate limit reached"}}`})
 			if left < 5*time.Minute || left > 10*time.Minute {
 				t.Fatalf("the pause lasts until the reset of the exhausted limit: %s", left)

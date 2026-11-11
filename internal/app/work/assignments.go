@@ -357,6 +357,14 @@ func (s *Service) assignmentCommands() []*registry.Command {
 		}
 		return c.Name, b, true
 	}
+	c.Gate.Sets = func(input json.RawMessage) []string {
+		list, _ := assignmentInput(input)
+		out := make([]string, len(list))
+		for i, in := range list {
+			out[i] = in.Role + " " + in.Project + "." + in.Command
+		}
+		return out
+	}
 	c.Gate.Target = func(print string, input json.RawMessage) string {
 		list, err := assignmentInput(input)
 		if err != nil {

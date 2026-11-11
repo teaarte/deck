@@ -108,6 +108,18 @@ var ErrNotOpen = registry.Conflict("this ask is already answered or expired")
 // Stale is the answer deck gives itself to a frozen call whose subject changed since it was asked for.
 const Stale = "stale"
 
+// Replaced is the answer deck gives itself to an ask a later one of the same process took the place of, with its id after.
+const Replaced = "replaced:"
+
+// ReplacedBy is the ask that took the place of one, or 0.
+func ReplacedBy(answer string) int64 {
+	n, _ := strconv.ParseInt(strings.TrimPrefix(answer, Replaced), 10, 64)
+	if !strings.HasPrefix(answer, Replaced) {
+		return 0
+	}
+	return n
+}
+
 // Link is the address of the ask on Today, where it comes first.
 func Link(id int64) string { return "#/deck/cockpit?focus=" + strconv.FormatInt(id, 10) }
 
@@ -168,6 +180,9 @@ func (b *Broker) Wait(ctx context.Context, id int64, until time.Time) (answer st
 	if a, err := b.st.Q.GetAsk(ctx, id); err == nil && a.State == StateAnswered {
 		b.drop(id)
 		return a.Answer, true
+	} else if err == nil && a.State != StateOpen {
+		b.drop(id)
+		return "", false
 	}
 wait:
 	for left := until.Sub(b.now()); left > 0; left = until.Sub(b.now()) {
@@ -190,6 +205,24 @@ wait:
 	default:
 		return "", false
 	}
+}
+
+// Live reports whether a call waits on the ask right now.
+func (b *Broker) Live(id int64) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.waiters[id] != nil
+}
+
+// Rejoin lets a call wait again on an open ask an earlier call gave up on; false when one waits on it already.
+func (b *Broker) Rejoin(id int64) bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.waiters[id] != nil {
+		return false
+	}
+	b.waiters[id] = make(chan string, 1)
+	return true
 }
 
 // At is a stored deadline; the zero time is none.

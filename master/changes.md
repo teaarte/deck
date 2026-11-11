@@ -283,3 +283,9 @@ and bring the modules in line.
   `left_out`, why such models are not among its `choices`.
 - 2026-11-10: `health_list` names the kinds of its rows by what deck writes: `kind` takes `node` and `https`, and no
   longer `browser`; `status` no longer lists `missing`, which no health row has.
+- 2026-11-11: One wait is one question. A question of a process that names one of its own requests still waiting for
+  the owner (`ask 315`, `запрос 315`, its link) is refused: deck brings the request's outcome itself, end the turn or
+  go on. A question asked again with the same text while it is open waits on the open one. A held call that sets every
+  place of an earlier held call of the same process and command (`assignment_set`) replaces it: the earlier closes
+  answered `replaced:<id>` (its caller hears so, `on: ask` hears `expired`), and the owner sees `Replaces request
+  <id>` on the later.

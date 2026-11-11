@@ -136,6 +136,7 @@ func (e *Env) WaitState(id int64, states ...string) Proc {
 type Ask struct {
 	ID      int64           `json:"id"`
 	Kind    string          `json:"kind"`
+	Process int64           `json:"process"`
 	Text    string          `json:"text"`
 	Payload json.RawMessage `json:"payload"`
 }

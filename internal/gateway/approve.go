@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,7 +67,18 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 		return decision{Behavior: "deny", Message: "deck: the call has no questions: put each in questions with its text in the question field"}
 	}
 	until := g.cfg.Now().Add(s.wait(g.cfg.QuestionWait))
-	a, err := g.asks.Create(ctx, s.ProcessID, ask.KindQuestion, strings.Join(texts, "\n"), in.Input, time.Time{})
+	text := strings.Join(texts, "\n")
+	open, _ := g.st.Q.ListOpenAsksOfProcess(ctx, s.ProcessID)
+	for _, o := range open {
+		if o.State == ask.StateOpen && o.Kind != ask.KindQuestion && names(text, o.ID) {
+			return decision{Behavior: "deny", Message: fmt.Sprintf("deck: ask %d already waits for the owner, and deck brings you how they decide on it: "+
+				"do not ask them about it. Go on with other work, or end your turn and deck resumes this session with the answer.", o.ID)}
+		}
+	}
+	a, err := g.again(open, text), error(nil)
+	if a.ID == 0 {
+		a, err = g.asks.Create(ctx, s.ProcessID, ask.KindQuestion, text, in.Input, time.Time{})
+	}
 	if err != nil {
 		return decision{Behavior: "deny", Message: "deck: could not deliver the question: " + err.Error()}
 	}
@@ -80,6 +93,30 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 	}
 	upd["answers"] = QuestionAnswers(texts, answer)
 	return decision{Behavior: "allow", UpdatedInput: upd}
+}
+
+// named finds an ask named in the text of a question: the word ask, request or запрос before its number, or its link.
+var named = regexp.MustCompile(`(?i)(?:(?:^|[^\p{L}\p{N}_])(?:ask|request|confirmation|запрос\p{L}*|подтверждени\p{L}*)\s*[#№]?\s*|focus=)(\d+)`)
+
+// names says the text of a question names ask id.
+func names(text string, id int64) bool {
+	for _, m := range named.FindAllStringSubmatch(text, -1) {
+		if m[1] == strconv.FormatInt(id, 10) {
+			return true
+		}
+	}
+	return false
+}
+
+// again is the open question of the process with the same text that no call waits on any more, which a question asked
+// again waits on instead of a second one.
+func (g *Gateway) again(open []db.Ask, text string) db.Ask {
+	for _, o := range open {
+		if o.Kind == ask.KindQuestion && o.State == ask.StateOpen && o.Text == text && g.asks.Rejoin(o.ID) {
+			return o
+		}
+	}
+	return db.Ask{}
 }
 
 // wait is how long a call of the session waits for the owner: d, or less when the provider times calls out.
@@ -160,6 +197,9 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 func RejectMessage(answer string) string {
 	if answer == ask.Stale {
 		return "deck: this call is out of date: what it acts on changed since it was asked for, so deck closed it unmade; ask again if it is still needed."
+	}
+	if by := ask.ReplacedBy(answer); by != 0 {
+		return fmt.Sprintf("deck: your later call, ask %d, took the place of this one, so deck closed it unmade; only that one waits for the owner.", by)
 	}
 	msg := "deck: the owner rejected this call."
 	if reason := strings.TrimPrefix(answer, "deny:"); reason != answer && reason != "" {

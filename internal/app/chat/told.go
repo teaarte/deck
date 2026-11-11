@@ -99,6 +99,16 @@ func (s *Service) tell(ctx context.Context, p db.Process) {
 	}
 }
 
+// stillAsks says the ask a message of a waiting work told of is still open.
+func (s *Service) stillAsks(ctx context.Context, m db.ChatMessage) bool {
+	var process, id int64
+	if _, err := fmt.Sscanf(m.RetryKey, "deck:%d:ask:%d", &process, &id); err != nil {
+		return true
+	}
+	a, err := s.St.Q.GetAsk(ctx, id)
+	return err != nil || a.State == ask.StateOpen
+}
+
 // endKey is the key of the message that tells how the last run of a work ended.
 func endKey(p db.Process) string {
 	return fmt.Sprintf("deck:%d:end:%s", p.ID, cmp.Or(p.ReopenedAt.String, p.StartedAt))
@@ -123,6 +133,12 @@ func (s *Service) told(ctx context.Context, m db.ChatMessage, ws map[string]stri
 	}
 	var it toldState
 	_ = json.Unmarshal([]byte(m.Context), &it)
+	proj, _ := s.St.Q.GetProject(ctx, p.ProjectID)
+	if !slices.Contains(process.Final, it.State) && !s.stillAsks(ctx, m) {
+		// The owner answered what this message told the work waits for: it tells how the work stands now.
+		return &toldView{procView: procView{ID: p.ID, Project: proj.Name, Command: p.Command, State: p.State, Open: openProcess(p.ID),
+			Shown: process.Show(p, "", false, tr)}}
+	}
 	live := slices.Contains(process.Final, it.State) && p.ReopenedAt.Valid && p.ReopenedAt.String >= m.CreatedAt &&
 		!slices.Contains(process.Final, p.State)
 	if live {
@@ -139,7 +155,6 @@ func (s *Service) told(ctx context.Context, m db.ChatMessage, ws map[string]stri
 	} else {
 		at.FinishedAt = sql.NullString{String: cmp.Or(p.FinishedAt.String, m.CreatedAt), Valid: true}
 	}
-	proj, _ := s.St.Q.GetProject(ctx, p.ProjectID)
 	v := &toldView{procView: procView{ID: p.ID, Project: proj.Name, Command: p.Command, State: at.State, Open: openProcess(p.ID),
 		Shown: process.Show(at, question, false, tr)}}
 	if at.State == process.StateError || at.State == process.StateInterrupted {

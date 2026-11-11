@@ -149,6 +149,9 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 			if f.Target == "" && c.Gate.Target != nil {
 				r.Where = c.Gate.Target(f.Tool, f.Call.Input)
 			}
+			for _, id := range f.Replaces {
+				r.Where = strings.TrimSpace(r.Where + "\n" + fmt.Sprintf("Replaces request %d", id))
+			}
 			r.Always = s.always(r.Project, f, c, r.What)
 		} else if r.Project != "" && strings.HasPrefix(f.Call.Command, r.Project+".") {
 			r.Always = fmt.Sprintf("Always let %s run %s", r.Project, strings.TrimPrefix(f.Call.Command, r.Project+"."))

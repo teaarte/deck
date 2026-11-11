@@ -78,6 +78,8 @@ type Frozen struct {
 	// Reason is why the caller asks; Widens are the rights a change of a manifest would grant.
 	Reason string   `json:"reason,omitempty"`
 	Widens []string `json:"widens,omitempty"`
+	// Replaces are the calls of the same caller this one took the place of while they waited.
+	Replaces []int64 `json:"replaces,omitempty"`
 }
 
 // AsOwner makes a frozen call as the owner who allows it.
@@ -210,11 +212,20 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	}
 	text := fmt.Sprintf("%s wants %s%s with %s", act.Author(), c.Name, where, untrusted.Cut(Canonical(input), 500))
 	var a db.Ask
+	var replaced []db.Ask
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
 		a, err = q.FindOpenCallAsk(ctx, db.FindOpenCallAskParams{ProjectID: project, Payload: payload, ProcessID: process})
 		if err == nil || !errors.Is(err, sql.ErrNoRows) {
 			return err
+		}
+		var same bool
+		if a, replaced, same = replacedBy(ctx, q, c, process, f); same {
+			return nil
+		}
+		f.Replaces = nil
+		for _, r := range replaced {
+			f.Replaces = append(f.Replaces, r.ID)
 		}
 		a, err = Hold(ctx, q, act, project, process, ask.KindCall, c.Class, text, f, expires, g.cfg.Now())
 		return err
@@ -222,8 +233,37 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 	if err != nil {
 		return nil, err
 	}
+	for _, r := range replaced {
+		if err := g.asks.Answer(ctx, r.ID, fmt.Sprint(ask.Replaced, a.ID)); err == nil {
+			g.Record(ctx, r, "rejected", fmt.Sprintf("replaced by ask %d of the same caller", a.ID))
+		}
+	}
 	return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s is %s, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
 		"Go on with other work: once the owner allows it, deck makes exactly this call and tells you the result.", c.Name, c.Class, a.ID), Link: ask.Link(a.ID)}, nil
+}
+
+// replacedBy are the calls of a process waiting for the owner that a new call of the same command sets all the places
+// of; same is an open call of the same command and input, which the new call is.
+func replacedBy(ctx context.Context, q *db.Queries, c *registry.Command, process int64, f Frozen) (db.Ask, []db.Ask, bool) {
+	if process == 0 || c.Gate.Sets == nil {
+		return db.Ask{}, nil, false
+	}
+	open, _ := q.ListOpenAsksOfProcess(ctx, process)
+	sets := c.Gate.Sets(f.Call.Input)
+	var out []db.Ask
+	for _, o := range open {
+		old, err := ask.Decode[Frozen](o.Payload)
+		if o.Kind != ask.KindCall || o.State != ask.StateOpen || err != nil || old.Call.Command != f.Call.Command {
+			continue
+		}
+		if string(old.Call.Input) == string(f.Call.Input) {
+			return o, nil, true
+		}
+		if was := c.Gate.Sets(old.Call.Input); len(was) > 0 && !slices.ContainsFunc(was, func(s string) bool { return !slices.Contains(sets, s) }) {
+			out = append(out, o)
+		}
+	}
+	return db.Ask{}, out, false
 }
 
 // Outcome is what a frozen call gave when deck made it: the result, or the error text.

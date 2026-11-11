@@ -159,6 +159,8 @@ type Gate struct {
 	Undo func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool)
 	// OwnYes marks a command only the owner's answer to its ask allows, money or a skill's text: a press never does.
 	OwnYes bool
+	// Sets names the places a call sets: a later call of the same caller that sets all of them replaces it while it waits.
+	Sets func(input json.RawMessage) []string
 }
 
 // Modules yields the commands of a workspace not written in Go: those of module manifests, and deck's tools whose

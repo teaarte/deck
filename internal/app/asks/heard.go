@@ -52,7 +52,7 @@ func heardAnswer(a db.Ask) string {
 		return ""
 	}
 	switch {
-	case a.State == ask.StateExpired || a.State == ask.StateDismissed || a.Answer == ask.Stale:
+	case a.State == ask.StateExpired || a.State == ask.StateDismissed || a.Answer == ask.Stale || ask.ReplacedBy(a.Answer) != 0:
 		return manifest.AskExpired
 	case a.Answer == "allow" || a.Answer == "allow_always":
 		return manifest.AskYes

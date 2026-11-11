@@ -111,7 +111,16 @@ func TestCommandAgentRunsInAutoModeInItsFolders(t *testing.T) {
 		theirs := []string{harness.DeckSecretPath(h), filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.json"), filepath.Join(deckhome.Layout(h).State(), "files", "3", "cv.pdf"),
 			filepath.Join(deckhome.Layout(h).State(), "secrets", "svc"), filepath.Join(deckhome.Layout(h).State(), "deck.db-wal"), filepath.Join(deckhome.Layout(h).State(), "backups", "x"),
 			filepath.Join(deckhome.Layout(h).State(), "mcp", "mcp-1.tmp"), filepath.Join(h, "deck.log")}
-		if slices.ContainsFunc(set.Permissions.Deny, func(r string) bool { return strings.Contains(r, deckhome.Layout(h).Work()) }) {
+		// The one rule of its work is that it edits no file given with its messages, in its own input folder.
+		given := func(r string) bool {
+			for _, at := range []string{home, real} {
+				if r == "Edit(/"+filepath.Join(deckhome.Layout(at).Work(), "runs", fmt.Sprint(id), "input")+"/**)" {
+					return true
+				}
+			}
+			return false
+		}
+		if slices.ContainsFunc(set.Permissions.Deny, func(r string) bool { return strings.Contains(r, deckhome.Layout(h).Work()) && !given(r) }) {
 			t.Fatalf("the rules keep only deck's state from the agent, not masks of other runs and projects its shell passes anyway: %v", set.Permissions.Deny)
 		}
 		for _, path := range theirs {

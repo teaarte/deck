@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -34,6 +35,10 @@ func TestAReplyTurnKnowsTheProjectsTheOpenWorkAndTheSummary(t *testing.T) {
 	topic := e.Say(0, "count the records")
 	e.MasterSaid(topic, 1)
 	a := e.WaitAsk()
+	// The topic tells of the question before the summary is saved, so the summary is after it.
+	e.Until("the topic told of the question", func() bool {
+		return slices.ContainsFunc(e.ChatMessages(topic), func(m harness.ChatMessage) bool { return m.Role == "deck" })
+	})
 	e.Must("deck.document_save", map[string]any{"project": "master", "name": fmt.Sprintf("topics/%d/summary.md", topic), "kind": "doc", "text": "Goal: count."}, nil)
 	e.Say(topic, "how is it going")
 	e.MasterSaid(topic, 2)

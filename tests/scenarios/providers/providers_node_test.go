@@ -357,9 +357,10 @@ func TestAnAnswerWithAPictureReachesATurnOnANodeWithItsNextTurn(t *testing.T) {
 	topic := e.Say(0, "make a report")
 	e.WaitAsk()
 	e.Say(topic, "blue, like this", map[string]any{"files": []string{fmt.Sprint(id)}})
-	e.Until("the turn after the answer", func() bool {
-		rs := e.RunsOf("master", "reply")
-		return len(rs) == 1 && rs[0].State != "running" && len(onNode.Call(2).Cwd) > 0
+	pid := e.RunsOf("master", "reply")[0].ID
+	e.Until("the next turn read the picture on the node", func() bool {
+		b, err := os.ReadFile(filepath.Join(deckhome.Layout(e.Home).RunWork(pid), "seen.txt"))
+		return err == nil && strings.TrimSpace(string(b)) == fmt.Sprint(len(shot))
 	})
 	answer := fmt.Sprint(onNode.Call(1).Mcp)
 	if !strings.Contains(answer, "blue, like this") || !strings.Contains(answer, "come with your next turn") || strings.Contains(answer, "/input/") {
@@ -377,9 +378,7 @@ func TestAnAnswerWithAPictureReachesATurnOnANodeWithItsNextTurn(t *testing.T) {
 	if told, _ := filepath.Rel(n.Home, named[1]); filepath.Join(nodeHome, told) != at {
 		t.Fatalf("the next turn on the node names the picture where it is there, %s: %s", at, named[1])
 	}
-	pid := e.RunsOf("master", "reply")[0].ID
-	e.Until("the turn's files back on deck", func() bool {
-		b, err := os.ReadFile(filepath.Join(deckhome.Layout(e.Home).RunWork(pid), "seen.txt"))
-		return err == nil && strings.TrimSpace(string(b)) == fmt.Sprint(len(shot))
-	})
+	if rs := e.RunsOf("master", "reply"); len(rs) != 1 {
+		t.Fatalf("one reply process takes the question, its answer and the next turn: %+v", rs)
+	}
 }

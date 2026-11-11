@@ -95,8 +95,12 @@ func (a *Adapter) profile(req provider.Request, skills string) []string {
 			fs[p] = "write"
 		}
 	}
+	reads := slices.Clone(req.Given)
 	if skills != "" {
-		for _, p := range home.Names(skills) {
+		reads = append(reads, skills)
+	}
+	for _, d := range reads {
+		for _, p := range home.Names(d) {
 			fs[p] = "read"
 		}
 	}

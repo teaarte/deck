@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -365,7 +366,7 @@ func (s *Server) turn(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "deck node: a turn names its session and deck's side", http.StatusBadRequest)
 		return
 	}
-	if err := root(append([]string{q.Cwd, q.Data}, q.Dirs...)...); err != nil || (q.Cwd == "") == (q.Folder == "") {
+	if err := root(slices.Concat([]string{q.Cwd, q.Data}, q.Dirs, q.Given)...); err != nil || (q.Cwd == "") == (q.Folder == "") {
 		http.Error(w, "deck node: a turn works in a folder of deck's work or in one of this machine", http.StatusBadRequest)
 		return
 	}
@@ -411,6 +412,9 @@ func (s *Server) turn(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, d := range q.Dirs {
 		req.Dirs = append(req.Dirs, at(d))
+	}
+	for _, d := range q.Given {
+		req.Given = append(req.Given, at(d))
 	}
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	w.WriteHeader(http.StatusOK)

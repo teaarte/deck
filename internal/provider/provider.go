@@ -33,6 +33,8 @@ type Request struct {
 	Data string
 	// Read are folders the agent reads besides its own: the folders of its project.
 	Read []string
+	// Given are folders of deck's work the agent reads and does not write: the files given with its messages.
+	Given []string
 	// Hosts are what the shell reaches besides the provider's own: hosts with their subdomains, host:port, IPs; "*"
 	// is every public one, none is only the provider and deck.
 	Hosts []string

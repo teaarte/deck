@@ -119,7 +119,13 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 			for _, m := range pending {
 				texts = append(texts, strings.TrimSpace(m.Text))
 			}
-			if given != "" {
+			if given != "" && s.Runner.Away(open.ID) {
+				// A turn on a node gets the files with the next turn, after the one the answer goes on.
+				if err := s.Runner.Remark(ctx, open.ID, "deck: the owner attached these to the answer of your question.\n"+given); err != nil {
+					return err
+				}
+				texts = append(texts, "deck: the files the owner attached come with your next turn.")
+			} else if given != "" {
 				texts = append(texts, given)
 			}
 			if err := s.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {

@@ -438,3 +438,6 @@ ORDER BY m.value, m.name LIMIT sqlc.arg(lim);
 -- name: FindKeyedProcess :one
 -- A process of a command started under a key, open or finished.
 SELECT * FROM process WHERE project_id = ? AND command = ? AND retry_key = ? AND retry_key != '' ORDER BY id LIMIT 1;
+
+-- name: ListSessionProcesses :many
+SELECT id FROM process WHERE project_id = ? AND session_id = ? AND id != ? ORDER BY id DESC LIMIT ?;

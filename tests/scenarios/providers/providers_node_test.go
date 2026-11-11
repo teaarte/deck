@@ -321,3 +321,65 @@ func TestAMastersTurnOnANodeSeesTheFilesOfAMessage(t *testing.T) {
 		t.Fatalf("the turn on the node read the picture: %q %v", b, err)
 	}
 }
+
+// TestAnAnswerWithAPictureReachesATurnOnANodeWithItsNextTurn: the owner answers the question of the master's turn on
+// a node with a picture; the answer names no path the node lacks, and the picture comes with the next turn.
+func TestAnAnswerWithAPictureReachesATurnOnANodeWithItsNextTurn(t *testing.T) {
+	own, onNode := harness.NewCodex(t), harness.NewCodex(t)
+	t.Setenv("CODEX_HOME", t.TempDir())
+	e := harness.New(t, harness.WithCodex(own))
+	n := e.PairNode("Mac")
+	n.RunAgents(func(spec remote.Spec, home string, _ func(provider.ModelHooks) http.Handler) provider.Provider {
+		return onNode.Adapter(home)
+	})
+	n.Allow("codex")
+	n.Start()
+	e.Until("codex@Mac among the agents", func() bool { return hasModel(e, "codex@Mac") })
+	e.UseModels("master.reply", "codex@Mac")
+	shot := "\x89PNG\r\n\x1a\n a screenshot"
+	id := e.Upload("master", "image.png", "image/png", shot)
+	stream := func(name string, more ...string) string {
+		raw, err := os.ReadFile(harness.Testdata("codex/" + name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var lines []string
+		for _, l := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+			if !strings.Contains(l, "result_submit") {
+				lines = append(lines, l)
+			}
+		}
+		last := lines[len(lines)-1]
+		return strings.Join(append(append(lines[:len(lines)-1:len(lines)-1], more...), last), "\n")
+	}
+	onNode.StreamText(1, stream("ask.jsonl"))
+	onNode.StreamText(2, stream("resume.jsonl", fmt.Sprintf(`{"shell": "wc -c < ../input/%d-image.png > seen.txt"}`, id)))
+	topic := e.Say(0, "make a report")
+	e.WaitAsk()
+	e.Say(topic, "blue, like this", map[string]any{"files": []string{fmt.Sprint(id)}})
+	e.Until("the turn after the answer", func() bool {
+		rs := e.RunsOf("master", "reply")
+		return len(rs) == 1 && rs[0].State != "running" && len(onNode.Call(2).Cwd) > 0
+	})
+	answer := fmt.Sprint(onNode.Call(1).Mcp)
+	if !strings.Contains(answer, "blue, like this") || !strings.Contains(answer, "come with your next turn") || strings.Contains(answer, "/input/") {
+		t.Fatalf("the answer on the node names no path it lacks: %s", answer)
+	}
+	cc := onNode.Call(2)
+	var input []struct{ Text string }
+	_ = json.Unmarshal(cc.Request("turn/start")["input"], &input)
+	at := filepath.Join(filepath.Dir(strings.TrimSpace(cc.Cwd)), "input", fmt.Sprintf("%d-image.png", id))
+	named := regexp.MustCompile(`read-only: (\S+?\.png)`).FindStringSubmatch(fmt.Sprint(input))
+	nodeHome, _ := filepath.EvalSymlinks(n.Home)
+	if named == nil {
+		t.Fatalf("the next turn names the picture: %+v", input)
+	}
+	if told, _ := filepath.Rel(n.Home, named[1]); filepath.Join(nodeHome, told) != at {
+		t.Fatalf("the next turn on the node names the picture where it is there, %s: %s", at, named[1])
+	}
+	pid := e.RunsOf("master", "reply")[0].ID
+	e.Until("the turn's files back on deck", func() bool {
+		b, err := os.ReadFile(filepath.Join(deckhome.Layout(e.Home).RunWork(pid), "seen.txt"))
+		return err == nil && strings.TrimSpace(string(b)) == fmt.Sprint(len(shot))
+	})
+}

@@ -319,3 +319,26 @@ func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 		t.Fatalf("the reply shows the file it made, not the one it links to: %+v", m)
 	}
 }
+
+// TestAPictureOfAnEarlierMessageStaysWhereItWasNamed: the turn of the next message, which resumes the session, reads
+// the picture of the first one at the path the first one named, in a folder it does not write.
+func TestAPictureOfAnEarlierMessageStaysWhereItWasNamed(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Seen."} }))
+	id := e.Upload("master", "image.png", "image/png", "a picture")
+	topic := e.Say(0, "look at this", map[string]any{"files": []string{fmt.Sprint(id)}})
+	e.MasterSaid(topic, 1)
+	e.Say(topic, "and what is on it?")
+	e.MasterSaid(topic, 2)
+	calls := e.Fake.Calls()
+	named := regexp.MustCompile(`read-only: (\S+?\.png)`).FindStringSubmatch(calls[0].Prompt)
+	if len(calls) != 2 || named == nil || calls[1].SessionID != calls[0].SessionID {
+		t.Fatalf("the second message resumes the session of the first, which was given the picture: %d %v", len(calls), named)
+	}
+	if !slices.Contains(calls[1].Given, filepath.Dir(named[1])) || slices.Contains(calls[1].Dirs, filepath.Dir(named[1])) {
+		t.Fatalf("the second turn reads the input folder of the first and does not write it: given %v, writes %v", calls[1].Given, calls[1].Dirs)
+	}
+	if b, err := os.ReadFile(named[1]); err != nil || string(b) != "a picture" {
+		t.Fatalf("the picture is still where it was named: %q %v", b, err)
+	}
+}

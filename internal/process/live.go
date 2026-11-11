@@ -31,11 +31,14 @@ const sayWait = time.Minute
 
 // Say puts the owner's message into the running turn of a process.
 func (r *Runner) Say(ctx context.Context, processID int64, text string) Said {
+	// Files given while a turn on a node runs do not reach it: they come with its next turn.
+	if r.Away(processID) && strings.Contains(text, filepath.Join(r.runDir(processID), "input")) {
+		return Refused
+	}
 	r.mu.Lock()
 	lt := r.live[processID]
 	var in chan provider.Message
-	// Files given while a turn on a node runs do not reach it: they come with its next turn.
-	if lt != nil && !(lt.node && strings.Contains(text, filepath.Join(r.runDir(processID), "input"))) {
+	if lt != nil {
 		in = lt.input
 	}
 	r.mu.Unlock()
@@ -59,6 +62,14 @@ func (r *Runner) Say(ctx context.Context, processID int64, text string) Said {
 	case <-time.After(sayWait):
 		return Unsure
 	}
+}
+
+// Away says the turn of a process runs on a node, which gets the files given to it only as a turn starts.
+func (r *Runner) Away(processID int64) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	lt := r.live[processID]
+	return lt != nil && lt.node
 }
 
 // Remark keeps the owner's message for a process whose turn cannot take it: the turn ends parked, and the

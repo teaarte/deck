@@ -102,7 +102,7 @@ func blank(repo string, env map[string]string) {
 // path outside them it judges as it would.
 func autoMode(req provider.Request) map[string]any {
 	var folders []string
-	for _, d := range append([]string{req.Cwd}, req.Dirs...) {
+	for _, d := range slices.Concat([]string{req.Cwd}, req.Dirs, req.Given) {
 		for _, p := range home.Names(d) {
 			if !slices.Contains(folders, p) {
 				folders = append(folders, p)

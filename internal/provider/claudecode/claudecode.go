@@ -122,7 +122,7 @@ func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []str
 		// The web tools of the CLI search and fetch on the provider's side, past the door of the box.
 		args = append(args, "--disallowedTools", strings.Join(webTools, ","))
 	}
-	for _, d := range req.Dirs {
+	for _, d := range append(slices.Clone(req.Dirs), req.Given...) {
 		args = append(args, "--add-dir", d)
 	}
 	if plugin != "" {
@@ -199,7 +199,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	// The CLI waits for deck's MCP server 30 s by default and starts without it after; deck takes a CLI silent for
 	// 5 minutes for a quiet model.
 	b.Env = append(b.Env, "MCP_TOOL_TIMEOUT=2400000", "MCP_TIMEOUT=240000")
-	b.Read, b.Write = append(append(slices.Clone(req.Read), dir), b.Read...), append(append([]string{req.Cwd}, req.Dirs...), b.Write...)
+	b.Read, b.Write = append(slices.Concat(req.Read, req.Given, []string{dir}), b.Read...), append(append([]string{req.Cwd}, req.Dirs...), b.Write...)
 	if plugin != "" {
 		b.Read = append(b.Read, plugin)
 	}

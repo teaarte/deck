@@ -136,7 +136,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	if req.Repo {
 		writes = append(writes, gitDirs(req.Cwd)...)
 	}
-	b.Read, b.Write = append(slices.Clone(req.Read), b.Read...), append(writes, b.Write...)
+	b.Read, b.Write = append(slices.Concat(req.Read, req.Given), b.Read...), append(writes, b.Write...)
 	if skills != "" {
 		b.Read = append(b.Read, skills)
 	}

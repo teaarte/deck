@@ -1834,6 +1834,45 @@ func (q *Queries) ListRunningChildren(ctx context.Context, parentID sql.NullInt6
 	return items, nil
 }
 
+const listSessionProcesses = `-- name: ListSessionProcesses :many
+SELECT id FROM process WHERE project_id = ? AND session_id = ? AND id != ? ORDER BY id DESC LIMIT ?
+`
+
+type ListSessionProcessesParams struct {
+	ProjectID int64
+	SessionID string
+	ID        int64
+	Limit     int64
+}
+
+func (q *Queries) ListSessionProcesses(ctx context.Context, arg ListSessionProcessesParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, listSessionProcesses,
+		arg.ProjectID,
+		arg.SessionID,
+		arg.ID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSessionsGoingOn = `-- name: ListSessionsGoingOn :many
 SELECT CAST(project_id AS INTEGER) AS project_id, session_id FROM process
 WHERE session_id != '' AND state NOT IN ('done', 'error', 'stopped', 'interrupted')

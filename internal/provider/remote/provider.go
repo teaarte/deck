@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
@@ -135,6 +136,15 @@ func (p *Provider) Run(ctx context.Context, req provider.Request) (provider.Resu
 	if err != nil {
 		return p.unavailable("%v", err), nil
 	}
+	// The folders given go to the node and never come back from it.
+	var given []string
+	for _, d := range req.Given {
+		r, err := p.cfg.rel(d)
+		if err != nil {
+			return p.unavailable("%s reads %s on deck's machine, which the node %s does not reach", p.Name(), d, p.cfg.Node), nil
+		}
+		given = append(given, r)
+	}
 	gw, err := url.Parse(req.MCPURL)
 	if err != nil {
 		return provider.Result{}, err
@@ -142,7 +152,7 @@ func (p *Provider) Run(ctx context.Context, req provider.Request) (provider.Resu
 	var sent map[string]stamp
 	for tried := false; ; tried = true {
 		var err error
-		sent, err = p.cfg.send(ctx, req.SessionID, roots)
+		sent, err = p.cfg.send(ctx, req.SessionID, slices.Concat(roots, given))
 		var r *refused
 		var big *tooBig
 		switch {
@@ -166,7 +176,7 @@ func (p *Provider) Run(ctx context.Context, req provider.Request) (provider.Resu
 	defer end()
 	st := start{Spec: p.cfg.Spec, Side: side, Root: string(p.cfg.Home), Request: request{
 		Project: req.Project, Cwd: cwd, Folder: folder, Read: req.Read, Repo: req.Repo, Prompt: req.Prompt, ResultSchema: req.ResultSchema, Skills: req.Skills,
-		MCP: "/mcp", Dirs: dirs, Data: data, Hosts: req.Hosts, GPU: req.GPU, AllowedTools: req.AllowedTools,
+		MCP: "/mcp", Dirs: dirs, Given: given, Data: data, Hosts: req.Hosts, GPU: req.GPU, AllowedTools: req.AllowedTools,
 		PermissionMCP: req.PermissionMCP, SessionID: req.SessionID, Resume: req.Resume, Live: req.Live != nil}}
 	res, err, vanished := p.turn(ctx, req, st)
 	if vanished != nil {

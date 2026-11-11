@@ -141,7 +141,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	defer end()
 	argv, env := a.agent.Start(Launch{Binary: a.cfg.Binary, ModelURL: "{door}" + e.modelAt, Model: a.cfg.Model, Key: "deck"})
 	box := sandbox.Box{Kind: sandbox.KindAgent, Mark: a.cfg.Sandbox.Mark(sandbox.KindAgent, req.SessionID), Argv: argv,
-		Dir: req.Cwd, Home: home, Env: env, Read: req.Read, Write: append([]string{req.Cwd}, req.Dirs...), Hosts: req.Hosts,
+		Dir: req.Cwd, Home: home, Env: env, Read: slices.Concat(req.Read, req.Given), Write: append([]string{req.Cwd}, req.Dirs...), Hosts: req.Hosts,
 		Deck: side, GPU: req.GPU}
 	tail := untrusted.NewTail(2000)
 	child, err := a.cfg.Sandbox.Run(life, box, sandbox.IO{Stderr: func(line string) { _, _ = tail.Write([]byte(line + "\n")) }})

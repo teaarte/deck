@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -92,26 +93,41 @@ func (r *Runner) inputFiles(ctx context.Context, cmd *manifest.Command, projectI
 	return string(out), dir, nil
 }
 
-// inputDirs are the input folders a turn of process p holds: its own, made now so files given while it runs come
-// into its box, and those of the processes it continues, which their messages name.
+// inputDirs are the input folders a turn of process p reads: its own, made now for files given while it runs, and
+// those of the processes it continues and of the earlier ones of its session, which their messages named.
 func (r *Runner) inputDirs(ctx context.Context, p db.Process) ([]string, error) {
 	own := filepath.Join(r.runDir(p.ID), "input")
 	if err := os.MkdirAll(own, 0o700); err != nil {
 		return nil, err
 	}
-	dirs := []string{own}
+	ids := []int64{}
 	for of, n := p.FollowsID.Int64, 0; of != 0 && n < 2*MaxDepth+2; n++ {
-		if dir := filepath.Join(r.runDir(of), "input"); isDir(dir) {
-			dirs = append(dirs, dir)
-		}
+		ids = append(ids, of)
 		was, err := r.st.Q.GetProcess(ctx, of)
 		if err != nil {
 			break
 		}
 		of = was.FollowsID.Int64
 	}
+	if p.SessionID != "" {
+		same, err := r.st.Q.ListSessionProcesses(ctx, db.ListSessionProcessesParams{ProjectID: p.ProjectID, SessionID: p.SessionID,
+			ID: p.ID, Limit: sessionInputs})
+		if err != nil {
+			return nil, err
+		}
+		ids = append(ids, same...)
+	}
+	dirs := []string{own}
+	for _, id := range ids {
+		if dir := filepath.Join(r.runDir(id), "input"); isDir(dir) && !slices.Contains(dirs, dir) {
+			dirs = append(dirs, dir)
+		}
+	}
 	return dirs, nil
 }
+
+// sessionInputs is how many earlier processes of a session a turn reads the input folders of.
+const sessionInputs = 50
 
 func isDir(path string) bool {
 	fi, err := os.Stat(path)
@@ -154,8 +170,14 @@ func (r *Runner) place(f db.File, dir string, copies bool) (string, error) {
 	}, f.Name)
 	dst := filepath.Join(dir, fmt.Sprintf("%d-%s", f.ID, name))
 	src := r.cfg.Home.File(f.ID)
-	if _, err := os.Lstat(dst); err == nil {
-		return dst, nil
+	// What stands at the name is the stored file only as its link; a copy is made again, so nothing put there stays.
+	if fi, err := os.Lstat(dst); err == nil {
+		if at, err := os.Stat(src); err == nil && !copies && os.SameFile(at, fi) {
+			return dst, nil
+		}
+		if err := os.RemoveAll(dst); err != nil {
+			return "", fmt.Errorf("file %d: %v", f.ID, err)
+		}
 	}
 	if copies || os.Link(src, dst) != nil {
 		if err := copyFile(src, dst); err != nil {

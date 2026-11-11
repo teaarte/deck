@@ -192,7 +192,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	a.req = provider.Request{
 		Project: t.project, Cwd: work, Repo: repo, Folder: t.folder != "", Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
-		SessionID: t.session, Resume: t.resume, Dirs: append(append([]string{a.data}, inputs...), r.cfg.Home.Results(processID)), Data: a.data, Read: read, Hosts: box.Hosts, GPU: box.GPU,
+		SessionID: t.session, Resume: t.resume, Dirs: []string{a.data, r.cfg.Home.Results(processID)}, Given: inputs, Data: a.data, Read: read, Hosts: box.Hosts, GPU: box.GPU,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },
 		OnEvent: func(e provider.Event) { r.event(ctx, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(ctx, proj.WorkspaceID, processID, pv, u) },
@@ -201,6 +201,8 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	if slices.Contains(pv.Caps(), provider.LiveInput) && t.live != nil {
 		in = make(chan provider.Message)
 		a.req.Live = in
+	}
+	if t.live != nil {
 		r.mu.Lock()
 		t.live.node = node != 0
 		r.mu.Unlock()

@@ -39,7 +39,7 @@ func TestTheMasterReadsThePublicWebFromItsBox(t *testing.T) {
 }
 
 // TestTheMastersTurnSeesTheFilesOfAMessage: a picture the owner attaches to a message is in the master's box at the
-// path deck names in the turn's prompt.
+// path deck names in the turn's prompt, in a folder the turn only reads.
 func TestTheMastersTurnSeesTheFilesOfAMessage(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
@@ -48,7 +48,8 @@ func TestTheMastersTurnSeesTheFilesOfAMessage(t *testing.T) {
 	shot := "\x89PNG\r\n\x1a\n a screenshot"
 	id := e.Upload("master", "image.png", "image/png", shot)
 	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
-		fmt.Sprintf(`{"shell": "wc -c < {{cwd}}/../input/%d-image.png 2>&1"}`, id), `{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Seen."}}}`,
+		fmt.Sprintf(`{"shell": "wc -c < {{cwd}}/../input/%d-image.png 2>&1"}`, id),
+		fmt.Sprintf(`{"shell": "(echo planted > {{cwd}}/../input/%d-other.png || rm -f {{cwd}}/../input/%d-image.png) 2>/dev/null; ls {{cwd}}/../input"}`, id, id), `{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Seen."}}}`,
 		`{"end": "end_turn"}`))
 	topic := e.Say(0, "look at this", map[string]any{"files": []string{fmt.Sprint(id)}})
 	e.MasterSaid(topic, 1)
@@ -61,7 +62,10 @@ func TestTheMastersTurnSeesTheFilesOfAMessage(t *testing.T) {
 	if real, err := filepath.EvalSymlinks(filepath.Dir(named[1])); err != nil || real != filepath.Dir(at) {
 		t.Fatalf("the path told is the input folder beside the turn's work: %s %v", real, err)
 	}
-	if len(c.Shell) != 1 || strings.TrimSpace(c.Shell[0]["out"]) != fmt.Sprint(len(shot)) {
+	if len(c.Shell) != 2 || strings.TrimSpace(c.Shell[0]["out"]) != fmt.Sprint(len(shot)) {
 		t.Fatalf("the turn reads the picture at that path in its box: %+v", c.Shell)
+	}
+	if strings.TrimSpace(c.Shell[1]["out"]) != fmt.Sprintf("%d-image.png", id) {
+		t.Fatalf("the turn neither puts a file into its input folder nor takes one away: %q", c.Shell[1]["out"])
 	}
 }

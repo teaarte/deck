@@ -3,6 +3,9 @@ package runs
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -293,5 +296,42 @@ func TestAProcessThatWaitsForItsModelGoesToTheModelTheOwnerAssigns(t *testing.T)
 	}
 	if rows := e.FailedRuns(); len(rows) != 0 {
 		t.Fatalf("a failure another model made good is not in the cockpit: %+v", rows)
+	}
+}
+
+// TestTheNextModelReadsTheFilesGivenToTheRefusedProcess: a picture the owner gave the process its model refused stays
+// readable for the next model at the path first named, in a folder it does not write.
+func TestTheNextModelReadsTheFilesGivenToTheRefusedProcess(t *testing.T) {
+	t.Parallel()
+	started, heard := make(chan struct{}, 1), make(chan string, 1)
+	main := &harness.Fake{Live: true, Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		started <- struct{}{}
+		heard <- harness.Heard(ctx, c)
+		return harness.Limited(harness.T0)
+	}}
+	backup := &harness.Fake{ProviderName: "backup", Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}}
+	e := harness.New(t, harness.WithProvider(main, backup))
+	e.Project("plain", harness.TestManifest([]string{harness.Many(harness.AgentCommand("work", `{"type": "object", "properties": {"n": {"type": "integer"}}}`))}, nil))
+	e.UseModels("plain.work", "fake", "backup")
+	file := e.Upload("plain", "image.png", "image/png", "a picture")
+	id := e.StartWork(1)
+	<-started
+	e.Must("deck.process_tell", map[string]any{"process": id, "text": "look at this", "files": []string{harness.Itoa(file)}}, nil)
+	named := regexp.MustCompile(`read-only: (\S+?\.png)`).FindStringSubmatch(<-heard)
+	if named == nil {
+		t.Fatal("the first model is given the picture")
+	}
+	e.WaitState(e.Following(id), "done", "error")
+	calls := backup.Calls()
+	if len(calls) != 1 || !strings.Contains(calls[0].Prompt, named[1]) {
+		t.Fatalf("the next model is told of the picture at the path first named: %+v", calls)
+	}
+	if !slices.Contains(calls[0].Given, filepath.Dir(named[1])) || slices.Contains(calls[0].Dirs, filepath.Dir(named[1])) {
+		t.Fatalf("the next model reads the input folder of the refused process and does not write it: %v %v", calls[0].Given, calls[0].Dirs)
+	}
+	if b, err := os.ReadFile(named[1]); err != nil || string(b) != "a picture" {
+		t.Fatalf("the picture is where it was named: %q %v", b, err)
 	}
 }

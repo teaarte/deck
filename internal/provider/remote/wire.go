@@ -54,6 +54,7 @@ type request struct {
 	// MCP is the path of deck's MCP server of the turn on its side.
 	MCP           string   `json:"mcp"`
 	Dirs          []string `json:"dirs,omitempty"`
+	Given         []string `json:"given,omitempty"`
 	Data          string   `json:"data,omitempty"`
 	Hosts         []string `json:"hosts,omitempty"`
 	GPU           bool     `json:"gpu,omitempty"`

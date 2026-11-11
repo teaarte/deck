@@ -54,6 +54,10 @@ func TestRealBrowserCustomBlockOpensOnEveryAddress(t *testing.T) {
 				}
 			}
 		}
+		inline := `(() => { const s = document.createElement('script'); s.textContent = 'window.injected = 1'; document.head.append(s); return String(window.injected) })()`
+		if got := b.eval(inline); got != "undefined" {
+			t.Fatalf("%s runs a script put into the page: %q", kind, got)
+		}
 		if lan := harness.LAN(); lan != "" {
 			b.open("http://" + lan + ":" + port + "/")
 			b.until(kind+" by the network to get deck's refusal", `document.body.innerText.includes('deck answers only at its own addresses')`)

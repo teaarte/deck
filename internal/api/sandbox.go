@@ -58,15 +58,16 @@ func (s *Server) Sandbox() http.Handler {
 	})
 }
 
-// framesOnly keeps the frames of the client on its origins and blobs (a PDF in the viewer of the browser), so no
-// frame moves to a page on the network, and its images and media on deck, so markdown cannot fetch them from one.
+// framesOnly keeps the frames of the client on its origins and blobs (a PDF in the viewer of the browser), its images
+// and media on deck, and its scripts to deck's files (WebAssembly for the PDF worker), no inline or injected one.
 func (s *Server) framesOnly(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		src := "'self'"
 		if o := originOf(r); o.Side != "" && named(o.RPID()) {
 			src += " " + o.Side
 		}
-		w.Header().Set("Content-Security-Policy", "frame-src "+src+" blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-ancestors 'self'")
+		w.Header().Set("Content-Security-Policy", "script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; "+
+			"frame-src "+src+" blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-ancestors 'self'")
 		next.ServeHTTP(w, r)
 	})
 }

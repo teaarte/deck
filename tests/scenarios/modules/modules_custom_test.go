@@ -51,8 +51,9 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 	}
 	r := get(e.URL, "/")
 	r.Body.Close()
-	if got := r.Header.Get("Content-Security-Policy"); got != "frame-src 'self' "+side+" blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-ancestors 'self'" {
-		t.Fatalf("the client's frames stay on its origins, so a block cannot move its frame to the network, and its pictures and sound stay on deck: %q", got)
+	if got := r.Header.Get("Content-Security-Policy"); got != "script-src 'self' 'wasm-unsafe-eval'; object-src 'none'; base-uri 'none'; "+
+		"frame-src 'self' "+side+" blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-ancestors 'self'" {
+		t.Fatalf("the client runs only deck's scripts, its frames stay on its origins, so a block cannot move its frame to the network, and its pictures and sound stay on deck: %q", got)
 	}
 	r = get(e.URL, "/custom")
 	r.Body.Close()
@@ -121,7 +122,7 @@ func TestCustomBlockFramesComeFromTheAddressTheClientCameBy(t *testing.T) {
 	for host, at := range map[string][2]string{"deck.localhost:" + port: {e.Here, "http://deck.localhost:" + side},
 		"deck.example.com": {"https://deck.example.com", "https://deck.example.com:8443"}} {
 		main, sb := at[0], at[1]
-		if got := get(e.URL+"/", host).Header.Get("Content-Security-Policy"); !strings.HasPrefix(got, "frame-src 'self' "+sb+" blob:;") {
+		if got := get(e.URL+"/", host).Header.Get("Content-Security-Policy"); !strings.Contains(got, "; frame-src 'self' "+sb+" blob:;") {
 			t.Fatalf("the client by %s frames the second origin by the same name: %q", host, got)
 		}
 		if r := get(e.URL+"/custom", host); r.Header.Get("Location") != sb+"/sandbox.html" {

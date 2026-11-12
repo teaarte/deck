@@ -17,6 +17,7 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/provider"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
 
@@ -573,17 +574,10 @@ func TestHistoryFindsAnOldRunOfAQuietProject(t *testing.T) {
 	busy := e.Project("busy", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
 	old := e.Run(quiet, "job")
 	e.WaitState(old, "done")
-	for i := 0; i < 205; i++ {
-		e.Run(busy, "job")
-	}
-	e.Until("the busy runs", func() bool {
-		for _, p := range e.Procs() {
-			if p.State != "done" {
-				return false
-			}
-		}
-		return true
-	})
+	// More finished runs of a busy project than a page holds, as a month of its schedule leaves them, without running each.
+	e.SQL(fmt.Sprintf(`WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 205)
+		INSERT INTO process (project_id, command, kind, state, started_at, finished_at)
+		SELECT %d, 'job', 'agent', 'done', '%s', '%s' FROM n`, busy, store.Time(time.Now()), store.Time(time.Now())))
 	history := e.Screen("", "schedule", map[string]any{"filter": `{"b0-1-0": {"project": "quiet", "state": "done"}}`})["b0-1-0"]
 	rows := harness.BlockData[[]harness.ScreenRow](t, history["rows"])
 	if len(rows) != 1 || rows[0].ID != float64(old) || !strings.Contains(string(history["filters"]), `"options":["busy","quiet"]`) {

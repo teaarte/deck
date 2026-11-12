@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -91,8 +92,10 @@ func serveCodex(dir string) {
 
 type fakeCodexRun struct {
 	*fakeServer
-	schema       codexSchema
-	compiler     *jsonschema.Compiler
+	schema   codexSchema
+	compiler *jsonschema.Compiler
+	// compiling holds the compiler, which deck's requests and the fake's own lines use from two goroutines.
+	compiling    sync.Mutex
 	deckURL      string
 	thread, turn string
 	// deafAfter stops reading stdin after a request of this method until a flood of output is out.
@@ -137,12 +140,7 @@ func (f *fakeCodexRun) check(m map[string]json.RawMessage) {
 			f.violate("unknown field %s of %s", k, method)
 		}
 	}
-	sch, err := f.compiler.Compile("mem://codex.json#/definitions/" + params)
-	if err != nil {
-		f.violate("schema of %s: %v", params, err)
-	}
-	v, _ := jsonschema.UnmarshalJSON(bytes.NewReader(m["params"]))
-	if err := sch.Validate(v); err != nil {
+	if err := f.validate(params, m["params"]); err != nil {
 		f.violate("params of %s do not match the schema: %v", method, err)
 	}
 	var cfg map[string]json.RawMessage
@@ -161,6 +159,55 @@ func (f *fakeCodexRun) check(m map[string]json.RawMessage) {
 			_ = os.WriteFile(filepath.Join(f.dir, "key"), []byte(k[1]), 0o644)
 		}
 	}
+}
+
+// write sends a line to deck only when the real app-server could send it: a notification or a request of the
+// server by the schema, the result of a request by the schema of its response.
+func (f *fakeCodexRun) write(line string) {
+	var m map[string]json.RawMessage
+	if json.Unmarshal([]byte(line), &m) != nil {
+		f.violate("the fake sends no JSON: %s", line)
+	}
+	var method string
+	if json.Unmarshal(m["method"], &method) == nil {
+		params, ok := f.schema.Methods["ServerNotification"][method]
+		if !ok {
+			params, ok = f.schema.Methods["ServerRequest"][method]
+		}
+		if !ok {
+			f.violate("the fake sends %s, which Codex does not", method)
+		}
+		f.conform(params, m["params"], method)
+	}
+	f.fakeServer.write(line)
+}
+
+// conform stops the fake when what it sends breaks the definition def of the schema.
+func (f *fakeCodexRun) conform(def string, v json.RawMessage, what string) {
+	if def == "" || len(v) == 0 {
+		return
+	}
+	if _, ok := f.schema.Definitions[def]; !ok {
+		return
+	}
+	if err := f.validate(def, v); err != nil {
+		f.violate("the fake sends %s that Codex does not: %v", what, err)
+	}
+}
+
+// validate checks v by the definition def of the schema.
+func (f *fakeCodexRun) validate(def string, v json.RawMessage) error {
+	f.compiling.Lock()
+	defer f.compiling.Unlock()
+	sch, err := f.compiler.Compile("mem://codex.json#/definitions/" + def)
+	if err != nil {
+		return fmt.Errorf("schema of %s: %w", def, err)
+	}
+	doc, err := jsonschema.UnmarshalJSON(bytes.NewReader(v))
+	if err != nil {
+		return err
+	}
+	return sch.Validate(doc)
 }
 
 // subst fills in the word of a self-check, the hidden key it names and the folder of the call.
@@ -213,9 +260,16 @@ func (f *fakeCodexRun) run(lines []string) {
 			}
 			close(f.hear)
 		case l["hang"] != nil:
-			for range f.in {
-			}
-			select {}
+			// It ends only on a TERM, which it records.
+			term := make(chan os.Signal, 1)
+			signal.Notify(term, syscall.SIGTERM)
+			go func() {
+				for range f.in {
+				}
+			}()
+			<-term
+			_ = os.WriteFile(filepath.Join(f.call, "terminated"), nil, 0o644)
+			os.Exit(1)
 		case l["deaf"] != nil:
 			signal.Ignore(syscall.SIGTERM)
 			_ = os.Stdout.Close()
@@ -271,6 +325,7 @@ func (f *fakeCodexRun) reply(want string, l map[string]json.RawMessage) {
 			out["error"] = l["error"]
 		} else {
 			out["result"] = l["result"]
+			f.conform(strings.TrimSuffix(f.schema.Methods["ClientRequest"][method], "Params")+"Response", json.RawMessage(f.subst(string(l["result"]))), "a result of "+method)
 			var r struct {
 				Thread struct{ ID string }
 				Turn   struct{ ID string }

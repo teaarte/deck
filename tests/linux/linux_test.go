@@ -65,15 +65,46 @@ func TestScenariosOnLinux(t *testing.T) {
 		"--security-opt", "systempaths=unconfined", "--security-opt", "apparmor=deck-box", "-v", root+":/src:ro", "-v", "deck2-gomod:/go/pkg/mod", "-v", "deck2-gocache:/cache",
 		"-e", "GOCACHE=/cache", "-e", "GOFLAGS=-buildvcs=false", "-w", "/src", "deck2-linux-test", "sh", "-c",
 		"chown -R deck /go/pkg/mod /cache && exec setpriv --reuid=deck --regid=deck --init-groups env HOME=/home/deck go test -count=1 -v ./tests/scenarios/...")
-	out, err := run.CombinedOutput()
-	if err != nil {
-		t.Fatalf("scenario tests on Linux: %v\n%s", err, out)
+	out, runErr := run.CombinedOutput()
+	log := filepath.Join(t.ArtifactDir(), "linux.log")
+	if err := os.WriteFile(log, out, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if runErr != nil {
+		t.Errorf("scenario tests on Linux: %v; the whole output is in %s", runErr, log)
 	}
 	for _, name := range linuxTests {
 		if !strings.Contains(string(out), "--- PASS: "+name) {
-			t.Errorf("%s did not pass on Linux:\n%s", name, out)
+			t.Errorf("%s did not pass on Linux", name)
 		}
 	}
+	if t.Failed() {
+		t.Logf("what failed on Linux:\n%s", failures(string(out)))
+	}
+}
+
+// failures are the lines of the output of go test -v that tell what failed: each failing test with what it logged
+// since its === line, and the packages that failed or panicked.
+func failures(out string) string {
+	var b strings.Builder
+	lines := strings.Split(out, "\n")
+	for i, l := range lines {
+		trim := strings.TrimSpace(l)
+		switch {
+		case strings.HasPrefix(trim, "--- FAIL"):
+			from := i
+			for from > 0 && i-from < 60 && !strings.HasPrefix(strings.TrimSpace(lines[from-1]), "=== ") && !strings.HasPrefix(strings.TrimSpace(lines[from-1]), "--- ") {
+				from--
+			}
+			if from > 0 && strings.HasPrefix(strings.TrimSpace(lines[from-1]), "=== ") {
+				from--
+			}
+			b.WriteString(strings.Join(lines[from:i+1], "\n") + "\n")
+		case strings.HasPrefix(trim, "FAIL"), strings.HasPrefix(trim, "panic:"):
+			b.WriteString(l + "\n")
+		}
+	}
+	return b.String()
 }
 
 // buildImage builds the image of the tests with the version of Codex deck's own image installs.

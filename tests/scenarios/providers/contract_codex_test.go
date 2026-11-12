@@ -147,11 +147,11 @@ func TestCodexThatDoesNotExitAfterItsTurnIsKilled(t *testing.T) {
 	c.Stream(1, "hang.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
 	p := e.Project("paint", harness.ColorManifest)
-	start := time.Now()
 	id := e.Run(p, "work")
-	if got := e.WaitState(id, "done", "error"); got.State != "done" || time.Since(start) > 8*time.Second {
-		t.Fatalf("an app-server that stays after its turn is killed and the turn counts: %+v in %s", got, time.Since(start))
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
+		t.Fatalf("the turn of an app-server that stays after it counts: %+v", got)
 	}
+	e.Until("deck to end the app-server that stays", func() bool { return fileExists(filepath.Join(c.Dir, "calls", "1", "terminated")) })
 }
 
 // TestCodexThatClosesItsOutputButStaysIsKilled: an app-server that ends its output, stays and does not take a TERM is

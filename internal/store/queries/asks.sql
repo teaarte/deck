@@ -155,8 +155,15 @@ UPDATE ask SET state = 'expired' WHERE id = ? AND state = 'open';
 -- name: TellUnheard :execrows
 UPDATE ask SET unheard_at = CAST(sqlc.arg(now) AS TEXT) WHERE id = sqlc.arg(id) AND unheard_at IS NULL;
 
--- name: CreateTakenRemark :exec
-INSERT INTO process_remark (process_id, text, created_at, delivered_at) VALUES (?, ?, ?, ?);
+-- name: CreateTakenRemark :one
+INSERT INTO process_remark (process_id, text, created_at, delivered_at)
+SELECT p.id, CAST(sqlc.arg(text) AS TEXT), CAST(sqlc.arg(created_at) AS TEXT), CAST(sqlc.arg(created_at) AS TEXT) FROM process p
+WHERE p.id = sqlc.arg(process_id) AND p.finished_at IS NULL
+RETURNING id;
+
+
+-- name: ReturnRemark :exec
+UPDATE process_remark SET delivered_at = NULL WHERE id = ?;
 
 
 -- name: CreateDeckRemark :one

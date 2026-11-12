@@ -1,6 +1,6 @@
 # Every push of a branch and pull request from a fork: the checks, the tests with and without the race detector on Linux
-# a shard a package of scenarios, the tests in Linux containers; a tag needs it green (release.yml); macOS runs
-# nightly and only tells (macos.yml).
+# a shard a package of scenarios (the two largest in halves), the tests in Linux containers; a tag needs it green
+# (release.yml); macOS runs nightly and only tells (macos.yml).
 name: ci
 
 on:
@@ -56,6 +56,10 @@ jobs:
           npm install -g "@openai/codex@$(sed -n 's/^ARG CODEX_VERSION=//p' Dockerfile)"
           go generate ./internal/provider/codex
           git diff --exit-code -- internal/provider/codex
+      - name: The fake Claude Code takes only the flags of the version deck's image installs
+        run: |
+          npm install -g "@anthropic-ai/claude-code@$(sed -n 's/^ARG CLAUDE_VERSION=//p' Dockerfile)"
+          .github/claude-flags.sh
 
   test:
     if: ${{ !github.event.pull_request || github.event.pull_request.head.repo.full_name != github.repository }}
@@ -79,8 +83,10 @@ jobs:
           - { os: ubuntu-latest, areas: chat }
           - { os: ubuntu-latest, areas: egress }
           - { os: ubuntu-latest, areas: modules }
-          - { os: ubuntu-latest, areas: owner }
-          - { os: ubuntu-latest, areas: providers }
+          - { os: ubuntu-latest, areas: owner/1/2 }
+          - { os: ubuntu-latest, areas: owner/2/2 }
+          - { os: ubuntu-latest, areas: providers/1/2 }
+          - { os: ubuntu-latest, areas: providers/2/2 }
           - { os: ubuntu-latest, areas: runs }
           - { os: ubuntu-latest, areas: rest }
     runs-on: ${{ matrix.os }}
@@ -90,7 +96,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           sandbox: true
-      - run: go test -race -count=1 -timeout 18m $(.github/shard.sh ${{ matrix.areas }})
+      - run: go test -race -count=1 -timeout 15m $(.github/shard.sh ${{ matrix.areas }})
 
   # The hosts deck's compose.yaml is tried on: Ubuntu 22.04 with AppArmor 3, 24.04 with AppArmor 4, whose user
   # namespaces only a profile opens.
@@ -110,4 +116,11 @@ jobs:
         run: |
           sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
           apparmor_parser --version | head -1; sysctl kernel.apparmor_restrict_unprivileged_userns || true
-      - run: DECK_LINUX=1 go test -count=1 -timeout 20m -v ./tests/linux
+      - run: DECK_LINUX=1 go test -count=1 -timeout 20m -v -artifacts -outputdir "$RUNNER_TEMP/linux" ./tests/linux
+      - name: The whole output of the tests on Linux
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: linux-${{ matrix.os }}
+          path: ${{ runner.temp }}/linux
+          retention-days: 14

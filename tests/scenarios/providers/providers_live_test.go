@@ -77,13 +77,33 @@ func TestMessageWaitsForAProviderWithoutLiveInput(t *testing.T) {
 	if out.Delivered != "after the turn" {
 		t.Fatalf("a provider without live input gets the message after its turn: %+v", out)
 	}
+	e.Must("deck.process_tell", map[string]any{"process": id, "text": "no, the red one"}, nil)
+	var chat struct {
+		Lines []struct {
+			Text   string
+			Delete map[string]any
+		}
+	}
+	e.Must("deck.process_chat_get", map[string]any{"process": id}, &chat)
+	var red map[string]any
+	for _, l := range chat.Lines {
+		if strings.Contains(l.Text, "the red one") {
+			red = l.Delete["params"].(map[string]any)
+		}
+	}
+	if red == nil {
+		t.Fatalf("a message the agent has not taken can be deleted: %+v", chat.Lines)
+	}
+	e.Must("deck.process_message_delete", red, nil)
+	e.Refused("deck.process_message_delete", red, 409, "the agent has taken this message already, or it is gone")
 	close(release)
 	got := e.WaitState(id, "done")
 	calls := e.Fake.Calls()
 	if len(calls) != 2 || !calls[1].Resume || !strings.Contains(calls[1].Prompt, "The owner wrote while you worked:\nuse the blue folder") ||
-		!strings.Contains(string(got.Result), "use the blue folder") {
-		t.Fatalf("the turn ends, the same session goes on with the message: %d calls %+v", len(calls), got)
+		strings.Contains(calls[1].Prompt, "the red one") || !strings.Contains(string(got.Result), "use the blue folder") {
+		t.Fatalf("the turn ends, the same session goes on with the message the owner did not delete: %d calls %+v", len(calls), got)
 	}
+	e.Refused("deck.process_message_delete", map[string]any{"process": id, "message": red["message"]}, 409, "or it is gone")
 	var asks []harness.Ask
 	e.Must("deck.asks_list", nil, &asks)
 	if len(asks) != 0 {

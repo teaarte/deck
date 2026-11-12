@@ -288,8 +288,8 @@ func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 	raw, _ := os.ReadFile(harness.Testdata("codex/filechange.jsonl"))
 	lines := strings.SplitAfter(string(raw), "\n")
 	ids := regexp.MustCompile(`"threadId": "[^"]+", "turnId": "[^"]+"`).FindString(lines[9])
-	dynamic := `{"method": "item/started", "params": {"item": {"type": "dynamicToolCall", "id": "dyn1", "tool": "lookup", "arguments": {"q": "moon"}, "status": "inProgress"}, ` + ids + `}}` + "\n" +
-		`{"method": "item/completed", "params": {"item": {"type": "dynamicToolCall", "id": "dyn1", "tool": "lookup", "arguments": {"q": "moon"}, "status": "failed"}, ` + ids + `}}` + "\n"
+	dynamic := `{"method": "item/started", "params": {"item": {"type": "dynamicToolCall", "id": "dyn1", "tool": "lookup", "arguments": {"q": "moon"}, "status": "inProgress"}, "startedAtMs": 1790467873000, ` + ids + `}}` + "\n" +
+		`{"method": "item/completed", "params": {"item": {"type": "dynamicToolCall", "id": "dyn1", "tool": "lookup", "arguments": {"q": "moon"}, "status": "failed"}, "completedAtMs": 1790467874000, ` + ids + `}}` + "\n"
 	c.StreamText(1, strings.Join(lines[:9], "")+dynamic+strings.Join(lines[9:], ""))
 	e := harness.New(t, harness.WithCodex(c))
 	p := e.Project("outside", outsideManifest)

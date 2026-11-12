@@ -286,25 +286,24 @@ func (q *Queries) CreateRemark(ctx context.Context, arg CreateRemarkParams) (Pro
 	return i, err
 }
 
-const createTakenRemark = `-- name: CreateTakenRemark :exec
-INSERT INTO process_remark (process_id, text, created_at, delivered_at) VALUES (?, ?, ?, ?)
+const createTakenRemark = `-- name: CreateTakenRemark :one
+INSERT INTO process_remark (process_id, text, created_at, delivered_at)
+SELECT p.id, CAST(?1 AS TEXT), CAST(?2 AS TEXT), CAST(?2 AS TEXT) FROM process p
+WHERE p.id = ?3 AND p.finished_at IS NULL
+RETURNING id
 `
 
 type CreateTakenRemarkParams struct {
-	ProcessID   int64
-	Text        string
-	CreatedAt   string
-	DeliveredAt sql.NullString
+	Text      string
+	CreatedAt string
+	ProcessID int64
 }
 
-func (q *Queries) CreateTakenRemark(ctx context.Context, arg CreateTakenRemarkParams) error {
-	_, err := q.db.ExecContext(ctx, createTakenRemark,
-		arg.ProcessID,
-		arg.Text,
-		arg.CreatedAt,
-		arg.DeliveredAt,
-	)
-	return err
+func (q *Queries) CreateTakenRemark(ctx context.Context, arg CreateTakenRemarkParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, createTakenRemark, arg.Text, arg.CreatedAt, arg.ProcessID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const deleteWaitingRemark = `-- name: DeleteWaitingRemark :execrows
@@ -970,6 +969,15 @@ UPDATE ask SET state = 'open', answer = '' WHERE id = ? AND state = 'answered'
 
 func (q *Queries) ReopenDecision(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, reopenDecision, id)
+	return err
+}
+
+const returnRemark = `-- name: ReturnRemark :exec
+UPDATE process_remark SET delivered_at = NULL WHERE id = ?
+`
+
+func (q *Queries) ReturnRemark(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, returnRemark, id)
 	return err
 }
 

@@ -664,4 +664,20 @@ func TestTheFileManagerHoldsEveryModuleInOnePlace(t *testing.T) {
 	if mod := e.Screen("inbox", "documents", map[string]any{"params": `{"path": "files"}`})["b0"]; !strings.Contains(string(mod["files"]), "invoice-october.pdf") {
 		t.Fatalf("the files of a module are the same manager inside it: %s", mod["files"])
 	}
+	var cache struct {
+		Entries []struct {
+			Name, Path, Kind string
+			Dir              bool
+		}
+		Names map[string]string
+	}
+	e.Must("deck.files_folder_list", map[string]any{"project": "inbox", "path": "data/cache", "lang": "ru"}, &cache)
+	if len(cache.Entries) != 2 || !slices.ContainsFunc(cache.Entries, func(l struct {
+		Name, Path, Kind string
+		Dir              bool
+	}) bool {
+		return l.Path == "data/cache/empty" && l.Dir
+	}) || cache.Names["data"] != "Папка данных" {
+		t.Fatalf("a folder of a module lists its lines with paths inside the module, the steps named in the language: %+v", cache)
+	}
 }

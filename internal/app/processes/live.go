@@ -3,6 +3,7 @@ package processes
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"strconv"
 	"strings"
@@ -89,23 +90,27 @@ func (s *Service) processTell(ctx context.Context, act registry.Actor, in proces
 		return nil, err
 	}
 	text = strings.TrimSpace(text + "\n\n" + given)
-	delivered := ""
-	switch s.Runner.Say(ctx, p.ID, "deck: the owner wrote while you work:\n"+text) {
-	case process.Taken:
-		delivered = "now"
-	case process.Unsure:
-		delivered = "sent; the provider did not confirm it"
+	// The message is kept as taken before the turn hears it: a turn that ends on it hands it on with the rest.
+	remark, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		return q.CreateTakenRemark(ctx, db.CreateTakenRemarkParams{ProcessID: p.ID, Text: text, CreatedAt: store.Time(s.Now())})
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, registry.Invalid("process %d has finished; send it back with a remark instead", p.ID)
 	}
-	if delivered != "" {
-		now := store.Time(s.Now())
-		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			return q.CreateTakenRemark(ctx, db.CreateTakenRemarkParams{ProcessID: p.ID, Text: text, CreatedAt: now, DeliveredAt: sql.NullString{String: now, Valid: true}})
-		})
-		return map[string]any{"process": p.ID, "delivered": delivered}, err
-	}
-	if err := s.Runner.Remark(ctx, p.ID, text); err != nil {
+	if err != nil {
 		return nil, err
 	}
+	switch s.Runner.Say(ctx, p.ID, "deck: the owner wrote while you work:\n"+text) {
+	case process.Taken:
+		return map[string]any{"process": p.ID, "delivered": "now"}, nil
+	case process.Unsure:
+		return map[string]any{"process": p.ID, "delivered": "sent; the provider did not confirm it"}, nil
+	}
+	err = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return q.ReturnRemark(ctx, remark) })
+	if err != nil {
+		return nil, err
+	}
+	_ = s.Runner.Deliver(context.WithoutCancel(ctx), p.ID)
 	return map[string]any{"process": p.ID, "delivered": "after the turn"}, nil
 }
 

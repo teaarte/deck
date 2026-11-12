@@ -2,6 +2,7 @@ package owner
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"image/color"
 	"strings"
@@ -149,6 +150,14 @@ func TestThemesAreCheckedDocuments(t *testing.T) {
 		t.Fatalf("juce as the client wears it: %+v", l)
 	}
 
+	var format struct {
+		Title      string
+		Properties map[string]json.RawMessage
+	}
+	e.Must("deck.theme_format_get", nil, &format)
+	if format.Title != "deck theme" || format.Properties["light"] == nil || format.Properties["dark"] == nil || format.Properties["colour"] != nil {
+		t.Fatalf("the format of a theme is the schema its check holds a theme to: %+v", format)
+	}
 	bad := map[string]string{
 		"does not match its schema":     `{"version": 1, "title": {"en": "X"}, "mood": "m", "colour": "red"}`,
 		"dimmed on island reads":        `{"version": 1, "title": {"en": "X"}, "mood": "m", "light": {"dimmed": "#cccccc"}}`,

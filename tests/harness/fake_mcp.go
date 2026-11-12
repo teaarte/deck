@@ -46,9 +46,24 @@ func Stopped(f *os.File) bool {
 	return syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB) == nil
 }
 
+// orphaned ends a fake whose parent is gone, such as a test binary killed at its timeout: nothing else would end
+// it. A fake that stands for a child a program leaves behind (hold) does not use it.
+func orphaned() {
+	parent := os.Getppid()
+	for range time.Tick(time.Second) {
+		if os.Getppid() != parent {
+			os.Exit(3)
+		}
+	}
+}
+
 // Serve serves the fake the environment names, an MCP server (DECK_FAKE_MCP picks which), the app-server of Codex,
 // an ACP agent or a model, and reports whether it named one.
 func Serve() bool {
+	if os.Getenv("DECK_FAKE_ACP")+os.Getenv("DECK_FAKE_RESPONSES")+os.Getenv("DECK_FAKE_CODEX")+os.Getenv("DECK_FAKE_MCP") != "" &&
+		os.Getenv("DECK_FAKE_MCP") != "hold" {
+		go orphaned()
+	}
 	if dir := os.Getenv("DECK_FAKE_ACP"); dir != "" {
 		serveACP(dir)
 		return true

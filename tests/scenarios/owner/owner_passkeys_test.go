@@ -251,3 +251,33 @@ func TestTheSessionsOfADeviceBeforePasskeysSettleOnTheirBrowsers(t *testing.T) {
 		t.Fatalf("the Mac stays signed in: %d %s", code, out)
 	}
 }
+
+// TestTheOwnerRenamesAPasskeyAndStopsThePushesOfADevice: a passkey takes the name the owner gives it, a device stops
+// getting pushes while it stays signed in; an empty name and a passkey or device that is not there are refused.
+func TestTheOwnerRenamesAPasskeyAndStopsThePushesOfADevice(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	_, cookie := pairSecond(t, e, "Mac — Safari")
+	mac := named(browsers(t, e), "Mac — Safari")
+	e.Must("deck.passkey_rename", map[string]any{"passkey": mac.PasskeyID, "name": "  Work laptop  "}, nil)
+	var ks []passkey
+	e.Must("deck.passkeys_list", map[string]any{}, &ks)
+	if i := slices.IndexFunc(ks, func(k passkey) bool { return k.ID == mac.PasskeyID }); i < 0 || ks[i].Name != "Work laptop" {
+		t.Fatalf("the passkey has the owner's name: %+v", ks)
+	}
+	e.Refused("deck.passkey_rename", map[string]any{"passkey": mac.PasskeyID, "name": " "}, 422, "a passkey needs a name")
+	e.Refused("deck.passkey_rename", map[string]any{"passkey": 9999, "name": "x"}, 404, "no passkey 9999")
+
+	subscribe(t, e.Signed(cookie), "https://push.example/mac")
+	if !named(browsers(t, e), "Mac — Safari").Push {
+		t.Fatal("the Mac gets pushes")
+	}
+	e.Must("deck.push_unsubscribe", map[string]any{"device": mac.ID}, nil)
+	if d := named(browsers(t, e), "Mac — Safari"); d.Push || d.Revoked {
+		t.Fatalf("the Mac gets no pushes and stays signed in: %+v", d)
+	}
+	if code, out := e.Signed(cookie).Call("deck.menu_get", map[string]any{}); code != 200 {
+		t.Fatalf("the Mac stays signed in: %d %s", code, out)
+	}
+	e.Refused("deck.push_unsubscribe", map[string]any{"device": mac.ID}, 404, "no such device")
+}

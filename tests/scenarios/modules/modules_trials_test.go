@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -123,6 +124,14 @@ func TestATrialListsWhatItLeftWithItsUndo(t *testing.T) {
 	if plain.Left != nil {
 		t.Fatalf("only a trial lists in process_get what it left: %+v", plain.Left)
 	}
+	var listed []leftRow
+	e.Must("deck.process_left_list", map[string]any{"process": run}, &listed)
+	if len(listed) != 3 || !slices.ContainsFunc(listed, func(l leftRow) bool {
+		return l.Kind == "record" && strings.Contains(l.Text, `record "a" of finds.items`)
+	}) {
+		t.Fatalf("process_left_list lists what any process left: %+v", listed)
+	}
+	e.Refused("deck.process_left_list", map[string]any{"process": 9999}, 404, "no process 9999")
 	if left, ok := leftBlock(e, run); ok {
 		t.Fatalf("only the page of a trial has the table of what it left: %+v", left.Rows)
 	}

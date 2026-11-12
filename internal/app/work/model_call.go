@@ -76,7 +76,17 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 	if err != nil {
 		return nil, err
 	}
-	var spent *provider.Usage
+	// cost is what every hop of the call cost together.
+	var cost *float64
+	spent := func(u *provider.Usage) {
+		if u != nil && u.CostUSD != nil {
+			c := *u.CostUSD
+			if cost != nil {
+				c += *cost
+			}
+			cost = &c
+		}
+	}
 	var finish func(*provider.Usage)
 	for i := range hops {
 		done := hops[i].Done
@@ -85,11 +95,11 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 				u = &provider.Usage{}
 			}
 			if in.Kind == RoleVideo && status > 0 && status < 400 {
-				finish = func(u *provider.Usage) { done(ctx, status, u); spent = u }
+				finish = func(u *provider.Usage) { done(ctx, status, u); spent(u) }
 				return
 			}
 			done(ctx, status, u)
-			spent = u
+			spent(u)
 		}
 	}
 	var options map[string]any
@@ -122,9 +132,11 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 			return nil, err
 		}
 	}
+	var unread error
 	out, h, err := models.ReadHops(ctx, hops, func(h models.Hop) (models.Call, error) {
 		return build(in, h, merged(maps.Clone(h.Options), options), att)
-	}, func(h models.Hop, resp *http.Response) (any, error) {
+	}, func(h models.Hop, resp *http.Response) (out any, err error) {
+		defer func() { unread = err }()
 		if in.Kind == RoleVideo {
 			return s.video(ctx, act, h, resp, func(u *provider.Usage) {
 				if finish != nil {
@@ -134,7 +146,7 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 		}
 		return s.read(act, in, h, resp)
 	})
-	if err != nil && h.Name != "" && in.Kind == RoleTTS && merged(maps.Clone(h.Options), options)["voice"] == nil {
+	if err != nil && unread != nil && errors.Is(err, unread) && in.Kind == RoleTTS && merged(maps.Clone(h.Options), options)["voice"] == nil {
 		hint := fmt.Sprintf("model %s got no voice; when its service needs one, set voice in the options of the model (Settings, Models, edit)", h.Name)
 		if f := (*fault.F)(nil); errors.As(err, &f) {
 			err = fault.With(f.Type, err.Error(), hint)
@@ -144,8 +156,8 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 	}
 	if file, ok := out.(map[string]any); ok && err == nil && file["file"] != nil {
 		file["model"] = h.Name
-		if spent != nil && spent.CostUSD != nil {
-			file["cost_usd"] = *spent.CostUSD
+		if cost != nil {
+			file["cost_usd"] = *cost
 		}
 	}
 	return out, err

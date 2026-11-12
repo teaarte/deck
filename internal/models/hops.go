@@ -154,22 +154,27 @@ func (u unread) Unwrap() error { return u.F }
 // and ReadHops hands the call on to the next hop.
 func Unread(text string) error { return unread{fault.New(fault.ModelUnavailable, text)} }
 
-// ReadHops is SendHops with the answer read into a result; an answer read fails with Unread hands the call on to
-// the next hop as a failed one does.
+// ReadHops is SendHops with the answer read into a result: an Unread answer hands the call on to the next hop; when
+// no next hop takes it, by its limits or its build, the call fails with that answer first.
 func ReadHops[T any](ctx context.Context, hops []Hop, build func(Hop) (Call, error), read func(Hop, *http.Response) (T, error)) (T, Hop, error) {
+	var zero T
+	var bad error
+	var badHop Hop
 	for {
-		var zero T
-		resp, i, err := sendHops(ctx, hops, build)
-		if err != nil {
-			if i < 0 {
-				return zero, Hop{}, err
-			}
+		var built error
+		resp, i, err := sendHops(ctx, hops, func(h Hop) (Call, error) { c, err := build(h); built = err; return c, err })
+		switch {
+		case err != nil && bad != nil && (i < 0 || built != nil):
+			return zero, badHop, errors.Join(bad, err)
+		case err != nil && i < 0:
+			return zero, Hop{}, err
+		case err != nil:
 			return zero, hops[i], err
 		}
 		out, err := read(hops[i], resp)
 		var u unread
 		if err != nil && i < len(hops)-1 && errors.As(err, &u) {
-			hops = hops[i+1:]
+			bad, badHop, hops = err, hops[i], hops[i+1:]
 			continue
 		}
 		return out, hops[i], err

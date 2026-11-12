@@ -366,7 +366,11 @@ and bring the modules in line.
   caller set, and the confirmation shows its params (until a later version makes such a press the call of its
   writer). A confirmation of a tool call in `asks_list` gives `change` as the call's fields a line each, where it
   reaches (`to`, `cc`, `url`, …) first, each value cut on its own.
-- 2026-11-11: a model's answer deck cannot read (not JSON by the schema, no picture, no video job id) fails as the
-  model's, `model.unavailable` (HTTP 502), no longer as deck's own `deck.internal` (500), and the next model assigned
-  takes the call; a video job that failed is `model.unavailable` too, one past its ceiling `timeout`; a page
-  `web_fetch` reads that answers an error status fails as `network` (502).
+- 2026-11-11: a model's answer deck cannot read (not JSON by the schema, no picture) fails as the model's,
+  `model.unavailable` (HTTP 502), no longer as deck's own `deck.internal` (500), and the next model assigned takes the
+  call; `cost_usd` of a file is what all the models of the call cost. A video request a service took without a job id,
+  or a job that failed, is `model.unavailable` and goes to no other model; one past its ceiling is `timeout`.
+  `web_search` failing at its search service, or answering what is not JSON, is `model.unavailable` (502, was 500); a
+  page `web_fetch` reads that answers an error status is `network` (502). A failed `tts` keeps the type of its
+  failure (a refusal of the service as before, a bad answer `model.unavailable`) with the hint about a voice in its
+  details; it is no longer always `input.invalid` (422).

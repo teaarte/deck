@@ -167,7 +167,7 @@ func (s *Service) withFiles(o map[string]any, model string) error {
 		if id := fileOf(v); id != 0 {
 			b, err := os.ReadFile(s.Home.File(id))
 			if err != nil {
-				return fault.New(fault.DeckInternal, fmt.Sprintf("deck: option %s of model %s is a file deck cannot read: %v", k, model, err))
+				return fault.Wrap(fmt.Sprintf("deck: option %s of model %s is a file deck cannot read", k, model), err)
 			}
 			o[k] = string(b)
 		}

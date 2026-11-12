@@ -52,7 +52,7 @@ func (s *Service) video(ctx context.Context, act registry.Actor, h models.Hop, r
 	var job videoJob
 	if json.Unmarshal(raw, &job) != nil || job.ID == "" || strings.ContainsAny(job.ID, "/?#") {
 		done(&provider.Usage{})
-		return nil, models.Unread(fmt.Sprintf("deck: %s took the video but answered no job id: %s", h.Connection, untrusted.Cut(string(raw), 500)))
+		return nil, fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: %s took the video but answered no job id: %s", h.Connection, untrusted.Cut(string(raw), 500)))
 	}
 	spent := &provider.Usage{}
 	defer func() { done(spent) }()

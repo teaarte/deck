@@ -89,7 +89,10 @@ func (g *Gateway) needRequest(ctx context.Context, act registry.Actor, command s
 // startRequest asks the owner for a right a turn of the process of act needs before it starts.
 func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command string, n registry.Need) (int64, error) {
 	f := Freeze(act, command, []byte(`{}`))
-	f.As, f.Need, f.Offers = AsStart, &n, []string{Work, manifest.Always, manifest.No}
+	f.As, f.Need, f.Offers = AsStart, &n, []string{manifest.Always, manifest.No}
+	if act.ProcessID != 0 {
+		f.Offers = append([]string{Work}, f.Offers...)
+	}
 	f.Reason = act.Why
 	var expires time.Time
 	if ttl := g.confirmTTL(ctx, act.Workspace); ttl > 0 {

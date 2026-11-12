@@ -782,3 +782,40 @@ func TestModelsListGivesTheChoicesOnceAKind(t *testing.T) {
 		t.Fatalf("each kind lists the models that could do it: %v", of)
 	}
 }
+
+// TestAScriptsFirstCallOfMoneyAsksTheOwnerOnce: money is asked at first use; a script cannot wait, so its call is
+// refused and its module asks the owner once, and the owner's always lets the next run through.
+func TestAScriptsFirstCallOfMoneyAsksTheOwnerOnce(t *testing.T) {
+	t.Parallel()
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", harness.PictureAnswer(0.03)
+		},
+	})
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or-real"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image", "name": "painter", "call_usd": 0.04}, nil)
+	e.Must("deck.project_create", map[string]any{"name": "films", "manifest": harness.Declared(harness.ScriptManifest("media", "",
+		`, "rights": [{"right": "money", "what": ["openrouter"], "why": "calls models"}]`))}, nil)
+	e.SaveScript("films", "scripts/main.py", modelScript)
+	run := func() map[string]any {
+		got := e.WaitState(e.Start("films", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture}), "done", "error")
+		var out map[string]any
+		_ = json.Unmarshal(got.Result, &out)
+		return out
+	}
+	for range 2 {
+		if out := run(); out["status"] != 403.0 || len(api.Calls()) != 0 {
+			t.Fatalf("an unanswered right of money refuses the call of a script: %v", out)
+
+		}
+	}
+	asks := e.Asks()
+	if len(asks) != 1 || asks[0].Kind != "call" || asks[0].Process != 0 {
+		t.Fatalf("the module asked the owner once: %+v", asks)
+	}
+	e.Answer(asks[0].ID, "allow_always")
+	if out := run(); out["status"] != 200.0 || len(api.Calls()) != 1 {
+		t.Fatalf("always lets the next run through: %v", out)
+	}
+}

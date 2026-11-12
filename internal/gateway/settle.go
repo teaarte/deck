@@ -34,7 +34,7 @@ func (g *Gateway) Freshness(ctx context.Context, a db.Ask, probe bool) int {
 	if err != nil {
 		return AsAsked
 	}
-	if c.Gate.Subject == nil || f.As == AsTurn {
+	if c.Gate.Subject == nil || f.As == AsTurn || f.As == AsStart {
 		return AsAsked
 	}
 	s := c.Gate.Subject(ctx, registry.At{Workspace: f.Caller.Workspace, Project: f.Caller.Project, Look: probe}, f.Call.Input)

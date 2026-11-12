@@ -161,5 +161,8 @@ func (s *Service) feedPress(ctx context.Context, act registry.Actor, in feedPres
 	input, _ := json.Marshal(b.Params)
 	writer := registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID, ProcessID: f.ProcessID.Int64,
 		Why: fmt.Sprintf("You pressed %q on its note", b.Label)}
+	if f.Author == registry.Master {
+		writer.Kind = registry.Master
+	}
 	return s.Call(ctx, writer, p.Name+"."+b.Command, input)
 }

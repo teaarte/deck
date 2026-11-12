@@ -23,8 +23,10 @@ func (g *Gateway) Permit(ctx context.Context, act registry.Actor, command string
 	case v.Does == DoRefuse:
 		err = v.refusal(c, g.projectName(ctx, act.ProjectID))
 	case v.Does == DoAsk && v.Need != nil && !v.Facts.Draft:
-		// A program cannot wait for the owner: its call is refused, and the owner is asked for the right once.
-		a, rerr := g.needRequest(ctx, act, command, *v.Need)
+		// A program cannot wait for the owner: its call is refused, and its module asks the owner for the right once.
+		module := act
+		module.ProcessID = 0
+		a, rerr := g.needRequest(ctx, module, command, *v.Need)
 		err = registry.Refuse("%s (ask %d asks the owner for it)", wait, a)
 		if rerr != nil {
 			err = rerr

@@ -808,6 +808,9 @@ print(json.dumps({"ok": True}))
 // TestAChildOfAScriptThatLeavesItsGroupEndsWithTheProcess: a child a script starts in a session of its own does not
 // outlive the process: deck ends every process the box started, not only its group.
 func TestAChildOfAScriptThatLeavesItsGroupEndsWithTheProcess(t *testing.T) {
+	if runtime.GOOS != "darwin" {
+		t.Skip("on Linux the box is a namespace of processes: they end with it, and a pid it writes is not of this one")
+	}
 	t.Parallel()
 	e := harness.New(t)
 	pid := e.Project("tools", harness.ScriptManifest("collect", "", ""))

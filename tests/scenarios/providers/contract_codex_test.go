@@ -151,7 +151,12 @@ func TestCodexThatDoesNotExitAfterItsTurnIsKilled(t *testing.T) {
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the turn of an app-server that stays after it counts: %+v", got)
 	}
-	e.Until("deck to end the app-server that stays", func() bool { return fileExists(filepath.Join(c.Dir, "calls", "1", "terminated")) })
+	alive, err := os.Open(filepath.Join(c.Dir, "calls", "1", "alive"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alive.Close()
+	e.Until("deck to end the app-server that stays", func() bool { return harness.Stopped(alive) })
 }
 
 // TestCodexThatClosesItsOutputButStaysIsKilled: an app-server that ends its output, stays and does not take a TERM is

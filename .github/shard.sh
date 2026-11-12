@@ -13,6 +13,6 @@ for a in "$@"; do
     [ -n "$names" ] || { echo "shard.sh: no tests in part $k of $n of $area" >&2; exit 1; }
     echo "-run=^($names)\$ ./tests/scenarios/$area"
   else
-    echo "./tests/scenarios/$area"
+    echo "./tests/scenarios/$a"
   fi
 done

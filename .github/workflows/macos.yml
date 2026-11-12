@@ -27,4 +27,4 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           sandbox: true
-      - run: go test -race -count=1 -timeout 25m $(.github/shard.sh ${{ matrix.areas }})
+      - run: shard=$(.github/shard.sh ${{ matrix.areas }}) && go test -race -count=1 -timeout 25m $shard

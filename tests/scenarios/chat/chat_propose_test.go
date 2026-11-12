@@ -52,9 +52,12 @@ func TestASkillChangesOnlyByTheOwnersYes(t *testing.T) {
 		if in = maps.Clone(in); in["if_revision"] == nil {
 			in["if_revision"] = read().Revision
 		}
+		said.Delete("master")
 		propose.Store("in", in)
 		turn++
 		e.MasterSaid(e.Say(0, fmt.Sprint("propose ", turn)), 1)
+		// Another turn of the master, such as the one deck tells an answer to, may take the proposal first.
+		e.Until("the master to propose", func() bool { _, ok := said.Load("master"); return ok })
 		return heard("master")
 	}
 	type asked struct {
@@ -245,9 +248,11 @@ func TestAFactOfTheOwnerChangesOnlyByTheirYes(t *testing.T) {
 	ask := func(in map[string]any) string {
 		d, _ := read(in["name"].(string))
 		in["if_revision"] = d.Revision
+		said.Delete("master")
 		propose.Store("in", in)
 		turn++
 		e.MasterSaid(e.Say(0, fmt.Sprint("propose ", turn)), 1)
+		e.Until("the master to propose", func() bool { _, ok := said.Load("master"); return ok })
 		v, _ := said.Load("master")
 		return fmt.Sprint(v)
 	}

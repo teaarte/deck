@@ -260,16 +260,9 @@ func (f *fakeCodexRun) run(lines []string) {
 			}
 			close(f.hear)
 		case l["hang"] != nil:
-			// It ends only on a TERM, which it records.
-			term := make(chan os.Signal, 1)
-			signal.Notify(term, syscall.SIGTERM)
-			go func() {
-				for range f.in {
-				}
-			}()
-			<-term
-			_ = os.WriteFile(filepath.Join(f.call, "terminated"), nil, 0o644)
-			os.Exit(1)
+			for range f.in {
+			}
+			select {}
 		case l["deaf"] != nil:
 			signal.Ignore(syscall.SIGTERM)
 			_ = os.Stdout.Close()

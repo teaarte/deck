@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -82,6 +83,8 @@ type fakeServer struct {
 	queue                []map[string]json.RawMessage
 	outMu                sync.Mutex
 	mcp                  *mcp.ClientSession
+	// alive is the file the fake holds a lock of while it runs, so a test sees it end (Stopped).
+	alive *os.File
 }
 
 // newFakeServer makes the folder of the next call and records its folder, arguments and environment.
@@ -98,7 +101,15 @@ func newFakeServer(name, dir string, args []string) *fakeServer {
 	_ = os.WriteFile(filepath.Join(c, "cwd"), []byte(cwd), 0o644)
 	_ = os.WriteFile(filepath.Join(c, "args"), []byte(strings.Join(args, "\n")), 0o644)
 	_ = os.WriteFile(filepath.Join(c, "env"), []byte(strings.Join(os.Environ(), "\n")), 0o644)
-	return &fakeServer{name: name, dir: dir, call: c, cwd: cwd, in: make(chan map[string]json.RawMessage, 64)}
+	alive, err := os.OpenFile(filepath.Join(c, "alive"), os.O_CREATE|os.O_RDWR, 0o600)
+	if err == nil {
+		err = syscall.Flock(int(alive.Fd()), syscall.LOCK_EX)
+	}
+	f := &fakeServer{name: name, dir: dir, call: c, cwd: cwd, in: make(chan map[string]json.RawMessage, 64), alive: alive}
+	if err != nil {
+		f.violate("no lock of alive: %v", err)
+	}
+	return f
 }
 
 func (f *fakeServer) violate(format string, a ...any) {

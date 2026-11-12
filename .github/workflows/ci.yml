@@ -96,7 +96,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           sandbox: true
-      - run: go test -race -count=1 -timeout 15m $(.github/shard.sh ${{ matrix.areas }})
+      - run: shard=$(.github/shard.sh ${{ matrix.areas }}) && go test -race -count=1 -timeout 15m $shard
 
   # The hosts deck's compose.yaml is tried on: Ubuntu 22.04 with AppArmor 3, 24.04 with AppArmor 4, whose user
   # namespaces only a profile opens.
@@ -116,7 +116,7 @@ jobs:
         run: |
           sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
           apparmor_parser --version | head -1; sysctl kernel.apparmor_restrict_unprivileged_userns || true
-      - run: DECK_LINUX=1 go test -count=1 -timeout 20m -v -artifacts -outputdir "$RUNNER_TEMP/linux" ./tests/linux
+      - run: mkdir -p "$RUNNER_TEMP/linux" && DECK_LINUX=1 go test -count=1 -timeout 20m -v -artifacts -outputdir "$RUNNER_TEMP/linux" ./tests/linux
       - name: The whole output of the tests on Linux
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

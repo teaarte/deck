@@ -2,6 +2,7 @@ package runs
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -143,6 +144,40 @@ func TestDeckHandsTheMasterTheIncidentsAroundAProcess(t *testing.T) {
 	e.Must("deck.processes_list", map[string]any{"project": "master", "command": "on_incident"}, &ps)
 	if len(ps) != 4 {
 		t.Fatalf("each incident goes to the master once: the hung, the failed, the two steps after that did not start: %d", len(ps))
+	}
+}
+
+// TestAnIncidentTheMasterDoesNotTakeReachesTheOwner: with the master paused, an incident around a process is a note
+// of deck in the owner's feed, once, saying why the master did not take it.
+func TestAnIncidentTheMasterDoesNotTakeReachesTheOwner(t *testing.T) {
+	t.Parallel()
+	fake := &harness.Fake{Submits: true, Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "" || !strings.Contains(c.Req.Prompt, "Edit the clip") {
+			return provider.Result{Text: "ok"}
+		}
+		// A result by its schema that names a file the turn never made.
+		_, _ = c.Tool(ctx, "result_submit", map[string]any{"result": map[string]any{"cut": "v2", "files": []map[string]any{{"path": "cut.mp4"}}}})
+		return provider.Result{Text: "Done."}
+	}}
+	e := harness.New(t, harness.WithProvider(fake))
+	e.Project("clips", harness.ClipsModule)
+	e.SaveScript("clips", "scripts/render.py", harness.ClipsRender)
+	failed := e.Start("clips", "revise", map[string]any{"record": e.Clip("b"), "note": "the sky"})
+	e.WaitState(failed, "error")
+	n := e.WaitNote("the master did not take it: it is paused")
+	if !strings.Contains(n.Text, fmt.Sprintf("process #%d of revise handed in its result, then closed as error", failed)) {
+		t.Fatalf("the note says what deck noticed: %+v", n)
+	}
+	e.Settle()
+	count := 0
+	for _, f := range e.Notes() {
+		if strings.Contains(f.Text, "the master did not take it") {
+			count++
+		}
+	}
+	var ps []harness.Proc
+	if e.Must("deck.processes_list", map[string]any{"project": "master", "command": "on_incident"}, &ps); count != 1 || len(ps) != 0 {
+		t.Fatalf("one note, and the paused master runs nothing: %d notes, %d runs", count, len(ps))
 	}
 }
 

@@ -467,3 +467,10 @@ SELECT * FROM process WHERE project_id = ? AND command = ? AND retry_key = ? AND
 
 -- name: ListSessionProcesses :many
 SELECT id FROM process WHERE project_id = ? AND session_id = ? AND id != ? ORDER BY id DESC LIMIT ?;
+
+
+-- name: CutOldProcesses :execrows
+UPDATE process SET
+  input = CASE WHEN length(input) > 1000 THEN json_object('cut', substr(input, 1, 500)) ELSE input END,
+  result = CASE WHEN length(result) > 1000 THEN json_object('cut', substr(result, 1, 500)) ELSE result END
+WHERE finished_at IS NOT NULL AND finished_at < CAST(sqlc.arg(before) AS TEXT) AND (length(input) > 1000 OR length(result) > 1000);

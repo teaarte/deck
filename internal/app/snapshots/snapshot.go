@@ -58,6 +58,15 @@ func (s *Service) take(ctx context.Context, kind string, project int64) (string,
 			len(left.unread), strings.Join(left.unread[:min(len(left.unread), 5)], "; "))); err != nil {
 			slog.Error("write health", "err", err)
 		}
+	case left.squeezed:
+		text := fmt.Sprintf("the budget of snapshots, %d MB, keeps fewer than two daily snapshots; %s takes %d MB: move data out of deck",
+			s.Budget>>20, filepath.Base(path), size(path)>>20)
+		if left.over > 0 {
+			text = fmt.Sprintf("%s, without %d MB of big files of data folders past %d MB", text, left.over>>20, s.Budget/2>>20)
+		}
+		if err := health.Write(ctx, s.St, health.Of{}, health.Snapshot, health.Warning, text); err != nil {
+			slog.Error("write health", "err", err)
+		}
 	case left.over > 0:
 		if err := health.Write(ctx, s.St, health.Of{}, health.Snapshot, health.OK, fmt.Sprintf("%s, without %d MB of big files of data folders past %d MB",
 			filepath.Base(path), left.over>>20, s.Budget/2>>20)); err != nil {
@@ -69,6 +78,15 @@ func (s *Service) take(ctx context.Context, kind string, project int64) (string,
 		}
 	}
 	return path, err
+}
+
+// size is the size of the file at path, 0 when it cannot be read.
+func size(path string) int64 {
+	st, err := os.Stat(path)
+	if err != nil {
+		return 0
+	}
+	return st.Size()
 }
 
 // write takes a snapshot of every project, or of one when project is not 0.
@@ -96,7 +114,7 @@ func (s *Service) write(ctx context.Context, kind string, project int64) (string
 	if err != nil {
 		return "", leftOut{}, err
 	}
-	s.fit(dir, path)
+	left.squeezed = s.fit(dir, path)
 	s.Emit(events.Event{Topic: events.Snapshots})
 	return path, left, nil
 }
@@ -212,27 +230,37 @@ func list(dir string) []snapshot {
 	return out
 }
 
-// fit removes the oldest snapshots until all of them take at most the budget; kept, the one just taken, stays.
-func (s *Service) fit(dir, kept string) {
+// fit removes the oldest daily snapshots until all take at most the budget and says when fewer than two are left;
+// kept, the one just taken, stays, as do those before a delete or an update, the one way back to what they hold.
+func (s *Service) fit(dir, kept string) bool {
 	snaps := list(dir)
-	total := int64(0)
+	total, daily := int64(0), 0
 	for _, sn := range snaps {
 		total += sn.Size
+		if strings.HasPrefix(sn.Name, home.SnapshotDaily+"-") {
+			daily++
+		}
 	}
+	removed := false
 	for _, sn := range slices.Backward(snaps) {
 		if total <= s.Budget {
-			return
+			break
 		}
-		if sn.Path != kept && os.Remove(sn.Path) == nil {
+		if sn.Path != kept && strings.HasPrefix(sn.Name, home.SnapshotDaily+"-") && os.Remove(sn.Path) == nil {
 			total -= sn.Size
+			daily--
+			removed = true
 		}
 	}
+	return removed && daily < 2
 }
 
 // leftOut is what a snapshot left out: files it could not read whole, and the bytes of data files past its budget.
 type leftOut struct {
 	unread []string
 	over   int64
+	// squeezed says the budget left fewer than two daily snapshots.
+	squeezed bool
 }
 
 // rebuilt are folders of data folders their programs fill again: caches, environments and downloaded models.

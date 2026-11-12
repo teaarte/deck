@@ -176,6 +176,20 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 	}
 	s.mu.Unlock()
 	if err != nil {
+		if ctx.Err() != nil {
+			return fs, err
+		}
+		// A list whose signature does not hold may be a forged release: red; a failed look, yellow until one works.
+		status := health.Warning
+		if errors.Is(err, release.ErrSignature) {
+			status = health.Error
+		}
+		if herr := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			_, err := health.Set(ctx, q, s.Now(), health.Of{}, health.Update, status, fmt.Sprintf("deck could not look for an update: %s", err))
+			return err
+		}); herr != nil {
+			slog.Error("write the health of updates", "err", herr)
+		}
 		return fs, err
 	}
 	status, text := health.OK, fmt.Sprintf("deck %s is the latest", s.Version)

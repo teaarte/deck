@@ -185,6 +185,37 @@ func TestDeckRefusesAReleaseThatIsNotSigned(t *testing.T) {
 	}
 }
 
+// TestAFailedLookForAnUpdateIsInHealth: a look for an update that fails is the row of the update until one works: a
+// release whose signature does not hold red, a release that cannot be read yellow.
+func TestAFailedLookForAnUpdateIsInHealth(t *testing.T) {
+	t.Parallel()
+	r := newRelease(t)
+	r.publish(t, "v0.2.0", map[string][]byte{"deck-test": newBinary("v0.2.0")}, func(fs *release.Files) { fs.Files[0].Size++ })
+	e, _, _ := updateEnv(t, r, nil)
+	var v struct {
+		Newer bool
+		Error string
+	}
+	if e.Must("deck.update_check", nil, &v); v.Newer || !strings.Contains(v.Error, "signature") {
+		t.Fatalf("a release whose signature does not hold is no update: %+v", v)
+	}
+	if h := e.WaitHealth(health.Update, "error"); !strings.Contains(h.Error, "could not look for an update: the signature of the release does not hold") {
+		t.Fatalf("the row of the update says the signature does not hold: %+v", h)
+	}
+	r.mu.Lock()
+	r.files = map[string][]byte{}
+	r.mu.Unlock()
+	e.Must("deck.update_check", nil, nil)
+	if h := e.WaitHealth(health.Update, "warning"); !strings.Contains(h.Error, "404") {
+		t.Fatalf("a release that cannot be read is a warning: %+v", h)
+	}
+	r.publish(t, "v0.1.0", map[string][]byte{"deck-test": newBinary("v0.1.0")}, nil)
+	e.Must("deck.update_check", nil, nil)
+	if h := e.WaitHealth(health.Update, "ok"); !strings.Contains(h.Error, "is the latest") {
+		t.Fatalf("a look that works again clears the row: %+v", h)
+	}
+}
+
 // Only the owner updates deck: neither the master nor an agent of a module may.
 func TestOnlyTheOwnerUpdatesDeck(t *testing.T) {
 	t.Parallel()

@@ -20,6 +20,7 @@ import (
 // Daily takes a snapshot when the newest is a day old, trying at most once an hour, and runs the cleanup
 // once a day by the deck clock, each on its own.
 func (s *Service) Daily(ctx context.Context, now time.Time) {
+	s.weigh(ctx, now)
 	old, _ := filepath.Glob(filepath.Join(s.Home.Backups(), "deck-*.tar.gz"))
 	slices.Sort(old)
 	due := true
@@ -40,8 +41,8 @@ func (s *Service) Daily(ctx context.Context, now time.Time) {
 	}
 }
 
-// journalKept is how long the journal of calls and spend keeps a row; notesKept, a note of the feed; topicsKept,
-// a deleted chat topic.
+// journalKept is how long the journal of calls and spend keeps a row and a run its whole input and result;
+// notesKept, a note of the feed; topicsKept, a deleted chat topic.
 const (
 	journalKept = 180 * 24 * time.Hour
 	notesKept   = 90 * 24 * time.Hour
@@ -51,7 +52,7 @@ const (
 )
 
 // cleanup removes expired records, files left without an owner, stale uploads, old journal rows and notify
-// lines, and old agent work folders.
+// lines, and old agent work folders, and cuts the input and result of old runs.
 func (s *Service) cleanup(ctx context.Context, now time.Time) {
 	s.Expire(ctx, now)
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -71,9 +72,11 @@ func (s *Service) cleanup(ctx context.Context, now time.Time) {
 		if err := q.PurgeStaleUploads(ctx, store.Time(now.Add(-24*time.Hour))); err != nil {
 			return err
 		}
+		// A run past the journal keeps its row with the start of its input and result; revisions of documents stay whole.
+		_, cut := q.CutOldProcesses(ctx, store.Time(now.Add(-journalKept)))
 		return errors.Join(q.PurgeOldToolCalls(ctx, store.Time(now.Add(-journalKept))),
 			q.PurgeOldLLMCalls(ctx, store.Time(now.Add(-journalKept))),
-			q.PurgeOldNotes(ctx, store.Time(now.Add(-notesKept))))
+			q.PurgeOldNotes(ctx, store.Time(now.Add(-notesKept))), cut)
 	})
 	if err != nil {
 		slog.Error("purge files", "err", err)

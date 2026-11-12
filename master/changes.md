@@ -399,3 +399,7 @@ and bring the modules in line.
 - 2026-11-12: a field of a card puts the phrases its expression writes through the module's `i18n`, as a column of a
   table does. The starter free-models is written in English with its Russian in `i18n`: its scripts write their
   notes in English, its agents in the language deck gives.
+- 2026-11-12: a run that ended more than 180 days ago keeps only the start of its input and result: `process_get`
+  gives each as `{"cut": "<its first 500 characters>"}` once it was longer than 1000; revisions of documents stay
+  whole. An incident the master does not take (paused, no `on_incident`, a start that fails) is a note of deck in the
+  owner's feed.

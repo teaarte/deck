@@ -102,9 +102,9 @@ type App struct {
 	cancel   context.CancelFunc
 	bg       background
 	stopOnce sync.Once
-	// slowRunning is set while the loop pushes and takes the daily snapshot.
-	slowRunning atomic.Bool
-	mods        modules
+	// slowRunning is set while the loop pushes; dailyRunning, while it takes the daily snapshot.
+	slowRunning, dailyRunning atomic.Bool
+	mods                      modules
 }
 
 // New starts deck with its built-in providers, the main one first; those of providers.Build when none.
@@ -358,10 +358,11 @@ func (a *App) nodeTransport(device int64) http.RoundTripper {
 	return a.Nodes.Transport(device, name)
 }
 
-// Sweep checks every deadline against now, then pushes and runs the daily cleanup and snapshot.
+// Sweep checks every deadline against now, then pushes and runs the daily cleanup, snapshot and look for an update.
 func (a *App) Sweep(ctx context.Context, now time.Time) {
 	a.deadlines(ctx, now)
 	a.slow(ctx, now)
+	a.daily(ctx, now)
 }
 
 // deadlines are what is due by now: confirmations, ceilings, pauses, silent processes, results handed in by processes
@@ -376,8 +377,8 @@ func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Snapshots.CheckDisk(ctx, now)
 }
 
-// slow is the work of the loop that waits on the network or the disk: pushes, within pushTimeout, the light copies
-// of pictures, and the daily cleanup and snapshot.
+// slow is the work of the loop that waits on the network or the disk: pushes, within pushTimeout, and the light
+// copies of pictures.
 func (a *App) slow(ctx context.Context, now time.Time) {
 	pctx, cancel := context.WithTimeout(ctx, pushTimeout)
 	if spaces, err := a.Store.Q.ListWorkspaces(pctx); err == nil {
@@ -388,6 +389,11 @@ func (a *App) slow(ctx context.Context, now time.Time) {
 	cancel()
 	a.Themes.Thumbs(ctx)
 	a.Files.Thumbs(ctx)
+}
+
+// daily is the work of the loop that may take minutes once a day: the cleanup and snapshot, and the look for an
+// update; it runs beside slow, so a push does not wait for a snapshot.
+func (a *App) daily(ctx context.Context, now time.Time) {
 	a.Snapshots.Daily(ctx, now)
 	a.Updates.Daily(ctx, now)
 }
@@ -403,20 +409,27 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 		a.Scheduler.Tick(ctx)
 		now := a.Cfg.Now()
 		a.deadlines(ctx, now)
-		if a.slowRunning.CompareAndSwap(false, true) {
-			if !a.bg.Go(func(context.Context) {
-				defer a.slowRunning.Store(false)
-				a.slow(ctx, now)
-			}) {
-				a.slowRunning.Store(false)
-			}
-		}
+		a.aside(ctx, &a.slowRunning, now, a.slow)
+		a.aside(ctx, &a.dailyRunning, now, a.daily)
 		a.Providers.Checks(ctx, now)
 		select {
 		case <-ctx.Done():
 			return
 		case <-t.C:
 		}
+	}
+}
+
+// aside runs work in the background unless the last run of it still goes; running says it does.
+func (a *App) aside(ctx context.Context, running *atomic.Bool, now time.Time, work func(context.Context, time.Time)) {
+	if !running.CompareAndSwap(false, true) {
+		return
+	}
+	if !a.bg.Go(func(context.Context) {
+		defer running.Store(false)
+		work(ctx, now)
+	}) {
+		running.Store(false)
 	}
 }
 

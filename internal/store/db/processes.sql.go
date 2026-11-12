@@ -215,6 +215,21 @@ func (q *Queries) CreatedRecords(ctx context.Context, arg CreatedRecordsParams) 
 	return items, nil
 }
 
+const cutOldProcesses = `-- name: CutOldProcesses :execrows
+UPDATE process SET
+  input = CASE WHEN length(input) > 1000 THEN json_object('cut', substr(input, 1, 500)) ELSE input END,
+  result = CASE WHEN length(result) > 1000 THEN json_object('cut', substr(result, 1, 500)) ELSE result END
+WHERE finished_at IS NOT NULL AND finished_at < CAST(?1 AS TEXT) AND (length(input) > 1000 OR length(result) > 1000)
+`
+
+func (q *Queries) CutOldProcesses(ctx context.Context, before string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, cutOldProcesses, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const dismissSameFailures = `-- name: DismissSameFailures :exec
 UPDATE process SET dismissed = 1
 WHERE project_id = ?1 AND command = ?2 AND error_type = ?3

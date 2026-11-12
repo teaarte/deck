@@ -3,13 +3,16 @@ package owner
 import (
 	"archive/tar"
 	"compress/gzip"
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -17,6 +20,7 @@ import (
 
 	"deck2/internal/app"
 	deckhome "deck2/internal/home"
+	"deck2/internal/store"
 	"deck2/tests/harness"
 )
 
@@ -319,8 +323,8 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	}
 }
 
-// TestSnapshotsKeepToTheirBudget: a snapshot leaves out the folders a data folder fills again and big data files past
-// half the budget, saying how much in health, and the oldest snapshots go until all of them fit the budget.
+// TestSnapshotsKeepToTheirBudget: a snapshot leaves out caches and big data files past half the budget, saying how
+// much in health, and the oldest go until all fit the budget; a budget that keeps one daily snapshot is a warning.
 func TestSnapshotsKeepToTheirBudget(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) { c.SnapshotBudget = 4 << 20 }))
@@ -354,8 +358,8 @@ func TestSnapshotsKeepToTheirBudget(t *testing.T) {
 	if len(kept) != 1 || kept[0] != "keep.txt" {
 		t.Fatalf("the snapshot keeps the data but caches and big files: %v", kept)
 	}
-	if row := e.WaitHealth("snapshot", "ok"); !strings.Contains(row.Error, "without 3 MB") {
-		t.Fatalf("health says how much was left out: %+v", row)
+	if row := e.WaitHealth("snapshot", "warning"); !strings.Contains(row.Error, "without 3 MB") || !strings.Contains(row.Error, "keeps fewer than two daily snapshots") {
+		t.Fatalf("health says how much was left out and that the budget keeps one daily snapshot: %+v", row)
 	}
 	left, _ := filepath.Glob(filepath.Join(h.Backups(), "*.tar.gz"))
 	total := int64(0)
@@ -365,5 +369,93 @@ func TestSnapshotsKeepToTheirBudget(t *testing.T) {
 	}
 	if total > 4<<20 || !slices.Contains(left, paths[0]) || slices.Contains(left, old) {
 		t.Fatalf("the snapshots fit the budget and the newest stays: %v %d", left, total)
+	}
+}
+
+// TestTheBudgetOfSnapshotsKeepsTheSnapshotBeforeADelete: daily snapshots that outgrow the budget push out older daily
+// ones, never the snapshot before a delete, the one way back to a deleted project; health says the budget is tight.
+func TestTheBudgetOfSnapshotsKeepsTheSnapshotBeforeADelete(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithClock(), harness.WithConfig(func(c *app.Config) { c.SnapshotBudget = 4 << 20 }))
+	h := deckhome.Layout(e.App.Cfg.Home)
+	e.Sweep()
+	e.Project("gone", harness.PlainManifest)
+	e.Clock.Add(time.Minute)
+	e.Must("deck.project_delete", map[string]any{"project": "gone"}, nil)
+	before, _ := filepath.Glob(filepath.Join(h.Backups(), "deleted-*.tar.gz"))
+	if len(before) != 1 {
+		t.Fatalf("a snapshot before the delete: %v", before)
+	}
+	id := e.Project("notes", harness.PlainManifest)
+	random := make([]byte, 1900<<10)
+	_, _ = rand.Read(random)
+	if err := errors.Join(os.MkdirAll(h.Data(id), 0o700), os.WriteFile(filepath.Join(h.Data(id), "a.bin"), random, 0o600)); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		e.Clock.Add(25 * time.Hour)
+		e.Sweep()
+		if m, _ := filepath.Glob(filepath.Join(h.Backups(), "deck-"+e.Clock.Now().UTC().Format("20060102")+"*.tar.gz")); len(m) != 1 {
+			t.Fatalf("the daily snapshot of the day: %v", m)
+		}
+	}
+	after, _ := filepath.Glob(filepath.Join(h.Backups(), "deleted-*.tar.gz"))
+	all, _ := filepath.Glob(filepath.Join(h.Backups(), "*.tar.gz"))
+	if !slices.Equal(after, before) {
+		t.Fatalf("the snapshot before the delete stays after two days: %v", all)
+	}
+	if row := e.WaitHealth("snapshot", "warning"); !strings.Contains(row.Error, "keeps fewer than two daily snapshots") {
+		t.Fatalf("health says the budget keeps one daily snapshot: %+v", row)
+	}
+}
+
+// TestTheDiskRowNamesTheBaseItsLargestTablesAndTheSnapshots: the row of the disk says what grows besides files: the
+// base with its largest tables and the snapshots.
+func TestTheDiskRowNamesTheBaseItsLargestTablesAndTheSnapshots(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithClock())
+	e.Sweep()
+	e.App.Snapshots.CheckDisk(context.Background(), e.Clock.Now().Add(time.Hour))
+	row := e.WaitHealth("disk", "ok")
+	m := regexp.MustCompile(`^base: (\d+) MB, the largest tables in MB: (\w+ \d+, \w+ \d+, \w+ \d+); snapshots: (\d+) MB, files: \d+ MB, free: \d+ MB$`).FindStringSubmatch(row.Error)
+	if m == nil || m[1] == "0" && m[3] == "0" {
+		t.Fatalf("the disk row names the base, its three largest tables and the snapshots: %q", row.Error)
+	}
+}
+
+// TestARunPastHalfAYearKeepsTheStartOfItsInputAndResult: the daily cleanup cuts the input and result of a run that
+// ended more than 180 days ago to their start; a newer run and the revisions of documents stay whole.
+func TestARunPastHalfAYearKeepsTheStartOfItsInputAndResult(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithClock())
+	p := e.Project("notes", harness.PlainManifest)
+	long := strings.Repeat("a", 3000)
+	big, _ := json.Marshal(map[string]string{"text": long})
+	e.Must("deck.document_save", map[string]any{"project": "notes", "name": "notes.md", "kind": "doc", "text": long}, nil)
+	for _, at := range []time.Time{e.Clock.Now().Add(-200 * 24 * time.Hour), e.Clock.Now().Add(-100 * 24 * time.Hour)} {
+		// Runs that ended long ago, as months of a schedule leave them.
+		e.SQL(`INSERT INTO process (project_id, command, kind, state, input, result, started_at, finished_at) VALUES (?, 'work', 'agent', 'done', ?, ?, ?, ?)`,
+			p, string(big), string(big), store.Time(at), store.Time(at))
+	}
+	// The revision of the document, as old as the old run.
+	e.SQL(`UPDATE document_revision SET created_at = ?`, store.Time(e.Clock.Now().Add(-200*24*time.Hour)))
+	e.Sweep()
+	var ps []harness.Proc
+	e.Must("deck.processes_list", map[string]any{"project": "notes"}, &ps)
+	runs := map[int64]struct{ Input, Result map[string]string }{}
+	for _, pr := range ps {
+		var r struct{ Input, Result map[string]string }
+		e.Must("deck.process_get", map[string]any{"process": pr.ID}, &r)
+		runs[pr.ID] = r
+	}
+	if old := runs[1]; len(runs) != 2 || len(old.Input["cut"]) != 500 || len(old.Result["cut"]) != 500 || old.Input["text"] != "" {
+		t.Fatalf("the old run keeps the start of its input and result: %+v", runs)
+	}
+	if newer := runs[2]; newer.Input["text"] != long || newer.Result["text"] != long {
+		t.Fatal("a run of a hundred days ago stays whole")
+	}
+	var doc struct{ Text string }
+	if e.Must("deck.document_get", map[string]any{"project": "notes", "name": "notes.md"}, &doc); doc.Text != long {
+		t.Fatal("the revisions of documents stay whole")
 	}
 }

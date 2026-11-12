@@ -73,5 +73,8 @@ EOF
 ENV HOME=/home/deck SHELL=/bin/bash DECK_HOME=/var/lib/deck DECK_ADDR=0.0.0.0:7700 DECK_IMAGE=ghcr.io/teaarte/deck
 WORKDIR /
 EXPOSE 7700 7701
+# A deck that answers nothing on its port, hung or still starting after ten minutes, is unhealthy in docker ps.
+HEALTHCHECK --interval=1m --timeout=10s --start-period=10m --retries=3 \
+    CMD curl -fsS -o /dev/null --max-time 10 "http://127.0.0.1:${DECK_ADDR##*:}/" || exit 1
 VOLUME ["/var/lib/deck"]
 ENTRYPOINT ["/usr/local/bin/deck-start"]

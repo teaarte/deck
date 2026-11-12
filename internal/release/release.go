@@ -121,11 +121,14 @@ func Sign(key ed25519.PrivateKey, fs Files) (list, sig []byte, err error) {
 	return list, []byte(base64.StdEncoding.EncodeToString(ed25519.Sign(key, list)) + "\n"), nil
 }
 
+// ErrSignature is a list of a release whose signature by deck's key does not hold.
+var ErrSignature = errors.New("the signature of the release does not hold")
+
 // Read is the list of a release once its signature by key holds.
 func Read(key ed25519.PublicKey, list, sig []byte) (Files, error) {
 	s, err := base64.StdEncoding.DecodeString(strings.TrimSpace(string(sig)))
 	if err != nil || !ed25519.Verify(key, list, s) {
-		return Files{}, errors.New("the signature of the release does not hold")
+		return Files{}, ErrSignature
 	}
 	var fs Files
 	if err := json.Unmarshal(list, &fs); err != nil {

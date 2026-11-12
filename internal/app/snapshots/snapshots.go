@@ -24,9 +24,13 @@ type Service struct {
 	Still func() func()
 	// Expire deletes the records past their retention with what belongs to them.
 	Expire func(ctx context.Context, now time.Time)
-	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried; disk, when the
-	// disk was last looked at.
-	cleaned, snapTried, disk time.Time
+	// cleaned and snapTried are when the daily cleanup ran and a daily snapshot was last tried; disk and weighed,
+	// when the disk and the tables of the base were last looked at.
+	cleaned, snapTried, disk, weighed time.Time
+	// weights holds base and tables, what the base and its largest tables take by the last look.
+	weights sync.Mutex
+	base    int64
+	tables  string
 	// Budget is how much the snapshots of backups/ take together, the newest always kept; half of it is the most of
 	// the data folders one takes.
 	Budget int64

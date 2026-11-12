@@ -53,7 +53,7 @@ func (s *Service) Incident(ctx context.Context, p db.Process, kind, text string)
 		return
 	}
 	s.handOver(ctx, proj, manifest.OnIncident, fmt.Sprintf("%s%d.%s", incidentPrefix, p.ID, kind), 0,
-		map[string]any{"process": p.ID, "incident": kind, "text": text}, nil)
+		map[string]any{"process": p.ID, "incident": kind, "text": text}, text, nil)
 }
 
 // Due hands the master the processes that handed in their result and still run long after.
@@ -93,7 +93,8 @@ func (s *Service) toMaster(ctx context.Context, p db.Process) {
 	key := fmt.Sprintf("%s%d.%s.%s", masterErrorPrefix, proj.ID, p.Command, p.ErrorType)
 	input := map[string]any{"process": p.ID, "type": p.ErrorType, "whose": fault.Whose(p.ErrorType)}
 	// The master's own failure goes to the owner's feed instead.
-	s.handOver(ctx, proj, manifest.OnFailure, key, 24*time.Hour, input, func(ctx context.Context, q *db.Queries) error {
+	// A failed process the master does not take stays among the failures of the cockpit, which the owner sees.
+	s.handOver(ctx, proj, manifest.OnFailure, key, 24*time.Hour, input, "", func(ctx context.Context, q *db.Queries) error {
 		return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: p.ProjectID,
 			Text: fmt.Sprintf("The master's command %s failed: %s", p.Command, untrusted.Cut(p.Error, 500))})
 	})
@@ -129,7 +130,7 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 		if !s.firstTime(ctx, p, screenErrorPrefix+key) {
 			continue
 		}
-		s.handOver(ctx, p, manifest.OnFailure, masterErrorPrefix+key, 0, map[string]any{"project": p.Name, "screen": name, "error": e}, nil)
+		s.handOver(ctx, p, manifest.OnFailure, masterErrorPrefix+key, 0, map[string]any{"project": p.Name, "screen": name, "error": e}, "", nil)
 	}
 }
 
@@ -162,24 +163,13 @@ func (s *Service) firstTime(ctx context.Context, p db.Project, key string) bool 
 	return first
 }
 
-// handOver gives an error of a project to the on_error command of the master, at most once in every while under
-// key, forever when every is zero; an error of the master itself goes to own instead.
+// handOver gives an error of a project to the master's command for on, once in every while under key (forever with
+// every zero); the master's own goes to own, one the master does not take to the owner's feed as note, if given.
 func (s *Service) handOver(ctx context.Context, proj db.Project, on, key string, every time.Duration, input map[string]any,
-	own func(context.Context, *db.Queries) error) {
+	note string, own func(context.Context, *db.Queries) error) {
 	isOwn := proj.Builtin == 1
 	if _, err := docs.Manifest(ctx, s.St.Q, proj); err != nil {
 		return
-	}
-	var mp db.Project
-	var mm *manifest.Manifest
-	var err error
-	if !isOwn {
-		if mp, err = access.Master(ctx, s.St.Q, proj.WorkspaceID); err != nil {
-			return
-		}
-		if mm, err = docs.Manifest(ctx, s.St.Q, mp); err != nil || mm.Command(mm.EventCommand(on)) == nil || mp.Paused == 1 {
-			return
-		}
 	}
 	now := s.Now()
 	if last, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: proj.WorkspaceID, Name: key}); err == nil {
@@ -199,10 +189,43 @@ func (s *Service) handOver(ctx context.Context, proj db.Project, on, key string,
 		})
 		return
 	}
+	untaken := func(why string) {
+		if note == "" {
+			return
+		}
+		err := s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+			if err := mark(ctx, q); err != nil {
+				return err
+			}
+			return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(now), ProjectID: proj.ID,
+				Text: fmt.Sprintf("%s; the master did not take it: %s", note, why)})
+		})
+		if err != nil {
+			slog.Error("tell the owner what the master did not take", "project", proj.Name, "err", err)
+		}
+	}
+	mp, err := access.Master(ctx, s.St.Q, proj.WorkspaceID)
+	if err != nil {
+		untaken("there is no master")
+		return
+	}
+	mm, err := docs.Manifest(ctx, s.St.Q, mp)
+	switch {
+	case err != nil:
+		untaken(fmt.Sprintf("its manifest does not read: %v", err))
+		return
+	case mp.Paused == 1:
+		untaken("it is paused")
+		return
+	case mm.Command(mm.EventCommand(on)) == nil:
+		untaken(fmt.Sprintf("it has no command for %s", on))
+		return
+	}
 	// The mark follows the start, so a crash between them may hand the error over twice but never loses it; the key
 	// keeps two failures at once to one run.
 	if _, err := s.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, mm.EventCommand(on), input, process.Origin{Key: key}); err != nil {
 		slog.Error("hand an error to the master", "project", proj.Name, "input", input, "err", err)
+		untaken(fmt.Sprintf("it did not start: %v", err))
 		return
 	}
 	_ = s.St.Tx(context.WithoutCancel(ctx), mark)

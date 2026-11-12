@@ -126,7 +126,9 @@ are the file `.env` beside `compose.yaml` (in `~/deck`); the installer keeps an 
 **Memory and processes.** The image takes about 2.3 GB of disk; deck alone holds a few hundred MB of memory, each
 agent at work and the browser more. The container runs at most 4096 processes. Its memory has no ceiling unless you
 give one, as `DECK_MEM_LIMIT=6g` in `.env`: then memory eaten past it kills a process inside deck's container, deck
-itself maybe (Docker starts it again), instead of the host's other services.
+itself maybe (Docker starts it again), instead of the host's other services. A deck that stops answering on its port
+shows as `unhealthy` in `docker compose ps`; a monitor outside the machine, such as an uptime check of deck's https
+address, tells you when the machine itself is down.
 
 **First steps.** Open the link, then sign in to the agents in Settings → Models → **Sign in** (Codex shows a link and a
 code, Claude Code a link whose page gives the code). An empty deck says "Tell Deki what to do": describe a routine in

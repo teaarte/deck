@@ -216,6 +216,35 @@ func (s *Store) Backup(ctx context.Context, path string) error {
 	return err
 }
 
+// Table is a table of the base, an index of it among them, with the bytes its pages take.
+type Table struct {
+	Name string
+	Size int64
+}
+
+// Tables are the largest tables of the base, at most n, largest first, with the size of the whole base; it reads every
+// page, so it is for a look once in a while.
+func (s *Store) Tables(ctx context.Context, n int) ([]Table, int64, error) {
+	rows, err := s.reads.QueryContext(ctx, `SELECT name, SUM(pgsize) AS size FROM dbstat GROUP BY name ORDER BY size DESC`)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var out []Table
+	total := int64(0)
+	for rows.Next() {
+		var t Table
+		if err := rows.Scan(&t.Name, &t.Size); err != nil {
+			return nil, 0, err
+		}
+		total += t.Size
+		if len(out) < n {
+			out = append(out, t)
+		}
+	}
+	return out, total, rows.Err()
+}
+
 // writer takes the connection that writes, waiting at most Wait: a transaction that waits longer is held by
 // another, often one that called this through a context not of its own, and fails with its stack in the log.
 func (s *Store) writer(ctx context.Context) (*sql.Conn, error) {

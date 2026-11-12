@@ -161,7 +161,7 @@ func TestAModuleOfFormat16KeepsWhatTheOwnerGrantedAndItsToolsRunWithoutAsking(t 
 	// A base an older deck left: the manifests of format 16.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 81`)
 	// Nor had it the owner's answers apart from the manifest.
-	e.SQL(`DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''`)
+	e.SQL(`DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''; ALTER TABLE tool_call RENAME COLUMN need TO class; ALTER TABLE ask DROP COLUMN shown_at`)
 	// The owner's grant was the revision of the manifest the module ran on.
 	e.SQL(`UPDATE project SET granted_revision = (SELECT d.current FROM "document" d WHERE d.project_id = project.id AND d.kind = 'manifest') WHERE id = ?`, p)
 

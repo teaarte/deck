@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -260,18 +261,19 @@ func TestACallOfUnknownOutcomeIsKnownByItsIdentity(t *testing.T) {
 	e.Run(p, "work")
 	<-started
 	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
-	var padded string
+	var padded atomic.Value
 	second := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.N == 1 {
-			padded, _ = c.Tool(ctx, "clips__generate", map[string]any{"topic": "dogs", "note": ""})
+			out, _ := c.Tool(ctx, "clips__generate", map[string]any{"topic": "dogs", "note": ""})
+			padded.Store(out)
 		}
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
 	e2 := e.Restart(harness.WithProvider(second))
 	e2.Resume()
-	e2.Until("the second turn made its call", func() bool { return padded != "" })
-	if !strings.Contains(padded, "unknown outcome") || len(svc.Requests()) != 1 {
-		t.Fatalf("the padded call is the same call of unknown outcome: %q, %d requests", padded, len(svc.Requests()))
+	e2.Until("the second turn made its call", func() bool { return padded.Load() != nil })
+	if out := padded.Load().(string); !strings.Contains(out, "unknown outcome") || len(svc.Requests()) != 1 {
+		t.Fatalf("the padded call is the same call of unknown outcome: %q, %d requests", out, len(svc.Requests()))
 	}
 }
 

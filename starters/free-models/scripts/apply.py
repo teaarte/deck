@@ -50,7 +50,7 @@ def main(inp):
     d = r.get("data") or {}
     if d.get("target"):  # a proposal: assign its chain
         if d.get("status") not in ("ready", "asked"):
-            raise Failure("предложение не готово к применению", type="input.invalid", details={"status": d.get("status")})
+            raise Failure("the proposal is not ready to apply", type="input.invalid", details={"status": d.get("status")})
         body = {"role": d["role"], "project": d["project"], "models": [m for m in (d.get("apply_models") or "").split(",") if m]}
         if d.get("command"):
             body["command"] = d["command"]
@@ -65,7 +65,7 @@ def main(inp):
         kind = "text" if d.get("kind") in ("llm", "other", None) else d["kind"]
         got = call("deck.model_set", {"connection": d["source"], "model": d["model_id"], "kind": kind}) or {}
         return {"waiting": got.get("waiting")} if isinstance(got, dict) and got.get("waiting") else {"added": True}
-    raise Failure("это не предложение и не модель", type="input.invalid", details={"record": inp["id"]})
+    raise Failure("this is neither a proposal nor a model", type="input.invalid", details={"record": inp["id"]})
 
 
 run(main)

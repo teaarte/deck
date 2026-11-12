@@ -29,7 +29,7 @@ type Button struct {
 }
 
 // outward is a button not the owner wrote whose command is not internal: deck asks first, under the title of the
-// command, the client showing its params. A patch until Т5 makes such a press the call of its writer.
+// command, the client showing its params. A patch until T5 makes such a press the call of its writer.
 func outward(b Button, m *manifest.Manifest, lang string) Button {
 	var c *manifest.Command
 	if m != nil {

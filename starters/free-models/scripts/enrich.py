@@ -76,12 +76,14 @@ def maker(m):
     return SOURCES.get(m.get("source")) if m.get("source") in MAKER_SOURCES else ""
 
 
-def russian(s):
-    """Plain Russian: Cyrillic text with at most one lowercase English word (names and terms are capitalised)."""
+def plain(s):
+    """Plain text: Cyrillic text holds at most one lowercase English word (names and terms are capitalised); no stray CJK."""
     if not s:
         return True
-    return len(re.findall(r"[а-яё]", s, re.I)) >= 10 and len(re.findall(r"\b[a-z]{4,}\b", s)) <= 1 \
-        and not re.search(r"[一-鿿぀-ヿ]", s)
+    if re.search(r"[\u0400-\u04ff]", s) and not (len(re.findall(r"[\u0430-\u044f\u0451]", s, re.I)) >= 10
+                                                and len(re.findall(r"\b[a-z]{4,}\b", s)) <= 1):
+        return False
+    return not re.search(r"[一-鿿぀-ヿ]", s)
 
 
 def family(m):
@@ -130,7 +132,7 @@ def main(inp):
         v = maker(d) or ""
         # only the path of the logo file; the grid reads the file itself
         new = dict(d, vendor=v, logo=(logo(v) or "") if v else "", family=family(d),
-                   text_ok=russian(d.get("strengths")) and russian(d.get("limits")))
+                   text_ok=plain(d.get("strengths")) and plain(d.get("limits")))
         if deck is not None:
             new["in_deck"] = (d.get("source"), d.get("model_id")) in deck
         if any(new.get(k) != d.get(k) for k in ("vendor", "logo", "in_deck", "family", "text_ok")):

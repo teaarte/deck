@@ -85,8 +85,8 @@ def tally(rows, model):
 
 
 def words(t):
-    return (f"{t['runs']} запусков, ошибок {t['failed']}" + (f" (зависаний {t['timeouts']}" if t["timeouts"] else "")
-            + (f", отказов модели {t['refusals']}" if t["refusals"] else "") + (")" if t["timeouts"] else ""))
+    return (f"{t['runs']} runs, {t['failed']} failed" + (f" ({t['timeouts']} hung" if t["timeouts"] else "")
+            + (f", {t['refusals']} refused by the model" if t["refusals"] else "") + (")" if t["timeouts"] else ""))
 
 
 def main(inp):
@@ -108,11 +108,11 @@ def main(inp):
             m = deck.get(model) or {}
             if unhealthy(m):
                 after, before = {"runs": 0, "failed": 0, "timeouts": 0, "refusals": 0, "on_model": 0, "failed_on_model": 0}, None
-                d["watch_note"] = f"запуски проекта не видны модулю; {model} не проходит самопроверку deck"
+                d["watch_note"] = f"the module does not see the project's runs; {model} fails deck's self-check"
                 bad = True
             else:
-                d["watch_note"] = "запуски проекта не видны модулю (нет права читать процессы), смотрю только здоровье модели"
-                d["alert"] = "наблюдаю после замены"
+                d["watch_note"] = "the module does not see the project's runs (no right to read processes); watching only the model's health"
+                d["alert"] = "watching after the replacement"
                 if days >= MAX_DAYS:
                     d.update(watch_done=True, alert="")
                 rows.append(d)
@@ -126,9 +126,9 @@ def main(inp):
             rate_b = before["failed"] / before["runs"] if before["runs"] else 0
             bad = (after["refusals"] >= 1 and after["failed_on_model"] >= 1) or after["failed_on_model"] >= 2 \
                 or (after["runs"] >= 2 and rate_a > rate_b + 0.25)
-            d["watch_note"] = f"после замены: {words(after)}; до: {words(before)}"
+            d["watch_note"] = f"after the replacement: {words(after)}; before: {words(before)}"
             if after["runs"] and not after["on_model"]:
-                d["watch_note"] += f"; {model} ещё ни разу не отвечал"
+                d["watch_note"] += f"; {model} has not answered yet"
         d["watch_after"], d["watch_before"] = after, before
         if bad:
             keep = [n for n in prev if n in deck and not unhealthy(deck[n])]
@@ -137,25 +137,25 @@ def main(inp):
             if keep and keep != now:
                 d.update(status="ready", revert=True, keep_first=False, proposed=keep[0], proposed_key="", in_deck=True,
                          apply_models=",".join(keep), current=d.get("now") or model, current_models=now, test="ok",
-                         test_note=("до замены: " + words(before)) if before else "до замены эта цепочка работала",
-                         reason=f"После замены на {model} работа стала хуже: {d['watch_note']}. Предлагаю вернуть прежние модели.",
-                         day=today.isoformat(), alert=f"после замены на {model} стало хуже")
+                         test_note=("before the replacement: " + words(before)) if before else "this chain worked before the replacement",
+                         reason=f"After the switch to {model} the work got worse: {d['watch_note']}. I propose to bring back the previous models.",
+                         day=today.isoformat(), alert=f"worse after the switch to {model}")
                 worse.append(f"{d['project']} · {d.get('title') or d.get('command')}")
             else:
-                d["alert"] = f"после замены на {model} стало хуже, а прежние модели не работают: подберу другую"
+                d["alert"] = f"worse after the switch to {model}, and the previous models do not work: I will pick another"
             rows.append(d)
             continue
         ran = after["runs"] if got is not None else 0
         if days >= WATCH_DAYS and (ran or days >= MAX_DAYS):
             d.update(watch_done=True, watch_verdict="ok" if ran else "no_runs", alert="")
         else:
-            d["alert"] = "наблюдаю после замены"
+            d["alert"] = "watching after the replacement"
         rows.append(d)
     if rows:
         call("deck.record_upsert", {"collection": "proposals", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in rows)})
     if worse:
-        call("deck.owner_notify", {"text": "После замены модели стало хуже: " + ", ".join(worse)[:200]
-                             + ". Предлагаю вернуть прежние — «Применить» в «Предложениях».", "screen": "proposals"})
+        call("deck.owner_notify", {"text": "Worse after a model switch: " + ", ".join(worse)[:200]
+                             + ". I propose to bring back the previous ones: Apply in Proposals.", "screen": "proposals"})
     return {"watched": len(rows), "worse": worse, "blind": blind,
             "done": [x["target"] for x in rows if x.get("watch_done")]}
 

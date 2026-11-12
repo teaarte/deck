@@ -51,12 +51,14 @@ def run(main):
 CODE = re.compile(r"`[^`]*`|«[^»]*»|https?://\S+|:[a-z]+\b|[\w.:/@~+-]*(?:[\d_/@]|[a-z]\.[a-z])[\w.:/@~+-]*", re.A)
 
 
-def russian(s):
-    """Plain Russian: Cyrillic text without lowercase English words (names and terms are capitalised)."""
+def plain(s):
+    """Plain text: Cyrillic text holds no lowercase English words (names and terms are capitalised); no stray CJK."""
     if not s:
         return True
-    return len(re.findall(r"[а-яё]", s, re.I)) >= 10 and not re.findall(r"\b[a-z]{3,}\b", CODE.sub(" ", s)) \
-        and not re.search(r"[一-鿿぀-ヿ]", s)
+    if re.search(r"[\u0400-\u04ff]", s) and not (len(re.findall(r"[\u0430-\u044f\u0451]", s, re.I)) >= 10
+                                                and not re.findall(r"\b[a-z]{3,}\b", CODE.sub(" ", s))):
+        return False
+    return not re.search(r"[一-鿿぀-ヿ]", s)
 
 
 def text_model(mid, modality):
@@ -105,11 +107,11 @@ def main(inp):
         rec["kind"] = m.get("kind") if m.get("kind") in KINDS else rec.get("kind", "other")
         if rec["kind"] == "other" and text_model(mid, rec.get("modality")):
             rec["kind"] = "llm"
-        bad = [k for k in ("strengths", "limits") if not russian(rec.get(k))]
-        for k in bad:  # a garbled or English text never replaces a good one
-            if cur.get(k) and russian(cur[k]):
+        bad = [k for k in ("strengths", "limits") if not plain(rec.get(k))]
+        for k in bad:  # a garbled text never replaces a good one
+            if cur.get(k) and plain(cur[k]):
                 rec[k] = cur[k]
-        rec["text_ok"] = all(russian(rec.get(k)) for k in ("strengths", "limits"))
+        rec["text_ok"] = all(plain(rec.get(k)) for k in ("strengths", "limits"))
         rec["score"] = num(m.get("score"), 2, 10) or 2
         c = num(m.get("confidence"), 0, 1)
         if c is not None:
@@ -125,12 +127,12 @@ def main(inp):
         if cur.get("status") == "new" and key not in seen:
             rows.append(dict(cur, status="skipped", rated=today))
         elif cur.get("status") == "rated" and key not in seen:  # older verdicts too: review rewrites the flagged ones
-            ok = all(russian(cur.get(k)) for k in ("strengths", "limits"))
+            ok = all(plain(cur.get(k)) for k in ("strengths", "limits"))
             if cur.get("text_ok") != ok:
                 rows.append(dict(cur, text_ok=ok))
     errors = list(upsert(rows).get("errors") or [])
     if named:
-        call("deck.owner_notify", {"text": f"Новые сильные бесплатные модели ({len(named)}): " + ", ".join(named)[:240],
+        call("deck.owner_notify", {"text": f"New strong free models ({len(named)}): " + ", ".join(named)[:240],
                              "screen": "models"})
     if res.get("summary"):
         call("deck.record_upsert", {"collection": "digests", "records": json.dumps(

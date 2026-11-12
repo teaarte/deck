@@ -87,15 +87,15 @@ def fit(lim, name, conn, context, target, role):
     need = need_tokens(lim, target, role)
     tpm, ctx = l.get("tpm"), l.get("context") or context
     if tpm and need > tpm:
-        return f"работа ~{need // 1000} тыс. токенов за запрос, а лимит {tpm} токенов в минуту ({l.get('why') or conn})"
+        return f"the work takes ~{need // 1000}k tokens a request, the limit is {tpm} tokens a minute ({l.get('why') or conn})"
     if ctx and need > ctx * 0.8:
-        return f"работа ~{need // 1000} тыс. токенов, а контекст модели {ctx // 1000} тыс."
+        return f"the work takes ~{need // 1000}k tokens, the model's context is {ctx // 1000}k"
     return None
 
 
 def whole(note):
     """A failure of the model itself (hangs, 5xx, gone), not of this work: it cools down for every work."""
-    return bool(re.search(r"timed out|Timeout|не ответил|ошибка (5\d\d|404)", note or ""))
+    return bool(re.search(r"timed out|Timeout|did not answer|error (5\d\d|404)", note or ""))
 
 
 def keep_first(project, command):
@@ -196,13 +196,13 @@ def main(inp):
     if not targets:
         # nothing to compare: the owner is told once what to give, and the chain stops
         if not any(names):
-            why = ("«Сравнить с deck» не знает, какие модули смотреть: запустите его и перечислите модули в поле "
-                   "projects через запятую — дальше оно их запомнит.")
+            why = ("Compare with deck does not know which modules to look at: run it and list the modules in the field "
+                   "projects, comma separated; it remembers them after that.")
         elif not read:
-            why = ("«Сравнить с deck» не может прочитать, какие модели делают работу модулей: выдайте free-models "
-                   "право reads models в Настройки → Модули.")
+            why = ("Compare with deck cannot read which models do the work of modules: give free-models "
+                   "the right reads models in Settings → Modules.")
         else:
-            why = "«Сравнить с deck»: у названных модулей нет работы для моделей."
+            why = "Compare with deck: the named modules have no work for models."
         if not os.path.exists(told) or open(told).read() != why:
             call("deck.owner_notify", {"text": why})
             with open(told, "w") as f:
@@ -217,11 +217,11 @@ def main(inp):
         for name in t["chain"]:
             m, r = deck.get(name) or {}, rec_of(name)
             if name not in deck:
-                problems[name] = "модели нет в deck"
+                problems[name] = "the model is not in deck"
             elif r.get("status") == "gone":
-                problems[name] = "пропала у источника"
+                problems[name] = "gone at the source"
             elif unhealthy(m):
-                problems[name] = "не проходит самопроверку deck" if m.get("status") == "warning" else "не отвечает в deck"
+                problems[name] = "fails deck's self-check" if m.get("status") == "warning" else "does not answer in deck"
     old_alerts = {r["data"]["model"]: r for r in call("deck.records_list", {"collection": "alerts"}) or []}
     day = datetime.date.today().isoformat()
     yesterday = (datetime.date.today() - datetime.timedelta(days=1)).isoformat()
@@ -238,7 +238,7 @@ def main(inp):
     if alert_rows:
         call("deck.record_upsert", {"collection": "alerts", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in alert_rows)})
     if fresh:
-        call("deck.owner_notify", {"text": "Модели в работе сломались: " + ", ".join(fresh) + ". Подберу замену — смотрите «Предложения».",
+        call("deck.owner_notify", {"text": "Models at work broke: " + ", ".join(fresh) + ". I will pick a replacement: see Proposals.",
                              "screen": "proposals"})
 
     # proposals made before: applied, stale, or still open
@@ -305,9 +305,9 @@ def main(inp):
         why = {n: problems.get(n) or unfit[t["id"]].get(n) for n in t["chain"] if n in problems or n in unfit[t["id"]]}
         now_bad, fb_bad = why.get(t["using"]), [n for n in why if n != t["using"]]
         alert = (f"{t['using']}: {now_bad}" if now_bad else
-                 "запасная " + ", ".join(f"{n}: {why[n]}" for n in fb_bad) if fb_bad else "")
+                 "fallback " + ", ".join(f"{n}: {why[n]}" for n in fb_bad) if fb_bad else "")
         if old.get("status") == "applied" and not old.get("watch_done"):
-            alert = alert or old.get("alert") or "наблюдаю после замены"
+            alert = alert or old.get("alert") or "watching after the replacement"
         new = dict(old, title=t["title"], now=t["using"], now_models=t["chain"], health="error" if now_bad else ("warn" if fb_bad else "ok"),
                    alert=alert[:300])
         # the tag of the row: the test of an open proposal, the ask, or the watch after a change

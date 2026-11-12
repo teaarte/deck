@@ -407,7 +407,7 @@ func toldNothing(state string) string {
 }
 
 // transcript retells messages a line each; only the owner's text stands as written, what deck and the master said is
-// one quoted line, so no line of a work's result reads as the owner's (until turn marks of the trust project, Т4).
+// one quoted line, so no line of a work's result reads as the owner's (until turn marks of the trust project, T4).
 func transcript(ms []db.ChatMessage) string {
 	var b strings.Builder
 	for _, m := range ms {

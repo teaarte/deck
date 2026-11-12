@@ -517,7 +517,7 @@
   "commands": [
     {
       "name": "collect",
-      "title": "Собрать списки",
+      "title": "Collect the lists",
       "class": "internal",
       "description": "Reads the free models of OpenRouter and NVIDIA and the cheap text models of OpenRouter, and queues the new ones for review.",
       "executor": {
@@ -537,7 +537,7 @@
     },
     {
       "name": "review",
-      "title": "Оценить модели",
+      "title": "Rate the models",
       "class": "internal",
       "description": "Rates the queued models and checks other free sources, writing how to connect each strong one to deck.",
       "executor": {
@@ -558,7 +558,7 @@
         "properties": {
           "process": {
             "type": "integer",
-            "description": "Прогон collect"
+            "description": "The run of collect"
           }
         }
       },
@@ -645,7 +645,7 @@
     },
     {
       "name": "save",
-      "title": "Записать оценки",
+      "title": "Save the ratings",
       "class": "internal",
       "description": "Writes the verdicts of review into the list and tells the owner about new strong models.",
       "executor": {
@@ -672,7 +672,7 @@
     },
     {
       "name": "enrich",
-      "title": "Логотипы и «уже в deck»",
+      "title": "Logos and the in-deck mark",
       "class": "internal",
       "description": "Gives each strong model the logo of its maker and marks the ones deck already has.",
       "executor": {
@@ -693,7 +693,7 @@
     },
     {
       "name": "compare",
-      "title": "Сравнить с deck",
+      "title": "Compare with deck",
       "class": "internal",
       "description": "Compares the models of deck's work with the list: notes models in use that are gone or broken, marks applied and stale proposals, and gives the plan the work with better candidates.",
       "executor": {
@@ -723,7 +723,7 @@
     },
     {
       "name": "plan",
-      "title": "Подобрать модели",
+      "title": "Pick models",
       "class": "internal",
       "description": "Picks the best free or cheap model for each piece of work of deck from the candidates of compare, with a reason.",
       "executor": {
@@ -787,7 +787,7 @@
     },
     {
       "name": "test",
-      "title": "Проверить предложения",
+      "title": "Test the proposals",
       "class": "internal",
       "description": "Tests each proposed model on a sample as large as its real work (an agent: several tool turns over real-size records; looping or losing a tool result fails), proposes models deck lacks, and writes the proposals; only those that pass are ready.",
       "executor": {
@@ -815,7 +815,7 @@
     },
     {
       "name": "mark",
-      "title": "Отметить предложение",
+      "title": "Mark a proposal",
       "class": "internal",
       "description": "Sets the status of a proposal, such as rejected by the owner.",
       "executor": {
@@ -848,7 +848,7 @@
     },
     {
       "name": "watch",
-      "title": "Наблюдать после замены",
+      "title": "Watch after a change",
       "class": "internal",
       "description": "For about three days after a proposal was applied, compares the real runs of that work with the runs before; when it got worse, proposes going back to the earlier models.",
       "executor": {
@@ -865,7 +865,7 @@
     },
     {
       "name": "apply",
-      "title": "Применить предложение",
+      "title": "Apply a proposal",
       "class": "internal",
       "description": "Asks the owner to assign the models of a ready proposal: a call of deck.assignment_set that waits for the owner's yes.",
       "executor": {
@@ -889,7 +889,7 @@
     },
     {
       "name": "add",
-      "title": "Добавить модель в deck",
+      "title": "Add a model to deck",
       "class": "internal",
       "description": "Asks the owner to add a model of the list to deck: a call of deck.model_set that waits for the owner's yes.",
       "executor": {
@@ -913,7 +913,7 @@
     },
     {
       "name": "prune",
-      "title": "Убрать сломанные модели",
+      "title": "Remove broken models",
       "class": "internal",
       "description": "Removes a model this module added to deck once it has been broken and in no assignment for a week: deck.model_delete without the owner, who sees it with an undo.",
       "executor": {
@@ -988,7 +988,7 @@
   "screens": [
     {
       "name": "models",
-      "title": "Бесплатные модели",
+      "title": "Free models",
       "icon": "list-details",
       "blocks": [
         {
@@ -1048,7 +1048,7 @@
     },
     {
       "name": "model",
-      "title": "Модель",
+      "title": "Model",
       "icon": "cpu",
       "record": "models",
       "blocks": [
@@ -1073,44 +1073,44 @@
           "span": "full",
           "fields": [
             {
-              "label": "Модель",
+              "label": "Model",
               "bind": "name"
             },
             {
-              "label": "Оценка",
+              "label": "Score",
               "bind": "score",
               "format": "number",
               "tone": "score >= 9 ? 'ok' : ''"
             },
             {
-              "label": "Цена",
-              "bind": "(tier ?? '') == 'cheap' ? '$' + string(price_in) + ' вход / $' + string(price_out) + ' выход за 1M токенов' : nil"
+              "label": "Price",
+              "bind": "(tier ?? '') == 'cheap' ? '$' + string(price_in) + ' / $' + string(price_out) + ' · ' + 'input / output per 1M tokens' : nil"
             },
             {
-              "label": "В deck",
-              "bind": "(in_deck ?? false) ? 'уже добавлена' : nil",
+              "label": "In deck",
+              "bind": "(in_deck ?? false) ? 'already added' : nil",
               "tone": "'ok'"
             },
             {
-              "label": "Чем хороша",
+              "label": "Strengths",
               "bind": "strengths"
             },
             {
-              "label": "Важно знать",
+              "label": "Worth knowing",
               "bind": "limits"
             },
             {
-              "label": "Роль в deck",
+              "label": "Role in deck",
               "markdown": true,
-              "bind": "kind in ['image', 'video', 'tts', 'stt', 'music'] ? 'Модуль зовёт модель по роли `@' + kind + '`. Когда модель есть в Настройках → Модели, [назначьте её на эту роль](#/deck/settings?tab=Models&dialog=assign&role=' + kind + ').' : nil"
+              "bind": "kind in ['image', 'video', 'tts', 'stt', 'music'] ? 'A module calls the model by its role' + ': `@' + kind + '`. [' + 'Assign it to this role in Settings → Models' + '](' + '#/deck/settings?tab=Models&dialog=assign&role=' + kind + ').' : nil"
             },
             {
-              "label": "Как подключить",
+              "label": "How to connect",
               "bind": "how_to",
               "markdown": true
             },
             {
-              "label": "Страница",
+              "label": "Page",
               "bind": "url",
               "format": "link"
             }
@@ -1177,7 +1177,7 @@
               "bind": "status == 'asked' ? 'asked' : (test ?? 'waiting')",
               "format": "tag",
               "tone": "status == 'asked' ? 'warn' : (test == 'ok' ? 'ok' : (test == 'fail' ? 'error' : 'warn'))",
-              "details": "(test_note ?? '') + ((latency ?? 0) > 0 ? ' · ' + string(latency) + ' с' : '')"
+              "details": "(test_note ?? '') + ((latency ?? 0) > 0 ? ' · ' + string(latency) + ' s' : '')"
             }
           ],
           "actions": [
@@ -1230,7 +1230,7 @@
             },
             {
               "label": "Test",
-              "bind": "status in ['new', 'ready', 'asked'] ? (test_note ?? '') + ((latency ?? 0) > 0 ? ' · ' + string(latency) + ' с' : '') : nil"
+              "bind": "status in ['new', 'ready', 'asked'] ? (test_note ?? '') + ((latency ?? 0) > 0 ? ' · ' + string(latency) + ' s' : '') : nil"
             },
             {
               "label": "Price",
@@ -1315,7 +1315,7 @@
               "bind": "test",
               "format": "tag",
               "tone": "test == 'ok' ? 'ok' : (test == 'fail' ? 'error' : (test in ['waiting', 'asked', 'watching'] ? 'warn' : ''))",
-              "details": "status == 'applied' ? (watch_note ?? '') : (status in ['new', 'ready', 'asked'] ? (test_note ?? '') + ((latency ?? 0) > 0 ? ' · ' + string(latency) + ' с' : '') : '')"
+              "details": "status == 'applied' ? (watch_note ?? '') : (status in ['new', 'ready', 'asked'] ? (test_note ?? '') + ((latency ?? 0) > 0 ? ' · ' + string(latency) + ' s' : '') : '')"
             }
           ],
           "actions": [
@@ -1411,7 +1411,30 @@
       "stale": "устарело",
       "asked": "ждёт вашего «Да»",
       "project": "Проект",
-      "Free AI models: every day finds free, strong AI models (text, image, video, voice, speech recognition) on OpenRouter, NVIDIA and other sources, keeps a list of the good ones and writes the owner cards on how to use each in deck for free; proposes which free or cheap model should do each command of deck, tests it first and gives the owner a button to apply it.": "Бесплатные модели: каждый день находит бесплатные сильные модели (текст, картинки, видео, озвучка, распознавание речи) на OpenRouter, NVIDIA и в других источниках, держит список хороших и пишет карточки, как бесплатно подключить каждую к deck; предлагает, какая бесплатная или дешёвая модель должна делать каждую работу deck, сначала проверяет её и даёт кнопку «Применить»."
+      "Free AI models: every day finds free, strong AI models (text, image, video, voice, speech recognition) on OpenRouter, NVIDIA and other sources, keeps a list of the good ones and writes the owner cards on how to use each in deck for free; proposes which free or cheap model should do each command of deck, tests it first and gives the owner a button to apply it.": "Бесплатные модели: каждый день находит бесплатные сильные модели (текст, картинки, видео, озвучка, распознавание речи) на OpenRouter, NVIDIA и в других источниках, держит список хороших и пишет карточки, как бесплатно подключить каждую к deck; предлагает, какая бесплатная или дешёвая модель должна делать каждую работу deck, сначала проверяет её и даёт кнопку «Применить».",
+      "Collect the lists": "Собрать списки",
+      "Rate the models": "Оценить модели",
+      "The run of collect": "Прогон collect",
+      "Save the ratings": "Записать оценки",
+      "Logos and the in-deck mark": "Логотипы и «уже в deck»",
+      "Compare with deck": "Сравнить с deck",
+      "Pick models": "Подобрать модели",
+      "Test the proposals": "Проверить предложения",
+      "Mark a proposal": "Отметить предложение",
+      "Watch after a change": "Наблюдать после замены",
+      "Apply a proposal": "Применить предложение",
+      "Add a model to deck": "Добавить модель в deck",
+      "Remove broken models": "Убрать сломанные модели",
+      "In deck": "В deck",
+      "Strengths": "Чем хороша",
+      "Worth knowing": "Важно знать",
+      "Role in deck": "Роль в deck",
+      "How to connect": "Как подключить",
+      "Page": "Страница",
+      "input / output per 1M tokens": "вход / выход за 1M токенов",
+      "already added": "уже добавлена",
+      "A module calls the model by its role": "Модуль зовёт модель по роли",
+      "Assign it to this role in Settings → Models": "Назначьте её на эту роль в Настройках → Модели"
     }
   }
 }

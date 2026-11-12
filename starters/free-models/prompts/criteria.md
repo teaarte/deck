@@ -1,26 +1,26 @@
-# Что считать хорошей бесплатной моделью
+# What makes a good free model
 
-Оценка 2–10 — насколько модель полезна владельцу бесплатно:
+A score of 2–10: how useful the model is to the owner for free:
 
-- **9–10** — уровень лучших платных моделей своего класса, бесплатно и с лимитами, которых хватает на ежедневную работу.
-- **7–8** — сильная, заметно лучше среднего; стоит подключить. Карточка создаётся от 7.
-- **5–6** — годится для простых задач (черновики, классификация, разметка).
-- **2–4** — слабая, устаревшая, маленькая или с лимитами, которыми нельзя пользоваться. Не показывать.
+- **9–10**: the level of the best paid models of its class, free and with limits enough for daily work.
+- **7–8**: strong, clearly above average; worth connecting. A card is made from 7.
+- **5–6**: fit for simple tasks (drafts, classification, labelling).
+- **2–4**: weak, outdated, small or with limits that make it unusable. Do not show.
 
-Учитывать: публичные бенчмарки и отзывы, размер и свежесть, длину контекста, поддержку tools (вызова инструментов — нужно агентам deck), реальные лимиты free tier, не временная ли это акция (stealth/preview исчезают — отметить в limits).
+Take into account: public benchmarks and reviews, size and freshness, context length, support of tools (tool calls, which deck's agents need), the real limits of the free tier, whether it is a limited-time offer (stealth/preview models vanish: note it in limits).
 
-Модерация/safety-модели, эмбеддинги и роутеры (`openrouter/free`) — не «мощные модели», оценка не выше 4.
+Moderation/safety models, embedders and routers (`openrouter/free`) are not "strong models": a score of 4 at most.
 
-# Роли deck
+# deck's roles
 
-Для каждой модели указать роли deck, которые она может взять (`roles`), если есть:
+For each model give the deck roles it can take (`roles`), if any:
 
-- `agent` — агент с инструментами: нужны tools и длинный контекст;
-- `text` — ответ текстом или JSON по схеме: черновики, разбор, перевод;
-- `image` — картинки;
-- `tts` — озвучка;
-- `stt` — распознавание речи;
-- `video` — видео-клипы;
-- `music` — музыка и звуки.
+- `agent`: an agent with tools: needs tools and a long context;
+- `text`: an answer as text or JSON by a schema: drafts, analysis, translation;
+- `image`: pictures;
+- `tts`: speech;
+- `stt`: speech recognition;
+- `video`: video clips;
+- `music`: music and sounds.
 
-Если для какой-то роли бесплатной облачной модели нет, но есть бесплатная локальная, её тоже стоит записать с `source: local`.
+If a role has no free cloud model but has a free local one, record that too with `source: local`.

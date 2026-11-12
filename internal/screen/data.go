@@ -292,7 +292,7 @@ func (r *renderer) card(id string, b manifest.Block) (map[string]any, bool, erro
 		if err != nil {
 			return nil, true, fmt.Errorf("field %q: %w", f.Label, err)
 		}
-		v = r.word(among(r.fieldEnum(r.req.Screen.Record, f.Bind)), v)
+		v = r.phrased(f.Bind, r.word(among(r.fieldEnum(r.req.Screen.Record, f.Bind)), v))
 		if v == nil || v == "" {
 			continue
 		}

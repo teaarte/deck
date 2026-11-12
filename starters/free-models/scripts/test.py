@@ -82,18 +82,18 @@ def fit(name, conn, target, role):
         return None
     l, need = limits_of(name, conn), need_tokens(target, role)
     if l.get("tpm") and need > l["tpm"]:
-        return f"не влезает: работа ~{need // 1000} тыс. токенов за запрос, а лимит {l['tpm']} токенов в минуту ({l.get('why') or conn})"
+        return f"does not fit: the work takes ~{need // 1000}k tokens a request, the limit is {l['tpm']} tokens a minute ({l.get('why') or conn})"
     if l.get("context") and need > l["context"] * 0.8:
-        return f"не влезает: работа ~{need // 1000} тыс. токенов, а контекст модели {l['context'] // 1000} тыс."
+        return f"does not fit: the work takes ~{need // 1000}k tokens, the model's context is {l['context'] // 1000}k"
     return None
 
 
 def whole(note):
     """A failure of the model itself (hangs, 5xx, gone), not of this work: it cools down for every work."""
-    return bool(re.search(r"timed out|Timeout|не ответил|ошибка (5\d\d|404)", note or ""))
-TEXT = ("Короткая заметка владельца: «Купил б/у MacBook Air M2 за 6500 крон, батарея 91%, есть царапина на крышке. "
-        "Продавец отдал зарядку и чехол.» Ответь только JSON без пояснений: {\"summary\": \"одна фраза по-русски\", "
-        "\"score\": целое от 1 до 10 — насколько удачная покупка}.")
+    return bool(re.search(r"timed out|Timeout|did not answer|error (5\d\d|404)", note or ""))
+TEXT = ("A short note of the owner: \"Bought a used MacBook Air M2 for 6500 crowns, battery 91%, a scratch on the lid. "
+        "The seller threw in the charger and a case.\" Answer with JSON only, no comments: {\"summary\": \"one sentence in "
+        "Russian\", \"score\": a whole number from 1 to 10, how good a buy it was}.")
 
 
 def chat(conn, model, body, timeout=150):
@@ -120,15 +120,15 @@ def judge_json(text):
     try:
         d = json.loads(m.group(0) if m else s)
     except Exception:
-        return False, "ответ не JSON"
+        return False, "the answer is not JSON"
     summ, score = d.get("summary"), d.get("score")
-    if not isinstance(summ, str) or not re.search(r"[а-яА-ЯёЁ]", summ):
-        return False, "summary не по-русски"
+    if not isinstance(summ, str) or not re.search(r"[\u0400-\u04ff]", summ):
+        return False, "summary not in Russian"
     if re.search(r"[一-鿿぀-ヿ]", summ):
-        return False, "в тексте чужие иероглифы"
+        return False, "foreign hieroglyphs in the text"
     if not isinstance(score, int) or not 1 <= score <= 10:
-        return False, "score не целое 1–10"
-    return True, f"{summ} (оценка {score})"
+        return False, "score is not a whole number 1–10"
+    return True, f"{summ} (score {score})"
 
 
 def test_text(m):
@@ -144,14 +144,14 @@ def fixture(target):
     answer; the limit is only in the search, so the agent needs both results at once."""
     recs = call("deck.records_list", {"collection": "models", "fields": ["name", "strengths", "limits", "how_to"],
                                       "where": "status == 'rated'"}) or []
-    filler = [" ".join(str(v) for v in (r.get("data") or {}).values() if v) for r in recs] or ["текст объявления"]
+    filler = [" ".join(str(v) for v in (r.get("data") or {}).values() if v) for r in recs] or ["listing text"]
     rnd = random.Random()
     limit = rnd.randrange(1300, 1900, 10)
     code = f"KOD-{rnd.randrange(1000, 9999)}"
     searches = [
-        {"id": 5481, "slug": "nas-nvme", "spec": f"Компактный NAS под M.2 NVMe, от 4 слотов, б/у до {limit} zł. " + filler[0][:1500]},
-        {"id": 5482, "slug": "monitor-4k", "spec": "Монитор 4K 27–32 дюйма, IPS, б/у до 900 zł. " + filler[-1][:1500]},
-        {"id": 5483, "slug": "ebike", "spec": "Электровелосипед городской, рама M, б/у до 3500 zł. " + filler[len(filler) // 2][:1500]}]
+        {"id": 5481, "slug": "nas-nvme", "spec": f"A compact NAS for M.2 NVMe, 4 slots or more, used, up to {limit} zł. " + filler[0][:1500]},
+        {"id": 5482, "slug": "monitor-4k", "spec": "A 4K monitor, 27–32 inch, IPS, used, up to 900 zł. " + filler[-1][:1500]},
+        {"id": 5483, "slug": "ebike", "spec": "A city e-bike, frame M, used, up to 3500 zł. " + filler[len(filler) // 2][:1500]}]
     n, per = 20, max(1500, (need_bytes(target) - 6000) // 20)
     hit = rnd.randrange(5, n - 3)
     listings, k = [], 0
@@ -164,12 +164,12 @@ def fixture(target):
         rid = 12700 + i
         if i == hit:
             listings.append({"id": rid, "search": "nas-nvme", "title": "Beelink ME mini, 6×M.2 NVMe, N150", "price": limit - 150,
-                             "status": "pending", "description": f"Продам, как новый. Код объявления {code}.\n\n" + text})
+                             "status": "pending", "description": f"For sale, as new. Listing code {code}.\n\n" + text})
         elif i % 4 == 0:
             listings.append({"id": rid, "search": "nas-nvme", "title": f"TerraMaster F8 SSD #{i}", "price": limit + 200 + i * 10,
-                             "status": "pending", "description": f"Код объявления KOD-{rnd.randrange(1000, 9999)}.\n\n" + text})
+                             "status": "pending", "description": f"Listing code KOD-{rnd.randrange(1000, 9999)}.\n\n" + text})
         else:
-            listings.append({"id": rid, "search": rnd.choice(["monitor-4k", "ebike"]), "title": f"Объявление {i}",
+            listings.append({"id": rid, "search": rnd.choice(["monitor-4k", "ebike"]), "title": f"Listing {i}",
                              "price": rnd.randrange(200, 5000), "status": "pending", "description": text})
     return {"searches": searches, "listings": listings}, listings[hit]["id"], limit, code
 
@@ -180,50 +180,50 @@ def test_agent(m, target):
     data, want_id, limit, code = fixture(target)
     msgs = [{"role": "system", "content": "You are an agent of deck. Use the tools to get data; do not guess. "
                                           "Answer with JSON only when you have what you need."},
-            {"role": "user", "content": "Возьми поиски (коллекция searches) и ожидающие объявления (коллекция listings, "
-                                        "status == 'pending'). Найди объявление поиска nas-nvme с ценой не выше лимита из "
-                                        "спецификации этого поиска. Ответь только JSON: {\"id\": id объявления, \"limit\": "
-                                        "лимит поиска в zł числом, \"code\": код из описания объявления}."}]
+            {"role": "user", "content": "Take the searches (collection searches) and the pending listings (collection listings, "
+                                        "status == 'pending'). Find the listing of the search nas-nvme priced at most the limit in "
+                                        "the spec of that search. Answer with JSON only: {\"id\": the listing id, \"limit\": "
+                                        "the search's limit in zł as a number, \"code\": the code from the listing's description}."}]
     seen, sec, size = set(), 0.0, 0
     for turn in range(MAX_TURNS):
         a, s = chat(m["connection"], m["model"], {"messages": msgs, "tools": [TOOL], "tool_choice": "auto", "max_tokens": 3000})
         sec += s
         used, tpm = (a.get("usage") or {}).get("prompt_tokens") or 0, limits_of(m["name"], m["connection"]).get("tpm")
         if tpm and used > tpm:
-            return False, sec, f"запрос {used} токенов больше лимита {tpm} токенов в минуту: на настоящей работе модель откажет (413)"
+            return False, sec, f"the request of {used} tokens is over the limit of {tpm} tokens a minute: on the real work the model will refuse (413)"
         msg = (a.get("choices") or [{}])[0].get("message") or {}
         calls = msg.get("tool_calls") or []
         if not calls:
             if turn == 0:
-                return False, sec, "не вызвал инструмент"
+                return False, sec, "did not call the tool"
             s2 = re.sub(r"^```(?:json)?|```$", "", (msg.get("content") or "").strip(), flags=re.M).strip()
             mm = re.search(r"\{.*\}", s2, re.S)
             try:
                 d = json.loads(mm.group(0) if mm else s2)
             except Exception:
-                return False, sec, "ответ не JSON"
+                return False, sec, "the answer is not JSON"
             got = (d.get("id"), d.get("limit"), str(d.get("code") or "").strip())
             if str(got[0]) != str(want_id):
-                return False, sec, f"не то объявление ({got[0]} вместо {want_id}): потерял результаты инструмента"
+                return False, sec, f"wrong listing ({got[0]} instead of {want_id}): lost the tool's results"
             if str(got[1]).replace(" ", "") != str(limit) or got[2] != code:
-                return False, sec, f"лимит или код не те ({got[1]}, {got[2]}): потерял результат инструмента"
-            return True, sec, f"{turn + 1} ходов, {size // 1000} КБ данных: нашёл объявление, лимит и код верно"
+                return False, sec, f"wrong limit or code ({got[1]}, {got[2]}): lost the tool's result"
+            return True, sec, f"{turn + 1} turns, {size // 1000} KB of data: found the listing, the limit and the code right"
         msgs.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
         for c in calls:
             f = c.get("function") or {}
             try:
                 args = json.loads(f.get("arguments") or "{}")
             except Exception:
-                return False, sec, "аргументы вызова не JSON"
+                return False, sec, "the call's arguments are not JSON"
             key = (f.get("name"), args.get("collection"))
             if key in seen:
-                return False, sec, f"зациклился: снова вызвал {key[0]} {key[1]}, хотя результат уже получил"
+                return False, sec, f"looped: called {key[0]} {key[1]} again though it already had the result"
             seen.add(key)
             rows = data.get(args.get("collection")) if f.get("name") == "records_list" else None
-            out = json.dumps(rows if rows is not None else {"error": "нет такой коллекции или инструмента"}, ensure_ascii=False)
+            out = json.dumps(rows if rows is not None else {"error": "no such collection or tool"}, ensure_ascii=False)
             size += len(out.encode())
             msgs.append({"role": "tool", "tool_call_id": c.get("id"), "content": out})
-    return False, sec, f"не ответил за {MAX_TURNS} ходов"
+    return False, sec, f"did not answer in {MAX_TURNS} turns"
 
 
 def test_media(m, kind):
@@ -232,13 +232,13 @@ def test_media(m, kind):
     if kind == "image":
         inp["prompt"] = "a small red apple on a white table, soft daylight photo"
     else:
-        inp.update(text="Привет! Это короткая проверка голоса.", prompt="Спокойно и чётко.")
+        inp.update(text="Hi! This is a short voice check.", prompt="Calm and clear.")
     r = call("deck.model_call", inp, timeout=300) or {}
     sec = time.time() - t
     if isinstance(r, dict) and r.get("waiting"):
-        return None, sec, "ждёт разрешения владельца"
+        return None, sec, "waits for the owner's permission"
     files = r.get("files") or ([r] if r.get("file") else [])
-    return (True, sec, f"файл готов ({kind})") if files else (False, sec, "модель не вернула файл")
+    return (True, sec, f"file ready ({kind})") if files else (False, sec, "the model returned no file")
 
 
 def run_test(m, role, target=""):
@@ -248,7 +248,7 @@ def run_test(m, role, target=""):
         return test_text(m)
     if role in ("image", "tts"):
         return test_media(m, role)
-    return None, 0, "этот вид проверяется вручную"
+    return None, 0, "this kind is checked by hand"
 
 
 def main(inp):
@@ -289,7 +289,7 @@ def main(inp):
                "asked": cand["id"] in asked, "rejected_models": sorted(set(no))}
         if not cand["in_deck"]:
             if cand["id"] not in asked and asks >= MAX_ASKS:
-                row.update(test="waiting", test_note="модели нет в deck: предложу добавить в следующий раз", status="new", asked=False)
+                row.update(test="waiting", test_note="the model is not in deck: I will propose to add it next time", status="new", asked=False)
                 rows.append(row)
                 continue
             if cand["id"] not in asked:
@@ -301,10 +301,10 @@ def main(inp):
                 try:
                     call("deck.model_set", body)
                 except Failure as e:
-                    row["test_note"] = "не удалось предложить модель: " + str(e.details)[:150]
+                    row["test_note"] = "could not propose the model: " + str(e.details)[:150]
                 asked.add(cand["id"])
                 row["asked"] = True
-            row.update(test="waiting", test_note=row.get("test_note") or "модели нет в deck: ждёт кнопки «добавить» владельца, проверю после",
+            row.update(test="waiting", test_note=row.get("test_note") or "the model is not in deck: waits for the owner's Add, I will check it after",
                        status="new")
             rows.append(row)
             continue
@@ -315,18 +315,18 @@ def main(inp):
             if why_not:
                 tests[key] = (False, 0, why_not)  # no call: the model would refuse the real work
             elif len(tests) >= MAX_TESTS:
-                tests[key] = (None, 0, "проверю в следующий раз")
+                tests[key] = (None, 0, "I will check it next time")
             else:
                 try:
-                    tests[key] = run_test(m, t["role"], t["id"]) if m else (False, 0, "модели нет в deck")
+                    tests[key] = run_test(m, t["role"], t["id"]) if m else (False, 0, "the model is not in deck")
                 except Failure as e:
-                    why = {"403": "нет разрешения: " + str(e.details)[:200],
-                           "413": "413: запрос больше лимита токенов в минуту бесплатного тарифа — работа не влезает",
-                           "429": "429: лимит запросов бесплатного тарифа исчерпан"}.get(e.error) \
-                        or f"ошибка {e.error}: {str(e.details)[:120]}"
+                    why = {"403": "no permission: " + str(e.details)[:200],
+                           "413": "413: the request is over the free tier's tokens a minute: the work does not fit",
+                           "429": "429: the free tier's request limit is used up"}.get(e.error) \
+                        or f"error {e.error}: {str(e.details)[:120]}"
                     tests[key] = (None if e.error == "403" else False, 0, why)
                 except TimeoutError:
-                    tests[key] = (False, 0, "не ответил за 150 с (TimeoutError: timed out)")
+                    tests[key] = (False, 0, "did not answer in 150 s (TimeoutError: timed out)")
                 except Exception as e:
                     tests[key] = (False, 0, f"{type(e).__name__}: {e}"[:150])
         ok, sec, note = tests[key]
@@ -348,7 +348,7 @@ def main(inp):
         call("deck.record_upsert", {"collection": "trials", "records": "\n".join(json.dumps(x, ensure_ascii=False) for x in fresh)})
     ready = sum(1 for r in rows if r["status"] == "ready")
     if ready:
-        call("deck.owner_notify", {"text": f"Подобрал модели: {ready} готовы к применению.", "screen": "proposals"})
+        call("deck.owner_notify", {"text": f"Picked models: {ready} ready to apply.", "screen": "proposals"})
     return {"ready": ready, "waiting": sum(1 for r in rows if r.get("test") == "waiting"),
             "failed": sum(1 for r in rows if r.get("test") == "fail"), "refused": refused,
             "tests": [f"{k[0]} {k[1]}: {'ok' if v[0] else ('fail' if v[0] is False else 'wait')} {v[2][:80]}" for k, v in tests.items()]}

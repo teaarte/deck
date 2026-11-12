@@ -173,7 +173,7 @@ Advanced and the feed say so. On start, deck migrates its database and the store
 in `state/backups/update-<time>.tar.gz`; an older image refuses to start on the migrated base until that snapshot is
 back ([docs/install.md](docs/install.md#restoring-a-snapshot)).
 
-### Updating from v0.1 and v0.2 (Обновление с v0.1 и v0.2)
+### Updating from v0.1 and v0.2
 
 Every release from v0.1.1 on updates to this one with its data: modules and their records, secrets, documents, the
 logins of the CLIs and paired devices (a test updates each released image and the v0.2.2 binary). Before updating, keep

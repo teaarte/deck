@@ -3,9 +3,11 @@ package modules
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -156,5 +158,58 @@ func TestAStarterIsAsItsExport(t *testing.T) {
 	})
 	if len(names) != files {
 		t.Fatalf("the export has every file of the starter: %v", names)
+	}
+}
+
+// TestAStarterReadsInBothLanguages: the starter is written in English and its translations give a Russian owner the
+// same screens, the phrases its expressions write on a card too.
+func TestAStarterReadsInBothLanguages(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Must("deck.project_import", map[string]any{"starter": "free-models"}, nil)
+	e.Must("deck.project_enable", map[string]any{"project": "free-models", "revision": starters(e)[0].Revision}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "free-models", "collection": "models", "records": harness.Jsonl(
+		map[string]any{"source": "openrouter", "model_id": "acme/voice", "name": "Acme Voice", "status": "rated", "kind": "tts",
+			"score": 8, "tier": "cheap", "price_in": 0.1, "price_out": 0.4, "in_deck": true, "strengths": "Clear voice."})}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "free-models", "collection": "proposals", "records": harness.Jsonl(
+		map[string]any{"target": "notes/work/agent", "project": "notes", "command": "work", "role": "agent", "status": "ready"})}, nil)
+	var models, proposals []struct{ ID int64 }
+	e.Must("deck.records_list", map[string]any{"project": "free-models", "collection": "models"}, &models)
+	e.Must("deck.records_list", map[string]any{"project": "free-models", "collection": "proposals"}, &proposals)
+	page := func(lang string) (string, string) {
+		var all, own []byte
+		for _, s := range []struct {
+			name string
+			in   map[string]any
+		}{{"models", nil}, {"model", map[string]any{"record": models[0].ID}}, {"work", map[string]any{"record": proposals[0].ID}}, {"proposals", nil}} {
+			in := map[string]any{"lang": lang}
+			for k, v := range s.in {
+				in[k] = v
+			}
+			raw, _ := json.Marshal(e.ScreenMessages("free-models", s.name, in))
+			all = append(all, raw...)
+			if s.name != "models" {
+				own = append(own, raw...)
+			}
+		}
+		return string(all), string(own)
+	}
+	en, deckOwn := page("en")
+	ru, _ := page("ru")
+	for _, w := range []string{"Free models", "Strengths", "already added", "$0.1 / $0.4 · input / output per 1M tokens",
+		"A module calls the model by its role: `@tts`", "Assign it to this role in Settings → Models", "Proposals"} {
+		if !strings.Contains(en, w) {
+			t.Errorf("in English the screens say %q", w)
+		}
+	}
+	// The custom block of the screen models carries its own words in both languages.
+	if russian := regexp.MustCompile(`[^"]*\p{Cyrillic}[^"]*`).FindString(deckOwn); russian != "" {
+		t.Errorf("the English screens hold no Russian: %s", russian)
+	}
+	for _, w := range []string{"Бесплатные модели", "Чем хороша", "уже добавлена", "$0.1 / $0.4 · вход / выход за 1M токенов",
+		"Модуль зовёт модель по роли: `@tts`", "Назначьте её на эту роль в Настройках → Модели", "Предложения"} {
+		if !strings.Contains(ru, w) {
+			t.Errorf("in Russian the screens say %q", w)
+		}
 	}
 }

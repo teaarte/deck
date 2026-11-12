@@ -151,7 +151,7 @@ and bring the modules in line.
   bytes, as data; a run that may save documents is asked to write or update a lesson when it taught something.
   `on_error` and `on_incident` write lessons of the command that failed in its project's memory.
 - 2026-11-08: `deck.memory_search` finds words (any of them, in any form: a part of a word
-  without its Russian ending, ё as е; a word under three letters, such as Go or v2, as a word of its own) in memory,
+  without its Russian ending, the Russian yo as ye; a word under three letters, such as Go or v2, as a word of its own) in memory,
   the summaries of the master's topics, skills and finished processes (command, error, the start of the result), as
   far as the caller reads them; `kinds`, `project`, `limit`; each hit gives `kind`, `name`, `document` and `revision`
   or `process`, `snippet` and `rank` (lower is better).
@@ -284,7 +284,7 @@ and bring the modules in line.
 - 2026-11-10: `health_list` names the kinds of its rows by what deck writes: `kind` takes `node` and `https`, and no
   longer `browser`; `status` no longer lists `missing`, which no health row has.
 - 2026-11-11: One wait is one question. A question of a process that names one of its own requests still waiting for
-  the owner (`ask 315`, `запрос 315`, its link) is refused: deck brings the request's outcome itself, end the turn or
+  the owner (`ask 315`, the same in Russian, its link) is refused: deck brings the request's outcome itself, end the turn or
   go on. A question asked again with the same text while it is open waits on the open one. A held call that sets every
   place of an earlier held call of the same process and command (`assignment_set`) replaces it: the earlier closes
   answered `replaced:<id>` (its caller hears so, `on: ask` hears `expired`), and the owner sees `Replaces request
@@ -396,3 +396,6 @@ and bring the modules in line.
 - 2026-11-11: what a process read of a document is kept in deck's base, so a whole text it saves after deck restarted
   is refused over the owner's edit as before the restart; a button drawn before a restart still allows its calls,
   for a week after deck drew it (then: press it again).
+- 2026-11-12: a field of a card puts the phrases its expression writes through the module's `i18n`, as a column of a
+  table does. The starter free-models is written in English with its Russian in `i18n`: its scripts write their
+  notes in English, its agents in the language deck gives.

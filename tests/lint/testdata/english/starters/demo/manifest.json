@@ -1,0 +1,6 @@
+{
+  "title": "Notes",
+  "screens": [{"name": "main", "title": "Заметки"}],
+  "i18n": {"ru": {"Notes": "Заметки"}},
+  "theme": {"title": {"en": "Paper", "ru": "Бумага"}}
+}

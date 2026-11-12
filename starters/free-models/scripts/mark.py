@@ -48,7 +48,7 @@ def main(inp):
     r = call("deck.record_get", {"record": inp["id"]}) or {}
     d = r.get("data") or {}
     if not d.get("target"):
-        raise Failure("это не предложение", type="input.invalid", details={"record": inp["id"]})
+        raise Failure("this is not a proposal", type="input.invalid", details={"record": inp["id"]})
     no = set(d.get("rejected_models") or [])
     if inp["status"] == "rejected":
         no.add(d["proposed"])

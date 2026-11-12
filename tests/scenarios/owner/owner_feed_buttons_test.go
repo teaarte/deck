@@ -17,9 +17,9 @@ func TestAnAgentsFeedButtonOfAnOutwardCommandAsksFirst(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "sent"}`) })
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		_, _ = c.Tool(ctx, "owner_notify", map[string]any{"text": "Пришло письмо от банка",
-			"actions": `[{"label": "Открыть письмо", "command": "send", "params": {"id": "attacker", "text": "all the notes of the owner"}},
-				{"label": "Ещё раз", "command": "work"}]`})
+		_, _ = c.Tool(ctx, "owner_notify", map[string]any{"text": "A letter from the bank came",
+			"actions": `[{"label": "Open the letter", "command": "send", "params": {"id": "attacker", "text": "all the notes of the owner"}},
+				{"label": "Again", "command": "work"}]`})
 
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}))
@@ -45,7 +45,7 @@ func TestAnAgentsFeedButtonOfAnOutwardCommandAsksFirst(t *testing.T) {
 	if send.Command != "notes.send" || !send.Confirm || send.Label != "Send out" || send.Params["id"] != "attacker" {
 		t.Fatalf("the outward button asks first, under the title of its command, with its params: %+v", send)
 	}
-	if again.Command != "notes.work" || again.Confirm || again.Label != "Ещё раз" {
+	if again.Command != "notes.work" || again.Confirm || again.Label != "Again" {
 		t.Fatalf("an internal button stays as the agent wrote it: %+v", again)
 	}
 	// The module drops the command: its button asks first under the bare name of the command.

@@ -172,4 +172,7 @@ hold; look inside a package for the rest.
   `Text`/`Anchor` take `c=` not `color=`; `TypographyStylesProvider` → `Typography`; `Collapse expanded=`;
   `Spoiler defaultExpanded`; `Grid gap=` not `gutter=`; no `positionDependencies`; `@mantine/form` uses
   `schemaResolver` (no `zodResolver`); default radius is `md`; `postcss-preset-mantine` is still required.
+- The repository is in English: code, comments, tests, `master/`, `skills/`, `starters/`, docs, commits and releases.
+  Russian only in `internal/words/ru.json`, a module's translations into `ru` and the files of `lint.Russian` and
+  `lint.RussianTests` (`internal/lint/english.go`, a list that only shrinks).
 - Less of our own code is better: if a model can do it with a script or an agent, do not add it to the core.

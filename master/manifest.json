@@ -1,5 +1,5 @@
 {
-  "version": 16,
+  "version": 17,
   "icon": "sparkles",
   "i18n": {
     "ru": {
@@ -39,7 +39,6 @@
       "name": "reply",
       "title": "Reply",
       "description": "Answers the owner's messages in a chat topic.",
-      "class": "internal",
       "callers": [
         "trigger"
       ],
@@ -75,7 +74,6 @@
       "name": "work",
       "title": "Long work",
       "description": "Does a long task of the owner the master handed over from a chat topic, such as rebuilding a module with its renders and self-checks.",
-      "class": "internal",
       "callers": [
         "master"
       ],
@@ -113,7 +111,6 @@
       "name": "sleep",
       "title": "Sleep",
       "description": "Once a night goes over what happened since the last sleep: writes, confirms and retires lessons with their source, proposes corrections of the owner's facts and of skills that keep failing the same way, and tidies the indexes.",
-      "class": "internal",
       "callers": [
         "owner",
         "trigger"
@@ -143,7 +140,6 @@
       "name": "review",
       "title": "Daily review",
       "description": "Looks over the projects of deck and tells the owner in the feed what is worth doing.",
-      "class": "internal",
       "callers": [
         "owner",
         "trigger"
@@ -176,7 +172,6 @@
       "name": "on_error",
       "title": "Look into an error",
       "description": "Finds out why a process or a block of a screen of a project failed and tells the owner the fix in the feed.",
-      "class": "internal",
       "callers": [
         "owner",
         "trigger"
@@ -242,7 +237,6 @@
       "name": "on_incident",
       "title": "Mend an incident",
       "description": "Mends what deck noticed went wrong around a process of a project, such as a result handed in that no step after took, by the incident-recovery skill, and tells the owner in the feed.",
-      "class": "internal",
       "callers": [
         "owner",
         "trigger"
@@ -300,6 +294,37 @@
     {
       "command": "review",
       "cron": "30 10 * * *"
+    }
+  ],
+  "rights": [
+    {
+      "right": "login",
+      "what": [
+        "claude-code",
+        "codex"
+      ],
+      "why": "the master answers you and does long work on your subscription CLIs"
+    },
+    {
+      "right": "data",
+      "what": [
+        "*"
+      ],
+      "why": "it works across your modules and keeps your memory"
+    },
+    {
+      "right": "modules",
+      "what": [
+        "*"
+      ],
+      "why": "it runs and builds the commands of your modules"
+    },
+    {
+      "right": "network",
+      "what": [
+        "*"
+      ],
+      "why": "it searches the web and reads pages through deck's commands, which keep each address in the journal"
     }
   ]
 }

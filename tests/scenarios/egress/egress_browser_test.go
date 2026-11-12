@@ -22,10 +22,11 @@ func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
 	ag := &harness.SeqAgent{}
 	e := harness.New(t, harness.WithAgent(ag.Script))
 	e.Project("web", harness.Many(harness.BrowserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`)))
+	e.Grant("web", "send", "shop.example")
 
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/cart"), harness.Click("e2"))), "done")
 	if got := ag.Last(2); got[0].IsErr || got[1].IsErr || !slices.Contains(harness.FakeLog(e.Browser), "click:https://shop.example/cart") {
-		t.Fatalf("a click on an act domain runs at once: %+v %v", got, harness.FakeLog(e.Browser))
+		t.Fatalf("a click on a site the owner lets it act on runs at once: %+v %v", got, harness.FakeLog(e.Browser))
 	}
 	if slices.Contains(ag.Tools, "mcp__deck__browser_run_code_unsafe") || !slices.Contains(ag.Tools, "mcp__deck__browser_click") {
 		t.Fatalf("the agent gets the browser tools but never the one that runs code: %v", ag.Tools)
@@ -37,12 +38,12 @@ func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/pay"))), "done")
 	_ = os.WriteFile(filepath.Join(e.Browser, "flip"), []byte("https://news.example/moved"), 0o600)
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Click("e9"))), "done")
-	if got := ag.Last(1)[0]; !got.IsErr || !strings.Contains(got.Out, "not on an act domain") || slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/moved") {
+	if got := ag.Last(1)[0]; !got.IsErr || !strings.Contains(got.Out, "not a site the owner let this module act on always") || slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/moved") {
 		t.Fatalf("a click whose page changed after the check is not made: %+v", got)
 	}
 
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://evil.example/"))), "done")
-	if got := ag.Last(1)[0]; !got.IsErr || !strings.Contains(got.Out, "not on a read or act domain") {
+	if got := ag.Last(1)[0]; !got.IsErr || !strings.Contains(got.Out, "not a site this module holds the network of") {
 		t.Fatalf("a page off the domains is not opened: %+v", got)
 	}
 
@@ -72,6 +73,7 @@ func TestBrowserReadsAnySiteWithAStarAndSendsOnlyOwnFiles(t *testing.T) {
 	ag := &harness.SeqAgent{Files: []string{"cv.pdf"}}
 	e := harness.New(t, harness.WithAgent(ag.Script))
 	e.Project("web", harness.BrowserManifest(`{"read": ["*"], "act": ["jobs.example"]}`))
+	e.Grant("web", "send", "jobs.example")
 	// A documentation address stands for a site on the internet.
 	egress.AsPublic("198.51.100.7:443")
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://198.51.100.7/x"), harness.Nav("https://jobs.example/apply"),
@@ -93,6 +95,7 @@ func TestBrowserSendsNoFileALinkPointsOutOfTheFolder(t *testing.T) {
 	ag := &harness.SeqAgent{Files: []string{"cv.pdf"}, Links: map[string]string{"cv-link.pdf": filepath.Join(outside, "secret.pdf"), "out": outside}}
 	e := harness.New(t, harness.WithAgent(ag.Script))
 	e.Project("web", harness.BrowserManifest(`{"read": ["jobs.example"], "act": ["jobs.example"]}`))
+	e.Grant("web", "send", "jobs.example")
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://jobs.example/apply"),
 		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/cv-link.pdf"}}},
 		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/out/secret.pdf"}}},
@@ -175,6 +178,7 @@ func TestBrowserWithholdsPagesOffTheDomainsAndSurvivesALostAction(t *testing.T) 
 	ag := &harness.SeqAgent{}
 	e := harness.New(t, harness.WithAgent(ag.Script))
 	e.Project("web", harness.Many(harness.BrowserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`)))
+	e.Grant("web", "send", "shop.example")
 	_ = os.WriteFile(filepath.Join(e.Browser, "goto"), []byte("https://bank.example/account"), 0o600)
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/"), harness.Click("e1"), harness.Step{Tool: "browser_snapshot", Args: map[string]any{}})), "done")
 	got := ag.Last(2)
@@ -216,6 +220,7 @@ func TestBrowserActionOnAnUnknownPageIsNotMade(t *testing.T) {
 	ag := &harness.SeqAgent{}
 	e := harness.New(t, harness.WithAgent(ag.Script))
 	e.Project("web", harness.BrowserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`))
+	e.Grant("web", "send", "shop.example")
 	id := e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/a"), harness.Click("e2")))
 	a := e.WaitAsk()
 	if !strings.Contains(a.Text, "on https://news.example/a") {
@@ -261,11 +266,11 @@ func TestAllowingABrowserActionAlwaysAllowsItsSite(t *testing.T) {
 	id := e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/a"), harness.Click("e2")))
 	e.Answer(e.WaitAsk().ID, "allow_always")
 	e.WaitState(id, "done")
-	var got struct{ Manifest string }
-	e.Must("deck.manifest_get", map[string]any{"project": "web"}, &got)
-	if !slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/a") || !strings.Contains(got.Manifest, `"news.example"`) ||
-		strings.Contains(got.Manifest, "allowed_external") {
-		t.Fatalf("allow always on a browser action clicks and adds the site to domains.act: %v\n%s", harness.FakeLog(e.Browser), got.Manifest)
+	var rows []struct{ Right, Subject, Answer string }
+	e.Must("deck.rights_list", map[string]any{"project": "web"}, &rows)
+	if !slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/a") ||
+		!slices.Contains(rows, struct{ Right, Subject, Answer string }{"send", "news.example", "always"}) {
+		t.Fatalf("allow always on a browser action clicks and keeps acting on the site as the owner's answer: %v\n%+v", harness.FakeLog(e.Browser), rows)
 	}
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/b"), harness.Click("e3"))), "done")
 	if !slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/b") {
@@ -275,10 +280,6 @@ func TestAllowingABrowserActionAlwaysAllowsItsSite(t *testing.T) {
 	e.WaitState(id, "waiting:answer")
 	if slices.Contains(harness.FakeLog(e.Browser), "click:https://other.example/x") {
 		t.Fatalf("other sites still ask: %v", harness.FakeLog(e.Browser))
-	}
-	listed := strings.Replace(harness.BrowserManifest(`{"read": ["news.example"]}`), `"domains"`, `"allowed_external": ["deck.browser_click"], "domains"`, 1)
-	if code, out := e.Call("deck.manifest_save", map[string]any{"project": "web", "manifest": listed}); code == 200 || !strings.Contains(string(out), "domains.act") {
-		t.Fatalf("browser actions are not listed in allowed_external: %d %s", code, out)
 	}
 }
 

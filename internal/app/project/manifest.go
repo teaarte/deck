@@ -159,18 +159,18 @@ func parseManifest(raw []byte, builtin bool) (parsed, error) {
 		if t.On != "" && t.On != manifest.OnAsk && !builtin {
 			return parsed{}, registry.Invalid("a trigger on %s belongs to the built-in project %s", t.On, master.Name)
 		}
-		if c := m.Command(t.Command); t.On == manifest.OnAsk && c != nil && c.Class == registry.External {
-			return parsed{}, registry.Invalid("a trigger on ask starts a command without the owner, so not %s, which is external", t.Command)
+		if _, needs := m.CommandNeed(t.Command); t.On == manifest.OnAsk && needs {
+			return parsed{}, registry.Invalid("a trigger on ask starts a command without the owner, so not %s, which needs the right send", t.Command)
 		}
 	}
 	return parsed{m: m, text: []byte(manifest.Canonical(string(m.Text())))}, nil
 }
 
-// Saved is a stored manifest revision, or the ask it waits on when the change widens the project's rights.
+// Saved is a stored manifest revision.
 type Saved struct {
-	Revision int64    `json:"revision,omitempty"`
-	Waiting  int64    `json:"waiting,omitempty"`
-	Widens   []string `json:"widens,omitempty"`
+	Revision int64 `json:"revision,omitempty"`
+	// Ungranted are the rights it declares that the owner has not answered always yet, in deck's words.
+	Ungranted []string `json:"ungranted,omitempty"`
 	// Screens name the blocks of the project's screens that fail on the data there is now.
 	Screens []string `json:"screens,omitempty"`
 	// Unused are the keys of its i18n that are no text of the manifest; Untranslated the texts a language of it lacks.
@@ -180,8 +180,8 @@ type Saved struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
-// SaveManifest checks a manifest and saves it with its triggers and migrated records in one transaction; a
-// change that widens rights waits for the owner; nonzero ifRevision must still be current.
+// SaveManifest checks a manifest and saves it with its triggers and migrated records in one transaction; what it
+// declares grants nothing; nonzero ifRevision must still be current.
 func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Project, raw []byte, reason string, revertTo, ifRevision int64) (Saved, error) {
 	pm, err := parseManifest(raw, p.Builtin == 1)
 	if err != nil {
@@ -202,9 +202,8 @@ func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pro
 	}
 	var saved Saved
 	changed := false
-	var outdated []db.Ask
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := checkReads(ctx, q, p.WorkspaceID, p.Name, pm.m); err != nil {
+		if err := checkData(ctx, q, p, pm.m); err != nil {
 			return err
 		}
 		if err := s.checkToolFit(ctx, q, p.WorkspaceID, p.ID, pm.m); err != nil {
@@ -226,25 +225,12 @@ func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pro
 		if ifRevision != 0 && cur.Current != ifRevision {
 			return registry.Conflict("the manifest of %s is at revision %d now, not %d", p.Name, cur.Current, ifRevision)
 		}
-		w, err := s.widens(ctx, q, act, p.ID, pm.m)
-		if err != nil || len(w) > 0 {
-			if err == nil {
-				saved, err = s.ask(ctx, q, act, p, cur, revertTo, w, reason, pm.text)
-			}
-			return err
-		}
 		var n int64
 		if _, n, changed, err = docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), reason); err != nil {
 			return err
 		}
 		if saved.Revision = n; !changed {
 			return nil
-		}
-		if err := grant(ctx, q, p, n, pm.m); err != nil {
-			return err
-		}
-		if outdated, err = outdate(ctx, q, p, n, s.Now()); err != nil {
-			return err
 		}
 		if err := q.DeleteScreenHealth(ctx, db.DeleteScreenHealthParams{ProjectID: store.ID(p.ID), Subjects: health.OfScreen + ":*"}); err != nil {
 			return err
@@ -259,11 +245,8 @@ func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pro
 		}
 		return s.Scheduler.Sync(ctx, q, p.ID, pm.m)
 	})
-	if err != nil || saved.Waiting != 0 {
+	if err != nil {
 		return saved, err
-	}
-	for _, a := range outdated {
-		s.Gateway.Record(ctx, a, "expired", "the manifest changed after this request")
 	}
 	if changed {
 		s.Emit(events.Event{Workspace: p.WorkspaceID, Topic: events.Projects, Project: p.Name})
@@ -272,28 +255,8 @@ func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pro
 	saved.Screens = s.CheckScreens(ctx, act, p, pm.m)
 	saved.Unused, saved.Untranslated = s.words(ctx, p, pm.m)
 	saved.Warnings = slices.Concat(s.unassigned(ctx, p, pm.m), s.unpaged(ctx, p, pm.m), untold(p, pm.m))
+	saved.Ungranted = s.ungranted(ctx, p, pm.m)
 	return saved, nil
-}
-
-// grant moves the rights the owner gave to revision n of the manifest: an enabled project's save passed the
-// owner's check of what it widens; a draft's only when it widens nothing beyond the grant.
-func grant(ctx context.Context, q *db.Queries, p db.Project, n int64, next *manifest.Manifest) error {
-	p, err := q.GetProject(ctx, p.ID)
-	if err != nil {
-		return err
-	}
-	if p.Status != store.ProjectEnabled {
-		prev := &manifest.Manifest{}
-		if p.GrantedRevision.Valid {
-			if prev, err = docs.ManifestAt(ctx, q, p.ID, p.GrantedRevision.Int64); err != nil {
-				return err
-			}
-		}
-		if len(manifest.Widens(prev, next)) > 0 {
-			return nil
-		}
-	}
-	return q.GrantProject(ctx, db.GrantProjectParams{GrantedRevision: store.ID(n), ID: p.ID})
 }
 
 // Reconcile brings stored triggers in line with the current manifests; run it on start.

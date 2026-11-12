@@ -16,15 +16,15 @@ import (
 // a document the master's works edit.
 var onceManifest = harness.Manifest(`{"collections": [], "writes": ["notes.md"],
   "commands": [
-    {"name": "lead", "title": "Lead", "description": "Leads.", "class": "internal", "runs": "many",
+    {"name": "lead", "title": "Lead", "description": "Leads.", "runs": "many",
      "executor": {"type": "agent", "prompt": "Lead."}, "result": {"type": "object", "properties": {"n": {"type": "integer"}}}},
-    {"name": "work", "title": "Work", "description": "Works on a topic.", "class": "internal", "runs": "many",
+    {"name": "work", "title": "Work", "description": "Works on a topic.", "runs": "many",
      "input": {"type": "object", "properties": {"topic": {"type": "integer"}, "task": {"type": "string"}}},
      "executor": {"type": "agent", "prompt": "Work."}, "result": {"type": "object", "properties": {"n": {"type": "integer"}}}},
-    {"name": "review", "title": "Review", "description": "Reviews.", "class": "internal",
+    {"name": "review", "title": "Review", "description": "Reviews.",
      "input": {"type": "object", "properties": {"n": {"type": "integer"}}},
      "executor": {"type": "agent", "prompt": "Review."}, "result": {"type": "object", "properties": {"n": {"type": "integer"}}}},
-    {"name": "plan", "title": "Plan", "description": "Plans.", "class": "internal",
+    {"name": "plan", "title": "Plan", "description": "Plans.",
      "executor": {"type": "agent", "prompt": "Plan."}}]}`)
 
 type started struct {

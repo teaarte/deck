@@ -7,15 +7,12 @@
   "additionalProperties": false,
   "required": ["version"],
   "properties": {
-    "version": {"const": 16, "description": "Manifest format version."},
+    "version": {"const": 17, "description": "Manifest format version."},
     "collections": {"type": "array", "items": {"$ref": "#/$defs/collection"}},
     "commands": {"type": "array", "items": {"$ref": "#/$defs/command"}},
     "scripts": {"type": "array", "items": {"$ref": "#/$defs/script"}},
     "triggers": {"type": "array", "items": {"$ref": "#/$defs/trigger"}},
     "tools": {"$ref": "#/$defs/tools"},
-    "allowed_external": {"type": "array", "items": {"type": "string"}, "uniqueItems": true,
-      "description": "External tools and commands that run without the owner's confirmation. Only the owner widens this list."},
-    "domains": {"$ref": "#/$defs/domains"},
     "screens": {"type": "array", "items": {"$ref": "#/$defs/screen"}},
     "widgets": {"type": "array", "maxItems": 8, "description": "Views of the card of the module on the tiles, a small screen each: the card shows the largest view whose min it fits, its blocks from the top while the card has room, a list as many lines as are left, a chart wider; a press on the card opens the module, its buttons press as on a screen. Without one the card is its cover with its title.",
       "items": {"type": "object", "additionalProperties": false, "required": ["min", "blocks"], "properties": {
@@ -27,19 +24,27 @@
     "i18n": {"type": "object", "propertyNames": {"pattern": "^[a-z]{2}$"},
       "additionalProperties": {"type": "object", "additionalProperties": {"type": "string"}},
       "description": "Translations of the texts the owner sees, by language (en, ru) and then by the text as this manifest writes it: the title of the project; titles of screens, blocks, tabs and dialogs; descriptions; empty texts; labels of columns, fields, series and buttons. Write the manifest in English and give a translation into every language the owner uses; deck shows the owner's language, the text itself where it has none. Texts that expressions build are not translated."},
-    "reads": {"type": "array", "items": {"$ref": "#/$defs/read"}, "description": "Data of other projects this project may read."},
-    "models": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true,
-      "description": "What scripts and agents of the project call models through (DECK_MODELS, deck.model_call): connections the owner added, models by name, or @text, @image, @tts, @stt for the models the owner assigned; commands of type model add theirs. A new one is granted by the owner."},
+    "rights": {"type": "array", "items": {"$ref": "#/$defs/right"},
+      "description": "What the module may ask the owner for beyond its own records, documents and files, each with why in its own words; deck's catalog has seven rights. A declaration grants nothing: the owner answers when it is first used or on the module's screen of rights. What is not declared is never asked for."},
     "writes": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"},
-      "description": "Documents of this project its agents and scripts write besides artifacts and memory, such as its own code: a document name, or a folder ending in / for every document under it. Never manifest.json. A new one is granted by the owner."},
-    "gpu": {"type": "boolean", "default": false,
-      "description": "The programs of this project use the graphics card (/dev/dri on Linux): rendering, local models. A right the owner gives."}
+      "description": "Documents of this project its agents and scripts write besides artifacts and memory, such as its own code: a document name, or a folder ending in / for every document under it. Never manifest.json. The author narrows its own agents with it; it is no right."}
   },
   "$defs": {
     "name": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,39}$"},
     "icon": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,59}$", "description": "Name of an outline icon of Tabler Icons (tabler.io/icons), e.g. rocket or chart-line; an unknown name shows the first letter."},
     "expr": {"type": "string", "minLength": 1, "description": "expr-lang expression over record fields."},
-    "class": {"enum": ["internal", "reversible", "external"]},
+    "right": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["right", "what", "why"],
+      "properties": {
+        "right": {"enum": ["network", "login", "data", "files", "money", "send", "modules"],
+          "description": "network: hosts (* is the whole internet), reached by the module's programs, or with who agent by the shells of its agents; login: the subscription CLIs its agents run on, claude-code or codex; data: the owner's data of another module (project, project.collection, project/document, project:models, project:runs, *:models, *:runs) or a service its own tool or server.tool reads with a key; files: gpu, or a folder of the project by name (* any); money: connections, models by name or @roles it calls models through; send: what acts in the owner's name, its command, its tool, server.tool, a command of deck by its full name or a site the browser acts on (host); modules: another module (project or project.command)."},
+        "what": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "why": {"type": "string", "minLength": 1, "maxLength": 200, "description": "Why the module needs it, one short sentence the owner reads beside what deck says it allows."},
+        "who": {"enum": ["programs", "agent"], "default": "programs", "description": "Of network: its programs (scripts, MCP servers, deck's web_fetch and browser) or the shells of its agents. An agent on a subscription login never gets the network in its shell, nor one of a module with data of another."}
+      }
+    },
     "schema": {"type": "object", "description": "JSON Schema (draft 2020-12)."},
     "collection": {
       "type": "object",
@@ -64,12 +69,12 @@
     "command": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "title", "description", "class", "executor"],
+      "required": ["name", "title", "description", "executor"],
       "properties": {
         "name": {"$ref": "#/$defs/name"},
         "title": {"type": "string", "minLength": 1, "description": "Human name, a few words."},
         "description": {"type": "string", "minLength": 1, "description": "What it does, one sentence."},
-        "class": {"$ref": "#/$defs/class"},
+        "undo": {"$ref": "#/$defs/name", "description": "A command or tool of this module that takes a call of this one back; deck offers it as a button where it shows the call. It gives no right."},
         "input": {"$ref": "#/$defs/schema", "description": "Flat object schema; parameters are string, number, integer, boolean, date, choice, file or a reference."},
         "result": {"$ref": "#/$defs/schema", "description": "Schema of the result; null means nothing to do, and the agent may give it only where the schema takes null (type [\"object\", \"null\"])."},
         "callers": {"type": "array", "items": {"enum": ["owner", "master", "agent", "trigger"]}, "uniqueItems": true, "minItems": 1},
@@ -132,13 +137,13 @@
     },
     "script": {
       "type": "object",
-      "description": "A script runs in its box: it writes its run folder and $DECK_DATA, reads the project folders and reaches domains.read through deck's door (the box: module-builder).",
+      "description": "A script runs in its box: it writes its run folder and $DECK_DATA, reads the project folders and reaches the hosts of its network right through deck's door (the box: module-builder).",
       "additionalProperties": false,
       "required": ["name", "file", "runtime"],
       "properties": {
         "name": {"$ref": "#/$defs/name"},
         "file": {"type": "string", "minLength": 1, "description": "Project document holding the script source."},
-        "runtime": {"enum": ["python", "node", "bash", "exec"], "description": "exec runs the file by its shebang. A script installs its own packages when it runs (Python: exec with #!/usr/bin/env -S uv run --script and a PEP 723 block; Node: npm install into $DECK_DATA); the registries go into domains.read."},
+        "runtime": {"enum": ["python", "node", "bash", "exec"], "description": "exec runs the file by its shebang. A script installs its own packages when it runs (Python: exec with #!/usr/bin/env -S uv run --script and a PEP 723 block; Node: npm install into $DECK_DATA); the registries are hosts of its network right."},
         "programs": {"type": "array", "uniqueItems": true, "description": "Programs that must exist on the machine: a name, or a name with how the owner installs it.",
           "items": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": false, "required": ["name"],
             "properties": {"name": {"type": "string", "minLength": 1}, "install": {"type": "string", "description": "How the owner installs it, such as brew install ffmpeg; deck shows it while the program is missing."}}}]}},
@@ -186,7 +191,8 @@
         "body": {"description": "Body template: JSON with {field} placeholders; a string that is exactly {field} takes the field with its type. {\"file\": \"{field}\"} sends a file field as it is; {\"multipart\": {\"<part>\": \"{field}\" or text}} sends a form whose file fields are files. Without a template POST, PUT and PATCH send the input as JSON."},
         "input": {"$ref": "#/$defs/schema"},
         "result": {"$ref": "#/$defs/schema"},
-        "class": {"$ref": "#/$defs/class", "description": "external when omitted; only the owner makes a tool milder."},
+        "right": {"enum": ["network", "data", "send"], "description": "The right the tool needs when deck's own reading is wrong: deck takes network on its host for GET or HEAD without a key, data on the tool for GET or HEAD with one, send for any other method; name data or network for a POST that only reads (a search, GraphQL), and the owner is told so."},
+        "undo": {"$ref": "#/$defs/name", "description": "A command or tool of this module that takes a call of this one back."},
         "auth": {"$ref": "#/$defs/auth"},
         "confirm_ttl_minutes": {"type": "integer", "minimum": 1, "description": "How long a confirmation of this tool stays open; 24 hours when omitted."}
       }
@@ -212,29 +218,9 @@
         "env": {"type": "object", "additionalProperties": {"type": "string"}},
         "url": {"type": "string"},
         "toolFilter": {"type": "array", "items": {"type": "string"}, "description": "Only these tools are exposed."},
-        "classes": {"type": "object", "additionalProperties": {"$ref": "#/$defs/class"}, "description": "Class per tool; unlisted tools are external."}
+        "right": {"type": "object", "additionalProperties": {"enum": ["network", "data", "send"]}, "description": "The right each tool needs, by tool: send when unlisted; network for one that only reads what is public, data for one that reads the owner's data in a service."}
       },
       "oneOf": [{"required": ["command"]}, {"required": ["url"]}]
-    },
-    "domains": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "read": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Hosts the programs of this project reach: its scripts, MCP servers and the shells of its agents; without any its agents reach only their provider and deck."},
-        "act": {"type": "array", "items": {"type": "string"}, "uniqueItems": true, "description": "Hosts where the browser may click, type and submit."}
-      }
-    },
-    "read": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["project"],
-      "properties": {
-        "project": {"type": "string", "description": "A project, or * for every project, whose only reads are models and runs."},
-        "collections": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-        "documents": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
-        "models": {"type": "boolean", "default": false, "description": "Read which models do the work of the project (deck.models_list with project): assignments, the work of its commands and scripts, choices and prices; never keys."},
-        "runs": {"type": "boolean", "default": false, "description": "Read the runs of the project in brief (deck.processes_list with project): command, state, type and first line of a failure, the model that answered, times, trial; never input, result, log or files."}
-      }
     },
     "screen": {
       "type": "object",

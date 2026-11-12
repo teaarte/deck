@@ -14,7 +14,7 @@ import (
 	"deck2/tests/harness"
 )
 
-var tellManifest = harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Works a while", "class": "internal",
+var tellManifest = harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Works a while",
   "executor": {"type": "agent", "prompt": "Work."}}]}`)
 
 func TestOwnerMessageReachesTheLiveTurn(t *testing.T) {
@@ -41,7 +41,7 @@ func TestOwnerMessageReachesTheLiveTurn(t *testing.T) {
 		t.Fatalf("both messages belong to the one reply: %+v", ms)
 	}
 
-	p := e.Project("job", tellManifest)
+	p := e.Project("job", harness.OnLogin(tellManifest))
 	id := e.Run(p, "work")
 	<-started
 	e.WaitState(id, "running")
@@ -69,7 +69,7 @@ func TestMessageWaitsForAProviderWithoutLiveInput(t *testing.T) {
 		return provider.Result{Text: "then: " + harness.LastLine(strings.Split(c.Req.Prompt, "Continue the task.")[0])}
 	}))
 
-	p := e.Project("job", tellManifest)
+	p := e.Project("job", harness.OnLogin(tellManifest))
 	id := e.Run(p, "work")
 	e.Until("the turn", func() bool { return len(e.Fake.Calls()) == 1 })
 	var out struct{ Delivered string }
@@ -119,7 +119,7 @@ func TestTerminalCommandOfAProcess(t *testing.T) {
 		return provider.Result{Text: "ok"}
 	}))
 
-	p := e.Project("job", tellManifest)
+	p := e.Project("job", harness.OnLogin(tellManifest))
 	id := e.Run(p, "work")
 	e.Until("the turn", func() bool { return len(e.Fake.Calls()) == 1 })
 	var v struct {
@@ -149,7 +149,7 @@ func TestClaudeCodeTakesTheOwnersMessageIntoItsTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.PlainManifest))
 	id := e.Run(p, "work")
 	harness.Until(t, "the CLI to start", func() bool { return c.Calls() >= 1 })
 	e.Until("the CLI to report its session", func() bool {
@@ -173,7 +173,7 @@ func TestABackgroundTaskOfClaudeCodeEndsTheTurnWithItsLastResult(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.Stream(0, "background.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.PlainManifest))
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `"background said done"` {
 		t.Fatalf("a background task that wakes the session gives one more result, and the last one counts: %+v", got)
 	}
@@ -194,7 +194,7 @@ func TestAnEmptyResultWhileBackgroundAgentsRunIsNotTheEndOfTheTurn(t *testing.T)
 	}
 	c.After(`sleep 1; sed "s/{{session}}/$session/g" "$d/rest"` + "\n")
 	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.PlainManifest))
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `"agents said done"` {
 		t.Fatalf("the CLI outlives its linger while its background agent runs, and the later result counts: %+v", got)
 	}

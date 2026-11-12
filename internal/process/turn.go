@@ -20,7 +20,6 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
-	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -187,8 +186,9 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	a.cleanup = func() { u.close(r) }
 	read := r.deps.Folders(ctx, t.project, node)
 	var box sandbox.Box
-	if now, err := docs.For(ctx, r.st.Q, registry.Actor{}, t.project); err == nil {
-		box = boxes.For(sandbox.KindAgent, now, read)
+	if now, granted, err := docs.Rights(ctx, r.st.Q, t.project); err == nil {
+		_, login := pv.(provider.Subscribed)
+		box = boxes.For(sandbox.KindAgent, now, granted, login, read)
 	}
 	processID := t.process
 	a.req = provider.Request{

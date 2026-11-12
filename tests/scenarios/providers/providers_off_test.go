@@ -80,7 +80,7 @@ func TestTheOwnerTurnsAProviderOffAndOnAgain(t *testing.T) {
 	if slices.Contains(healthSubjects(e), "provider:codex") {
 		t.Fatalf("a provider turned off keeps no row of health: %v", healthSubjects(e))
 	}
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	e.UseModels("paint.work", "codex")
 	if code, out := e.Call("paint.work", map[string]any{}); code == 200 || !strings.Contains(string(out), "turned off in Settings → Models") {
 		t.Fatalf("work assigned to a provider turned off is refused with why: %d %s", code, out)

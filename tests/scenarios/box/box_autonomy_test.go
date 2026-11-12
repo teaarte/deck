@@ -55,8 +55,8 @@ func TestCommandAgentRunsInAutoModeInItsFolders(t *testing.T) {
 	e := harness.New(t, harness.WithCLI(c))
 	home := e.Home
 	_ = os.WriteFile(filepath.Join(home, "deck.log"), []byte("deck listening url=http://127.0.0.1:7700/?token=x"), 0o600)
-	e.Project("other", harness.PlainManifest)
-	p := e.Project("notes", harness.PostManifest("http://127.0.0.1:1", ""))
+	e.Project("other", harness.Declared(harness.OnLogin(harness.PlainManifest)))
+	p := e.Project("notes", harness.Declared(harness.OnLogin(harness.PostManifest("http://127.0.0.1:1", ""))))
 	var id int64
 	for id < 10 {
 		id = e.Run(p, "work")

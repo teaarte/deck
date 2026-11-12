@@ -208,7 +208,7 @@ var sourceManifest = harness.Manifest(`{"collections": [{"name": "items", "descr
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}]}`)
 
 func readerManifest(reads string) string {
-	return harness.Manifest(`{"commands": [{"name": "look", "title": "Look", "description": "Looks at the other project.", "class": "internal",
+	return harness.Manifest(`{"commands": [{"name": "look", "title": "Look", "description": "Looks at the other project.",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Look."}}]`) + reads + `}`
 }
 
@@ -241,7 +241,7 @@ func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 	for _, n := range []string{"notes/shared.md", "notes/other.md"} {
 		e.Must("deck.document_save", map[string]any{"project": "source", "name": n, "kind": "doc", "text": "text of " + n}, nil)
 	}
-	reads := `, "reads": [{"project": "source", "collections": ["items"], "documents": ["notes/shared.md"]}],
+	reads := `, "rights": [{"right": "data", "what": ["source.items", "source/notes/shared.md"], "why": "reads it"}],
   "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table", "source": {"from": "deck.records_list", "input": {"project": "source", "collection": "items"}},
     "columns": [{"label": "Name", "bind": "data.name"}]}]}]`
 	reader := e.Project("reader", readerManifest(reads))
@@ -284,8 +284,7 @@ func TestATrialOfADraftReadsWhatItsReadsList(t *testing.T) {
 	}
 	e.Must("deck.document_save", map[string]any{"project": "source", "name": "notes/shared.md", "kind": "doc", "text": "shared"}, nil)
 	_, tok := e.Token("terminal", "deck.*", "draft.*")
-	reads := `, "reads": [{"project": "source", "collections": ["items"], "documents": ["notes/shared.md"]},
-    {"project": "vault", "collections": ["items"]}]`
+	reads := `, "rights": [{"right": "data", "what": ["source.items", "source/notes/shared.md", "vault.items"], "why": "reads it"}]`
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "draft", "manifest": harness.ScriptManifest("collect", "", reads)}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
@@ -345,7 +344,7 @@ func TestAScreenReadsAnotherProjectOnlyByItsReads(t *testing.T) {
 	if b0 := e.Screen("peek", "main", nil)["b0"]; b0["rows"] != nil || !strings.Contains(string(b0["error"]), "does not read source") {
 		t.Fatalf("a module reads another project only by its reads: %s", b0)
 	}
-	e.Project("reader", readerManifest(screen+`, "reads": [{"project": "source", "collections": ["items"]}]`))
+	e.Project("reader", readerManifest(screen+`, "rights": [{"right": "data", "what": ["source.items"], "why": "reads it"}]`))
 	if b0 := e.Screen("reader", "main", nil)["b0"]; b0["error"] != nil || !strings.Contains(string(b0["rows"]), `"name":"a"`) {
 		t.Fatalf("a module that reads it sees it: %s", b0)
 	}

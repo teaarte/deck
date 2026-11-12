@@ -21,7 +21,7 @@ import (
 // jobsModule renders an item of its collection by an agent command whose input names the record.
 var jobsModule = harness.Manifest(`{"collections": [{"name": "videos", "description": "A video.", "key": "slug", "display": "title",
     "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug"]}}],
-  "commands": [{"name": "voice", "title": "Voice", "description": "Voices a video.", "class": "internal",
+  "commands": [{"name": "voice", "title": "Voice", "description": "Voices a video.",
     "input": {"type": "object", "properties": {"record": {"type": "integer"}}},
     "executor": {"type": "agent", "prompt": "Voice the video."}}]}`)
 
@@ -198,10 +198,10 @@ func TestARunThatWaitsIsNotLongerThanUsual(t *testing.T) {
 
 // cutModule cuts a clip by name; trim is a step the master calls, not the owner.
 var cutModule = harness.Manifest(`{"commands": [
-    {"name": "cut", "title": "Cut", "description": "Cuts a clip.", "class": "internal",
+    {"name": "cut", "title": "Cut", "description": "Cuts a clip.",
       "input": {"type": "object", "properties": {"clip": {"type": "string"}}},
       "executor": {"type": "agent", "prompt": "Cut the clip."}},
-    {"name": "trim", "title": "Trim", "description": "Trims a clip.", "class": "internal", "callers": ["master"],
+    {"name": "trim", "title": "Trim", "description": "Trims a clip.", "callers": ["master"],
       "input": {"type": "object", "properties": {"clip": {"type": "string"}}},
       "executor": {"type": "agent", "prompt": "Trim the clip."}}]}`)
 
@@ -266,6 +266,7 @@ func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
 	e.Project("clips", harness.GenerateManifest(svc.URL))
+	e.Grant("clips", "send", "generate", "make")
 	id := e.Start("clips", "make", map[string]any{"topic": "cats"})
 	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
 	e2 := e.Restart(harness.WithProvider(&harness.Fake{}))

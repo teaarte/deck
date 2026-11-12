@@ -237,9 +237,10 @@ type Check struct {
 	Speed float64
 }
 
-// Subscribed is a provider that runs on the owner's subscription: what its calls would cost is only an estimate.
+// Subscribed is a provider that runs on the owner's subscription login, the one OnLogin names: what its calls would
+// cost is only an estimate.
 type Subscribed interface {
-	OnSubscription()
+	OnLogin() string
 }
 
 // AtNode splits the name of a provider on a node, such as claude-code@Mac, into the provider and the node.

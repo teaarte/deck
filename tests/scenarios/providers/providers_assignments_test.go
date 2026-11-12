@@ -179,10 +179,11 @@ func TestAToolCommandOfAModuleDoesNotClearAnAssignment(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	e.Project("films", harness.PlainManifest)
-	e.Project("picker", harness.Manifest(`{"commands": [{"name": "propose", "title": "Propose", "description": "Proposes an assignment.", "class": "external",
+	e.Project("picker", harness.Manifest(`{"commands": [{"name": "propose", "title": "Propose", "description": "Proposes an assignment.",
     "input": {"type": "object", "properties": {"role": {"type": "string"}, "project": {"type": "string"}, "models": {"type": "array", "items": {"type": "string"}}}, "required": ["role"]},
     "executor": {"type": "tool", "tool": "deck.assignment_set"}}],
-  "allowed_external": ["propose"]}`))
+  "rights": [{"right": "send", "what": ["propose"], "why": "proposes assignments"}]}`))
+	e.Grant("picker", "send", "propose")
 	_, tok := e.Token("terminal", "picker.*")
 	var r struct{ Process int64 }
 	if code, out := e.As(tok).Call("picker.propose", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/qwen"}}); code != 200 || json.Unmarshal(out, &r) != nil {
@@ -199,14 +200,14 @@ func TestAToolCommandOfAModuleDoesNotClearAnAssignment(t *testing.T) {
 	}
 }
 
-// TestAModelsReadOfAProjectOpensNoDataOfIt: reads {"project": "films", "models": true} reads the models of films and
+// TestAModelsReadOfAProjectOpensNoDataOfIt: data on films:models reads the models of films and
 // not its records; dropping models for a read of the project asks the owner again.
 func TestAModelsReadOfAProjectOpensNoDataOfIt(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("films", harness.ScriptManifest("main", "", ""))
 	module := harness.ScriptManifest("main", "", "")
-	e.Project("watcher", strings.Replace(module, `"scripts":`, `"reads": [{"project": "films", "models": true}], "scripts":`, 1))
+	e.Project("watcher", harness.Declare(module, `{"right": "data", "what": ["films:models"], "why": "reads it"}`))
 	e.SaveScript("watcher", "scripts/main.py", harness.DeckCallScript)
 	if c := e.ScriptCall("watcher", "deck.models_list", map[string]any{"project": "films"}); c.Status != 200 || !strings.Contains(c.Body, `"command":"publish"`) {
 		t.Fatalf("the module reads the models of films: %+v", c)
@@ -216,18 +217,18 @@ func TestAModelsReadOfAProjectOpensNoDataOfIt(t *testing.T) {
 	}
 	_, tok := e.Token("terminal", "deck.*")
 	_, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "watcher",
-		"manifest": strings.Replace(module, `"scripts":`, `"reads": [{"project": "films"}], "scripts":`, 1)})
-	var saved struct {
-		Waiting int64
-		Widens  []string
-	}
+		"manifest": harness.Declare(module, `{"right": "data", "what": ["films"], "why": "reads it"}`)})
+	var saved struct{ Ungranted []string }
 	_ = json.Unmarshal(out, &saved)
-	if saved.Waiting == 0 || !slices.Equal(saved.Widens, []string{"reads project films"}) {
-		t.Fatalf("a read of the project in place of its models waits for the owner: %s", out)
+	if !slices.Contains(saved.Ungranted, "it reads your data: films") {
+		t.Fatalf("a read of the project in place of its models waits for the owner's grant: %s", out)
+	}
+	if c := e.ScriptCall("watcher", "deck.records_list", map[string]any{"project": "films", "collection": "items"}); c.Status != 403 {
+		t.Fatalf("it reads no records of films before the owner grants it: %+v", c)
 	}
 }
 
-// TestAModuleReadsTheModelsOfEveryProjectByARight: reads {"project": "*", "models": true}, granted by the owner, lets
+// TestAModuleReadsTheModelsOfEveryProjectByARight: data on *:models, granted by the owner, lets
 // scripts and agents read the models of another project, never a key; an assignment still waits for the owner.
 func TestAModuleReadsTheModelsOfEveryProjectByARight(t *testing.T) {
 	t.Parallel()
@@ -246,25 +247,22 @@ func TestAModuleReadsTheModelsOfEveryProjectByARight(t *testing.T) {
 	e.SaveScript("watcher", "scripts/main.py", harness.DeckCallScript)
 
 	read := map[string]any{"project": "films"}
-	if c := e.ScriptCall("watcher", "deck.models_list", read); c.Status != 403 || !strings.Contains(c.Body, "does not read which models do the work of films") {
+	if c := e.ScriptCall("watcher", "deck.models_list", read); c.Status != 403 || !strings.Contains(c.Body, "does not read films:models") {
 		t.Fatalf("without the right a module does not read the models of another project: %+v", c)
 	}
 
 	_, tok := e.Token("terminal", "deck.*")
-	wider := strings.Replace(module, `"scripts":`, `"reads": [{"project": "*", "models": true}], "scripts":`, 1)
+	wider := harness.Declare(module, `{"right": "data", "what": ["*:models"], "why": "reads it"}`)
 	_, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "watcher", "manifest": wider})
-	var saved struct {
-		Waiting int64
-		Widens  []string
-	}
+	var saved struct{ Ungranted []string }
 	_ = json.Unmarshal(out, &saved)
-	if saved.Waiting == 0 || !slices.Equal(saved.Widens, []string{"reads which models do the work of every project"}) {
-		t.Fatalf("the right waits for the owner's button, named plainly: %s", out)
+	if !slices.Contains(saved.Ungranted, "it reads your data: *:models") {
+		t.Fatalf("the right waits for the owner's grant, named plainly: %s", out)
 	}
 	if c := e.ScriptCall("watcher", "deck.models_list", read); c.Status != 403 {
 		t.Fatalf("the right is not in force before the owner's yes: %+v", c)
 	}
-	e.Answer(saved.Waiting, "allow")
+	e.Grant("watcher", "data", "*:models")
 
 	c := e.ScriptCall("watcher", "deck.models_list", read)
 	var m struct {
@@ -295,11 +293,11 @@ func TestAModuleReadsTheModelsOfEveryProjectByARight(t *testing.T) {
 	if got := e.Assigned("films", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("nothing changes by the right: %v", got)
 	}
-	data := strings.Replace(module, `"scripts":`, `"reads": [{"project": "*", "collections": ["items"]}], "scripts":`, 1)
-	e.Refused("deck.manifest_save", map[string]any{"project": "watcher", "manifest": data}, 422, "names every project only for which models do their work")
+	data := harness.Declare(module, `{"right": "data", "what": ["*.items"], "why": "reads it"}`)
+	e.Refused("deck.manifest_save", map[string]any{"project": "watcher", "manifest": data}, 422, "which only the master reads")
 }
 
-// TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight: reads {"project": "*", "runs": true}, granted by the owner,
+// TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight: data on *:runs, granted by the owner,
 // lists the runs of another project: what ran, how it ended, on which model; never input, result or log.
 func TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight(t *testing.T) {
 	t.Parallel()
@@ -314,21 +312,18 @@ func TestAModuleReadsTheRunsOfAnotherProjectInBriefByARight(t *testing.T) {
 	e.Project("watcher", module)
 	e.SaveScript("watcher", "scripts/main.py", harness.DeckCallScript)
 	list := map[string]any{"project": "plain"}
-	if c := e.ScriptCall("watcher", "deck.processes_list", list); c.Status != 403 || !strings.Contains(c.Body, `"runs": true`) {
+	if c := e.ScriptCall("watcher", "deck.processes_list", list); c.Status != 403 || !strings.Contains(c.Body, "the right data in its manifest") {
 		t.Fatalf("without the right a module does not list the runs of another project, and is told what gives it: %+v", c)
 	}
 	_, tok := e.Token("terminal", "deck.*")
 	_, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "watcher",
-		"manifest": strings.Replace(module, `"scripts":`, `"reads": [{"project": "*", "runs": true}], "scripts":`, 1)})
-	var saved struct {
-		Waiting int64
-		Widens  []string
-	}
+		"manifest": harness.Declare(module, `{"right": "data", "what": ["*:runs"], "why": "reads it"}`)})
+	var saved struct{ Ungranted []string }
 	_ = json.Unmarshal(out, &saved)
-	if saved.Waiting == 0 || !slices.Equal(saved.Widens, []string{"reads the runs of every project"}) {
-		t.Fatalf("the right waits for the owner's button, named plainly: %s", out)
+	if !slices.Contains(saved.Ungranted, "it reads your data: *:runs") {
+		t.Fatalf("the right waits for the owner's grant, named plainly: %s", out)
 	}
-	e.Answer(saved.Waiting, "allow")
+	e.Grant("watcher", "data", "*:runs")
 	c := e.ScriptCall("watcher", "deck.processes_list", list)
 	var runs []map[string]any
 	if c.Status != 200 || json.Unmarshal([]byte(c.Body), &runs) != nil || len(runs) != 1 {

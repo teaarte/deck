@@ -246,9 +246,9 @@ func TestTheMarksOfAnOlderDeckBeginWithTheirDomain(t *testing.T) {
 	old := map[string]string{"moved:secrets": "secrets:moved", "moved:sessions": "providers:sessions_moved",
 		"master_error:1.work.task_failed": "processes:master_error:1.work.task_failed", "screen_error:1.screen:main:b0@3": "processes:screen_error:1.screen:main:b0@3",
 		"incident:7.running": "processes:incident:7.running", "manifest_problems:1": "project:manifest_problems:1",
-		"widened:1": "project:widened:1", "push:2:ask": "feed:push:2:ask"}
+		"push:2:ask": "feed:push:2:ask"}
 	// The marks under the names of an older deck, and the base before the update.
-	for _, q := range []string{`INSERT INTO project (workspace_id, name) VALUES (1, 'alpha')`, `DELETE FROM goose_db_version WHERE version_id >= 76`, `ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence`} {
+	for _, q := range []string{`INSERT INTO project (workspace_id, name) VALUES (1, 'alpha')`, `DELETE FROM goose_db_version WHERE version_id >= 76`, `ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence; DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''`} {
 		if _, err := st.DB.Exec(q); err != nil {
 			t.Fatalf("%s: %v", q, err)
 		}

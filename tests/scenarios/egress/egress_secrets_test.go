@@ -40,7 +40,7 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 	e := harness.New(t)
 	link := svc.URL + "/owa/calendar/me@x.com/tok-0123456789/calendar.ics"
 	tool := func(extra string) string {
-		return harness.Manifest(fmt.Sprintf(`{"tools": {"http": [{"name": "ics", "description": "d", "method": "GET", "class": "internal",
+		return harness.Manifest(fmt.Sprintf(`{"tools": {"http": [{"name": "ics", "description": "d", "method": "GET",
       "url": "$secret.outlook?from={from}"%s, "input": {"type": "object", "properties": {"from": {"type": "string"}}, "required": ["from"]}}]}}`, extra))
 	}
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "nohosts", "manifest": tool("")}); code != 422 || !strings.Contains(string(out), "needs hosts") {
@@ -50,7 +50,7 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "fixed", "manifest": fixed}); code != 422 || !strings.Contains(string(out), "hosts go only with a url from a secret") {
 		t.Fatalf("hosts beside a written url are refused: %d %s", code, out)
 	}
-	e.Project("cal", tool(`, "hosts": ["127.0.0.1"]`))
+	e.Project("cal", harness.Declared(tool(`, "hosts": ["127.0.0.1"]`)))
 	e.Secret("cal", "outlook", link)
 	var got struct {
 		Status int
@@ -97,18 +97,18 @@ func TestAModuleReadsOnlyItsOwnSecrets(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
 	e := harness.New(t)
-	e.Project("a", harness.PostManifest(svc.URL, ""))
+	e.Project("a", harness.Declared(harness.PostManifest(svc.URL, "")))
 	for _, name := range []string{"svc", "svc_id", "svc_secret", "svc_token"} {
 		e.Secret("a", name, "of-a-"+name)
 	}
-	e.Project("b", harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+	e.Project("b", harness.Declared(harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works.",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
-  "tools": {"http": [{"name": "post", "description": "Posts", "method": "POST", "url": "%[1]s/items", "class": "internal",
+  "tools": {"http": [{"name": "post", "description": "Posts", "method": "POST", "url": "%[1]s/items",
       "headers": {"X-Key": "$secret.svc"}, "input": {"type": "object"}},
-    {"name": "me", "description": "Who am I", "method": "GET", "url": "%[1]s/me", "class": "internal",
+    {"name": "me", "description": "Who am I", "method": "GET", "url": "%[1]s/me",
       "auth": {"type": "oauth2", "auth_url": "%[1]s/authorize", "token_url": "%[1]s/token", "client_id": "svc_id",
         "client_secret": "svc_secret", "token": "svc_token", "scopes": ["read"]}}],
-    "mcp": {"servers": {"fake": {"command": %[2]q, "env": {"DECK_FAKE_MCP": "project", "FAKE_TOKEN": "$secret.svc"}}}}}}`, svc.URL, harness.Fakes)))
+    "mcp": {"servers": {"fake": {"command": %[2]q, "env": {"DECK_FAKE_MCP": "project", "FAKE_TOKEN": "$secret.svc"}}}}}}`, svc.URL, harness.Fakes))))
 	if code, out := e.Call("b.post", map[string]any{}); code == 200 || !strings.Contains(string(out), `secret "svc" of b is not set`) {
 		t.Fatalf("a header of b gets no secret of a: %d %s", code, out)
 	}
@@ -132,11 +132,11 @@ func TestAModuleReadsOnlyItsOwnSecrets(t *testing.T) {
 func TestAServerByURLDeckRefusesIsARowOfHealth(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("far", harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+	e.Project("far", harness.Declared(harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works.",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
-  "tools": {"mcp": {"servers": {"far": {"url": %q}}}}}`, "http://10.0.0.1:9/mcp")))
+  "tools": {"mcp": {"servers": {"far": {"url": %q}}}}}`, "http://10.0.0.1:9/mcp"))))
 	e.Start("far", "work", nil)
-	if h := e.WaitHealth("mcp:far.far", "error"); !strings.Contains(h.Error, "did not start") || !strings.Contains(h.Error, "is not in the domains of this project") {
+	if h := e.WaitHealth("mcp:far.far", "error"); !strings.Contains(h.Error, "did not start") || !strings.Contains(h.Error, "is not a host this module holds the network of") {
 		t.Fatalf("a server deck refuses to reach is a red row of its module: %+v", h)
 	}
 }

@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/access"
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -129,22 +130,28 @@ type projectReadinessGetIn struct {
 }
 
 func (s *Service) projectNeeds(ctx context.Context, act registry.Actor, in projectReadinessGetIn) ([]needView, error) {
-	rights, err := s.projectRights(ctx, act, projectExportIn{Project: in.Project})
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
 		return nil, err
 	}
-	p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: in.Project})
+	ms, failed := docs.All(ctx, s.St.Q, []db.Project{p})
+	if err := failed[p.ID]; err != nil {
+		return nil, registry.Invalid("the manifest of %s does not load: %v", p.Name, err)
+	}
+	gs, err := s.St.Q.ListGrants(ctx, p.ID)
 	if err != nil {
 		return nil, err
 	}
-	ms, _ := docs.All(ctx, s.St.Q, []db.Project{p})
-	return s.needs(ctx, p, ms[p.ID], rights, words.In(registry.Lang(ctx))), nil
+	ws := words.In(registry.Lang(ctx))
+	return s.needs(ctx, p, ms[p.ID], rows(p, ms[p.ID], gs, func(t string) string { return manifest.Tr(ws, t) }), ws), nil
 }
 
 func (s *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest, rights []rightView, ws map[string]string) []needView {
 	out := []needView{}
 	for _, r := range rights {
-		out = append(out, needView{Kind: "right", What: r.What, Detail: r.Detail, Done: p.Status != "draft"})
+		if r.Declared {
+			out = append(out, needView{Kind: "right", What: r.Says, Detail: r.Why, Done: r.Answer == manifest.Always})
+		}
 	}
 	if m == nil {
 		return out
@@ -195,7 +202,7 @@ func (s *Service) missingModels(ctx context.Context, workspace int64, m *manifes
 		}
 	}
 	var out []needView
-	for _, u := range m.Models {
+	for _, u := range m.Called() {
 		conn, _, _ := strings.Cut(u, "/")
 		switch {
 		case have[u] || have[conn] && !strings.HasPrefix(u, "@"):

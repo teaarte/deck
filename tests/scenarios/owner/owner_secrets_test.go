@@ -20,8 +20,8 @@ import (
 // keyManifest has a tool that sends $secret.svc and one that signs in with the secret auth names.
 func keyManifest(url, auth string) string {
 	return harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
-    {"name": "post", "description": "Posts", "method": "POST", "url": "%[1]s/post", "class": "internal", "headers": {"X-Key": "$secret.svc"}, "input": {"type": "object"}},
-    {"name": "signed", "description": "Signs", "method": "GET", "url": "%[1]s/signed", "class": "internal", "auth": {"type": "secret", "secret": %[2]q}}]}}`, url, auth))
+    {"name": "post", "description": "Posts", "method": "POST", "url": "%[1]s/post", "headers": {"X-Key": "$secret.svc"}, "input": {"type": "object"}},
+    {"name": "signed", "description": "Signs", "method": "GET", "url": "%[1]s/signed", "auth": {"type": "secret", "secret": %[2]q}}]}}`, url, auth))
 }
 
 // TestTheSecretsOfBeforeMoveToTheirModulesOnce: an old secret goes to each module naming it, a key of a connection
@@ -32,9 +32,9 @@ func TestTheSecretsOfBeforeMoveToTheirModulesOnce(t *testing.T) {
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home))
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": svc.URL + "/v1"}, nil)
-	e.Project("films", keyManifest(svc.URL, "own"))
-	e.Project("notes", keyManifest(svc.URL, "openrouter"))
-	e.Project("broken", harness.PlainManifest)
+	e.Project("films", harness.Declared(keyManifest(svc.URL, "own")))
+	e.Project("notes", harness.Declared(keyManifest(svc.URL, "openrouter")))
+	e.Project("broken", harness.Declared(harness.PlainManifest))
 	// A manifest a deck before left that no longer reads.
 	e.PlantRevision("broken", "manifest.json", harness.Manifest(`{"commands": [{"name": 1}]}`))
 	h := deckhome.Layout(home)
@@ -101,8 +101,8 @@ func TestTheSecretsOfBeforeMoveToTheirModulesOnce(t *testing.T) {
 func TestADeletedModuleTakesItsSecretsAlong(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("films", keyManifest("https://api.example", "own"))
-	e.Project("notes", keyManifest("https://api.example", "own"))
+	e.Project("films", harness.Declared(keyManifest("https://api.example", "own")))
+	e.Project("notes", harness.Declared(keyManifest("https://api.example", "own")))
 	e.Secret("films", "svc", "a")
 	e.Secret("notes", "svc", "b")
 	e.Must("deck.project_delete", map[string]any{"project": "films"}, nil)
@@ -121,7 +121,7 @@ func TestASnapshotHoldsNoSecretOrKey(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Must("deck.connection_set", map[string]any{"name": "router", "api": "openai", "url": "https://api.example/v1", "key": "sk-key-in-no-snapshot"}, nil)
-	e.Project("films", keyManifest("https://api.example", "own"))
+	e.Project("films", harness.Declared(keyManifest("https://api.example", "own")))
 	e.Secret("films", "svc", "secret-in-no-snapshot")
 	var snap struct{ Path string }
 	e.Must("deck.snapshot_create", nil, &snap)
@@ -177,8 +177,8 @@ func TestAKeyOutlivesItsConnection(t *testing.T) {
 func TestASecretSetBeforeItsManifestNamesItIsSeen(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("mail", harness.PostManifest("https://api.example", ""))
-	e.Project("notes", harness.PlainManifest)
+	e.Project("mail", harness.Declared(harness.PostManifest("https://api.example", "")))
+	e.Project("notes", harness.Declared(harness.PlainManifest))
 	if rows := secretRows(e, "notes"); len(rows) != 0 {
 		t.Fatalf("the Secrets table of a module without secrets is there and empty: %v", rows)
 	}

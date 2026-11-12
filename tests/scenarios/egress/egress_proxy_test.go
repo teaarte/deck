@@ -45,7 +45,7 @@ func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(
 		return m
 	}
 	e := harness.New(t)
-	e.Project("pkgs", manifest(fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
+	e.Project("pkgs", manifest(fmt.Sprintf(`, "rights": [{"right": "network", "what": [%q], "why": "reads it"}]`, host)))
 	e.SaveScript("pkgs", "scripts/main.py", src)
 	var downloads []int
 	for i := range 2 {
@@ -67,13 +67,13 @@ func TestScriptInstallsItsPackagesThroughTheProxyAndMissingProgramShowsInHealth(
 	clear(hits)
 	mu.Unlock()
 	if p := e.WaitState(e.Start("closed", "use", nil), "done", "error"); p.State != "error" || !strings.Contains(p.Error, "403") ||
-		!strings.Contains(p.Error, "deck: the proxy refused: ") || !strings.Contains(p.Error, "domains.read") {
-		t.Fatalf("an index outside domains.read is refused, and the error says which and where it is added: %+v", p)
+		!strings.Contains(p.Error, "deck: the proxy refused: ") || !strings.Contains(p.Error, "under network in rights") {
+		t.Fatalf("an index outside the network of the module is refused, and the error says which and where it is declared: %+v", p)
 	}
 	mu.Lock()
 	defer mu.Unlock()
 	if len(hits) != 0 {
-		t.Fatalf("nothing reaches an index outside domains.read: %v", hits)
+		t.Fatalf("nothing reaches an index outside the network of the module: %v", hits)
 	}
 
 	m := strings.Replace(harness.ScriptManifest("use", "", ""), `"runtime": "python"`, `"runtime": "python", "programs": ["deck-no-such-program"]`, 1)
@@ -96,7 +96,7 @@ func TestTheProxyOfAScriptDropsHeadersThatAreOnlyForTheHop(t *testing.T) {
 	})
 	host := strings.TrimPrefix(svc.URL, "http://")
 	e := harness.New(t)
-	e.Project("hops", harness.ScriptManifest("go", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
+	e.Project("hops", harness.ScriptManifest("go", "", fmt.Sprintf(`, "rights": [{"right": "network", "what": [%q], "why": "reads it"}]`, host)))
 	e.SaveScript("hops", "scripts/main.py", `import base64, json, os, socket, urllib.parse
 p = urllib.parse.urlparse(os.environ["HTTP_PROXY"])
 auth = base64.b64encode((p.username + ":" + p.password).encode()).decode()
@@ -125,7 +125,7 @@ func TestScriptWildcardDomainIsOnlyThePublicInternet(t *testing.T) {
 	e := harness.New(t)
 	named, local := harness.Served(t), harness.Served(t)
 	host := strings.TrimPrefix(named.URL, "http://")
-	e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": ["*", %q]}`, host)))
+	e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "rights": [{"right": "network", "what": ["*", %q], "why": "reads it"}]`, host)))
 	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
 inp = json.load(sys.stdin)
 print(json.dumps({"named": fetch(inp["allowed"]), "local": fetch(inp["other"]), "tailnet": fetch("http://100.100.100.100/")}))
@@ -138,26 +138,26 @@ print(json.dumps({"named": fetch(inp["allowed"]), "local": fetch(inp["other"]), 
 	}
 }
 
-// TestADomainIsAHostThatResolvesOnceToWhereItMayGo: a domain is a bare host; "*.x" is x, a public suffix or a URL
+// TestADomainIsAHostThatResolvesOnceToWhereItMayGo: a host of a network is bare; "*.x" is x, a public suffix or a URL
 // is refused on save; a name that resolves to the owner's machine is refused, one that does not resolve is not reached.
 func TestADomainIsAHostThatResolvesOnceToWhereItMayGo(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	for domain, says := range map[string]string{"https://hf.co/models": "a host", "co.uk": "public suffix", "com": "public suffix"} {
-		code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": harness.ScriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, domain))})
+		code, out := e.Call("deck.project_create", map[string]any{"name": "bad", "manifest": harness.ScriptManifest("collect", "", fmt.Sprintf(`, "rights": [{"right": "network", "what": [%q], "why": "reads it"}]`, domain))})
 		if code != 422 || !strings.Contains(string(out), says) {
 			t.Errorf("%s is refused on save naming %q: %d %s", domain, says, code, out)
 		}
 	}
 	_, tok := e.Token("terminal", "deck.*")
-	e.As(tok).Call("deck.project_create", map[string]any{"name": "masks", "manifest": harness.ScriptManifest("collect", "", `, "domains": {"read": ["*.hf.co"]}`)})
-	if r := e.ProjectRow("masks").Rights; len(r) != 1 || r[0] != "reaches and may send data to: hf.co" {
+	e.As(tok).Call("deck.project_create", map[string]any{"name": "masks", "manifest": harness.ScriptManifest("collect", "", `, "rights": [{"right": "network", "what": ["*.hf.co"], "why": "reads it"}]`)})
+	if r := e.ProjectRow("masks").Rights; len(r) != 1 || r[0] != "its programs reach hf.co and may send its data there" {
 		t.Fatalf("*.hf.co is hf.co with its subdomains: %v", r)
 	}
 
 	local := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { _, _ = w.Write([]byte("hello")) })
 	_, port, _ := net.SplitHostPort(strings.TrimPrefix(local.URL, "http://"))
-	e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": ["localhost:%s", "nowhere.invalid"]}`, port)))
+	e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "rights": [{"right": "network", "what": ["localhost:%s", "nowhere.invalid"], "why": "reads it"}]`, port)))
 	e.SaveScript("tools", "scripts/main.py", harness.PythonLib+`
 inp = json.load(sys.stdin)
 print(json.dumps({"local": fetch(inp["allowed"]), "nowhere": fetch("http://nowhere.invalid/")}))

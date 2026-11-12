@@ -18,6 +18,9 @@ var (
 	ThemeName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
 )
 
+// SecretPrefix begins a reference to a secret in a manifest, $secret.<name>.
+const SecretPrefix = "$secret."
+
 // SecretChar is a character of the name of a secret.
 const SecretChar = `[A-Za-z0-9_.-]`
 

@@ -13,9 +13,12 @@ import (
 // Tabled are the pure functions on the trust boundary that keep a table test beside them, by package; a test
 // outside tests/ is one of these and nothing else, and a function joins the list only here.
 var Tabled = map[string][]string{
+	"internal/boxes":    {"For"},
 	"internal/egress":   {"Public", "listed"},
 	"internal/home":     {"Within"},
+	"internal/manifest": {"ToolRight", "Covers"},
 	"internal/registry": {"Permits"},
+	"internal/store":    {"rights16"},
 }
 
 const tableFile = "table_test.go"

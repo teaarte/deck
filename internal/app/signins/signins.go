@@ -194,10 +194,10 @@ func (s *Service) ToolSignIn(ctx context.Context, p db.Project, tool, why string
 	}
 }
 
-// auth is the sign-in of a tool of the project's manifest in force.
+// auth is the sign-in of a tool of the project's manifest, and the hosts its programs hold the network of.
 func (s *Service) auth(ctx context.Context, p db.Project, tool string) (manifest.Auth, []string, error) {
 	var auth manifest.Auth
-	m, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID)
+	m, g, err := docs.Rights(ctx, s.St.Q, p.ID)
 	if err != nil {
 		return auth, nil, err
 	}
@@ -206,7 +206,7 @@ func (s *Service) auth(ctx context.Context, p db.Project, tool string) (manifest
 			auth = t.AuthOf()
 		}
 	}
-	return auth, m.Domains.All(), nil
+	return auth, m.Held(g, manifest.Network, manifest.Programs), nil
 }
 
 // host is the host of an address, or the address when it has none.
@@ -314,12 +314,12 @@ func (s *Service) Servers(ctx context.Context, projectID int64) {
 	if err != nil {
 		return
 	}
-	m, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID)
+	m, g, err := docs.Rights(ctx, s.St.Q, p.ID)
 	if err != nil {
 		return
 	}
 	s.MCP.Start(ctx, p, m)
-	if len(m.Domains.Read) > 0 || len(m.Domains.Act) > 0 {
+	if len(m.Held(g, manifest.Network, manifest.Programs)) > 0 {
 		s.Browser.Ensure(ctx)
 	}
 }

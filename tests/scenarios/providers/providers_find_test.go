@@ -94,7 +94,7 @@ func TestACLIOfAnotherVersionWarnsAndWorks(t *testing.T) {
 	if h.Version != "2.1.300" || !strings.Contains(h.Error, "2.1.281") || !strings.Contains(h.Error, "2.1.300") {
 		t.Fatalf("another version warns with both: %+v", h)
 	}
-	if got := e.WaitState(e.Run(e.Project("plain", harness.PlainManifest), "work"), "done", "error"); got.State != "done" {
+	if got := e.WaitState(e.Run(e.Project("plain", harness.OnLogin(harness.PlainManifest)), "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("a CLI of another version takes work: %+v", got)
 	}
 }

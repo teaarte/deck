@@ -13,7 +13,6 @@ import (
 	"deck2/internal/access"
 	"deck2/internal/docs"
 	"deck2/internal/home"
-	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -149,12 +148,12 @@ func (s *Service) deletable(ctx context.Context, q *db.Queries, act registry.Act
 		if o.ID == p.ID || err != nil {
 			continue
 		}
-		if slices.ContainsFunc(m.Reads, func(r manifest.Read) bool { return r.Project == p.Name }) {
+		if slices.ContainsFunc(m.Others(), func(s string) bool { return reads(s, p.Name) }) {
 			readers = append(readers, o.Name)
 		}
 	}
 	if len(readers) > 0 {
-		return registry.Invalid("%s reads %s; take it out of their reads first", strings.Join(readers, ", "), p.Name)
+		return registry.Invalid("%s reads %s; take it out of the data they declare in rights first", strings.Join(readers, ", "), p.Name)
 	}
 	return nil
 }
@@ -184,4 +183,9 @@ func (s *Service) draftOfMaster(ctx context.Context, act registry.Actor, input j
 		return false, registry.Refuse("%s is not a draft; only the owner deletes an enabled project", p.Name)
 	}
 	return true, nil
+}
+
+// reads says a subject of the right data names project, its data, models or runs.
+func reads(subject, project string) bool {
+	return subject == project || strings.HasPrefix(subject, project+".") || strings.HasPrefix(subject, project+"/") || strings.HasPrefix(subject, project+":")
 }

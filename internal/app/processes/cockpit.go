@@ -64,7 +64,7 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, p db.Process, v
 		}
 		if i >= 0 {
 			v.Ask, v.Question = asks[i].ID, asks[i].Text
-			if k := asks[i].Kind; k == ask.KindCall || k == ask.KindGrant || k == ask.KindUnknown {
+			if k := asks[i].Kind; k == ask.KindCall || k == ask.KindUnknown {
 				// A request is said by its why; what it changes is on the request.
 				why, _ := ask.Decode[struct{ Reason string }](asks[i].Payload)
 				v.Question = why.Reason

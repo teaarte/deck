@@ -42,25 +42,31 @@ type HTTP struct {
 	SignIn func(ctx context.Context, p db.Project, tool, why string)
 }
 
-// Command is the registry command of an HTTP tool of project p; it reaches its own host when public and the domains of p, a
-// name only at public addresses unless the domains name the address.
+// Command is the registry command of an HTTP tool of p: it reaches its host when public and the hosts p holds the
+// network of; a call needs the right the tool needs, and one that sends keeps its own line in the journal.
 func (h *HTTP) Command(p db.Project, t manifest.HTTPTool, domains []string) *registry.Command {
-	b, _ := json.Marshal(map[string]any{"method": t.Method, "url": t.URL, "hosts": t.Hosts, "headers": t.Headers, "body": t.Body, "auth": t.Auth})
-	print := gateway.Canonical(b)
-	c := registry.Loose(p.Name+"."+t.Name, cmp.Or(t.Title, t.Name), t.Description, t.Class, registry.Everyone, t.Input, h.handler(p, t, domains))
+	print := manifest.ToolPrint(t)
+	right, subject := manifest.ToolRight(t)
+	need := registry.Need{Right: right, Subject: subject, Print: print}
+	if right == manifest.Network {
+		need.Print = ""
+	}
+	sends := right == manifest.Send
+	c := registry.Loose(p.Name+"."+t.Name, cmp.Or(t.Title, t.Name), t.Description, registry.External, registry.Everyone, t.Input, h.handler(p, t, domains, sends))
 	c.Result, c.ProjectID = t.Result, p.ID
-	c.Gate = registry.Gate{Journals: t.Class == registry.External,
+	c.Gate = registry.Gate{Journals: sends,
 		Fingerprint: func(context.Context, int64, int64, json.RawMessage) string { return print },
 		Target:      func(_ string, input json.RawMessage) string { return t.Method + " " + target(t, input) },
+		Needs:       func(context.Context, registry.Actor, string, json.RawMessage) registry.Need { return need },
 		ConfirmTTL:  time.Duration(t.ConfirmTTLMinutes) * time.Minute}
 	return c
 }
 
-func (h *HTTP) handler(p db.Project, t manifest.HTTPTool, domains []string) registry.Handler {
+func (h *HTTP) handler(p db.Project, t manifest.HTTPTool, domains []string, sends bool) registry.Handler {
 	name := p.Name + "." + t.Name
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		refuse := func(err error) (any, error) {
-			if t.Class == registry.External {
+			if sends {
 				h.GW.Refused(ctx, act, p.ID, name, raw, err)
 			}
 			return nil, err
@@ -77,7 +83,7 @@ func (h *HTTP) handler(p db.Project, t manifest.HTTPTool, domains []string) regi
 			return refuse(err)
 		}
 		var intent int64
-		if t.Class == registry.External {
+		if sends {
 			if intent, err = h.GW.Intent(ctx, act, p.ID, name, raw); err != nil {
 				return refuse(err)
 			}

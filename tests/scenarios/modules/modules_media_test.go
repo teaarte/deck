@@ -21,7 +21,7 @@ var unused = [][2]string{
 	{`"item": {"title": "slug"}}`, `"item": {"title": "slug", "image": "file", "markdown": true}}`},
 	{`{"type": "chart",`, `{"type": "chart", "kind": "area",`},
 	{`[{"label": "Again", "screen": "watch"}]`, `[{"label": "Again", "screen": "watch"}, {"label": "Get", "file": "=slug"}]`},
-	{`"menu": ["watch"]}`, `"menu": ["watch"], "reads": [{"project": "other", "collections": ["items"]}]}`},
+	{`"menu": ["watch"]}`, `"menu": ["watch"], "rights": [{"right": "data", "what": ["other.items"], "why": "reads it"}]}`},
 	{`{"type": "actions",`, `{"type": "columns", "blocks": [{"type": "table", "source": {"project": "other", "collection": "items"},
       "columns": [{"label": "N", "bind": "n"}]}]}, {"type": "actions",`},
 }

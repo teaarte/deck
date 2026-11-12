@@ -35,7 +35,7 @@ func TestABoxSeesOnlyWhatItLists(t *testing.T) {
 	e := harness.New(t)
 	e.Project("plain", harness.ScriptManifest("collect", "", ""))
 	e.SaveScript("plain", "scripts/main.py", listScript)
-	e.Project("render", harness.ScriptManifest("collect", "", `, "gpu": true`))
+	e.Project("render", harness.ScriptManifest("collect", "", `, "rights": [{"right": "files", "what": ["gpu"], "why": "renders"}]`))
 	e.SaveScript("render", "scripts/main.py", listScript)
 	var got struct {
 		Top, Var, Devices []string
@@ -64,10 +64,10 @@ func TestABoxSeesOnlyWhatItLists(t *testing.T) {
 		t.Fatalf("with the right the box has the graphics card of the host: %+v %s", got, p.Result)
 	}
 	_, tok := e.Token("terminal", "deck.*")
-	e.As(tok).Call("deck.project_create", map[string]any{"name": "asks", "manifest": harness.ScriptManifest("collect", "", `, "gpu": true`)})
-	widens := e.ProjectRow("asks").Rights
-	if len(widens) != 1 || widens[0] != "gpu: its programs use the graphics card" {
-		t.Fatalf("the graphics card is a right the owner gives: %v", widens)
+	e.As(tok).Call("deck.project_create", map[string]any{"name": "asks", "manifest": harness.ScriptManifest("collect", "", `, "rights": [{"right": "files", "what": ["gpu"], "why": "renders"}]`)})
+	rights := e.ProjectRow("asks").Rights
+	if len(rights) != 1 || rights[0] != "it uses on your machine: gpu" {
+		t.Fatalf("the graphics card is a right the owner gives: %v", rights)
 	}
 }
 
@@ -97,7 +97,7 @@ func TestASecretOfAServerIsNotInTheCommandLineNorSeenByAnotherBox(t *testing.T) 
 	const secret = "sk-server-secret-4711"
 	e := harness.New(t)
 	e.Project("holder", harness.Manifest(fmt.Sprintf(`{"tools": {"mcp": {"servers": {"fake": {"command": %q,
-    "env": {"DECK_FAKE_MCP": "project", "FAKE_TOKEN": "$secret.tok"}, "toolFilter": ["env"], "classes": {"env": "internal"}}}}}}`, harness.Fakes)))
+    "env": {"DECK_FAKE_MCP": "project", "FAKE_TOKEN": "$secret.tok"}, "toolFilter": ["env"], "right": {"env": "network"}}}}}}`, harness.Fakes)))
 	e.Secret("holder", "tok", secret)
 	e.App.Signins.Servers(context.Background(), e.ProjectID("holder"))
 	var said string

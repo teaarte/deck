@@ -199,7 +199,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			return a.Gateway.Count(ctx, &gateway.Session{ProjectID: p.ID, Workspace: p.WorkspaceID, Master: p.Builtin == 1, Commands: cmd.Executor.Calls})
 		}}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
-		MergeGrant: a.Projects.MergeGrant, AddToList: a.Projects.AddToList, Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start, Lang: a.Chats.LangOf,
+		Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start, Lang: a.Chats.LangOf,
 		Shown: func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, bool, error) {
 			return a.Chats.AnswerShown(ctx, act, q, answer)
 		}}

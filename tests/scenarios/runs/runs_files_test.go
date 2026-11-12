@@ -197,7 +197,7 @@ func TestAnAgentDeletesTheFilesOfItsProject(t *testing.T) {
 		b, _ := json.Marshal(said)
 		return provider.Result{Text: string(b)}
 	}))
-	clean := `{"name": "clean", "title": "Clean", "description": "Cleans.", "class": "internal", "executor": {"type": "agent", "prompt": "Clean."}},`
+	clean := `{"name": "clean", "title": "Clean", "description": "Cleans.", "executor": {"type": "agent", "prompt": "Clean."}},`
 	house := e.Project("house", strings.Replace(harness.FilesManifest(), `"commands": [`, `"commands": [`+clean, 1))
 	other := e.Project("other", harness.FilesManifest())
 	for _, p := range []string{"house", "other"} {

@@ -18,7 +18,7 @@ import (
 )
 
 var videoManifest = harness.Manifest(`{"commands": [
-    {"name": "clip", "title": "Clip", "description": "Brings a scene to life.", "class": "internal",
+    {"name": "clip", "title": "Clip", "description": "Brings a scene to life.",
      "input": {"type": "object", "properties": {"scene": {"type": "string"}, "first_frame": {"type": "string", "format": "file"},
        "last_frame": {"type": "string", "format": "file"}}},
      "executor": {"type": "model", "kind": "video", "prompt": "Slow camera push, no text.", "options": {"duration": 4, "aspect_ratio": "9:16"}}}
@@ -63,7 +63,7 @@ func TestAVideoModelMakesAClipOfTheJobItStarted(t *testing.T) {
 	}
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "alibaba/wan-2.6", "name": "wan", "kind": "video"}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "video", "models": []string{"local-video", "wan"}}, nil)
-	e.Project("films", videoManifest)
+	e.Project("films", harness.Declared(videoManifest))
 	frame := func(name, body string) string {
 		var f struct{ ID int64 }
 		e.Must("deck.file_upload", map[string]any{"project": "films", "name": name, "content": base64.StdEncoding.EncodeToString([]byte(body))}, &f)
@@ -131,7 +131,7 @@ func TestAVideoJobThatFailsOrNeverEndsIsAnError(t *testing.T) {
 		e.Must("deck.connection_set", map[string]any{"name": name, "api": "openai", "url": api.URL + "/api/v1"}, nil)
 		e.Must("deck.model_set", map[string]any{"connection": name, "model": "veo", "name": name, "kind": "video", "call_usd": 0.4}, nil)
 	}
-	e.Project("films", videoManifest)
+	e.Project("films", harness.Declared(videoManifest))
 	for _, c := range []struct{ first, want string }{{"failed", "the prompt was refused"}, {"stuck", "not ready in 1s"}} {
 		e.Must("deck.assignment_set", map[string]any{"role": "video", "models": []string{c.first, "spare"}}, nil)
 		got := e.WaitState(e.Start("films", "clip", map[string]any{"scene": "a knight"}), "done", "error")
@@ -167,7 +167,7 @@ func TestAVideoCommandOfAManifestTakesAPromptAndItsFrames(t *testing.T) {
 	frames := strings.Replace(videoManifest, `"last_frame": {"type": "string", "format": "file"}`,
 		`"last_frame": {"type": "array", "items": {"type": "string", "format": "file"}}`, 1)
 	e.Refused("deck.project_create", map[string]any{"name": "films", "manifest": frames}, 422, "input field last_frame is a list of files")
-	e.Project("films", videoManifest)
+	e.Project("films", harness.Declared(videoManifest))
 	// A manifest an older deck saved before it refused a list of files.
 	e.PlantRevision("films", "manifest.json", frames)
 	var got struct{ Warnings []string }
@@ -195,8 +195,8 @@ func TestALongCallOfAnAgentTellsItThatItStillRuns(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "alibaba/wan-2.6", "name": "wan", "kind": "video", "call_usd": 0.1}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "video", "models": []string{"wan"}}, nil)
-	e.Project("studio", harness.Manifest(`{"models": ["@video"], "commands": [{"name": "animate", "title": "Animate",
-	  "description": "Brings a scene to life.", "class": "internal", "executor": {"type": "agent", "prompt": "Make the clip."}}]}`))
+	e.Project("studio", harness.Declared(harness.Manifest(`{"rights": [{"right": "money", "what": ["@video"], "why": "calls models"}], "commands": [{"name": "animate", "title": "Animate",
+	  "description": "Brings a scene to life.", "executor": {"type": "agent", "prompt": "Make the clip."}}]}`)))
 	if got := e.WaitState(e.Start("studio", "animate", map[string]any{}), "done", "error"); got.State != "done" || bad || !strings.Contains(out, `"type":"video/mp4"`) {
 		t.Fatalf("the agent gets the clip: %+v %s", got, out)
 	}
@@ -214,7 +214,7 @@ func TestAVideoJobIsAskedAfterOnlyByTheModuleThatStartedIt(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1", "key": "sk-or"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "alibaba/wan-2.6", "name": "wan", "kind": "video"}, nil)
 	for _, p := range []string{"films", "other"} {
-		e.Project(p, harness.ScriptManifest("media", "", `, "models": ["openrouter"]`))
+		e.Project(p, harness.Declared(harness.ScriptManifest("media", "", `, "rights": [{"right": "money", "what": ["openrouter"], "why": "calls models"}]`)))
 		e.SaveScript(p, "scripts/main.py", modelScript)
 	}
 	call := func(project string, in map[string]any) map[string]any {

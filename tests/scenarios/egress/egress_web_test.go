@@ -71,7 +71,7 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 
 	useSearch(e, "searxng", search.URL)
 	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
-	open := harness.Manifest(`{"domains": {"read": ["127.0.0.1"]}, "commands": [`) + harness.AgentCommand("look", "") + `]}`
+	open := harness.Manifest(`{"rights": [{"right": "network", "what": ["127.0.0.1"], "why": "reads it"}], "commands": [`) + harness.AgentCommand("look", "") + `]}`
 	e.WaitState(e.Run(e.Project("open", open), "look"), "done")
 	closed := harness.Manifest(`{"commands": [`) + harness.AgentCommand("hide", "") + `]}`
 	e.WaitState(e.Run(e.Project("closed", closed), "hide"), "done")
@@ -87,7 +87,7 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 		!strings.Contains(look[1], `Heading\nFirst paragraph.\nSecond`) || strings.Contains(look[1], "secret") {
 		t.Fatalf("a page of its domains comes as its words: %v", look[1])
 	}
-	if !strings.HasPrefix(look[2], "true ") || !strings.Contains(look[2], "domains") || len(page.Requests()) != 1 {
+	if !strings.HasPrefix(look[2], "true ") || !strings.Contains(look[2], "holds the network of") || len(page.Requests()) != 1 {
 		t.Fatalf("a page outside its domains is refused unread: %v, %d requests", look[2], len(page.Requests()))
 	}
 	if len(hide) != 3 || !strings.HasPrefix(hide[0], "false ") || !strings.HasPrefix(hide[1], "true ") || !strings.HasPrefix(hide[2], "true ") {
@@ -215,7 +215,7 @@ func TestTheJournalKeepsTheAddressOfEveryPageRead(t *testing.T) {
 	}))
 	useSearch(e, "searxng", search.URL)
 	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
-	m := harness.Manifest(`{"domains": {"read": ["127.0.0.1"]}, "commands": [`) + harness.AgentCommand("look", "") + `]}`
+	m := harness.Manifest(`{"rights": [{"right": "network", "what": ["127.0.0.1"], "why": "reads it"}], "commands": [`) + harness.AgentCommand("look", "") + `]}`
 	e.WaitState(e.Run(e.Project("reader", m), "look"), "done")
 
 	var calls []struct{ Tool, Outcome, Params, Error string }
@@ -244,7 +244,7 @@ func TestTheJournalKeepsTheAddressOfEveryPageRead(t *testing.T) {
 		page.URL + "/doc":   func(s string) bool { return s == "done [] " },
 		page.URL + "/moved": func(s string) bool { return s == "done "+page.URL+"/landed[] " },
 		"https://example.com/outside": func(s string) bool {
-			return strings.HasPrefix(s, "rejected [] deck: ") && strings.Contains(s, "domains")
+			return strings.HasPrefix(s, "rejected [] deck: ") && strings.Contains(s, "holds the network of")
 		},
 	}
 	if len(got) != len(want) {

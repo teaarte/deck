@@ -27,7 +27,7 @@ func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 		return provider.Result{Text: "Read it."}
 	}))
 
-	e.Project("web", harness.WebNotes)
+	e.Project("web", harness.Declared(harness.WebNotes))
 	id := e.Upload("master", "plan.txt", "text/plain", "the plan")
 	topic := e.Say(0, "look at the plan", map[string]any{"screen": `{"project":"web","screen":"main"}`, "files": []string{fmt.Sprint(id)}})
 	e.MasterSaid(topic, 1)
@@ -158,7 +158,7 @@ func TestTheOwnerDeletesAMessageTheMasterHasNotTaken(t *testing.T) {
 	}))
 
 	e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
-	busy := e.Run(e.Project("busy", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil)), "work")
+	busy := e.Run(e.Project("busy", harness.Declared(harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))), "work")
 	e.WaitState(busy, "running")
 	topic := e.Say(0, "first")
 	mp, _ := e.App.Store.Q.GetProjectByName(context.Background(), db.GetProjectByNameParams{WorkspaceID: 1, Name: "master"})
@@ -195,7 +195,7 @@ func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
 	t.Parallel()
 	fake := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Read it."} }}
 	e := harness.New(t, harness.WithProvider(fake))
-	e.Project("web", harness.WebNotes)
+	e.Project("web", harness.Declared(harness.WebNotes))
 	id := e.Upload("web", "plan.txt", "text/plain", "the plan")
 	topic := e.Say(0, "hello")
 	e.MasterSaid(topic, 1)
@@ -229,7 +229,7 @@ func TestAReplyThatCannotGiveItsFilesFailsOnce(t *testing.T) {
 var pictureModule = harness.Manifest(`{"collections": [{"name": "pics", "description": "Pictures", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "file": {}}, "required": ["title"]}}],
   "commands": [
-    {"name": "picture", "title": "Picture", "description": "Draws a scene.", "class": "internal",
+    {"name": "picture", "title": "Picture", "description": "Draws a scene.",
      "input": {"type": "object", "properties": {"scene": {"type": "string"}}},
      "executor": {"type": "model", "kind": "image", "prompt": "Draw the scene."}}],
   "screens": [{"name": "main", "title": "Pictures", "blocks": [
@@ -249,7 +249,7 @@ func TestAFileOfAResultIsNamedByTheIdMediaTakes(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image"}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"openrouter/google/gemini-3.1-flash-lite-image"}}, nil)
-	e.Project("art", pictureModule)
+	e.Project("art", harness.Declared(pictureModule))
 	got := e.WaitState(e.Start("art", "picture", map[string]any{"scene": "a desk"}), "done", "error")
 	var res struct {
 		File  any `json:"file"`
@@ -295,7 +295,7 @@ func TestFilesOfAReplyShowInTheChat(t *testing.T) {
 		return provider.Result{Text: fmt.Sprintf("Here it is, and [the old one](#/file/%d).", linked)}
 	}))
 
-	e.Project("art", pictureModule)
+	e.Project("art", harness.Declared(pictureModule))
 	linked = e.Upload("art", "old.txt", "text/plain", "an older take")
 	topic := e.Say(0, "make a voice")
 	e.MasterSaid(topic, 1)

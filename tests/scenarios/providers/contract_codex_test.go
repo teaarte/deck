@@ -20,7 +20,7 @@ func TestCodexRetryResumesTheThreadOfTheSession(t *testing.T) {
 	c.Stream(1, "nosubmit.jsonl")
 	c.Stream(2, "resume.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	id := e.Run(p, "work")
 	got := e.WaitState(id, "done", "error")
 	first, second := c.Call(1), c.Call(2)
@@ -48,7 +48,7 @@ func TestCodexLostThreadStartsTheSessionOver(t *testing.T) {
 	c.Stream(2, "norollout.jsonl")
 	c.Stream(3, "ok.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	id := e.Run(p, "work")
 	got := e.WaitState(id, "done", "error")
 	if got.State != "done" || c.Calls() != 3 || c.Call(3).Request("thread/start") == nil {
@@ -64,7 +64,7 @@ func TestCodexLostLoginAndLimit(t *testing.T) {
 		c := harness.NewCodex(t)
 		c.Stream(1, tc.fixture)
 		e := harness.New(t, harness.WithCodex(c))
-		p := e.Project("paint", harness.ColorManifest)
+		p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 		id := e.Run(p, "work")
 		e.WaitState(id, tc.state)
 		if tc.state == "waiting:limit" {
@@ -83,7 +83,7 @@ func TestCodexOutOfCreditsEndsItsTurn(t *testing.T) {
 	c := harness.NewCodex(t)
 	c.Stream(1, "credits.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	id := e.Run(e.Project("paint", harness.ColorManifest), "work")
+	id := e.Run(e.Project("paint", harness.OnLogin(harness.ColorManifest)), "work")
 	if got := e.WaitState(id, "waiting:limit", "error", "done"); got.State != "waiting:limit" {
 		t.Fatalf("the process waits for the limit, its turn ended: %+v", got)
 	}
@@ -111,7 +111,7 @@ func TestCodexTurnSucceedsOnlyStrictly(t *testing.T) {
 		}
 		c.StreamText(1, strings.Join(lines, "\n"))
 		e := harness.New(t, harness.WithCodex(c))
-		p := e.Project("paint", harness.ColorManifest)
+		p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 		id := e.Run(p, "work")
 		if got := e.WaitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, tc.want) {
 			t.Fatalf("%s: want an error with %q: %+v", tc.fixture, tc.want, got)
@@ -124,7 +124,7 @@ func TestCodexSubAgentEventsAreNotProcessEvents(t *testing.T) {
 	c := harness.NewCodex(t)
 	c.Stream(1, "subagent.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("a completed turn of another thread or an earlier turn does not end the turn: %+v", got)
@@ -146,7 +146,7 @@ func TestCodexThatDoesNotExitAfterItsTurnIsKilled(t *testing.T) {
 	c := harness.NewCodex(t)
 	c.Stream(1, "hang.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the turn of an app-server that stays after it counts: %+v", got)
@@ -170,7 +170,7 @@ func TestCodexThatClosesItsOutputButStaysIsKilled(t *testing.T) {
 	}
 	c.StreamText(1, strings.Replace(string(raw), `{"hang": true}`, `{"deaf": true}`, 1))
 	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	start := time.Now()
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" || time.Since(start) > 15*time.Second {
@@ -185,7 +185,7 @@ func TestCodexLimitReachedAfterItsTurnLeavesTheResult(t *testing.T) {
 	c := harness.NewCodex(t)
 	c.Stream(1, "spent_after.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	if got := e.WaitState(e.Run(e.Project("paint", harness.ColorManifest), "work"), "done", "error", "waiting:limit"); got.State != "done" {
+	if got := e.WaitState(e.Run(e.Project("paint", harness.OnLogin(harness.ColorManifest)), "work"), "done", "error", "waiting:limit"); got.State != "done" {
 		t.Fatalf("the completed turn counts: %+v", got)
 	}
 }
@@ -224,7 +224,7 @@ func TestCodexResumeAfterALateAnswerAsksForTheResultAgain(t *testing.T) {
 	c.Stream(2, "resume.jsonl")
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)), harness.WithConfig(func(cfg *app.Config) { cfg.QuestionWait = 200 * time.Millisecond }))
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting:answer")
 	if m := c.Call(1).Mcp; len(m) == 0 || m[0]["is_error"] != true || !strings.Contains(m[0]["text"].(string), "not answered yet") {
@@ -248,7 +248,7 @@ func TestCodexSessionWithoutItsThreadStartsOver(t *testing.T) {
 	c.Stream(3, "resume.jsonl")
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)), harness.WithConfig(func(cfg *app.Config) { cfg.QuestionWait = 200 * time.Millisecond }))
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting:answer")
 	if err := os.RemoveAll(filepath.Join(deckhome.Layout(home).State(), "codex", "sessions")); err != nil {
@@ -265,7 +265,7 @@ func TestCodexApprovalOfAnotherTurnIsDeclinedWithoutAsking(t *testing.T) {
 	c := harness.NewCodex(t)
 	c.Stream(1, "escalation_staleturn.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("outside", outsideManifest)
+	p := e.Project("outside", harness.OnLogin(outsideManifest))
 	id := e.Run(p, "work")
 	got := e.WaitState(id, "done", "error")
 	var asks []harness.Ask
@@ -281,7 +281,7 @@ func TestCodexOwnerServerNamedDeckIsAnError(t *testing.T) {
 	c := harness.NewCodex(t)
 	c.Stream(1, "deckserver.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, "MCP server named deck") {
 		t.Fatalf("an MCP server of the owner named deck stops the turn with a clear error: %+v", got)
@@ -306,7 +306,7 @@ func TestCodexTurnGoesOnWhenTheAppServerStopsReadingWhileItWrites(t *testing.T) 
 	c.StreamText(0, strings.Join(out, "\n")+"\n")
 	e := harness.New(t, harness.WithCodex(c))
 	m := strings.Replace(harness.ColorManifest, "Ask the owner which color the report should use.", strings.Repeat("Pick blue. ", 30000), 1)
-	p := e.Project("paint", m)
+	p := e.Project("paint", harness.OnLogin(m))
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
 		t.Fatalf("deck reads the output while its long input waits for the app-server: %+v", got)
 	}
@@ -341,7 +341,7 @@ func TestCodexKilledFromOutsideGoesOnInItsThread(t *testing.T) {
 	c.StreamText(1, codexKilled(t))
 	c.Stream(2, "resume.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	id := e.Run(e.Project("paint", harness.ColorManifest), "work")
+	id := e.Run(e.Project("paint", harness.OnLogin(harness.ColorManifest)), "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
 		t.Fatalf("the killed turn goes on in its thread: %+v", got)
 	}
@@ -363,7 +363,7 @@ func TestCodexKilledTwiceSaysWhoKilledIt(t *testing.T) {
 	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
 	c.StreamText(2, strings.Join(append(lines[:7], `{"shell": "kill -TERM $PPID; sleep 5"}`), "\n"))
 	e := harness.New(t, harness.WithCodex(c))
-	got := e.WaitState(e.Run(e.Project("paint", harness.ColorManifest), "work"), "done", "error")
+	got := e.WaitState(e.Run(e.Project("paint", harness.OnLogin(harness.ColorManifest)), "work"), "done", "error")
 	if got.State != "error" || c.Calls() != 2 || !strings.Contains(got.Error, "SIGTERM") || !strings.Contains(got.Error, "not deck") {
 		t.Fatalf("a turn killed twice fails once, naming the signal and that it came from outside deck: %d calls, %+v", c.Calls(), got)
 	}

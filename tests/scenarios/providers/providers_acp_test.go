@@ -100,7 +100,7 @@ func TestACPSelfCheckTellsWhyNoResultCame(t *testing.T) {
 // gooseInit is the initialize of Goose: no session/resume, session/load instead.
 const gooseInit = `{"reply": "initialize", "result": {"protocolVersion": 1, "agentCapabilities": {"loadSession": true, "mcpCapabilities": {"http": true}, "sessionCapabilities": {"list": {}, "close": {}}}, "authMethods": []}}`
 
-var writtenManifest = harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Writes a file", "class": "internal",
+var writtenManifest = harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Writes a file",
     "result": {"type": "object", "required": ["written"], "properties": {"written": {"type": "integer"}}},
     "executor": {"type": "agent", "prompt": "Write the file."}}]}`)
 
@@ -308,13 +308,13 @@ func TestACPProjectWithoutNetworkHasNoWebThroughTheProxy(t *testing.T) {
 			`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
 	}
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	open := harness.ManifestWith(harness.NoNetworkManifest, `"domains": {"read": ["data.example.org"]}`)
+	open := harness.ManifestWith(harness.NoNetworkManifest, `"rights": [{"right": "network", "who": "agent", "what": ["data.example.org"], "why": "reads it"}]`)
 	if got := e.WaitState(e.Run(e.AcpProject("open", open), "work"), "done"); !strings.Contains(string(got.Result), "Checked the page.") {
 		t.Fatalf("what the agent said is the result of a command without a schema: %s", got.Result)
 	}
 	e.WaitState(e.Run(e.AcpProject("private", harness.NoNetworkManifest), "work"), "done")
 	web, off := f.Call(4), f.Call(5)
-	if !strings.Contains(web.Shell[0]["out"], "not in the domains") || !strings.Contains(off.Shell[0]["out"], "not reachable") || len(site.Requests()) != 0 {
+	if !strings.Contains(web.Shell[0]["out"], "not a host this module holds the network of") || !strings.Contains(off.Shell[0]["out"], "not reachable") || len(site.Requests()) != 0 {
 		t.Fatalf("the proxy carries no agent to deck or local services, and nowhere without network: %q / %q", web.Shell[0]["out"], off.Shell[0]["out"])
 	}
 	if web.Shell[1]["out"] != "000" || off.Shell[1]["out"] != "000" {
@@ -615,7 +615,7 @@ func TestACPAgentDoesNotReadTheOwnersHome(t *testing.T) {
 }
 
 // TestACPAgentReachesALocalServiceItsProjectNames: a service of the owner's machine that the project names by IP and
-// port in domains.read is reached by the shell of an ACP agent through deck's proxy, as by a script.
+// port under the network of its agents is reached by the shell of an ACP agent through deck's proxy.
 func TestACPAgentReachesALocalServiceItsProjectNames(t *testing.T) {
 	t.Parallel()
 	local := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { _, _ = w.Write([]byte("hello")) })
@@ -625,7 +625,7 @@ func TestACPAgentReachesALocalServiceItsProjectNames(t *testing.T) {
 		`{"shell": "curl -s -m 5 -o /dev/null -w '%{http_code}' http://`+addr+`/"}`,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"written": 0}}}}`, `{"end": "end_turn"}`))
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
-	m := strings.Replace(writtenManifest, harness.Manifest(`{`), harness.Manifest(fmt.Sprintf(`{"domains": {"read": [%q]},`, addr)), 1)
+	m := strings.Replace(writtenManifest, harness.Manifest(`{`), harness.Manifest(fmt.Sprintf(`{"rights": [{"right": "network", "who": "agent", "what": [%q], "why": "reads it"}],`, addr)), 1)
 	e.WaitState(e.Run(e.AcpProject("paint", m), "work"), "done")
 	if got := f.Call(4).Shell[0]["out"]; got != "200" || len(local.Requests()) != 1 {
 		t.Fatalf("the shell reaches the service its project names: %q, %d requests", got, len(local.Requests()))

@@ -29,7 +29,7 @@ func TestRealClaudeCodeOnANode(t *testing.T) {
 	realHomeAt(t, n.Home)
 	n.Allow("claude-code")
 	n.Start()
-	p := e.Project("ideas", realManifest)
+	p := e.Project("ideas", harness.OnLogin(realManifest))
 	e.UseModels("ideas.collect", "claude-code@Mac")
 	id := e.Run(p, "collect")
 	if stopped := e.WaitState(id, "waiting:answer", "done", "error"); stopped.State != "waiting:answer" {

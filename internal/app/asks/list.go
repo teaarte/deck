@@ -101,7 +101,7 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 		r := s.askRow(ctx, q, names, in)
 		r.Who, r.Always = tr(r.Who), tr(r.Always)
 		switch {
-		case q.Kind == ask.KindGrant, q.Kind == ask.KindQuestion:
+		case q.Kind == ask.KindQuestion:
 			r.What = tr(r.What)
 		case q.Kind == ask.KindLogin:
 			r.What, r.Text = tr(r.What), tr(r.Text)
@@ -110,7 +110,7 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 			r.Where = trLines(tr, r.Where)
 		}
 		r.Change = trLines(tr, r.Change)
-		if slices.Contains([]string{ask.KindCall, ask.KindConfirm, ask.KindGrant}, q.Kind) && r.What != "" {
+		if slices.Contains([]string{ask.KindCall, ask.KindConfirm}, q.Kind) && r.What != "" {
 			r.Allow = tr(fmt.Sprintf("Allow: %s", r.What))
 		}
 		r.Actions = buttons(r)
@@ -196,19 +196,10 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 				r.Where = strings.TrimSpace(r.Where + "\n" + fmt.Sprintf("Replaces request %d", id))
 				r.Change = strings.TrimSpace(r.Change + "\n" + fmt.Sprintf("Replaces request %d", id))
 			}
-			r.Always = s.always(r.Project, f, c, r.What)
+			r.Always = s.always(ctx, q, r.Project, f, c, r.What)
 		} else if r.Project != "" && strings.HasPrefix(f.Call.Command, r.Project+".") {
 			r.Always = fmt.Sprintf("Always let %s run %s", r.Project, strings.TrimPrefix(f.Call.Command, r.Project+"."))
 		}
-	case ask.KindGrant:
-		f, _ := ask.Decode[gateway.Frozen](q.Payload)
-		r.Who, r.What, r.Where = s.callerWho(ctx, f.Caller), fmt.Sprintf("Widen the rights of %s", r.Project), strings.Join(f.Widens, "; ")
-		if f.Caller.Process != 0 {
-			r.By = s.processName(ctx, f.Caller.Process)
-		}
-		r.Text, r.Change = cmp.Or(f.Reason, "no reason given"), r.Where
-		r.Why = cmp.Or(f.Reason, r.Why)
-		r.Payload, _ = json.Marshal(map[string]any{"widens": f.Widens, "reason": f.Reason})
 	case ask.KindConfirm:
 		if pl, err := ask.Decode[ask.Confirm](q.Payload); err == nil && pl.Tool != "" {
 			r.What, r.Change = pl.Tool, confirmFields(pl.Input)
@@ -270,19 +261,29 @@ func (s *Service) callerWho(ctx context.Context, c gateway.Caller) string {
 	return s.callerName(ctx, c)
 }
 
-// always says what a yes for always to frozen call f of command c of project would allow from now on: its own
-// external command or tool, or the site of a browser action; empty for a call allowed only once.
-func (s *Service) always(project string, f gateway.Frozen, c *registry.Command, title string) string {
+// always says what a yes for always to frozen call f of c would allow: its own command or tool, the site of a browser
+// action, or what a call of a model spends, in the words of the catalog; empty for a call allowed only once.
+func (s *Service) always(ctx context.Context, q db.Ask, project string, f gateway.Frozen, c *registry.Command, title string) string {
+	if project == "" || c.Class != registry.External {
+		return ""
+	}
 	if strings.HasPrefix(f.Call.Command, registry.Deck("browser_")) {
 		if u, err := url.Parse(f.Tool); err == nil && u.Host != "" {
 			return fmt.Sprintf("Always let %s act on %s", project, u.Host)
 		}
 		return ""
 	}
-	if project == "" || !strings.HasPrefix(f.Call.Command, project+".") || c.Class != registry.External {
+	if strings.HasPrefix(f.Call.Command, project+".") {
+		return fmt.Sprintf("Always let %s run %s", project, cmp.Or(title, c.Name))
+	}
+	if c.Gate.Needs == nil {
 		return ""
 	}
-	return fmt.Sprintf("Always let %s run %s", project, cmp.Or(title, c.Name))
+	n := s.Gateway.Need(ctx, registry.Actor{Kind: registry.Agent, Workspace: q.WorkspaceID, ProjectID: q.ProjectID.Int64}, c, f.Tool, f.Call.Input)
+	if n.Subject == "" {
+		return ""
+	}
+	return fmt.Sprintf("Always let %s: %s", project, manifest.Says(func(t string) string { return t }, n.Right, n.Who, []string{n.Subject}))
 }
 
 // callerName says who made a frozen call: a process, a token, a trigger, the master or the owner.

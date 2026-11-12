@@ -15,7 +15,7 @@ import (
 
 var leftManifest = harness.Manifest(`{"collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
-  "commands": [{"name": "collect", "title": "Collect", "description": "Collects an item.", "class": "internal",
+  "commands": [{"name": "collect", "title": "Collect", "description": "Collects an item.",
     "result": {"type": "object"}, "executor": {"type": "script", "script": "collect"}}],
   "writes": ["notes.md"],
   "scripts": [{"name": "collect", "file": "scripts/collect.py", "runtime": "python"}]}`)
@@ -257,7 +257,7 @@ func TestTrialOfAToolIsRefusedAndNothingLeavesDeck(t *testing.T) {
 	}
 	e.WaitState(try.Process, "done")
 	e.Must("deck.manifest_save", map[string]any{"project": "notes",
-		"manifest": strings.Replace(harness.PostManifest(svc.URL, ""), `"class": "internal",`, `"class": "internal", "callers": ["owner"],`, 1)}, nil)
+		"manifest": strings.Replace(harness.PostManifest(svc.URL, ""), `"executor": {`, `"callers": ["owner"], "executor": {`, 1)}, nil)
 	if code, out := e.As(tok).Call("deck.command_try", map[string]any{"live": true, "command": "notes.work"}); code != 403 || !strings.Contains(string(out), "cannot be called by master") {
 		t.Fatalf("a command closed to the master is not tried by a token: %d %s", code, out)
 	}
@@ -288,9 +288,10 @@ func TestATrialOfAToolCommandWaitsForTheOwner(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
 	e := harness.New(t)
-	send := strings.Replace(harness.PostManifest(svc.URL, ""), `"commands": [`, `"commands": [{"name": "send", "title": "Send",
-    "description": "Sends the note.", "class": "external", "executor": {"type": "tool", "tool": "post"},
-    "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]}},`, 1)
+	send := strings.NewReplacer(`"commands": [`, `"commands": [{"name": "send", "title": "Send",
+    "description": "Sends the note.", "executor": {"type": "tool", "tool": "post"},
+    "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]}},`,
+		`"what": ["post"]`, `"what": ["post", "send"]`).Replace(harness.PostManifest(svc.URL, ""))
 	e.Project("notes", send)
 	e.Secret("notes", "svc", "s3cret")
 	_, tok := e.Token("terminal", "deck.project_create", "deck.command_try")

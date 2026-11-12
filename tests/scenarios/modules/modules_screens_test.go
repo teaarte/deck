@@ -467,7 +467,7 @@ func TestAValueIsFixedTextOrAnExpression(t *testing.T) {
 	e := harness.New(t)
 	m := harness.Manifest(`{"collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "id": {"type": "string"}}, "required": ["title"]}}],
-  "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
+  "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "result": {"type": "object"},
     "input": {"type": "object", "properties": {"score": {"type": "string"}, "note": {"type": "integer", "format": "record"}}, "required": ["note"]},
     "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Notes", "blocks": [{"type": "table", "title": "Notes", "source": {"collection": "notes"},
@@ -500,7 +500,7 @@ func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
 	e := harness.New(t)
 	pid := e.Project("notes", harness.Manifest(`{"collections": [{"name": "notes", "description": "Notes", "key": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "first-name": {"type": "string"}, "in": {"type": "string"}}, "required": ["title"]}}],
-  "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal", "result": {"type": "object"},
+  "commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "result": {"type": "object"},
     "input": {"type": "object", "properties": {"process": {"type": "integer"}, "who": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Main", "blocks": [
@@ -526,7 +526,7 @@ func TestAnExpressionReadsARowOfDeckAndAFieldWithNoNameOfItsOwn(t *testing.T) {
 func TestATextThatMentionsAnOldParamIsNoParam(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	m := harness.Manifest(`{"commands": [{"name": "touch", "title": "Touch", "description": "Touches.", "class": "internal",
+	m := harness.Manifest(`{"commands": [{"name": "touch", "title": "Touch", "description": "Touches.",
     "result": {"type": "object"}, "input": {"type": "object", "properties": {"n": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "actions", "title": "Runs",
     "description": "Old screens wrote $param.n", "actions": [{"label": "Touch", "command": "touch", "params": {"n": "%s"}}]}]}]}`)

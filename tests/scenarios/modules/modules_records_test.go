@@ -130,7 +130,7 @@ func TestAgentReadsARecordByIDOnlyInItsProjectOrItsReads(t *testing.T) {
 
 	e.Project("docs", harness.FilesManifest())
 	rec, _ = seeded(e)
-	for i, m := range []string{harness.PlainManifest, strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "reads": [{"project": "docs", "collections": ["items"]}]`, 1)} {
+	for i, m := range []string{harness.PlainManifest, strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "rights": [{"right": "data", "what": ["docs.items"], "why": "reads it"}]`, 1)} {
 		p := e.Project(fmt.Sprintf("p%d", i), m)
 		e.WaitState(e.Run(p, "work"), "done", "error")
 	}
@@ -252,7 +252,7 @@ func TestKeyFieldsStayImmutableWithReferencedSchemas(t *testing.T) {
 var numbersManifest = harness.Manifest(`{
   "collections": [{"name": "items", "description": "Items", "key": "id", "display": "name",
     "schema": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}, "score": {"type": "number"}}, "required": ["id"]}}],
-  "commands": [{"name": "pick", "title": "Pick", "description": "Picks an item", "class": "internal",
+  "commands": [{"name": "pick", "title": "Pick", "description": "Picks an item",
     "input": {"type": "object", "properties": {"item": {"type": "integer", "format": "record"}, "name": {"type": "string"}, "why": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "Pick."}}],
   "screens": [{"name": "main", "title": "Items", "blocks": [{"type": "table", "title": "Best",

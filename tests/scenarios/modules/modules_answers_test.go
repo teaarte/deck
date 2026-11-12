@@ -153,15 +153,15 @@ func TestTheToolOfACommandShowsItsResultAndAnExample(t *testing.T) {
 		long[f] = map[string]any{"type": "string", "description": "The " + f + " of the report, as the owner reads it."}
 		long[f+"_n"] = map[string]any{"type": []string{"integer", "null"}, "minimum": 0}
 	}
-	report, _ := json.Marshal(map[string]any{"name": "report", "title": "Report", "description": "Reports.", "class": "internal",
+	report, _ := json.Marshal(map[string]any{"name": "report", "title": "Report", "description": "Reports.",
 		"input":    map[string]any{"type": "object", "properties": map[string]any{"day": map[string]any{"type": "string", "examples": []string{"2026-11-11"}}, "n": map[string]any{"type": "integer"}}, "required": []string{"day", "n"}},
 		"result":   map[string]any{"type": "object", "properties": long},
 		"executor": map[string]any{"type": "agent", "prompt": "Report."}})
-	lookup := `{"name": "lookup", "title": "Lookup", "description": "Finds a note.", "class": "internal",
+	lookup := `{"name": "lookup", "title": "Lookup", "description": "Finds a note.",
 	  "input": {"type": "object", "properties": {"topic": {"type": "string", "examples": ["tea", "coffee"]}, "limit": {"type": "integer"}}, "required": ["topic"]},
 	  "result": {"type": "object", "title": "Notes", "properties": {"description": {"type": "string", "description": "What was found"}}},
 	  "executor": {"type": "agent", "prompt": "Find notes."}}`
-	review := `{"name": "review", "title": "Review", "description": "Reviews notes.", "class": "internal",
+	review := `{"name": "review", "title": "Review", "description": "Reviews notes.",
 	  "result": {"type": "object", "properties": {"n": {"type": "integer"}}},
 	  "executor": {"type": "agent", "prompt": "Review notes.", "calls": ["notes.lookup", "notes.report"]}}`
 	p := e.Project("notes", harness.TestManifest([]string{lookup, string(report), review}, nil))
@@ -185,11 +185,11 @@ func TestAnAgentIsWarnedOfACallWithoutAnAnswer(t *testing.T) {
 	e := harness.New(t)
 	module := func(result string) string {
 		return harness.Manifest(`{"commands": [
-	  {"name": "lookup", "title": "Lookup", "description": "Finds a note.", "class": "internal"` + result + `,
+	  {"name": "lookup", "title": "Lookup", "description": "Finds a note."` + result + `,
 	   "executor": {"type": "agent", "prompt": "Find notes."}},
-	  {"name": "tidy", "title": "Tidy", "description": "Tidies notes.", "class": "internal", "callers": ["owner"],
+	  {"name": "tidy", "title": "Tidy", "description": "Tidies notes.", "callers": ["owner"],
 	   "executor": {"type": "agent", "prompt": "Tidy notes."}},
-	  {"name": "review", "title": "Review", "description": "Reviews notes.", "class": "internal",
+	  {"name": "review", "title": "Review", "description": "Reviews notes.",
 	   "result": {"type": "object", "properties": {"n": {"type": "integer"}}},
 	   "executor": {"type": "agent", "prompt": "Review notes.", "calls": ["notes.lookup", "notes.tidy", "draft.lookup", "deck.records_list"]}}]}`)
 	}

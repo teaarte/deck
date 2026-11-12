@@ -20,8 +20,6 @@ const (
 	KindConfirm  = "confirm"
 	// KindLogin asks the owner to log the provider in again and pick one of LoginAnswers.
 	KindLogin = "login"
-	// KindGrant waits for the owner to allow a frozen call that widens the rights of a project.
-	KindGrant = "grant"
 	// KindCall waits for the owner to allow a frozen gateway call that deck then makes itself.
 	KindCall = "call"
 	// KindUnknown is an external call whose outcome deck lost; the owner answers with one of UnknownAnswers.
@@ -61,7 +59,6 @@ var answers = map[string]struct {
 	KindLogin:   {LoginAnswers, "answer a login ask with retry or new_session"},
 	KindUnknown: {UnknownAnswers, "answer an unknown outcome with retry or done"},
 	KindCall:    {[]string{"allow", "allow_always", "deny", "deny:"}, "answer a confirmation with allow, allow_always, deny or deny:<reason>"},
-	KindGrant:   {[]string{"allow", "deny", "deny:"}, "answer a grant with allow, deny or deny:<reason>"},
 }
 
 // Check refuses an answer the kind does not take.
@@ -87,7 +84,7 @@ func ForProject(ctx context.Context, q *db.Queries, workspace, project, processI
 }
 
 // Confirmations are the kinds of ask whose close the module of the process that asked hears.
-var Confirmations = []string{KindCall, KindConfirm, KindGrant}
+var Confirmations = []string{KindCall, KindConfirm}
 
 // heard keeps a new confirmation of a process for its module to hear how it closes.
 func heard(ctx context.Context, q *db.Queries, a db.Ask, err error) (db.Ask, error) {

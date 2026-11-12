@@ -33,7 +33,7 @@ func TestAModelCommandAnswersByItsSchema(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text", "input_usd": 0.5, "output_usd": 1}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	got := e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "Snails beat knights in 1300"}), "done", "error")
 	if got.State != "done" || got.NotBySchema || string(got.Result) != `{"confidence":0.9,"verdict":"false"}` {
 		t.Fatalf("the model's JSON is the result: %+v", got)
@@ -73,7 +73,7 @@ func TestModelCommandsMakeFilesOfPicturesAndSpeechAndTextOfRecordings(t *testing
 		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": model, "kind": kind}, nil)
 		e.Must("deck.assignment_set", map[string]any{"role": kind, "models": []string{"openrouter/" + model}}, nil)
 	}
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	for _, c := range []struct {
 		command string
 		input   map[string]any
@@ -130,7 +130,7 @@ func TestAModelCommandOfATrialWaitsForTheOwner(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	var tried struct{ Process int64 }
 	e.Must("deck.command_try", map[string]any{"live": true, "only": true, "command": "films.factcheck", "input": map[string]any{"claim": "two"}}, &tried)
 	e.WaitState(tried.Process, "waiting:answer")
@@ -156,7 +156,7 @@ func TestAModelCallSpeaksTheOpenAICompatibleProtocol(t *testing.T) {
 	e := harness.New(t, harness.WithProvider(&harness.Fake{}))
 	e.Must("deck.connection_set", map[string]any{"name": "native", "api": "google", "url": api.URL + "/v1beta", "key": "AIza-1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "native", "model": "gemini-3.8-flash", "name": "native-gemini", "kind": "text"}, nil)
-	e.Project("films", strings.Replace(harness.ModelManifest, `"kind": "text",`, `"kind": "text", "model": "native-gemini",`, 1))
+	e.Project("films", harness.Declared(strings.Replace(harness.ModelManifest, `"kind": "text",`, `"kind": "text", "model": "native-gemini",`, 1)))
 	got := e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "x"}), "done", "error")
 	if got.State != "error" || !strings.Contains(got.Error, "OpenAI-compatible") || len(made(api)) != 0 {
 		t.Fatalf("a connection of the Google API says to use its OpenAI-compatible address: %+v", got)
@@ -218,7 +218,7 @@ func TestAModelThatBrokeOffAfterTheRequestHasNoFallback(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "cut", "model": "a", "kind": "text", "free": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "spare", "model": "b", "kind": "text", "free": true}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"cut/a", "spare/b"}}, nil)
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	if got := e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "x"}), "done", "error"); got.State != "error" || len(made(spare)) != 0 {
 		t.Fatalf("a cut answer is an error and the fallback is not asked: %+v", got)
 	}
@@ -253,7 +253,7 @@ func TestAModelInUseAndAConnectionWithModelsStay(t *testing.T) {
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model", "groq/spare-model"}}, nil)
 	e.Refused("deck.connection_delete", map[string]any{"name": "groq"}, 422, "remove the models first")
 	e.Must("deck.model_delete", map[string]any{"name": "groq/fact-model"}, nil)
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	got := e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "Owls are birds"}), "done", "error")
 	if c := api.Calls(); got.State != "done" || len(c) != 1 || c[0].Model != "spare-model" {
 		t.Fatalf("the assignment goes on with the next model: %+v %+v", got, c)
@@ -292,7 +292,7 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.04}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"local-image", "openrouter/painter"}}, nil)
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	health := func() (string, string) {
 		var status, text string
 		if h := e.HealthRowOf("model:local-image"); h != nil {
@@ -373,7 +373,7 @@ func TestAMusicModelMakesATrackOfItsOwnPathOrOfChatAudio(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "medium", "name": "local-music", "kind": "music", "free": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/lyria-3-pro-preview", "name": "lyria", "kind": "music", "call_usd": 0.08}, nil)
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	track := func(model, want string) {
 		t.Helper()
 		e.Must("deck.assignment_set", map[string]any{"role": "music", "models": []string{model}}, nil)
@@ -445,7 +445,7 @@ func TestAModelPricedPerCharOrSecondCostsWhatItTook(t *testing.T) {
 	}
 	e.Must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"fish"}}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"whisper"}}, nil)
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	var voice struct {
 		Cost *float64 `json:"cost_usd"`
 	}
@@ -561,7 +561,7 @@ func TestALocalServerOfPicturesTakesOneCallAtATime(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": srv.URL + "/v1", "local": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "klein", "name": "local-image", "kind": "image", "free": true}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "image", "models": []string{"local-image"}}, nil)
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	ids := []int64{}
 	for range 3 {
 		ids = append(ids, e.Start("films", "picture", map[string]any{"scene": "a cube"}))
@@ -629,10 +629,10 @@ func TestAnImageModelEditsThePictureInFile(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "chat", "api": "openai", "url": srv.URL + "/chat/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "flux-edit", "kind": "image"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "chat", "model": "gemini-image", "kind": "image"}, nil)
-	e.Project("films", harness.Manifest(`{"commands": [
-	  {"name": "redraw", "title": "Redraw", "description": "Edits a picture.", "class": "internal",
+	e.Project("films", harness.Declared(harness.Manifest(`{"commands": [
+	  {"name": "redraw", "title": "Redraw", "description": "Edits a picture.",
 	   "input": {"type": "object", "properties": {"picture": {"type": "string", "format": "file"}}, "required": ["picture"]},
-	   "executor": {"type": "model", "kind": "image", "prompt": "Make the cube blue.", "options": {"steps": 4}}}]}`))
+	   "executor": {"type": "model", "kind": "image", "prompt": "Make the cube blue.", "options": {"steps": 4}}}]}`)))
 	var f struct{ ID int64 }
 	e.Must("deck.file_upload", map[string]any{"project": "films", "name": "cube.png", "content": base64.StdEncoding.EncodeToString([]byte(png))}, &f)
 	for _, model := range []string{"media/flux-edit", "chat/gemini-image"} {
@@ -776,7 +776,7 @@ func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "fact-model", "kind": "text"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "keyless", "kind": "text"}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/fact-model"}}, nil)
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	got := e.Fault(e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "one"}), "done", "error").ID)
 	if got.ErrorType != "model.limit" || got.Whose != "model" {
 		t.Fatalf("the last model at its limit is the model's failure: %+v", got)
@@ -862,7 +862,7 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 		e.Must("deck.model_set", map[string]any{"connection": "groq", "model": m, "kind": "text"}, nil)
 	}
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/gpt-oss", "groq/fact-model"}}, nil)
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	if got := e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "one"}), "done", "error"); got.State != "done" {
 		t.Fatalf("the next model takes a request past the limit per minute: %+v %+v", got, e.Fault(got.ID))
 	}
@@ -924,7 +924,7 @@ func TestARequestPastTheLimitsOfAModelGoesToTheNextAtOnce(t *testing.T) {
 		t.Fatalf("the models list gives the limits, kept by a change without them: %+v", m.Models)
 	}
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/small", "groq/fact-model"}}, nil)
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	if got := e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "one"}), "done", "error"); got.State != "done" {
 		t.Fatalf("the next model takes a request past the limit: %+v", e.Fault(got.ID))
 	}
@@ -968,9 +968,9 @@ func TestTheFileOfASpeechGoesToARecordingAsTheCallGaveIt(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "local", "model": "whisper", "name": "whisper", "kind": "stt"}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "tts", "models": []string{"voice"}}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "stt", "models": []string{"whisper"}}, nil)
-	e.Project("films", harness.Manifest(`{"models": ["@tts", "@stt"], "commands": [{"name": "loop", "title": "Loop", "description": "Speaks and hears it back.", "class": "internal",
+	e.Project("films", harness.Declared(harness.Manifest(`{"rights": [{"right": "money", "what": ["@tts", "@stt"], "why": "calls models"}], "commands": [{"name": "loop", "title": "Loop", "description": "Speaks and hears it back.",
 	  "result": {"type": "object"}, "executor": {"type": "script", "script": "loop"}}],
-	  "scripts": [{"name": "loop", "file": "scripts/loop.py", "runtime": "python"}]}`))
+	  "scripts": [{"name": "loop", "file": "scripts/loop.py", "runtime": "python"}]}`)))
 	e.SaveScript("films", "scripts/loop.py", roundTripScript)
 	p := e.WaitState(e.Start("films", "loop", nil), "done", "error")
 	var got struct {

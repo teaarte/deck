@@ -24,7 +24,7 @@ func realModelResume(t *testing.T, e *harness.Env, connection, name, first, seco
 	if !green(h) {
 		t.Fatalf("the self-check of %s on %s is green: %+v", name, first, h)
 	}
-	p := e.Project("plain", strings.Replace(harness.PlainManifest, "Do the work.", "Answer with the one word done. Do not ask anything and run no tool.", 1))
+	p := e.Project("plain", harness.OnLogin(strings.Replace(harness.PlainManifest, "Do the work.", "Answer with the one word done. Do not ask anything and run no tool.", 1)))
 	e.UseModels("plain.work", name)
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {

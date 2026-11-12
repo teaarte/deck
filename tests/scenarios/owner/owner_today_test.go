@@ -19,9 +19,9 @@ import (
 var twoRunsManifest = harness.Manifest(`{"collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
   "commands": [
-    {"name": "look", "title": "Look", "description": "Reads the items.", "class": "internal", "result": {"type": "object"},
+    {"name": "look", "title": "Look", "description": "Reads the items.", "result": {"type": "object"},
      "executor": {"type": "script", "script": "look"}},
-    {"name": "keep", "title": "Keep", "description": "Writes an item.", "class": "internal", "result": {"type": "object"},
+    {"name": "keep", "title": "Keep", "description": "Writes an item.", "result": {"type": "object"},
      "executor": {"type": "script", "script": "keep"}}],
   "scripts": [{"name": "look", "file": "scripts/look.py", "runtime": "python"}, {"name": "keep", "file": "scripts/keep.py", "runtime": "python"}],
   "triggers": [{"command": "look", "cron": "0 9 * * *"}, {"command": "keep", "cron": "0 9 * * *"}]}`)

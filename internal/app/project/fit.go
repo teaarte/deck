@@ -18,43 +18,6 @@ import (
 
 const maxProblems = 20
 
-// checkReads verifies the projects and collections a manifest reads.
-func checkReads(ctx context.Context, q *db.Queries, workspace int64, name string, m *manifest.Manifest) error {
-	for _, r := range m.Reads {
-		onlyModels := !r.Data()
-		switch {
-		case r.Project == name:
-			return registry.Invalid("reads: a project does not need to read itself")
-		case r.Project == manifest.AnyProject && !onlyModels:
-			return registry.Invalid(`reads: %s names every project only for which models do their work and their runs: {"project": "*", "models": true, "runs": true}`, manifest.AnyProject)
-		case r.Project == manifest.AnyProject:
-			continue
-		}
-		p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: r.Project})
-		if err != nil {
-			return registry.Invalid("reads: no project %q", r.Project)
-		}
-		if p.Builtin == 1 && (!onlyModels || r.Runs) {
-			return registry.Invalid("reads: project %s keeps the owner's memory and topics; no project reads it", p.Name)
-		}
-		for _, d := range r.Documents {
-			if strings.HasPrefix(d, docs.MemoryDir) {
-				return registry.Invalid("reads: the memory of %s is for its own agents and the master only", r.Project)
-			}
-		}
-		other, err := docs.Manifest(ctx, q, p)
-		if err != nil {
-			return registry.Invalid("reads: project %q has an invalid manifest: %v", r.Project, err)
-		}
-		for _, c := range r.Collections {
-			if other.Collection(c) == nil {
-				return registry.Invalid("reads: project %q has no collection %q", r.Project, c)
-			}
-		}
-	}
-	return nil
-}
-
 // unassigned are the warnings of the model commands of a manifest that no model of the settings takes.
 func (s *Service) unassigned(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
 	var out []string

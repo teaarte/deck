@@ -18,16 +18,17 @@ func askModule(on bool) string {
 		trigger = `, "triggers": [{"command": "heard", "on": "ask"}]`
 	}
 	return harness.Manifest(fmt.Sprintf(`{"commands": [
-    {"name": "run", "title": "Run", "description": "Asks to publish.", "class": "internal", "result": {"type": ["object", "null"]},
+    {"name": "run", "title": "Run", "description": "Asks to publish.", "result": {"type": ["object", "null"]},
      "executor": {"type": "script", "script": "main"}},
-    {"name": "publish", "title": "Publish", "description": "Publishes outside.", "class": "external",
+    {"name": "publish", "title": "Publish", "description": "Publishes outside.",
      "executor": {"type": "agent", "prompt": "Publish."}},
-    {"name": "heard", "title": "Heard", "description": "Hears the owner's answer.", "class": "internal", "result": {"type": "object"},
+    {"name": "heard", "title": "Heard", "description": "Hears the owner's answer.", "result": {"type": "object"},
      "input": {"type": "object", "properties": {"ask": {"type": "integer"}, "answer": {"type": "string", "enum": ["yes", "no", "expired"]},
        "process": {"type": "integer", "format": "process"}}, "required": ["ask", "answer", "process"]},
      "executor": {"type": "script", "script": "heard"}}],
   "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"},
-    {"name": "heard", "file": "scripts/heard.py", "runtime": "python"}]%s}`, trigger))
+    {"name": "heard", "file": "scripts/heard.py", "runtime": "python"}],
+  "rights": [{"right": "send", "what": ["publish"], "why": "publishes outside"}]%s}`, trigger))
 }
 
 // heardRuns are the inputs the runs of heard of a project got, by ask.
@@ -53,8 +54,8 @@ func TestAModuleHearsTheOwnersAnswerToItsConfirmation(t *testing.T) {
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "bare", "manifest": bare}); code != 422 || !strings.Contains(string(out), `"ask"`) {
 		t.Fatalf("a command a trigger on ask starts declares the field ask: %d %s", code, out)
 	}
-	outward := strings.Replace(askModule(true), `"description": "Hears the owner's answer.", "class": "internal"`, `"description": "Hears the owner's answer.", "class": "external"`, 1)
-	if code, out := e.Call("deck.project_create", map[string]any{"name": "outward", "manifest": outward}); code != 422 || !strings.Contains(string(out), "external") {
+	outward := strings.Replace(askModule(true), `"what": ["publish"]`, `"what": ["publish", "heard"]`, 1)
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "outward", "manifest": outward}); code != 422 || !strings.Contains(string(out), "needs the right send") {
 		t.Fatalf("a trigger on ask starts no external command, which would go without the owner: %d %s", code, out)
 	}
 	for _, name := range []string{"jobs", "other"} {

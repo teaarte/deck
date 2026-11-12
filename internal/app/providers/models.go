@@ -69,7 +69,7 @@ func (s *Service) modelCommands() []*registry.Command {
 		return name + " → " + cmp.Or(strings.Join(sets, ", "), "as the catalog of the connection has it")
 	}
 	d := registry.Def("model_delete", "Remove model",
-		"Removes a model and takes it out of the assignments that name it. A module that lists it in allowed_external removes without the owner a free model its own call added that no assignment names, and the owner sees it with an undo; any other removal waits for the owner.",
+		"Removes a model and takes it out of the assignments that name it. A module the owner lets send it always removes without the owner a free model its own call added that no assignment names, and the owner sees it with an undo; any other removal waits for the owner.",
 		registry.Everyone, s.modelDelete).As(registry.External)
 	d.Gate.Allowed = func(ctx context.Context, a registry.Actor, input json.RawMessage, listed bool) (bool, error) {
 		var in modelDeleteIn

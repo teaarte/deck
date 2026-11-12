@@ -7,11 +7,10 @@ package db
 
 import (
 	"context"
-	"database/sql"
 )
 
 const createProject = `-- name: CreateProject :one
-INSERT INTO project (workspace_id, name, status) VALUES (?, ?, ?) RETURNING id, workspace_id, name, status, paused, builtin, created_at, granted_revision, imported_from
+INSERT INTO project (workspace_id, name, status) VALUES (?, ?, ?) RETURNING id, workspace_id, name, status, paused, builtin, created_at, imported_from
 `
 
 type CreateProjectParams struct {
@@ -31,7 +30,6 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.Paused,
 		&i.Builtin,
 		&i.CreatedAt,
-		&i.GrantedRevision,
 		&i.ImportedFrom,
 	)
 	return i, err
@@ -59,7 +57,7 @@ func (q *Queries) DeleteProjectFiles(ctx context.Context, projectID int64) error
 }
 
 const getProject = `-- name: GetProject :one
-SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision, imported_from FROM project WHERE id = ?
+SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from FROM project WHERE id = ?
 `
 
 func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
@@ -73,14 +71,13 @@ func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
 		&i.Paused,
 		&i.Builtin,
 		&i.CreatedAt,
-		&i.GrantedRevision,
 		&i.ImportedFrom,
 	)
 	return i, err
 }
 
 const getProjectByName = `-- name: GetProjectByName :one
-SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision, imported_from FROM project WHERE workspace_id = ? AND name = ?
+SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from FROM project WHERE workspace_id = ? AND name = ?
 `
 
 type GetProjectByNameParams struct {
@@ -99,28 +96,13 @@ func (q *Queries) GetProjectByName(ctx context.Context, arg GetProjectByNamePara
 		&i.Paused,
 		&i.Builtin,
 		&i.CreatedAt,
-		&i.GrantedRevision,
 		&i.ImportedFrom,
 	)
 	return i, err
 }
 
-const grantProject = `-- name: GrantProject :exec
-UPDATE project SET granted_revision = ? WHERE id = ?
-`
-
-type GrantProjectParams struct {
-	GrantedRevision sql.NullInt64
-	ID              int64
-}
-
-func (q *Queries) GrantProject(ctx context.Context, arg GrantProjectParams) error {
-	_, err := q.db.ExecContext(ctx, grantProject, arg.GrantedRevision, arg.ID)
-	return err
-}
-
 const listProjects = `-- name: ListProjects :many
-SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision, imported_from FROM project ORDER BY name
+SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from FROM project ORDER BY name
 `
 
 func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
@@ -140,7 +122,6 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 			&i.Paused,
 			&i.Builtin,
 			&i.CreatedAt,
-			&i.GrantedRevision,
 			&i.ImportedFrom,
 		); err != nil {
 			return nil, err
@@ -157,7 +138,7 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 }
 
 const listWorkspaceProjects = `-- name: ListWorkspaceProjects :many
-SELECT id, workspace_id, name, status, paused, builtin, created_at, granted_revision, imported_from FROM project WHERE workspace_id = ? ORDER BY name
+SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from FROM project WHERE workspace_id = ? ORDER BY name
 `
 
 func (q *Queries) ListWorkspaceProjects(ctx context.Context, workspaceID int64) ([]Project, error) {
@@ -177,7 +158,6 @@ func (q *Queries) ListWorkspaceProjects(ctx context.Context, workspaceID int64) 
 			&i.Paused,
 			&i.Builtin,
 			&i.CreatedAt,
-			&i.GrantedRevision,
 			&i.ImportedFrom,
 		); err != nil {
 			return nil, err

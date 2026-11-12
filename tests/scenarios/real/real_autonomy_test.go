@@ -28,7 +28,7 @@ const (
 
 func autoManifest(prompt, name, url, extra, home string) string {
 	return fmt.Sprintf(`{"version": %d%s,
-  "commands": [{"name": "work", "title": "Work", "description": "Writes a file, searches the web and posts a note", "class": "internal",
+  "commands": [{"name": "work", "title": "Work", "description": "Writes a file, searches the web and posts a note",
     "result": {"type": "object", "required": ["title", "web", "curl", "token"], "properties": {"title": {"type": "string"}, "web": {"type": "boolean"}, "curl": {"type": "string"}, "token": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "`+prompt+`"}}],
   "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "%s/items/{id}",
@@ -66,8 +66,8 @@ func realAutonomy(t *testing.T, home string, p provider.Provider, prompt string)
 	for _, tc := range []struct {
 		name, extra string
 		web, reach  bool
-	}{{"open", `, "domains": {"read": ["*"]}`, !sandbox.Homed(), true}, {"closed", "", !sandbox.Homed(), !sandbox.Homed()}} {
-		p := e.Project(tc.name, autoManifest(prompt, tc.name, svc.URL, tc.extra, deckhome.Layout(home).State()))
+	}{{"open", `, "rights": [{"right": "network", "what": ["*"], "why": "reads it"}]`, !sandbox.Homed(), true}, {"closed", "", !sandbox.Homed(), !sandbox.Homed()}} {
+		p := e.Project(tc.name, harness.OnLogin(autoManifest(prompt, tc.name, svc.URL, tc.extra, deckhome.Layout(home).State())))
 		id := e.Run(p, "work")
 		var asks []harness.Ask
 		confirmed := 0

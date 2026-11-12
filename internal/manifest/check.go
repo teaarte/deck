@@ -3,12 +3,8 @@ package manifest
 import (
 	"errors"
 	"fmt"
-	"net"
-	"net/netip"
 	"slices"
 	"strings"
-
-	"golang.org/x/net/publicsuffix"
 
 	"deck2/internal/registry"
 	"deck2/schemas"
@@ -31,48 +27,8 @@ func (m *Manifest) compile() error {
 	m.checkTools(fail)
 	m.checkTriggers(fail)
 	m.checkScreens(fail)
-	for _, name := range m.AllowedExternal {
-		if strings.HasPrefix(name, registry.Deck("browser_")) {
-			fail("allowed_external: %q: the browser acts without asking only on the sites in domains.act", name)
-		} else if !m.knownAction(name) {
-			fail("allowed_external: %q is neither a command nor a tool of this project", name)
-		}
-	}
-	for i, r := range m.Reads {
-		if r.Project == "" {
-			fail("reads[%d]: project is required", i)
-		}
-	}
-	m.checkDomains("read", m.Domains.Read)
-	m.checkDomains("act", m.Domains.Act)
+	m.checkRights()
 	return errors.Join(errs...)
-}
-
-// checkDomains warns of a URL or a public suffix among domains, so a stored manifest still loads and a save refuses it.
-func (m *Manifest) checkDomains(kind string, domains []string) {
-	for _, d := range domains {
-		host, literal := address(d)
-		switch {
-		case d == "*" || literal:
-		case strings.ContainsAny(d, "/?#@ ") || host == "":
-			m.warnings = append(m.warnings, fmt.Sprintf("domains.%s: %q: a domain is a host such as example.com or host:port, not a URL", kind, d))
-		default:
-			if suffix, icann := publicsuffix.PublicSuffix(host); suffix == host && (icann || strings.Contains(host, ".")) {
-				m.warnings = append(m.warnings, fmt.Sprintf("domains.%s: %q is a public suffix, which would open every site under it; name the site", kind, d))
-			}
-		}
-	}
-}
-
-// address is the host of a domain without its port, and whether the domain is an IP address or a network.
-func address(d string) (host string, literal bool) {
-	host = d
-	if h, _, err := net.SplitHostPort(d); err == nil {
-		host = strings.Trim(h, "[]")
-	}
-	_, prefixErr := netip.ParsePrefix(d)
-	_, ipErr := netip.ParseAddr(strings.Trim(host, "[]"))
-	return host, prefixErr == nil || ipErr == nil
 }
 
 func (m *Manifest) compileCollections(fail func(string, ...any)) {

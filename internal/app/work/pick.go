@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/docs"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
@@ -156,7 +157,33 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 	if fits, err = s.atFolder(ctx, p, cmd, fits); err != nil {
 		return 0, nil, false, err
 	}
+	if fits, err = s.logins(ctx, p, fits); err != nil {
+		return 0, nil, false, err
+	}
 	return p.WorkspaceID, fits, assigned, nil
+}
+
+// logins are the providers of fits an agent of p may run on: one on a subscription login only when its module holds
+// the right login on it; with none left the start is refused with what to declare.
+func (s *Service) logins(ctx context.Context, p db.Project, fits []provider.Provider) ([]provider.Provider, error) {
+	m, g, err := docs.Rights(ctx, s.St.Q, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	var out []provider.Provider
+	var off []string
+	for _, pv := range fits {
+		if sub, ok := pv.(provider.Subscribed); ok && !m.Holds(g, registry.Need{Right: manifest.Login, Subject: sub.OnLogin()}) {
+			off = append(off, sub.OnLogin())
+			continue
+		}
+		out = append(out, pv)
+	}
+	if len(out) == 0 && len(off) > 0 {
+		slices.Sort(off)
+		return nil, registry.Refuse("its agents would run on the subscription login %s, which module %s does not hold: it declares login in rights with why, and the owner grants it", strings.Join(slices.Compact(off), ", "), p.Name)
+	}
+	return out, nil
 }
 
 // atFolder are the providers of fits that run where the folder of an agent command is: on deck's machine, or each

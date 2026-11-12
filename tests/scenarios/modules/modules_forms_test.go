@@ -22,7 +22,7 @@ var choicesManifest = strings.NewReplacer(
       {"type": "form", "title": "Touch", "command": "touch", "choices": {"note": {"source": {"collection": "notes", "sort": "title"}, "value": "_id", "label": "title"}}},
       {"type": "form", "title": "Hand over", "command": "hand"},`,
 	`{"name": "tell", "title": "Tell"`,
-	`{"name": "hand", "title": "Hand over", "description": "Hands a note to a project.", "class": "internal", "result": {"type": "object"},
+	`{"name": "hand", "title": "Hand over", "description": "Hands a note to a project.", "result": {"type": "object"},
       "input": {"type": "object", "properties": {"to": {"type": "string", "format": "project"}}}, "executor": {"type": "agent", "prompt": "Hand."}},
     {"name": "tell", "title": "Tell"`,
 ).Replace(harness.WebNotes)

@@ -9,23 +9,8 @@ import (
 	"context"
 )
 
-const approveMCPTool = `-- name: ApproveMCPTool :exec
-UPDATE mcp_tool SET approved = fingerprint WHERE project_id = ? AND server = ? AND name = ?
-`
-
-type ApproveMCPToolParams struct {
-	ProjectID int64
-	Server    string
-	Name      string
-}
-
-func (q *Queries) ApproveMCPTool(ctx context.Context, arg ApproveMCPToolParams) error {
-	_, err := q.db.ExecContext(ctx, approveMCPTool, arg.ProjectID, arg.Server, arg.Name)
-	return err
-}
-
 const listMCPTools = `-- name: ListMCPTools :many
-SELECT project_id, server, spec, name, title, description, input, fingerprint, approved, listed FROM mcp_tool WHERE project_id = ? ORDER BY server, name
+SELECT project_id, server, spec, name, title, description, input, fingerprint, listed FROM mcp_tool WHERE project_id = ? ORDER BY server, name
 `
 
 func (q *Queries) ListMCPTools(ctx context.Context, projectID int64) ([]McpTool, error) {
@@ -46,7 +31,6 @@ func (q *Queries) ListMCPTools(ctx context.Context, projectID int64) ([]McpTool,
 			&i.Description,
 			&i.Input,
 			&i.Fingerprint,
-			&i.Approved,
 			&i.Listed,
 		); err != nil {
 			return nil, err
@@ -79,13 +63,11 @@ func (q *Queries) UnlistMCPToolsExcept(ctx context.Context, arg UnlistMCPToolsEx
 }
 
 const upsertMCPTool = `-- name: UpsertMCPTool :exec
-INSERT INTO mcp_tool (project_id, server, spec, name, title, description, input, fingerprint, approved)
+INSERT INTO mcp_tool (project_id, server, spec, name, title, description, input, fingerprint)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
-    ?7, ?8, ?8)
+    ?7, ?8)
 ON CONFLICT (project_id, server, name) DO UPDATE SET title = excluded.title, description = excluded.description,
-    input = excluded.input, fingerprint = excluded.fingerprint, listed = 1,
-    approved = CASE WHEN mcp_tool.spec = excluded.spec THEN mcp_tool.approved ELSE excluded.fingerprint END,
-    spec = excluded.spec
+    input = excluded.input, fingerprint = excluded.fingerprint, listed = 1, spec = excluded.spec
 `
 
 type UpsertMCPToolParams struct {

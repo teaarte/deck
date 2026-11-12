@@ -78,8 +78,8 @@ func (a *Adapter) With(name, model, effort string) provider.Provider {
 	return &c
 }
 
-// OnSubscription: the CLI runs on the owner's login, never on a key.
-func (a *Adapter) OnSubscription() {}
+// OnLogin is the subscription login the CLI runs on, never a key.
+func (a *Adapter) OnLogin() string { return "claude-code" }
 
 func (a *Adapter) QuestionTool() string { return "AskUserQuestion" }
 

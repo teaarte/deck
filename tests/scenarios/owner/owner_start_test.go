@@ -166,9 +166,9 @@ func TestAStopOfDeckLetsACallInFlightFinish(t *testing.T) {
 	})
 	d := startDeck(t, t.TempDir())
 	// Deck reaches a service on its own machine only when the domains name its address.
-	m := harness.Manifest(fmt.Sprintf(`{"domains": {"read": [%q]}, "tools": {"http": [{"name": "slow", "description": "Answers slowly.", "method": "GET",
-  "url": %q, "class": "internal", "input": {"type": "object", "properties": {}}}]}}`, strings.TrimPrefix(slow.URL, "http://"), slow.URL+"/slow"))
-	if code, out, err := d.call("deck.project_create", map[string]any{"name": "late", "manifest": m}); err != nil || code != 200 {
+	m := harness.Manifest(fmt.Sprintf(`{"rights": [{"right": "network", "what": [%q], "why": "reads it"}], "tools": {"http": [{"name": "slow", "description": "Answers slowly.", "method": "GET",
+  "url": %q, "input": {"type": "object", "properties": {}}}]}}`, strings.TrimPrefix(slow.URL, "http://"), slow.URL+"/slow"))
+	if code, out, err := d.call("deck.project_create", map[string]any{"name": "late", "manifest": harness.Declared(m)}); err != nil || code != 200 {
 		t.Fatalf("project: %d %s %v", code, out, err)
 	}
 	type answer struct {

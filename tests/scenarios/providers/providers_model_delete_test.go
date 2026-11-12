@@ -32,9 +32,11 @@ func TestAModuleRemovesItsOwnFreeModelNoAssignmentNames(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "mine", "kind": "text", "free": true}, nil)
 	e.Project("films", harness.PlainManifest)
-	module := harness.ScriptManifest("main", "", `, "allowed_external": ["deck.model_delete"]`)
+	module := harness.ScriptManifest("main", "", `, "rights": [{"right": "send", "what": ["deck.model_delete"], "why": "removes its own spare models"}]`)
 	e.Project("picker", module)
 	e.Project("other", module)
+	e.Grant("picker", "send", "deck.model_delete")
+	e.Grant("other", "send", "deck.model_delete")
 	for _, p := range []string{"picker", "other"} {
 		e.SaveScript(p, "scripts/main.py", harness.DeckCallScript)
 	}

@@ -45,6 +45,7 @@ func TestRealBrowser(t *testing.T) {
 	egress.AsPublic(host)
 	egress.AsPublic(strings.TrimPrefix(other, "http://"))
 	e.Project("web", harness.BrowserManifest(`{"read": ["`+strings.TrimPrefix(other, "http://")+`"], "act": ["`+host+`"]}`))
+	e.Grant("web", "send", host)
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav(page.URL), harness.Step{Tool: "browser_snapshot", Args: map[string]any{}})), "done")
 	snap := ag.Last(1)[0]
 	m := refOf.FindStringSubmatch(snap.Out)
@@ -53,7 +54,7 @@ func TestRealBrowser(t *testing.T) {
 	}
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Click(m[1]), harness.Step{Tool: "browser_tabs", Args: map[string]any{"action": "list"}})), "done")
 	if got := ag.Last(2); got[0].IsErr || !strings.Contains(got[1].Out, "Sent") {
-		t.Fatalf("a click on an act domain runs at once in the real browser: %+v", got)
+		t.Fatalf("a click on a site the owner lets it act on runs at once in the real browser: %+v", got)
 	}
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav(page.URL+"/upload"), harness.Step{Tool: "browser_snapshot", Args: map[string]any{}})), "done")
 	pick := regexp.MustCompile(`Pick.{0,4} \[ref=([ef\d]+)\]`).FindStringSubmatch(ag.Last(1)[0].Out)

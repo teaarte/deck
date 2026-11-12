@@ -14,7 +14,6 @@ import (
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 
-	"deck2/internal/registry"
 	"deck2/schemas"
 )
 
@@ -69,21 +68,21 @@ func Parse(raw []byte) (*Manifest, error) {
 	return &m, nil
 }
 
-// defaults fills what a manifest leaves out and writes its domains one way, before any check reads it: an HTTP tool
-// is external, a command runs one at a time, a domain lower case with "*.x" as x, which already takes the subdomains of x.
+// defaults fills what a manifest leaves out and writes its hosts one way, before any check reads it: a command runs
+// one at a time, a host of a network lower case with "*.x" as x, which already takes the subdomains of x.
 func (m *Manifest) defaults() {
 	for i := range m.Commands {
 		m.Commands[i].Runs = cmp.Or(m.Commands[i].Runs, RunsOne)
 	}
-	for i := range m.Tools.HTTP {
-		m.Tools.HTTP[i].Class = cmp.Or(m.Tools.HTTP[i].Class, registry.External)
-	}
-	for _, ds := range []*[]string{&m.Domains.Read, &m.Domains.Act} {
-		out := make([]string, 0, len(*ds))
-		for _, d := range *ds {
-			out = append(out, strings.TrimPrefix(strings.ToLower(strings.TrimSpace(d)), "*."))
+	for i, d := range m.Rights {
+		if d.Right != Network {
+			continue
 		}
-		*ds = out
+		out := make([]string, 0, len(d.What))
+		for _, h := range d.What {
+			out = append(out, strings.TrimPrefix(strings.ToLower(strings.TrimSpace(h)), "*."))
+		}
+		m.Rights[i].What = out
 	}
 }
 

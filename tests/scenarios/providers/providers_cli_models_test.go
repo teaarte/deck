@@ -88,7 +88,7 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	}
 	e.Refused("deck.assignment_set", map[string]any{"role": "text", "models": []string{"sonnet-low"}}, 422, "runs agent turns in claude-code")
 
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.PlainManifest))
 	e.UseModels("plain.work", "sonnet-low")
 	before := c.Calls()
 	id := e.Run(p, "work")
@@ -159,7 +159,7 @@ func TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne(t *testing.T) {
 	e := harness.New(t, harness.WithCLI(c))
 	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "opus", "name": "opus-high", "options": `{"effort": "high"}`}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "sonnet-low", "options": `{"effort": "low"}`}, nil)
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.PlainManifest))
 	e.UseModels("plain.work", "opus-high", "sonnet-low")
 	before := c.Calls()
 	id := e.Run(p, "work")
@@ -197,7 +197,7 @@ func TestAModelOfCodexRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	}
 	e.Must("deck.provider_check", map[string]any{"provider": "luna-low"}, nil)
 	e.WaitHealth("provider:luna-low", "ok")
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	e.UseModels("paint.work", "luna-low")
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {

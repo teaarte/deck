@@ -1,25 +1,43 @@
 package harness
 
 import (
+	"cmp"
+	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"deck2/internal/manifest"
+	"deck2/internal/registry"
 )
 
 // NoNetworkManifest is a module that names no domains: its agents reach only their provider and deck.
 var NoNetworkManifest = Manifest(`{
-  "commands": [{"name": "work", "title": "Work", "description": "Does work", "class": "internal",
+  "commands": [{"name": "work", "title": "Work", "description": "Does work",
     "executor": {"type": "agent", "prompt": "Do the work."}}]}`)
 
-func BrowserManifest(domains string) string {
-	return Manifest(`{"commands": [{"name": "browse", "title": "Browse", "description": "Browses.", "class": "internal",
+// BrowserManifest is a module whose agent browses: sites is {"read": [...], "act": [...]}, the sites it reads pages of,
+// declared under network, and those it acts on as well, declared under send too.
+func BrowserManifest(sites string) string {
+	var s struct{ Read, Act []string }
+	if err := json.Unmarshal([]byte(sites), &s); err != nil {
+		panic(err)
+	}
+	hosts := append(slices.Clone(s.Read), s.Act...)
+	slices.Sort(hosts)
+	rights := []map[string]any{{"right": "network", "what": slices.Compact(hosts), "why": "reads the pages of these sites"}}
+	if len(s.Act) > 0 {
+		rights = append(rights, map[string]any{"right": "send", "what": s.Act, "why": "acts on these sites"})
+	}
+	b, _ := json.Marshal(rights)
+	return Manifest(`{"commands": [{"name": "browse", "title": "Browse", "description": "Browses.",
     "input": {"type": "object", "properties": {"steps": {"type": "string"}}},
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Browse."}}],
-  "domains": `) + domains + `}`
+  "rights": `) + string(b) + `}`
 }
 
 // EstimateManifest is a module that tracks a price and estimates its change: a stat of the last price, a table
@@ -69,7 +87,7 @@ var TasksManifest = Manifest(`{"collections": [{"name": "tasks", "description": 
 var PlainManifest = Manifest(`{
   "collections": [],
   "commands": [{
-    "name": "work", "title": "Work", "description": "Does work", "class": "internal",
+    "name": "work", "title": "Work", "description": "Does work",
     "executor": {"type": "agent", "prompt": "Do the work."}
   }],
   "triggers": [],
@@ -81,7 +99,7 @@ func AgentCommand(name, input string) string {
 	if input == "" {
 		input = `{"type": "object", "properties": {}}`
 	}
-	return fmt.Sprintf(`{"name": %q, "title": %q, "description": "Does %s.", "class": "internal", "input": %s,
+	return fmt.Sprintf(`{"name": %q, "title": %q, "description": "Does %s.", "input": %s,
     "executor": {"type": "agent", "prompt": "Do %s."}, "result": {"type": "object", "properties": {"n": {"type": "integer"}}}}`,
 		name, name, name, input, name)
 }
@@ -93,8 +111,30 @@ func Nullable(m string) string {
 	return strings.ReplaceAll(m, `"result": {"type": "object"`, `"result": {"type": ["object", "null"]`)
 }
 
+// TestManifest is a module of commands and triggers that declares the folders its agents work in.
 func TestManifest(commands []string, triggers []string) string {
-	return Manifest(fmt.Sprintf(`{"commands": [%s], "triggers": [%s]}`, strings.Join(commands, ","), strings.Join(triggers, ",")))
+	var folders []string
+	for _, c := range commands {
+		var cmd struct {
+			Executor struct {
+				Folder any `json:"folder"`
+			} `json:"executor"`
+		}
+		_ = json.Unmarshal([]byte(c), &cmd)
+		switch f := cmd.Executor.Folder.(type) {
+		case bool:
+			folders = append(folders, "*")
+		case string:
+			folders = append(folders, f)
+		}
+	}
+	rights := ""
+	if len(folders) > 0 {
+		slices.Sort(folders)
+		b, _ := json.Marshal(slices.Compact(folders))
+		rights = fmt.Sprintf(`, "rights": [{"right": "files", "what": %s, "why": "its agents work in these folders"}]`, b)
+	}
+	return Manifest(fmt.Sprintf(`{"commands": [%s], "triggers": [%s]%s}`, strings.Join(commands, ","), strings.Join(triggers, ","), rights))
 }
 
 // CodeModule is a copy of the example of the code-project skill; with a url it also takes GitLab issues from there, the way a terminal
@@ -126,7 +166,7 @@ func CodeModule(t *testing.T, url string) string {
 	return dst
 }
 
-var ColorManifest = Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Asks the owner", "class": "internal",
+var ColorManifest = Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Asks the owner",
     "result": {"type": "object", "required": ["color"], "properties": {"color": {"type": "string"}}},
     "executor": {"type": "agent", "prompt": "Ask the owner which color the report should use."}}]}`)
 
@@ -137,7 +177,7 @@ var IdeasManifest = Manifest(`{
                "required": ["title", "score"]}
   }],
   "commands": [{
-    "name": "collect", "title": "Collect ideas", "description": "Writes ideas", "class": "internal",
+    "name": "collect", "title": "Collect ideas", "description": "Writes ideas",
     "executor": {"type": "agent", "prompt": "Write three ideas into the ideas collection."},
     "result": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}
   }],
@@ -154,7 +194,7 @@ var IdeasManifest = Manifest(`{
 var CalcManifest = Manifest(`{
   "collections": [{"name": "nums", "description": "A number", "key": "n",
     "schema": {"type": "object", "properties": {"n": {"type": "integer"}}, "required": ["n"]}}],
-  "commands": [{"name": "calc", "title": "Calc", "description": "Uses a number.", "class": "internal",
+  "commands": [{"name": "calc", "title": "Calc", "description": "Uses a number.",
     "input": {"type": "object", "properties": {"n": {"type": "integer"}}},
     "executor": {"type": "agent", "prompt": "OLD PROMPT"}}]
 }`)
@@ -180,24 +220,25 @@ var DocsManifest = strings.NewReplacer(
 
 var DraftManifest = Manifest(`{
   "commands": [
-    {"name": "work", "title": "Work", "description": "Does work.", "class": "internal", "input": {"type": "object", "properties": {}},
+    {"name": "work", "title": "Work", "description": "Does work.", "input": {"type": "object", "properties": {}},
      "executor": {"type": "agent", "prompt": "Do the work."}, "result": {"type": "object"}},
-    {"name": "child", "title": "Child", "description": "Helps.", "class": "internal", "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
+    {"name": "child", "title": "Child", "description": "Helps.", "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
      "executor": {"type": "agent", "prompt": "Help."}, "result": {"type": "object"}},
-    {"name": "send", "title": "Send", "description": "Sends it out.", "class": "external",
+    {"name": "send", "title": "Send", "description": "Sends it out.",
      "executor": {"type": "agent", "prompt": "Send."}, "result": {"type": "object"}}
   ],
   "triggers": [{"command": "work", "cron": "0 9 * * *"}, {"command": "child", "after": "work"}],
-  "domains": {"read": ["example.com"]}
+  "rights": [{"right": "network", "what": ["example.com"], "why": "reads its pages"},
+    {"right": "send", "what": ["send"], "why": "sends what it made"}]
 }`)
 
 func FilesManifest() string {
 	return Manifest(`{"collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
   "commands": [
-    {"name": "seed", "title": "Seed", "description": "Makes a record with a file.", "class": "internal",
+    {"name": "seed", "title": "Seed", "description": "Makes a record with a file.",
      "result": {"type": "object"}, "executor": {"type": "script", "script": "seed"}},
-    {"name": "read", "title": "Read", "description": "Reads the files of its input.", "class": "internal",
+    {"name": "read", "title": "Read", "description": "Reads the files of its input.",
      "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}, "photo": {"type": "string", "format": "file"},
        "rec": {"type": "integer", "format": "record"}}},
      "result": {"type": "object"}, "executor": {"type": "script", "script": "read"}}],
@@ -218,35 +259,36 @@ func FolderCommand(name, folder string) string {
 
 func GenerateManifest(url string) string {
 	return Manifest(fmt.Sprintf(`{"commands": [
-    {"name": "make", "title": "Make", "description": "Starts a paid generation.", "class": "external",
+    {"name": "make", "title": "Make", "description": "Starts a paid generation.",
      "input": {"type": "object", "properties": {"topic": {"type": "string"}}},
      "executor": {"type": "tool", "tool": "generate"}},
-    {"name": "work", "title": "Work", "description": "Asks for a generation.", "class": "internal",
+    {"name": "work", "title": "Work", "description": "Asks for a generation.",
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Generate."}}],
   "triggers": [{"command": "make", "cron": "0 9 * * *", "params": {"topic": "cats"}}],
   "tools": {"http": [{"name": "generate", "description": "Starts a generation", "method": "POST", "url": "%s/gen",
     "input": {"type": "object", "properties": {"topic": {"type": "string"}}}}]},
-  "allowed_external": ["generate", "make"]}`, url))
+  "rights": [{"right": "send", "what": ["generate", "make"], "why": "starts the generations it is asked for"}]}`, url))
 }
 
 // McpManifest declares the fake MCP server; extra goes into the manifest object.
 func McpManifest(extra string) string {
 	self := Fakes
 	return Manifest(fmt.Sprintf(`{"commands": [
-    {"name": "work", "title": "Work", "description": "Works with the server.", "class": "internal",
+    {"name": "work", "title": "Work", "description": "Works with the server.",
      "input": {"type": "object", "properties": {"step": {"type": "string"}}},
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}},
-    {"name": "look", "title": "Look up", "description": "Looks a word up.", "class": "internal",
+    {"name": "look", "title": "Look up", "description": "Looks a word up.",
      "input": {"type": "object", "properties": {"word": {"type": "string"}}},
      "executor": {"type": "tool", "tool": "fake.lookup"}},
-    {"name": "tell", "title": "Tell", "description": "Sends a message.", "class": "internal",
+    {"name": "tell", "title": "Tell", "description": "Sends a message.",
      "input": {"type": "object", "properties": {"to": {"type": "string"}}, "required": ["to"]},
      "executor": {"type": "tool", "tool": "fake.send"}},
-    {"name": "reach", "title": "Reach", "description": "Reaches an address.", "class": "internal",
+    {"name": "reach", "title": "Reach", "description": "Reaches an address.",
      "input": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
      "executor": {"type": "tool", "tool": "fake.reach"}}],
   "tools": {"mcp": {"servers": {"fake": {"command": %q, "env": {"DECK_FAKE_MCP": "project"},
-    "toolFilter": ["lookup", "send", "picture", "vanish", "peek", "reach"], "classes": {"lookup": "internal", "picture": "internal", "peek": "internal", "reach": "internal"}}}}}%s}`, self, extra))
+    "toolFilter": ["lookup", "send", "picture", "vanish", "peek", "reach"], "right": {"lookup": "network", "picture": "network", "peek": "network", "reach": "network"}}}}},
+  "rights": [{"right": "send", "what": ["fake.send", "fake.vanish"], "why": "sends messages"}]%s}`, self, extra))
 }
 
 // VideosManifest is a module of short videos: a media block plays each video in the browser's own player.
@@ -264,24 +306,25 @@ var VideosManifest = Manifest(`{"collections": [{"name": "videos", "description"
 // ModelManifest is a project with commands of type model: a fact check by a schema, a picture, speech and the
 // words of a recording.
 var ModelManifest = Manifest(`{"commands": [
-    {"name": "factcheck", "title": "Fact check", "description": "Checks a claim.", "class": "internal",
+    {"name": "factcheck", "title": "Fact check", "description": "Checks a claim.",
      "input": {"type": "object", "properties": {"claim": {"type": "string"}}, "required": ["claim"]},
      "result": {"type": "object", "properties": {"verdict": {"enum": ["true", "false", "unclear"]}, "confidence": {"type": "number"}},
        "required": ["verdict", "confidence"], "additionalProperties": false},
      "executor": {"type": "model", "kind": "text", "prompt": "Check the claim against what is known."}},
-    {"name": "picture", "title": "Picture", "description": "Draws a scene.", "class": "internal",
+    {"name": "picture", "title": "Picture", "description": "Draws a scene.",
      "input": {"type": "object", "properties": {"scene": {"type": "string"}}},
      "executor": {"type": "model", "kind": "image", "prompt": "Draw the scene, no text in the picture.", "options": {"image_config": {"aspect_ratio": "9:16"}}}},
-    {"name": "voice", "title": "Voice", "description": "Speaks a line.", "class": "internal",
+    {"name": "voice", "title": "Voice", "description": "Speaks a line.",
      "input": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
      "executor": {"type": "model", "kind": "tts", "prompt": "Calm, like a documentary.", "options": {"voice": "onyx", "model": "an-ungranted-model"}}},
-    {"name": "words", "title": "Words", "description": "Writes down a recording.", "class": "internal",
+    {"name": "words", "title": "Words", "description": "Writes down a recording.",
      "input": {"type": "object", "properties": {"voice": {"type": "string", "format": "file"}}, "required": ["voice"]},
      "executor": {"type": "model", "kind": "stt", "options": {"timestamp_granularities[]": "word"}}},
-    {"name": "track", "title": "Track", "description": "Makes background music.", "class": "internal",
+    {"name": "track", "title": "Track", "description": "Makes background music.",
      "input": {"type": "object", "properties": {"mood": {"type": "string"}}},
      "executor": {"type": "model", "kind": "music", "prompt": "Instrumental background music, no vocals.", "options": {"seconds": 40}}}
-  ]}`)
+  ],
+  "rights": [{"right": "money", "what": ["@text", "@image", "@tts", "@stt", "@music"], "why": "its commands are models"}]}`)
 
 // PickerManifest has proposals of models with an Apply button whose press allows the assignment its row shows, and
 // a daily run of apply over all of them.
@@ -289,7 +332,7 @@ var PickerManifest = Manifest(`{"collections": [{"name": "proposals", "descripti
     "schema": {"type": "object", "properties": {"name": {"type": "string"}, "project": {"type": "string"}, "models": {"type": "string"},
       "command": {"type": "string"}}, "required": ["name"]}}],
   "commands": [
-    {"name": "apply", "title": "Apply", "description": "Applies a proposal.", "class": "internal",
+    {"name": "apply", "title": "Apply", "description": "Applies a proposal.",
      "input": {"type": "object", "properties": {"id": {"type": "integer"}, "relay": {"type": "string"}}},
      "result": {"type": "object"}, "executor": {"type": "script", "script": "apply"}}],
   "scripts": [{"name": "apply", "file": "scripts/apply.py", "runtime": "python"}],
@@ -304,7 +347,7 @@ var PickerManifest = Manifest(`{"collections": [{"name": "proposals", "descripti
 var BoardManifest = Manifest(`{"i18n": {"ru": {"doing": "в работе"}},
   "collections": [{"name": "tasks", "description": "Tasks.", "key": "title", "schema": {"type": "object",
     "properties": {"title": {"type": "string"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}}}],
-  "commands": [{"name": "move", "title": "Move", "description": "Moves a task.", "class": "internal",
+  "commands": [{"name": "move", "title": "Move", "description": "Moves a task.",
     "input": {"type": "object", "properties": {"id": {"type": "integer"}, "status": {"type": "string", "enum": ["todo", "doing", "done"]}}},
     "executor": {"type": "agent", "prompt": "Move it."}}],
   "screens": [{"name": "board", "title": "Board", "blocks": [
@@ -315,8 +358,9 @@ var BoardManifest = Manifest(`{"i18n": {"ru": {"doing": "в работе"}},
 var NotesManifest = Manifest(`{"collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}],
   "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "https://example.invalid/post",
-    "class": "external", "body": {"text": "{text}"}, "input": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}}]},
-  "commands": [{"name": "collect", "title": "Collect", "description": "Collects notes.", "class": "internal", "requires": ["no_cloud"],
+    "body": {"text": "{text}"}, "input": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}}]},
+  "rights": [{"right": "send", "what": ["post"], "why": "posts notes"}],
+  "commands": [{"name": "collect", "title": "Collect", "description": "Collects notes.", "requires": ["no_cloud"],
     "executor": {"type": "agent", "prompt": "Collect notes."},
     "result": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}}]}`)
 
@@ -334,24 +378,24 @@ var WebNotes = Manifest(`{"collections": [{"name": "notes", "description": "Note
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}, "source": {"type": "string"},
       "note": {"type": "string"}}, "required": ["title"]}}],
   "commands": [
-    {"name": "score", "title": "Score", "description": "Scores a title.", "class": "internal",
+    {"name": "score", "title": "Score", "description": "Scores a title.",
       "input": {"type": "object", "properties": {"title": {"type": "string"}, "n": {"type": "integer"}, "scan": {"type": "string", "format": "file"}},
         "required": ["title"]},
       "result": {"type": "array", "items": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}}},
       "executor": {"type": "agent", "prompt": "Score it."}},
-    {"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
+    {"name": "touch", "title": "Touch", "description": "Touches a note.", "result": {"type": "object"},
       "input": {"type": "object", "properties": {"note": {"type": "integer", "format": "record"}}},
       "executor": {"type": "agent", "prompt": "Touch."}},
-    {"name": "tell", "title": "Tell", "description": "Tells the owner.", "class": "internal", "result": {"type": "object"},
+    {"name": "tell", "title": "Tell", "description": "Tells the owner.", "result": {"type": "object"},
       "executor": {"type": "agent", "prompt": "Tell."}},
-    {"name": "ingest", "title": "Ingest", "description": "Reads a file for agents.", "class": "internal", "callers": ["agent"],
+    {"name": "ingest", "title": "Ingest", "description": "Reads a file for agents.", "callers": ["agent"],
       "result": {"type": "object"}, "input": {"type": "object", "properties": {"doc": {"type": "string", "format": "file"}}},
       "executor": {"type": "agent", "prompt": "Ingest."}},
-    {"name": "tag", "title": "Tag", "description": "Tags what a custom block saw.", "class": "internal", "result": {"type": "object"},
+    {"name": "tag", "title": "Tag", "description": "Tags what a custom block saw.", "result": {"type": "object"},
       "input": {"type": "object", "properties": {"tag": {"type": "string"}}}, "executor": {"type": "agent", "prompt": "Tag."}},
-    {"name": "publish", "title": "Publish", "description": "Publishes outside deck.", "class": "external", "result": {"type": "object"},
+    {"name": "publish", "title": "Publish", "description": "Publishes outside deck.", "result": {"type": "object"},
       "executor": {"type": "agent", "prompt": "Publish."}},
-    {"name": "mark", "title": "Mark", "description": "Marks what a custom block saw.", "class": "internal", "result": {"type": "object"},
+    {"name": "mark", "title": "Mark", "description": "Marks what a custom block saw.", "result": {"type": "object"},
       "input": {"type": "object", "properties": {"text": {"type": "string"}}},
       "executor": {"type": "agent", "prompt": "Mark."}}],
   "screens": [
@@ -365,6 +409,7 @@ var WebNotes = Manifest(`{"collections": [{"name": "notes", "description": "Note
         "columns": [{"label": "Title", "bind": "title"}], "actions": [{"label": "Open", "screen": "note"}]}]},
     {"name": "note", "title": "Note", "record": "notes", "blocks": [
       {"type": "form", "title": "Edit", "command": "deck.record_update"}]}],
+  "rights": [{"right": "send", "what": ["publish"], "why": "publishes outside deck"}],
   "menu": ["main"]}`)
 
 // WebNotesMark is webNotes whose custom block fills the text of Mark itself.
@@ -375,11 +420,11 @@ func WebManifest(url string) string {
 	return Manifest(fmt.Sprintf(`{"collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
   "commands": [
-    {"name": "work", "title": "Work", "description": "Posts a note.", "class": "internal", "result": {"type": "object"},
+    {"name": "work", "title": "Work", "description": "Posts a note.", "result": {"type": "object"},
       "executor": {"type": "agent", "prompt": "Post the note."}},
-    {"name": "ask", "title": "Ask", "description": "Asks the owner.", "class": "internal", "result": {"type": "object"},
+    {"name": "ask", "title": "Ask", "description": "Asks the owner.", "result": {"type": "object"},
       "executor": {"type": "agent", "prompt": "Ask."}},
-    {"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
+    {"name": "touch", "title": "Touch", "description": "Touches a note.", "result": {"type": "object"},
       "input": {"type": "object", "properties": {"note": {"type": "integer", "format": "record"}, "score": {"type": "string"}}, "required": ["note"]},
       "executor": {"type": "agent", "prompt": "Touch."}}],
   "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "%s/items/{id}",
@@ -403,6 +448,7 @@ func WebManifest(url string) string {
         "actions": [{"label": "Touch", "command": "touch", "params": {"note": "=_id"}}]},
       {"type": "list", "title": "Better", "source": {"collection": "notes", "where": "score > record.score"}, "item": {"title": "title"}},
       {"type": "actions", "title": "Rate", "actions": [{"label": "Rate", "command": "touch", "params": {"note": "=_id", "score": "=score"}}]}]}],
+  "rights": [{"right": "send", "what": ["post"], "why": "posts notes"}],
   "menu": ["main"]}`, url))
 }
 
@@ -414,14 +460,15 @@ func ScriptManifest(command, result, extra string) string {
 	return Manifest(fmt.Sprintf(`{"collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "integer"}}, "required": ["name"]}}],
   "commands": [
-    {"name": %q, "title": "Run", "description": "Runs the script.", "class": "internal",
+    {"name": %q, "title": "Run", "description": "Runs the script.",
      "input": {"type": "object", "properties": {"n": {"type": "integer"}, "project": {"type": "string"}, "allowed": {"type": "string"},
        "other": {"type": "string"}, "outside": {"type": "string"}, "secret": {"type": "string"}, "key": {"type": "string"},
        "socket": {"type": "string"}, "method": {"type": "string"}, "form": {"type": "string"}, "type": {"type": "string"}, "use": {"type": "string"}}},
      "result": %s, "executor": {"type": "script", "script": "main"}},
-    {"name": "publish", "title": "Publish", "description": "Publishes outside.", "class": "external",
+    {"name": "publish", "title": "Publish", "description": "Publishes outside.",
      "executor": {"type": "agent", "prompt": "Publish."}}],
-  "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}]%s}`, command, result, extra))
+  "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}],
+  "rights": [{"right": "send", "what": ["publish"], "why": "publishes outside"}]%s}`, command, result, extra))
 }
 
 var SideManifest = Manifest(`{"i18n": {"ru": {"Trades": "Сделки", "Coin": "Монета", "Side": "Сторона", "long": "в рост", "short": "в падение"}},
@@ -443,19 +490,19 @@ var SideManifest = Manifest(`{"i18n": {"ru": {"Trades": "Сделки", "Coin": 
 var ClipsModule = Manifest(`{"collections": [{"name": "clips", "description": "A clip.", "key": "slug",
     "schema": {"type": "object", "properties": {"slug": {"type": "string"}}, "required": ["slug"]}}],
   "commands": [
-    {"name": "new", "title": "New", "description": "Makes a clip.", "class": "internal",
+    {"name": "new", "title": "New", "description": "Makes a clip.",
      "input": {"type": "object", "properties": {"note": {"type": "string"}}},
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Make a clip."}},
-    {"name": "check", "title": "Check", "description": "Checks a clip.", "class": "internal",
+    {"name": "check", "title": "Check", "description": "Checks a clip.",
      "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}, "record": {"type": "integer", "format": "record"}}},
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Check the clip."}},
-    {"name": "tally", "title": "Tally", "description": "Counts checks.", "class": "internal",
+    {"name": "tally", "title": "Tally", "description": "Counts checks.",
      "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Count."}},
-    {"name": "revise", "title": "Revise", "description": "Edits a clip.", "class": "internal",
+    {"name": "revise", "title": "Revise", "description": "Edits a clip.",
      "input": {"type": "object", "properties": {"record": {"type": "integer", "format": "record"}, "note": {"type": "string"}}},
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Edit the clip."}},
-    {"name": "render", "title": "Render", "description": "Renders a clip.", "class": "internal",
+    {"name": "render", "title": "Render", "description": "Renders a clip.",
      "input": {"type": "object", "properties": {"record": {"type": "integer", "format": "record"}, "process": {"type": "integer", "format": "process"},
        "n": {"type": "integer"}, "wait": {"type": "number"}}},
      "result": {"type": "object"}, "executor": {"type": "script", "script": "render"}}],
@@ -464,27 +511,39 @@ var ClipsModule = Manifest(`{"collections": [{"name": "clips", "description": "A
 
 func ToolManifest(url, extra string) string {
 	return Manifest(fmt.Sprintf(`{"commands": [
-    {"name": "fetch", "title": "Fetch", "description": "Fetches a picture.", "class": "internal",
+    {"name": "fetch", "title": "Fetch", "description": "Fetches a picture.",
      "input": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "string"}}},
      "executor": {"type": "tool", "tool": "picture"}},
-    {"name": "send", "title": "Send", "description": "Sends a note.", "class": "internal",
+    {"name": "send", "title": "Send", "description": "Sends a note.",
      "input": {"type": "object", "properties": {"text": {"type": "string"}}},
      "result": {"type": "object", "properties": {"id": {"type": "string"}}, "required": ["id"]},
      "executor": {"type": "tool", "tool": "note"}},
-    {"name": "merge", "title": "Merge", "description": "Merges the work.", "class": "reversible",
+    {"name": "merge", "title": "Merge", "description": "Merges the work.",
      "executor": {"type": "agent", "prompt": "Merge."}},
-    {"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+    {"name": "work", "title": "Work", "description": "Works.",
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
   "tools": {"http": [
-    {"name": "picture", "description": "A picture", "method": "GET", "url": "%[1]s/pics/{name}?size={size}", "class": "internal",
+    {"name": "picture", "description": "A picture", "method": "GET", "url": "%[1]s/pics/{name}?size={size}",
      "input": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "string"}}}},
     {"name": "note", "description": "Sends a note", "method": "POST", "url": "%[1]s/notes",
-     "input": {"type": "object", "properties": {"text": {"type": "string"}}}}]}%[2]s}`, url, extra))
+     "input": {"type": "object", "properties": {"text": {"type": "string"}}}}]},
+  "rights": [{"right": "network", "what": [%[3]q], "why": "reads its pictures"},
+    {"right": "send", "what": ["note", "merge"], "why": "sends notes and merges"}]%[2]s}`, url, extra, hostOf(url)))
+}
+
+// hostOf is the host of a URL, without its port.
+func hostOf(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		panic(err)
+	}
+	return u.Hostname()
 }
 
 // Manifest is the manifest of a module in the current format: body is its JSON object without the version, which
 // goes first, laid out as the next key is.
 func Manifest(body string) string {
+	body = oneRights(body)
 	i := strings.Index(body, "{")
 	if i < 0 {
 		panic("a manifest is a JSON object: " + body)
@@ -514,4 +573,99 @@ func ManifestWith(m, members string) string {
 // ManifestVersion is a manifest with its version written as v, as an older or a broken one.
 func ManifestVersion(m, v string) string {
 	return strings.Replace(m, fmt.Sprintf(`"version": %d`, manifest.FormatVersion), `"version": `+v, 1)
+}
+
+// oneRights is a manifest whose rights given twice, by a helper and by what a test adds to it, stand as one list.
+func oneRights(body string) string {
+	dec := json.NewDecoder(strings.NewReader(body))
+	if t, err := dec.Token(); err != nil || t != json.Delim('{') {
+		return body
+	}
+	var keys []string
+	vals := map[string]json.RawMessage{}
+	twice := false
+	for dec.More() {
+		k, err := dec.Token()
+		key, _ := k.(string)
+		var v json.RawMessage
+		if err != nil || dec.Decode(&v) != nil {
+			return body
+		}
+		if old, ok := vals[key]; ok && key == "rights" {
+			var a, b []json.RawMessage
+			if json.Unmarshal(old, &a) != nil || json.Unmarshal(v, &b) != nil {
+				return body
+			}
+			v, _ = json.Marshal(append(a, b...))
+			twice = true
+		} else if !ok {
+			keys = append(keys, key)
+		}
+		vals[key] = v
+	}
+	if !twice {
+		return body
+	}
+	var out strings.Builder
+	out.WriteString("{")
+	for i, k := range keys {
+		if i > 0 {
+			out.WriteString(", ")
+		}
+		q, _ := json.Marshal(k)
+		out.Write(q)
+		out.WriteString(": ")
+		out.Write(vals[k])
+	}
+	out.WriteString("}")
+	return out.String()
+}
+
+// Login is the right of a module whose agents run on the subscription CLIs, Claude Code and Codex.
+const Login = `{"right": "login", "what": ["claude-code", "codex"], "why": "its agents work on your subscription CLIs"}`
+
+// Declare is manifest m that declares the rights rights too, each a JSON object.
+func Declare(m string, rights ...string) string {
+	i := strings.LastIndex(m, "}")
+	if i < 0 {
+		panic("a manifest is a JSON object: " + m)
+	}
+	return oneRights(m[:i] + `, "rights": [` + strings.Join(rights, ", ") + `]` + m[i:])
+}
+
+// OnLogin is manifest m whose agents run on the subscription CLIs.
+func OnLogin(m string) string { return Declare(m, Login) }
+
+// Declared is manifest m that declares what its HTTP tools, model commands and folders need, as deck reads them: a test
+// whose subject is not the rights of a module writes it so.
+func Declared(m string) string {
+	parsed, err := manifest.Parse([]byte(m))
+	if err != nil {
+		panic(err)
+	}
+	var rights []string
+	add := func(right, subject string) {
+		if subject == "" || parsed.Declares(registry.Need{Right: right, Subject: subject}) {
+			return
+		}
+		r := fmt.Sprintf(`{"right": %q, "what": [%q], "why": "the test needs it"}`, right, subject)
+		if !slices.Contains(rights, r) {
+			rights = append(rights, r)
+		}
+	}
+	for _, t := range parsed.Tools.HTTP {
+		add(manifest.ToolRight(t))
+	}
+	for _, c := range parsed.Commands {
+		if c.Executor.Type == "model" {
+			add(manifest.Money, cmp.Or(c.Executor.Model, "@"+c.Executor.Kind))
+		}
+		if f := c.Executor.Folder; !f.IsZero() {
+			add(manifest.Files, cmp.Or(f.Name, "*"))
+		}
+	}
+	if len(rights) == 0 {
+		return m
+	}
+	return Declare(m, rights...)
 }

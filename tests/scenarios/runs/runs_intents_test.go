@@ -22,6 +22,7 @@ func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) 
 	clock := &harness.Clock{At: time.Date(2026, 9, 25, 8, 0, 0, 0, time.Local)}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
 	e.Project("clips", harness.GenerateManifest(svc.URL))
+	e.Grant("clips", "send", "generate", "make")
 	clock.Add(time.Hour + time.Minute)
 	e.App.Scheduler.Tick(context.Background())
 	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
@@ -108,6 +109,7 @@ func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
 	p := e.Project("clips", harness.GenerateManifest(svc.URL))
+	e.Grant("clips", "send", "generate", "make")
 	id := e.Run(p, "work")
 	<-started
 	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
@@ -181,6 +183,7 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
 	e.Project("clips", harness.GenerateManifest(svc.URL))
+	e.Grant("clips", "send", "generate", "make")
 	tid, tok := e.Token("shortcuts", "clips.*")
 	go func() {
 		req, _ := http.NewRequest("POST", e.URL+"/api/commands/clips.generate", strings.NewReader(`{"topic": "owls"}`))

@@ -63,7 +63,7 @@ const candidateVersion = "v0.3.0"
 var keptManifest = harness.Manifest(`{"collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "integer"}}, "required": ["name"]}}],
   "tools": {"http": [{"name": "get", "description": "Gets an item.", "method": "GET", "url": "https://example.com/item",
-    "class": "internal", "headers": {"X-Key": "$secret.key"}}]}}`)
+    "headers": {"X-Key": "$secret.key"}}]}}`)
 
 // What an owner keeps in deck across an update.
 const (

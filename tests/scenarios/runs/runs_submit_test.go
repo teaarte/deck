@@ -107,7 +107,7 @@ func TestDeckHandsTheMasterTheIncidentsAroundAProcess(t *testing.T) {
 	// A step after revise whose script is missing does not start.
 	m := strings.Replace(harness.ClipsModule, `"scripts": [`, `"scripts": [{"name": "label", "file": "scripts/label.py", "runtime": "python"}, `, 1)
 	m = strings.Replace(m, `{"after": "revise", "command": "render"}`, `{"after": "revise", "command": "render"}, {"after": "revise", "command": "label"}`, 1)
-	m = strings.Replace(m, `"commands": [`, `"commands": [{"name": "label", "title": "Label", "description": "Labels a clip.", "class": "internal",
+	m = strings.Replace(m, `"commands": [`, `"commands": [{"name": "label", "title": "Label", "description": "Labels a clip.",
      "input": {"type": "object", "properties": {"record": {"type": "integer"}, "process": {"type": "integer", "format": "process"}}}, "executor": {"type": "script", "script": "label"}},`, 1)
 	e.Project("clips", harness.Many(m))
 	e.SaveScript("clips", "scripts/render.py", harness.ClipsRender)

@@ -25,8 +25,8 @@ func TestAReadCheckIsOfItsProject(t *testing.T) {
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
 	e := harness.New(t)
 	for _, name := range []string{"stock", "photos"} {
-		e.Project(name, harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
-    {"name": "get", "description": "d", "method": "GET", "url": "%s/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]}}`, svc.URL)))
+		e.Project(name, harness.Declared(harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
+    {"name": "get", "description": "d", "method": "GET", "url": "%s/p", "headers": {"X-Key": "$secret.pexels"}}]}}`, svc.URL))))
 	}
 	e.Must("deck.health_mark_seen", map[string]any{"subject": "secret:photos.pexels", "project": "photos"}, nil)
 	if seen, failing := e.HealthSeen("photos", "secret:photos.pexels"); !seen || !failing {
@@ -46,7 +46,7 @@ func TestAModuleWhoseManifestDoesNotLoadIsReadLikeAnyCheck(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	e.Project("broken", harness.Manifest(`{}`))
+	e.Project("broken", harness.Declared(harness.Manifest(`{}`)))
 	// A manifest an older deck read and this one does not.
 	e.PlantRevision("broken", "manifest.json", harness.Manifest(`{"nonsense": true}`))
 	_ = e.App.Close()
@@ -85,7 +85,7 @@ func TestAManifestThatNoLongerReadsTakesTheRowsOfItsCommands(t *testing.T) {
 	t.Parallel()
 	home := t.TempDir()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	e.Project("films", harness.ModelManifest)
+	e.Project("films", harness.Declared(harness.ModelManifest))
 	if h := e.HealthRowOf("command:films.factcheck"); h == nil {
 		t.Fatal("a model command no model takes is a row of health")
 	}
@@ -125,7 +125,7 @@ func TestTheBuiltInMasterOnceFreeIsWell(t *testing.T) {
 func TestDeletingAProjectKeepsTheHealthOfItsNamesakeElsewhere(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	mine := e.Project("x", harness.PlainManifest)
+	mine := e.Project("x", harness.Declared(harness.PlainManifest))
 	// A second workspace with a namesake project; deck makes no workspace but the owner's.
 	e.SQL(`INSERT INTO workspace (id, name) VALUES (2, 'other');
 		INSERT INTO project (workspace_id, name, status) VALUES (2, 'x', 'enabled')`)

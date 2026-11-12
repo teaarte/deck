@@ -232,12 +232,12 @@ func TestMemoryStaysWithItsOwnersAndDeletesHold(t *testing.T) {
 	}
 	fake := &harness.Fake{Script: script}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(fake))
-	reader := strings.Replace(harness.PlainManifest, `"triggers": [],`, `"triggers": [], "reads": [{"project": "master", "documents": ["memory/MEMORY.md"]}],`, 1)
-	if code, out := e.Call("deck.project_create", map[string]any{"name": "nosy", "manifest": reader}); code != 422 || !strings.Contains(string(out), "no project reads it") {
+	reader := strings.Replace(harness.PlainManifest, `"triggers": [],`, `"triggers": [], "rights": [{"right": "data", "what": ["master/memory/MEMORY.md"], "why": "reads it"}],`, 1)
+	if code, out := e.Call("deck.project_create", map[string]any{"name": "nosy", "manifest": reader}); code != 422 || !strings.Contains(string(out), "no module reads it") {
 		t.Fatalf("no project reads project master: %d %s", code, out)
 	}
 	e.Project("other", harness.PlainManifest)
-	snoop := strings.Replace(harness.PlainManifest, `"triggers": [],`, `"triggers": [], "reads": [{"project": "other", "documents": ["memory/MEMORY.md"]}],`, 1)
+	snoop := strings.Replace(harness.PlainManifest, `"triggers": [],`, `"triggers": [], "rights": [{"right": "data", "what": ["other/memory/MEMORY.md"], "why": "reads it"}],`, 1)
 	if code, out := e.Call("deck.project_create", map[string]any{"name": "snoop", "manifest": snoop}); code != 422 || !strings.Contains(string(out), "own agents and the master only") {
 		t.Fatalf("no project reads the memory of another: %d %s", code, out)
 	}

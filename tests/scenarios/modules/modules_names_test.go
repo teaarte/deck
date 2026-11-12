@@ -59,7 +59,7 @@ func TestAModuleOfFormat13CallsDeckByTheNewNames(t *testing.T) {
 	// Nor kept its models the module that added them.
 	e.SQL(`ALTER TABLE model DROP COLUMN project_id`)
 	// Nor had its messages of the master blocks.
-	e.SQL(`ALTER TABLE chat_message DROP COLUMN block; ALTER TABLE chat_message DROP COLUMN answer; ALTER TABLE chat_message DROP COLUMN answered_at; ALTER TABLE model DROP COLUMN tools; ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence`)
+	e.SQL(`ALTER TABLE chat_message DROP COLUMN block; ALTER TABLE chat_message DROP COLUMN answer; ALTER TABLE chat_message DROP COLUMN answered_at; ALTER TABLE model DROP COLUMN tools; ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence; DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''`)
 	// Nor had its connections a node.
 	e.SQL(`ALTER TABLE connection DROP COLUMN node_id`)
 	// Nor had it the devices of the owner.
@@ -103,8 +103,8 @@ func TestAModuleOfFormat13CallsDeckByTheNewNames(t *testing.T) {
 func TestATrialTakesNoReservedFieldIntoItsInput(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("ideas", strings.Replace(harness.IdeasManifest, `"class": "internal",`,
-		`"class": "internal", "input": {"type": "object", "properties": {"topic": {"type": "string"}}},`, 1))
+	e.Project("ideas", strings.Replace(harness.IdeasManifest, `"executor": {`,
+		`"input": {"type": "object", "properties": {"topic": {"type": "string"}}}, "executor": {`, 1))
 	var r struct{ Process int64 }
 	e.Must("deck.command_try", map[string]any{"command": "ideas.collect",
 		"input": `{"topic": "go", "retry_key": "k", "allows": "[]"}`, "live": true}, &r)

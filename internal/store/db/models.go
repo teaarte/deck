@@ -236,7 +236,6 @@ type McpTool struct {
 	Description string
 	Input       string
 	Fingerprint string
-	Approved    string
 	Listed      int64
 }
 
@@ -371,15 +370,14 @@ type ProcessRemark struct {
 }
 
 type Project struct {
-	ID              int64
-	WorkspaceID     int64
-	Name            string
-	Status          string
-	Paused          int64
-	Builtin         int64
-	CreatedAt       string
-	GrantedRevision sql.NullInt64
-	ImportedFrom    string
+	ID           int64
+	WorkspaceID  int64
+	Name         string
+	Status       string
+	Paused       int64
+	Builtin      int64
+	CreatedAt    string
+	ImportedFrom string
 }
 
 type ProjectFolder struct {
@@ -416,6 +414,17 @@ type RecordSnapshot struct {
 	Revision     int64
 	Records      string
 	CreatedAt    string
+}
+
+type RightGrant struct {
+	ProjectID int64
+	Name      string
+	Who       string
+	Subject   string
+	Answer    string
+	Print     string
+	DeviceID  sql.NullInt64
+	CreatedAt string
 }
 
 type Session struct {

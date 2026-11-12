@@ -108,8 +108,8 @@ func TestADeckWithModulesOffersNoStarter(t *testing.T) {
 	}
 }
 
-// TestWhatAModuleNeedsReadsInTheOwnersLanguage: in Russian the rights of a draft read in Russian, with the domains and
-// connections they name as they are.
+// TestWhatAModuleNeedsReadsInTheOwnersLanguage: in Russian the rights of a draft read in Russian, with the hosts and
+// connections they name as they are, and why in the module's own words.
 func TestWhatAModuleNeedsReadsInTheOwnersLanguage(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
@@ -119,11 +119,12 @@ func TestWhatAModuleNeedsReadsInTheOwnersLanguage(t *testing.T) {
 	has := func(what, detail string) bool {
 		return slices.ContainsFunc(needs, func(n needView) bool { return n.Kind == "right" && n.What == what && n.Detail == detail })
 	}
-	if !has("достаёт и может выгружать данные на", "openrouter.ai") || !has("вызывает модели через nvidia", "") || !has("видит, какие модели делают работу всех проектов", "") {
-		t.Fatalf("the rights of a draft read in Russian: %+v", needs)
+	if !has("его программы ходят на openrouter.ai и могут выгружать туда его данные", "reads the lists of free models and loads the chart library") ||
+		!has("тратит деньги через nvidia", "tries the models it finds to rate them") || !has("читает твои данные: *:models", "sees which models do the work of each module, to suggest free ones") {
+		t.Fatalf("the rights of a draft read in Russian, what deck says in deck's words, why in the module's: %+v", needs)
 	}
 	e.Must("deck.project_readiness_get", map[string]any{"project": "free-models"}, &needs)
-	if !has("reaches and may send data to", "openrouter.ai") {
+	if !has("its programs reach openrouter.ai and may send its data there", "reads the lists of free models and loads the chart library") {
 		t.Fatalf("in English the rights stay as deck wrote them: %+v", needs)
 	}
 }

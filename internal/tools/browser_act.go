@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/registry"
@@ -21,7 +20,7 @@ import (
 func (b *Browser) actor(tool string) registry.Handler {
 	name := registry.Deck(tool)
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
-		m, err := docs.For(ctx, b.Store.Q, act, act.ProjectID)
+		m, g, sites, err := b.rights(ctx, act.ProjectID)
 		if err != nil {
 			return nil, err
 		}
@@ -35,10 +34,10 @@ func (b *Browser) actor(tool string) registry.Handler {
 		}
 		b.mu.Lock()
 		defer b.mu.Unlock()
-		page, err := b.current(ctx, readsAnySite(m))
+		page, err := b.current(ctx, readsAnySite(sites))
 		approved, yes := gateway.Approved(ctx)
-		if err == nil && !on(m.Domains.Act, page) && !(yes && page != "" && approved == page) {
-			err = registry.Refuse("the browser shows %s now, which is not on an act domain; look at the page again and repeat the call", untrusted.Line(page, 300))
+		if err == nil && !acts(m, g, page) && !(yes && page != "" && approved == page) {
+			err = registry.Refuse("the browser shows %s now, which is not a site the owner let this module act on always; look at the page again and repeat the call", untrusted.Line(page, 300))
 		}
 		if err != nil {
 			b.GW.Refused(ctx, act, act.ProjectID, name, raw, err)
@@ -49,13 +48,13 @@ func (b *Browser) actor(tool string) registry.Handler {
 			b.GW.Refused(ctx, act, act.ProjectID, name, raw, err)
 			return nil, err
 		}
-		res, err := b.call(ctx, readsAnySite(m), tool, args)
+		res, err := b.call(ctx, readsAnySite(sites), tool, args)
 		if err != nil {
 			return nil, failed(ctx, b.GW, intent, name, page, err)
 		}
 		out, cerr := Content(b.Home, act.ProcessID, name, res)
 		if now, off := b.offDomains(ctx, act.ProjectID); off && cerr == nil {
-			out = map[string]any{"text": "Done. The browser now shows " + untrusted.Line(now, 300) + ", which is not on a read or act domain of this project, so what it shows is withheld."}
+			out = map[string]any{"text": "Done. The browser now shows " + untrusted.Line(now, 300) + ", which is not a site this module holds the network of, so what it shows is withheld."}
 		}
 		done(ctx, b.GW, intent, page, cerr)
 		return out, cerr

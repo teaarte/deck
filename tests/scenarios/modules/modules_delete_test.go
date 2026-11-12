@@ -62,7 +62,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	if _, err := os.Stat(runDir); err != nil {
 		t.Fatalf("the fixture has the run folder of a process: %v", err)
 	}
-	e.Project("reader", harness.Manifest(`{"reads": [{"project": "gone", "collections": ["notes"]}]}`))
+	e.Project("reader", harness.Manifest(`{"rights": [{"right": "data", "what": ["gone.notes"], "why": "reads it"}]}`))
 
 	_, tok := e.Token("terminal", "deck.*")
 	if code, _ := e.As(tok).Call("deck.project_delete", map[string]any{"project": "gone"}); code != 403 {

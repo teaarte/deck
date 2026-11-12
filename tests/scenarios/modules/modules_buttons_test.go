@@ -52,7 +52,7 @@ func TestAModuleButtonShowsWhereItHoldsAndTakesValuesFromTheRow(t *testing.T) {
 	e := harness.New(t)
 	e.Project("notes", harness.Manifest(`{"collections": [{"name": "notes", "description": "Notes", "key": "title", "display": "title",
     "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title"]}}],
-  "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "class": "internal", "result": {"type": "object"},
+  "commands": [{"name": "touch", "title": "Touch", "description": "Touches a note.", "result": {"type": "object"},
     "input": {"type": "object", "properties": {"note": {"type": "integer", "format": "record"}, "score": {"type": "string"}}, "required": ["note"]},
     "executor": {"type": "agent", "prompt": "Touch."}}],
   "screens": [{"name": "main", "title": "Notes", "blocks": [{"type": "table", "title": "Notes", "source": {"collection": "notes", "sort": "title"},
@@ -111,7 +111,7 @@ func TestUndoOfAModuleButtonIsACallOfItsOwn(t *testing.T) {
 
 var fixedClips = harness.Manifest(`{"collections": [{"name": "clips", "description": "Clips", "key": "slug", "display": "title",
     "schema": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug"]}}],
-  "commands": [{"name": "retitle", "title": "Retitle", "description": "Retitles a clip.", "class": "internal", "result": {"type": "object"},
+  "commands": [{"name": "retitle", "title": "Retitle", "description": "Retitles a clip.", "result": {"type": "object"},
     "input": {"type": "object", "properties": {"slug": {"type": "string"}, "title": {"type": "string"}}, "required": ["slug", "title"]},
     "executor": {"type": "agent", "prompt": "Retitle."}}],
   "screens": [{"name": "clip", "title": "Clip", "record": "clips", "blocks": [

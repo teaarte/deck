@@ -58,14 +58,11 @@ func (s *Service) draftOf(ctx context.Context, act registry.Actor, in projectDra
 	tr := func(t string) string { return manifest.TrText(ws, t) }
 	v := s.viewProject(ctx, p, ms[p.ID], nil, registry.Lang(ctx))
 	out := draftView{ID: p.ID, Name: p.Name, Title: v.Title, Icon: v.Icon, Description: v.Description, Revision: v.Revision, Draft: p.Status == "draft"}
-	rights, err := s.projectRights(ctx, act, projectExportIn{Project: in.Project})
+	gs, err := s.St.Q.ListGrants(ctx, p.ID)
 	if err != nil {
 		return out, err
 	}
-	var lines []string
-	for _, r := range rights {
-		lines = append(lines, "- "+bullet(tr(r.What), r.Detail))
-	}
+	lines := lines(rows(p, ms[p.ID], gs, func(t string) string { return manifest.Tr(ws, t) }), tr)
 	// A custom block holds what its screen gives it, and deck cannot keep every way out of a browser shut.
 	if cs, err := s.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Kind: docs.KindCustom}); err == nil && len(cs) > 0 {
 		lines = append(lines, "- "+tr("its custom blocks see the data their screens give them and may carry it out of deck"))

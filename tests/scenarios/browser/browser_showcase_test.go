@@ -19,7 +19,7 @@ var readingManifest = harness.Manifest(`{"title": "Reading list",
         "minutes": {"type": "integer"}}, "required": ["title"]}},
     {"name": "days", "description": "Articles read a day.", "key": "day",
       "schema": {"type": "object", "properties": {"day": {"type": "string"}, "read": {"type": "integer"}}, "required": ["day"]}}],
-  "commands": [{"name": "share", "title": "Share", "description": "Sends the week's digest.", "class": "internal", "result": {"type": "object"},
+  "commands": [{"name": "share", "title": "Share", "description": "Sends the week's digest.", "result": {"type": "object"},
     "executor": {"type": "agent", "prompt": "Send the digest."}}],
   "screens": [{"name": "list", "title": "Reading list", "params": {"status": "string"},
     "side": [
@@ -55,13 +55,14 @@ var pricesManifest = harness.Manifest(`{"title": "Price watch",
 // mailerManifest is a demo module that comes as a draft: a schedule, a command that sends mail out and a site it reads.
 var mailerManifest = harness.Manifest(`{"title": "Weekly mailer",
   "commands": [
-    {"name": "collect", "title": "Collect", "description": "Collects the week's links.", "class": "internal", "input": {"type": "object", "properties": {}},
+    {"name": "collect", "title": "Collect", "description": "Collects the week's links.", "input": {"type": "object", "properties": {}},
      "executor": {"type": "agent", "prompt": "Collect the week's links."}, "result": {"type": "object"}},
-    {"name": "send", "title": "Send", "description": "Mails the week's links to the owner.", "class": "external",
+    {"name": "send", "title": "Send", "description": "Mails the week's links to the owner.",
      "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
      "executor": {"type": "agent", "prompt": "Mail the links."}, "result": {"type": "object"}}],
   "triggers": [{"command": "collect", "cron": "0 9 * * 1"}, {"command": "send", "after": "collect"}],
-  "domains": {"read": ["news.ycombinator.com"]}}`)
+  "rights": [{"right": "network", "what": ["news.ycombinator.com"], "why": "reads it"},
+    {"right": "send", "what": ["send"], "why": "mails the owner the week's links"}]}`)
 
 // digestManifest is a demo module of the morning's news: a list widget.
 var digestManifest = harness.Manifest(`{"title": "Morning digest",

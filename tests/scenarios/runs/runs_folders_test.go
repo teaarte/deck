@@ -25,8 +25,8 @@ import (
 func TestAgentCommandWorksInTheProjectFolder(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
-	p := e.Project("code", harness.TestManifest([]string{harness.FolderCommand("run", "true"), harness.AgentCommand("plain", ""),
-		harness.FolderCommand("docs", `"notes"`)}, nil))
+	p := e.Project("code", harness.OnLogin(harness.TestManifest([]string{harness.FolderCommand("run", "true"), harness.AgentCommand("plain", ""),
+		harness.FolderCommand("docs", `"notes"`)}, nil)))
 	e.Refused("code.run", map[string]any{}, 422, "has no folder yet")
 
 	repo := harness.RepoFolder(t)
@@ -108,8 +108,8 @@ func TestSecondAgentInTheSameFolderWaitsForTheLock(t *testing.T) {
 	if err := os.Symlink(repo, link); err != nil {
 		t.Fatal(err)
 	}
-	a := e.Project("front", harness.TestManifest([]string{harness.Many(harness.FolderCommand("run", "true"))}, nil))
-	b := e.Project("back", harness.TestManifest([]string{harness.Many(harness.FolderCommand("run", "true"))}, nil))
+	a := e.Project("front", harness.OnLogin(harness.TestManifest([]string{harness.Many(harness.FolderCommand("run", "true"))}, nil)))
+	b := e.Project("back", harness.OnLogin(harness.TestManifest([]string{harness.Many(harness.FolderCommand("run", "true"))}, nil)))
 	e.Must("deck.folder_add", map[string]any{"project": "front", "path": repo}, nil)
 	e.Must("deck.folder_add", map[string]any{"project": "back", "path": link, "name": "repo"}, nil)
 
@@ -157,7 +157,7 @@ func TestFolderLockSurvivesARestart(t *testing.T) {
 	first := &harness.Fake{Script: held(hang)}
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(first), harness.WithClock(clock))
-	p := e.Project("code", harness.TestManifest([]string{harness.Many(harness.FolderCommand("run", "true"))}, nil))
+	p := e.Project("code", harness.OnLogin(harness.TestManifest([]string{harness.Many(harness.FolderCommand("run", "true"))}, nil)))
 	e.Must("deck.folder_add", map[string]any{"project": "code", "path": harness.RepoFolder(t)}, nil)
 	a := e.Run(p, "run")
 	e.Until("the first at its provider", func() bool { return len(first.Calls()) == 1 })
@@ -193,7 +193,7 @@ func TestOnlyTheOwnerAddsAFolder(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`), Text: out}
 	}))
 
-	p := e.Project("code", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("code", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
 	_, tok := e.Token("terminal", "deck.*")
 	for _, name := range []string{"deck.folder_add", "deck.folder_delete"} {
 		code, out := e.As(tok).Call(name, map[string]any{"project": "code", "path": t.TempDir(), "name": "x"})
@@ -228,7 +228,7 @@ func TestCodexAgentInTheProjectFolderMayWriteItsGit(t *testing.T) {
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
 	home := e.Home
-	p := e.Project("paint", strings.Replace(harness.ColorManifest, `"executor": {"type": "agent",`, `"executor": {"type": "agent", "folder": "main",`, 1))
+	p := e.Project("paint", harness.Declared(harness.OnLogin(strings.Replace(harness.ColorManifest, `"executor": {"type": "agent",`, `"executor": {"type": "agent", "folder": "main",`, 1))))
 	repo := harness.RepoFolder(t)
 	e.Must("deck.folder_add", map[string]any{"project": "paint", "path": repo, "name": "main"}, nil)
 	id := e.Run(p, "work")
@@ -299,7 +299,7 @@ func TestAPauseTheOwnerStopsFreesTheFolder(t *testing.T) {
 	}}
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithProvider(main, other), harness.WithClock(clock))
-	p := e.Project("code", harness.TestManifest([]string{harness.Many(harness.FolderCommand("run", "true"))}, nil))
+	p := e.Project("code", harness.OnLogin(harness.TestManifest([]string{harness.Many(harness.FolderCommand("run", "true"))}, nil)))
 	e.UseModels("code.run", "fake")
 	e.Must("deck.folder_add", map[string]any{"project": "code", "path": harness.RepoFolder(t)}, nil)
 	a := e.Run(p, "run")
@@ -335,7 +335,7 @@ func TestAStoppedAgentKeepsTheFolderUntilItsTurnExits(t *testing.T) {
 	}))
 
 	t.Cleanup(let)
-	p := e.Project("code", harness.TestManifest([]string{harness.Many(harness.FolderCommand("run", "true"))}, nil))
+	p := e.Project("code", harness.OnLogin(harness.TestManifest([]string{harness.Many(harness.FolderCommand("run", "true"))}, nil)))
 	e.Must("deck.folder_add", map[string]any{"project": "code", "path": harness.RepoFolder(t)}, nil)
 	first := e.Run(p, "run")
 	<-inside

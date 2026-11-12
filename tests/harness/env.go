@@ -402,3 +402,11 @@ func (e *Env) signIn() {
 	}
 	e.pairOwner()
 }
+
+// Grant answers always, as the owner, to a right of a module on each subject.
+func (e *Env) Grant(project, right string, subjects ...string) {
+	e.T.Helper()
+	for _, s := range subjects {
+		e.Must("deck.right_set", map[string]any{"project": project, "right": right, "subject": s, "answer": "always"}, nil)
+	}
+}

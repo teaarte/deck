@@ -55,7 +55,7 @@ func (s *Sandbox) open(domains []string, deck http.Handler) (*Door, error) {
 			return
 		}
 		if len(domains) == 0 {
-			d.refuse(r.Host + " is not in the domains of this project; its manifest names it in domains.read and the owner grants it")
+			d.refuse(r.Host + " is not a host this module holds the network of; it declares it under network in rights, and the owner grants it")
 			http.Error(w, "deck: "+r.Host+" is not reachable from this program", http.StatusForbidden)
 			return
 		}

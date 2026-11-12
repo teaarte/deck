@@ -35,8 +35,10 @@ func outward(b Button, m *manifest.Manifest, lang string) Button {
 	if m != nil {
 		c = m.Command(b.Command)
 	}
-	if c != nil && c.Class == registry.Internal {
-		return b
+	if c != nil {
+		if _, needs := m.CommandNeed(b.Command); !needs {
+			return b
+		}
 	}
 	b.Confirm, b.Label = true, b.Command
 	if c != nil {

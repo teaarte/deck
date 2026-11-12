@@ -14,6 +14,7 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -76,9 +77,8 @@ type Frozen struct {
 	Tool string `json:"tool,omitempty"`
 	// Target is where the call goes, as the owner reads it: method and URL, a page, a server and tool.
 	Target string `json:"target,omitempty"`
-	// Reason is why the caller asks; Widens are the rights a change of a manifest would grant.
-	Reason string   `json:"reason,omitempty"`
-	Widens []string `json:"widens,omitempty"`
+	// Reason is why the caller asks.
+	Reason string `json:"reason,omitempty"`
 	// Replaces are the calls of the same caller this one took the place of while they waited.
 	Replaces []int64 `json:"replaces,omitempty"`
 }
@@ -122,11 +122,11 @@ func Canonical(raw json.RawMessage) string {
 	return string(b)
 }
 
-// gate reports whether a call that is not internal runs now: reversible at once, external when allowed by the
-// project or the tool; a draft declines both, and a tool of a draft or a trial waits for the owner.
+// gate reports whether a call that needs a right runs now: when its project holds the right; a draft declines it,
+// and a tool of a draft or a trial waits for the owner.
 func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (bool, error) {
 	if project == 0 {
-		if c.Class == registry.External && c.Gate.Allowed != nil {
+		if c.Gate.Allowed != nil {
 			return c.Gate.Allowed(ctx, act, input, false)
 		}
 		return false, nil
@@ -141,24 +141,35 @@ func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Comm
 		}
 		return c.Gate.Free(ctx, act, input)
 	}
-	if p.Status == store.ProjectDraft {
-		return false, registry.Refuse("%s is a draft: %s is %s, so it was declined until the owner enables the project", p.Name, c.Name, c.Class)
+	var print string
+	if c.Gate.Fingerprint != nil {
+		print = c.Gate.Fingerprint(ctx, act.Workspace, project, input)
 	}
-	m, err := docs.For(ctx, g.st.Q, act, project)
+	n := g.Need(ctx, act, c, print, input)
+	if p.Status == store.ProjectDraft {
+		return false, registry.Refuse("%s is a draft: %s needs the right %s, so it was declined until the owner enables the project", p.Name, c.Name, n.Right)
+	}
+	m, granted, err := docs.Rights(ctx, g.st.Q, project)
 	if err != nil {
 		return false, err
 	}
-	switch c.Class {
-	case registry.Reversible:
-		return true, nil
-	case registry.External:
-		listed := slices.Contains(m.AllowedExternal, strings.TrimPrefix(c.Name, p.Name+".")) || slices.Contains(m.AllowedExternal, c.Name)
-		if c.Gate.Allowed != nil {
-			return c.Gate.Allowed(ctx, act, input, listed)
-		}
-		return listed, nil
+	if granted.Denies(n) {
+		return false, registry.Refuse("the owner said no to %s using the right %s on %s, so it was not made and is not asked again", p.Name, n.Right, n.Subject)
 	}
-	return false, nil
+	held := m.Holds(granted, n) || c.ProjectID != project && granted.Gives(n)
+	if c.Gate.Allowed != nil {
+		return c.Gate.Allowed(ctx, act, input, held)
+	}
+	return held, nil
+}
+
+// Need is the right of deck's catalog a call of c with input needs, what it acts on at print: what its command says,
+// else send on the command itself.
+func (g *Gateway) Need(ctx context.Context, act registry.Actor, c *registry.Command, print string, input json.RawMessage) registry.Need {
+	if c.Gate.Needs != nil {
+		return c.Gate.Needs(ctx, act, print, input)
+	}
+	return registry.Need{Right: manifest.Send, Subject: c.Name, Print: print}
 }
 
 // fingerprint is what a call acts on beside its input; empty for commands without one and unknown names.
@@ -252,8 +263,8 @@ func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Comm
 			g.Record(ctx, r, "rejected", fmt.Sprintf("replaced by ask %d of the same caller", a.ID))
 		}
 	}
-	return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s is %s, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
-		"Go on with other work: once the owner allows it, deck makes exactly this call and tells you the result.", c.Name, c.Class, a.ID), Link: ask.Link(a.ID)}, nil
+	return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s needs a right the owner has not granted this module always, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
+		"Go on with other work: once the owner allows it, deck makes exactly this call and tells you the result.", c.Name, a.ID), Link: ask.Link(a.ID)}, nil
 }
 
 // Unchanged is the answer to a call that would change nothing: no request goes to the owner.

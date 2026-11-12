@@ -17,10 +17,10 @@ func jobManifest(url string) string {
     "schema": {"type": "object", "properties": {"topic": {"type": "string"}, "job": {"type": "string"}, "status": {"type": "string"}},
       "required": ["topic"]}}],
   "commands": [
-    {"name": "start", "title": "Start", "description": "Starts a job and keeps its id.", "class": "internal",
+    {"name": "start", "title": "Start", "description": "Starts a job and keeps its id.",
      "input": {"type": "object", "properties": {"topic": {"type": "string"}}}, "result": {"type": "object"},
      "executor": {"type": "script", "script": "start"}},
-    {"name": "check", "title": "Check", "description": "Checks waiting jobs and downloads what is ready.", "class": "internal",
+    {"name": "check", "title": "Check", "description": "Checks waiting jobs and downloads what is ready.",
      "result": {"type": "object"}, "executor": {"type": "script", "script": "check"}}],
   "scripts": [{"name": "start", "file": "scripts/start.py", "runtime": "python"},
     {"name": "check", "file": "scripts/check.py", "runtime": "python"}],
@@ -28,12 +28,13 @@ func jobManifest(url string) string {
   "tools": {"http": [
     {"name": "create_job", "description": "Starts a job", "method": "POST", "url": "%[1]s/jobs",
      "auth": {"type": "secret", "secret": "svc"}, "input": {"type": "object", "properties": {"topic": {"type": "string"}}}},
-    {"name": "job_status", "description": "Job status", "method": "GET", "url": "%[1]s/jobs/{job}", "class": "internal",
+    {"name": "job_status", "description": "Job status", "method": "GET", "url": "%[1]s/jobs/{job}",
      "auth": {"type": "secret", "secret": "svc"}, "input": {"type": "object", "properties": {"job": {"type": "string"}}, "required": ["job"]},
      "result": {"type": "object", "properties": {"status": {"type": "string"}}, "required": ["status"]}},
-    {"name": "job_file", "description": "Job file", "method": "GET", "url": "%[1]s/jobs/{job}/file", "class": "internal",
+    {"name": "job_file", "description": "Job file", "method": "GET", "url": "%[1]s/jobs/{job}/file",
      "auth": {"type": "secret", "secret": "svc"}, "input": {"type": "object", "properties": {"job": {"type": "string"}}, "required": ["job"]}}]},
-  "allowed_external": ["create_job"]}`, url))
+  "rights": [{"right": "send", "what": ["create_job"], "why": "starts the jobs you ask for"},
+    {"right": "data", "what": ["job_status", "job_file"], "why": "reads its jobs"}]}`, url))
 }
 
 const startScript = harness.PythonLib + `
@@ -91,6 +92,7 @@ func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
 	clock := &harness.Clock{At: time.Date(2026, 9, 25, 8, 1, 0, 0, time.Local)}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
 	e.Project("clips", jobManifest(svc.URL))
+	e.Grant("clips", "send", "create_job")
 	e.Secret("clips", "svc", "tok-123")
 	e.SaveScript("clips", "scripts/start.py", startScript)
 	e.SaveScript("clips", "scripts/check.py", checkScript)

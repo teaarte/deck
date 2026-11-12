@@ -157,6 +157,7 @@ func (s *Service) importFiles(ctx context.Context, act registry.Actor, name, fro
 	if raw == "" {
 		return nil, registry.Invalid("%s has no %s", from, docs.ManifestName)
 	}
+	raw = store.UpgradeManifest(raw)
 	pm, err := parseManifest([]byte(raw), false)
 	if err != nil {
 		return nil, err
@@ -182,7 +183,7 @@ func (s *Service) importFiles(ctx context.Context, act registry.Actor, name, fro
 	if err != nil {
 		return nil, err
 	}
-	out := map[string]any{"id": p.ID, "name": p.Name, "status": p.Status, "files": len(files), "rights": rights(pm.m)}
+	out := map[string]any{"id": p.ID, "name": p.Name, "status": p.Status, "files": len(files), "rights": s.ungranted(ctx, p, pm.m)}
 	if w := append(s.unassigned(ctx, p, pm.m), untold(p, pm.m)...); len(w) > 0 {
 		out["warnings"] = w
 	}

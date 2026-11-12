@@ -15,7 +15,7 @@ var linuxTests = []string{"TestScriptCommandRunsInTheSandbox", "TestScriptKeepsA
 	"TestUploadedAndRecordFilesReachTheScriptReadOnly", "TestHTTPToolSendsFilesAsItsBody", "TestMCPServerToolsFollowClassesAndFilter",
 	"TestACPCommandAgentWorksThroughTheGateway", "TestACPProjectWithoutNetworkHasNoWebThroughTheProxy", "TestACPSelfCheckIsRedWhenTheSandboxOrTheProxyFails",
 	"TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject", "TestAScriptReadsNoFolderOfAnotherProject",
-	"TestAScriptSeesNoOtherProcess", "TestAnMCPServerReachesOnlyTheDomainsOfItsProject", "TestTheTunnelOfAStoppedMCPServerCloses",
+	"TestAScriptSeesNoOtherProcess", "TestAnMCPServerReachesOnlyTheHostsOfItsModule", "TestTheTunnelOfAStoppedMCPServerCloses",
 	"TestMCPCallLostWithItsServerIsAnUnknownOutcome", "TestProjectDeleteStopsTheMCPServersOfTheProject", "TestAFileThatWillNotGoIsInHealthUntilItGoes",
 	"TestTheCodexProgramPassesItsSelfCheckOnAModelOfTheTest", "TestCodexCommandAgentWorksThroughTheGateway",
 	"TestABoxSeesOnlyWhatItLists", "TestASecretOfAServerIsNotInTheCommandLineNorSeenByAnotherBox",

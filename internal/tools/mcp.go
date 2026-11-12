@@ -55,8 +55,12 @@ func SpecID(s manifest.MCPServer) string {
 }
 
 func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MCPServer, m *manifest.Manifest) (mcphost.Spec, error) {
+	g, err := docs.Grants(ctx, x.Store.Q, p.ID)
+	if err != nil {
+		return mcphost.Spec{}, err
+	}
 	if s.URL != "" {
-		return mcphost.Spec{URL: s.URL, Domains: m.Domains.All()}, nil
+		return mcphost.Spec{URL: s.URL, Domains: m.Held(g, manifest.Network, manifest.Programs)}, nil
 	}
 	dir := x.Home.MCP(p.ID, name)
 	var env, secrets []string
@@ -75,7 +79,7 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	for _, f := range folders {
 		paths = append(paths, f.Path)
 	}
-	b := boxes.For(sandbox.KindMCP, m, paths)
+	b := boxes.For(sandbox.KindMCP, m, g, false, paths)
 	b.Mark = x.Host.Sandbox.Mark(sandbox.KindMCP, ServerKey(p.ID, name))
 	b.Argv, b.Dir, b.Home, b.Env, b.Write = append([]string{s.Command}, s.Args...), dir, dir, env, []string{dir}
 	return mcphost.Spec{Box: b, Secrets: secrets}, nil
@@ -122,10 +126,14 @@ func (x *MCP) Start(ctx context.Context, p db.Project, m *manifest.Manifest) {
 	}
 }
 
-// Keep stores the tools a server listed after it started; a tool whose name, description or input changed
-// since the owner's rights were given loses them until the owner allows it again.
+// Keep stores the tools a server listed after it started; a tool whose name, description or input changed has
+// another print, so an answer of always to the old one no longer holds.
 func (x *MCP) Keep(ctx context.Context, project int64, server string, tools []*mcp.Tool) error {
-	m, err := docs.For(ctx, x.Store.Q, registry.Actor{}, project)
+	p, err := x.Store.Q.GetProject(ctx, project)
+	if err != nil {
+		return err
+	}
+	m, err := docs.Manifest(ctx, x.Store.Q, p)
 	if err != nil {
 		return err
 	}
@@ -154,8 +162,8 @@ func toolPrint(name, description string, input []byte) string {
 	return hex.EncodeToString(sum[:12])
 }
 
-// Commands are the registry commands of the tools of a project's servers that deck listed under their
-// current spec, through toolFilter; a tool's class comes from classes, external when unlisted or changed.
+// Commands are the tools deck listed of a project's servers under their spec, through toolFilter; a call needs the
+// right its server names, send by default, on server.tool at its print, and none beyond the server's for network.
 func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manifest) ([]*registry.Command, error) {
 	if len(m.Tools.MCP.Servers) == 0 {
 		return nil, nil
@@ -170,21 +178,19 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		if !ok || r.Listed == 0 || r.Spec != SpecID(s) || len(s.ToolFilter) > 0 && !slices.Contains(s.ToolFilter, r.Name) {
 			continue
 		}
-		changed := r.Fingerprint != r.Approved
-		class := s.Classes[r.Name]
-		if class == "" || changed {
-			class = registry.External
+		right, class := manifest.ServerRight(s, r.Name), registry.External
+		if right == manifest.Network {
+			class = registry.Internal
 		}
 		print := r.Spec + "/" + r.Fingerprint
+		need := registry.Need{Right: right, Subject: r.Server + "." + r.Name, Print: print}
 		c := registry.Loose(p.Name+"."+r.Server+"."+r.Name, cmp.Or(r.Title, r.Name), cmp.Or(r.Description, r.Name), class, registry.Everyone, json.RawMessage(r.Input),
 			x.handler(p, r.Server, s, m, r.Name, class, r.Fingerprint)).Foreign()
 		c.ProjectID = p.ID
-		c.Gate = registry.Gate{Journals: class == registry.External,
+		c.Gate = registry.Gate{Journals: right == manifest.Send,
 			Fingerprint: func(context.Context, int64, int64, json.RawMessage) string { return print },
 			Target:      func(string, json.RawMessage) string { return "server " + r.Server + ", tool " + r.Name },
-			Allowed: func(_ context.Context, _ registry.Actor, _ json.RawMessage, listed bool) (bool, error) {
-				return listed && !changed, nil
-			}}
+			Needs:       func(context.Context, registry.Actor, string, json.RawMessage) registry.Need { return need }}
 		out = append(out, c)
 	}
 	return out, nil

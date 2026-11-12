@@ -32,7 +32,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		fail(fault.Of(err))
 		return
 	}
-	granted, err := docs.InForce(bg, r.st.Q, proj, t.m)
+	granted, err := docs.Grants(bg, r.st.Q, proj.ID)
 	if err != nil {
 		fail(fault.Of(err))
 		return
@@ -62,7 +62,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		return
 	}
 	job := script.Job{Project: t.project, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: r.runDir(id),
-		Stdin: []byte(input), Box: boxes.For(sandbox.KindScript, granted, place.Folders), Token: u.tok, Read: []string{inDir},
+		Stdin: []byte(input), Box: boxes.For(sandbox.KindScript, t.m, granted, false, place.Folders), Token: u.tok, Read: []string{inDir},
 		OnLine:  func(line string) { r.event(bg, id, u.stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}

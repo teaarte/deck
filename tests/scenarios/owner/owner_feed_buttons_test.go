@@ -24,9 +24,9 @@ func TestAnAgentsFeedButtonOfAnOutwardCommandAsksFirst(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}))
 	base := harness.PostManifest(svc.URL, "")
-	m := strings.Replace(base, `"commands": [`, `"commands": [{"name": "send", "title": "Send out", "description": "Sends a note out.", "class": "external",
+	m := strings.NewReplacer(`"commands": [`, `"commands": [{"name": "send", "title": "Send out", "description": "Sends a note out.",
     "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]},
-    "executor": {"type": "tool", "tool": "post"}}, `, 1)
+    "executor": {"type": "tool", "tool": "post"}}, `, `"what": ["post"]`, `"what": ["post", "send"]`).Replace(base)
 	p := e.Project("notes", m)
 	e.Secret("notes", "svc", "s3cret")
 	e.WaitState(e.Run(p, "work"), "done", "failed")

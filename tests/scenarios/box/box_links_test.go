@@ -37,7 +37,7 @@ func TestALinkToDevZeroInARepoDoesNotEatDecksMemory(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("a", harness.TestManifest([]string{harness.FolderCommand("work", "true")}, nil))
+	p := e.Project("a", harness.OnLogin(harness.TestManifest([]string{harness.FolderCommand("work", "true")}, nil)))
 	folder := harness.RepoFolder(t)
 	e.Must("deck.folder_add", map[string]any{"project": "a", "path": folder}, nil)
 	if err := os.MkdirAll(filepath.Join(folder, ".claude"), 0o700); err != nil {

@@ -150,7 +150,7 @@ func Open(path string, now func() time.Time, before ...Before) (*Store, error) {
 	conn.SetMaxOpenConns(1)
 	dir, _ := fs.Sub(migrations, "migrations")
 	up, err := goose.NewProvider(goose.DialectSQLite3, conn, dir, goose.WithDisableGlobalRegistry(true),
-		goose.WithGoMigrations(append(commandsRenamed, format15, format16, masterSleep)...))
+		goose.WithGoMigrations(append(commandsRenamed, format15, format16, masterSleep, format17)...))
 	if err != nil {
 		return nil, err
 	}

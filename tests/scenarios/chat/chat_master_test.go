@@ -41,10 +41,10 @@ func TestAChainAskedInTheChatCountsAsTheOwnersButton(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "groq", "api": "openai", "url": api.URL + "/v1", "key": "gsk-1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "groq", "model": "still", "name": "still", "kind": "text", "free": true}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"still"}}, nil)
-	media := `{"name": "media", "title": "Media", "description": "Makes a still.", "class": "internal",
+	media := `{"name": "media", "title": "Media", "description": "Makes a still.",
 	  "input": {"type": "object", "properties": {"scene": {"type": "string"}}},
 	  "executor": {"type": "model", "kind": "text", "prompt": "Describe a still."}}`
-	e.Project("studio", harness.TestManifest([]string{harness.AgentCommand("direct", ""), harness.AgentCommand("board", ""), media}, nil))
+	e.Project("studio", harness.Declared(harness.TestManifest([]string{harness.AgentCommand("direct", ""), harness.AgentCommand("board", ""), media}, nil)))
 	topic := e.Say(0, "make the video")
 	if said := e.MasterSaid(topic, 1); said[0].Text != "Started the video." {
 		t.Fatalf("the master starts the command: %+v", said)
@@ -113,7 +113,7 @@ func TestTheChangesOfARunAreOneLine(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}))
 
-	e.Project("notes", harness.IdeasManifest)
+	e.Project("notes", harness.Declared(harness.IdeasManifest))
 	for i := range 4 {
 		e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": fmt.Sprint("idea ", i), "score": i})}, nil)
 	}
@@ -155,7 +155,7 @@ func TestAManifestCheckOfAProjectAloneChecksItsCurrentManifest(t *testing.T) {
     "side": [{"type": "filter", "title": "Level", "param": "level", "options": ["high", "COIN"]},
       {"type": "filter", "param": "topic", "source": {"collection": "ideas"}, "field": "topic"}],`, 1)
 	m = strings.Replace(m, `{"label": "Score", "bind": "score"}`, `{"label": "Score", "bind": "score > 8 ? 'fresh' : '$0'", "format": "tag"}, {"label": "R:R", "bind": "score"}`, 1)
-	e.Project("notes", m)
+	e.Project("notes", harness.Declared(m))
 	e.Must("deck.record_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": harness.Jsonl(map[string]any{"title": "a", "score": 9, "topic": "Биткоин"}, map[string]any{"title": "b", "score": 1, "topic": "ETH"}, map[string]any{"title": "c", "score": 2, "topic": "rare"})}, nil)
 	var c struct {
 		Ok           bool
@@ -174,7 +174,7 @@ func TestAManifestCheckOfAProjectAloneChecksItsCurrentManifest(t *testing.T) {
 func TestNoSchemaAnAgentSeesHasAllows(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("notes", harness.IdeasManifest)
+	e.Project("notes", harness.Declared(harness.IdeasManifest))
 	var d struct{ Input json.RawMessage }
 	e.Must("deck.command_describe", map[string]any{"command": "notes.collect"}, &d)
 	if strings.Contains(string(d.Input), "allows") || !strings.Contains(string(d.Input), "retry_key") {
@@ -211,7 +211,7 @@ func TestAManifestTheMasterChangedTwiceInARunGoesBackOnce(t *testing.T) {
 		return provider.Result{Text: "Saved."}
 	}))
 
-	e.Project("notes", harness.PlainManifest)
+	e.Project("notes", harness.Declared(harness.PlainManifest))
 	var feed []struct {
 		ID   int64
 		Text string
@@ -249,7 +249,7 @@ func TestReviewRunsOnItsSchedule(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.MasterScript), harness.WithClock())
 	e.MasterAwake()
-	e.Project("work", harness.PlainManifest)
+	e.Project("work", harness.Declared(harness.PlainManifest))
 	e.Clock.Add(2*time.Hour + 29*time.Minute)
 	e.Tick()
 	if n := len(e.RunsOf("master", "review")); n != 0 {
@@ -281,7 +281,7 @@ func TestAnErrorReachesTheMasterOncePerDay(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.MasterScript), harness.WithClock())
 	e.MasterAwake()
-	p := e.Project("work", harness.PlainManifest)
+	p := e.Project("work", harness.Declared(harness.PlainManifest))
 	failed := e.WaitState(e.Run(p, "work"), "error")
 	e.Until("on_error", func() bool { return len(e.RunsOf("master", "on_error")) == 1 })
 	in := e.App.Store.Q
@@ -330,7 +330,7 @@ func TestReviewCallsOnlyWhatItsCommandLists(t *testing.T) {
 	}))
 
 	e.MasterAwake()
-	e.Project("work", harness.PlainManifest)
+	e.Project("work", harness.Declared(harness.PlainManifest))
 	var r struct{ Process int64 }
 	e.Must("master.review", map[string]any{}, &r)
 	got := e.WaitState(r.Process, "done", "error")
@@ -346,10 +346,10 @@ func TestADeletedProjectTakesItsErrorDayWithIt(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.MasterScript), harness.WithClock())
 	e.MasterAwake()
-	e.WaitState(e.Run(e.Project("work", harness.PlainManifest), "work"), "error")
+	e.WaitState(e.Run(e.Project("work", harness.Declared(harness.PlainManifest)), "work"), "error")
 	e.Until("on_error", func() bool { rs := e.RunsOf("master", "on_error"); return len(rs) == 1 && rs[0].State == "done" })
 	e.Must("deck.project_delete", map[string]any{"project": "work"}, nil)
-	e.WaitState(e.Run(e.Project("work", harness.PlainManifest), "work"), "error")
+	e.WaitState(e.Run(e.Project("work", harness.Declared(harness.PlainManifest)), "work"), "error")
 	e.Until("on_error of the new project", func() bool { return len(e.RunsOf("master", "on_error")) == 2 })
 }
 
@@ -364,7 +364,7 @@ func TestABlockThatFailsOnAScreenReachesTheMaster(t *testing.T) {
 		t.Fatal("fixture replacement did not apply")
 	}
 	for _, name := range []string{"web", "web2"} {
-		e.Project(name, broken)
+		e.Project(name, harness.Declared(broken))
 		e.Must("deck.document_save", map[string]any{"project": name, "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 		e.Must("deck.record_upsert", map[string]any{"project": name, "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "b"})}, nil)
 	}
@@ -404,7 +404,7 @@ func TestABlockThatFailsIsInTheHealthOfItsModule(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.MasterScript))
 	e.MasterAwake()
 	broken := strings.Replace(harness.WebNotes, `"columns": [{"label": "Title", "bind": "title"}`, `"columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score > 0 ? score : nil"}`, 1)
-	e.Project("web", broken)
+	e.Project("web", harness.Declared(broken))
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "b"})}, nil)
 	e.ScreenMessages("web", "main", nil)
@@ -466,7 +466,7 @@ func TestOnErrorCallsOnlyWhatItsCommandLists(t *testing.T) {
 	}))
 
 	e.MasterAwake()
-	e.Project("work", harness.PlainManifest)
+	e.Project("work", harness.Declared(harness.PlainManifest))
 	var r struct{ Process int64 }
 	e.Must("master.on_error", map[string]any{"project": "work", "screen": "main", "error": "b0: broken"}, &r)
 	e.WaitState(r.Process, "done")

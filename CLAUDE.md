@@ -58,12 +58,13 @@ hold; look inside a package for the rest.
   observers only `Follow` it: beside the commits, merged by workspace with the projects changed. Topics are its
   constants (`topics.go`); a topic written out elsewhere fails `tests/lint`; the store hands it `Changed` events.
 - `internal/manifest` — the manifest of a module (one format, `version.go`): types, parsing, checks of screens by
-  part, expressions (`Where`, `Resolve`), the table of rights (`grants.go`: `Widens` and `Clip` by one table), the
-  structural merge of a grant (`merge.go`), texts and their translation (`words.go`); one ordered JSON (`json.go`),
+  part, expressions (`Where`, `Resolve`), the catalog of seven rights (`catalog.go`), what a module declares and
+  holds (`rights.go`: `Holds` the one "granted?", `ToolRight`), the structural merge `Ship` uses (`merge.go`), texts
+  and their translation (`words.go`); one ordered JSON (`json.go`),
   one reader of an object schema (`ObjectOf`), one reference to a secret (`SecretRef`), defaults in one step of
   `Parse`.
-- `internal/docs` — documents with revisions, skill files, the manifest reader and what is in force (`For`,
-  `InForce`); `Ship` lays out what deck ships (master, skills) with a merge of others' edits and removal.
+- `internal/docs` — documents with revisions, skill files, the manifest reader and the owner's answers to its rights
+  (`Rights`, `Grant`, the table `right_grant`); `Ship` lays out what deck ships (master, skills) with a merge of others' edits and removal.
 - `internal/process` — the runner of processes: turns of agents, scripts, tools and models, slots, resume, the
   deadlines (`Due`), the hand-on of a refused or silent turn to the next model (`handon.go`, `watch.go`), what a
   process left (`left.go`); what it needs from deck is `Deps`.

@@ -5,8 +5,8 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"errors"
-	"log/slog"
 	"sync"
+	"time"
 
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -81,40 +81,37 @@ func parse(doc, revision int64, text string) (*manifest.Manifest, error) {
 	return m, nil
 }
 
-// InForce is m, a manifest of project p, with only the rights the owner gave: those of the granted revision, none
-// when it no longer reads; the built-in project has every right.
-func InForce(ctx context.Context, q *db.Queries, p db.Project, m *manifest.Manifest) (*manifest.Manifest, error) {
-	if p.Builtin == 1 || p.GrantedRevision.Valid && p.GrantedRevision.Int64 == m.Revision && m.Revision != 0 {
-		return m, nil
-	}
-	granted := &manifest.Manifest{}
-	if p.GrantedRevision.Valid {
-		g, err := ManifestAt(ctx, q, p.ID, p.GrantedRevision.Int64)
-		if err != nil {
-			slog.Error("the granted manifest no longer reads, so the project runs with no rights granted", "project", p.Name, "err", err)
-			g = granted
-		}
-		granted = g
-	}
-	return manifest.Clip(granted, m), nil
-}
-
-// For is the current manifest of a project with the rights act has there: what the owner granted; a trial of a
-// draft also writes its documents and calls the models it names.
-func For(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64) (*manifest.Manifest, error) {
-	p, err := q.GetProject(ctx, projectID)
+// Grants are the owner's answers to the rights of a project.
+func Grants(ctx context.Context, q *db.Queries, projectID int64) (manifest.Grants, error) {
+	rows, err := q.ListGrants(ctx, projectID)
 	if err != nil {
 		return nil, err
+	}
+	out := make(manifest.Grants, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, manifest.Grant{Right: r.Name, Who: r.Who, Subject: r.Subject, Answer: r.Answer, Print: r.Print})
+	}
+	return out, nil
+}
+
+// Rights are the current manifest of a project, what it declares, and the owner's answers to it.
+func Rights(ctx context.Context, q *db.Queries, projectID int64) (*manifest.Manifest, manifest.Grants, error) {
+	p, err := q.GetProject(ctx, projectID)
+	if err != nil {
+		return nil, nil, err
 	}
 	m, err := Manifest(ctx, q, p)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	in, err := InForce(ctx, q, p, m)
-	if err != nil || !act.Trial || p.Status != store.ProjectDraft {
-		return in, err
-	}
-	return manifest.Trial(in, m), nil
+	g, err := Grants(ctx, q, projectID)
+	return m, g, err
+}
+
+// Grant keeps the owner's answer to a right of a project on one subject, from the device of act.
+func Grant(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, n registry.Need, answer string, now time.Time) error {
+	return q.SetGrant(ctx, db.SetGrantParams{ProjectID: projectID, Name: n.Right, Who: manifest.WhomOf(n.Right, n.Who), Subject: n.Subject,
+		Answer: answer, Print: n.Print, DeviceID: store.ID(act.Device), CreatedAt: store.Time(now)})
 }
 
 // All are the current manifests of projects by project id, and the error of each that does not load.

@@ -233,12 +233,7 @@ func Tr(ws map[string]string, s string) string {
 
 // TrText is a text deck wrote in a language by words: a phrase, or one with verbs whose values stay but for a word or
 // phrase of deck (names in quotes stay); the text itself when none fits. Only text deck wrote goes in.
-func TrText(ws map[string]string, s string) string { return trText(ws, s, false) }
-
-// TrNamed is TrText of a text whose values without a space are names, which stay as they are.
-func TrNamed(ws map[string]string, s string) string { return trText(ws, s, true) }
-
-func trText(ws map[string]string, s string, named bool) string {
+func TrText(ws map[string]string, s string) string {
 	if t := ws[s]; t != "" || s == "" {
 		return cmp.Or(t, s)
 	}
@@ -256,13 +251,13 @@ func trText(ws map[string]string, s string, named bool) string {
 		}
 		args := make([]any, len(m)-1)
 		for i, v := range m[1:] {
-			if quotedNames.MatchString(v) || named && !strings.Contains(v, " ") {
+			if quotedNames.MatchString(v) {
 				args[i] = v
 				continue
 			}
 			args[i] = Tr(ws, v)
 			if v != s && args[i] == v {
-				args[i] = trText(ws, v, named)
+				args[i] = TrText(ws, v)
 			}
 		}
 		return fmt.Sprintf(verb.ReplaceAllString(ws[k], "%${1}s"), args...)

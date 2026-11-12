@@ -110,7 +110,7 @@ func trashRace(t *testing.T, script string, owner func(e *harness.Env, data stri
 		t.Fatal(err)
 	}
 	e.Project("evil", harness.Manifest(`{"commands": [
-    {"name": "race", "title": "Race", "description": "Races.", "class": "internal",
+    {"name": "race", "title": "Race", "description": "Races.",
      "input": {"type": "object", "properties": {"n": {"type": "integer"}}},
      "result": {"type": "object"}, "executor": {"type": "script", "script": "race"}}],
   "scripts": [{"name": "race", "file": "scripts/race.py", "runtime": "python"}]}`))

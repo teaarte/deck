@@ -29,7 +29,7 @@ func TestAnAgentOnANodeIsAModelDeckHas(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithCodex(harness.NewCodex(t)))
 	n := codexNode(t, e)
-	e.Project("paint", harness.ColorManifest)
+	e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	e.Until("the node online", func() bool { return e.HealthRowOf("node:Mac") != nil })
 	e.Refused("deck.assignment_set", map[string]any{"role": "agent", "project": "paint", "command": "work", "models": []string{"codex@Mac"}},
 		422, "node Mac does not run the agent codex")
@@ -38,7 +38,7 @@ func TestAnAgentOnANodeIsAModelDeckHas(t *testing.T) {
 	n.Start()
 	e.Until("codex@Mac among the agents", func() bool { return hasModel(e, "codex@Mac") })
 	e.UseModels("paint.work", "codex@Mac")
-	derive := func(name string) { e.Project(name, harness.PlainManifest) }
+	derive := func(name string) { e.Project(name, harness.OnLogin(harness.PlainManifest)) }
 	e.Must("deck.device_rename", map[string]any{"device": n.Joined.Device, "name": "Mini"}, nil)
 	derive("first")
 	if h := e.WaitHealth("model:codex@Mac", "warning"); !strings.Contains(h.Error, "deck has no such model") {
@@ -56,7 +56,7 @@ func TestWorkWhoseNodeIsAwaySaysSo(t *testing.T) {
 	e := harness.New(t, harness.WithCodex(harness.NewCodex(t)))
 	n := codexNode(t, e, "codex")
 	e.Until("codex@Mac among the agents", func() bool { return hasModel(e, "codex@Mac") })
-	e.Project("paint", harness.ColorManifest)
+	e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	e.UseModels("paint.work", "codex@Mac", "codex")
 	n.Stop()
 	var why string

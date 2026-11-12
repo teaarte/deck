@@ -23,7 +23,7 @@ func TestRateLimitWarningDoesNotPause(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.Stream(0, "ratelimit_warning.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.PlainManifest))
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("a warning about the limit must not stop the turn, got %+v", got)
 	}

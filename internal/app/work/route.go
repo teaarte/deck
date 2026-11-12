@@ -14,6 +14,7 @@ import (
 	"deck2/internal/egress"
 	"deck2/internal/fault"
 	"deck2/internal/gateway"
+	"deck2/internal/manifest"
 	"deck2/internal/models"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -154,13 +155,20 @@ func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (models.Hop,
 	return h, nil
 }
 
-// allowed decides whether a call of a model runs without the owner: the granted models of the project name it; where
-// it goes the call finds once, in its handler.
+// allowed decides whether a call of a model by an agent or script runs without the owner: its module holds the right
+// money on what it goes through; one it does not declare it is refused. Where it goes the call finds once, in its handler.
 func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
 	if act.Kind != registry.Agent {
 		return true, nil
 	}
-	return true, s.manifestNames(ctx, act, input)
+	_, held, err := s.spends(ctx, act, input)
+	return held, err
+}
+
+// moneyNeed is the right a call of a model needs: money on the connection, the model or the @role it goes through.
+func (s *Service) moneyNeed(ctx context.Context, _ registry.Actor, _ string, input json.RawMessage) registry.Need {
+	use, _ := s.use(ctx, input)
+	return registry.Need{Right: manifest.Money, Subject: use}
 }
 
 // route is where a call of a model goes: the hops the proxy found already, else those of what it asks.
@@ -199,37 +207,39 @@ func (s *Service) use(ctx context.Context, input json.RawMessage) (string, strin
 	return in.Connection, in.Connection
 }
 
-// manifestNames refuses a call of a project through what the manifest in force does not name; a call by name of a model
-// goes through its connection too.
-func (s *Service) manifestNames(ctx context.Context, act registry.Actor, input json.RawMessage) error {
+// spends says whether the module of act declares and holds money on what a call of a model goes through: the @role,
+// the model or the connection, a model by name also through its connection; one it does not declare is refused.
+func (s *Service) spends(ctx context.Context, act registry.Actor, input json.RawMessage) (declared, held bool, err error) {
 	if act.ProjectID == 0 {
-		return nil
+		return true, true, nil
 	}
-	m, err := docs.For(ctx, s.St.Q, act, act.ProjectID)
+	m, g, err := docs.Rights(ctx, s.St.Q, act.ProjectID)
 	if err != nil {
-		return err
+		return false, false, err
 	}
 	use, connection := s.use(ctx, input)
-	uses := m.Uses()
-	if slices.Contains(uses, use) {
-		return nil
-	}
 	if connection == "" && !strings.HasPrefix(use, "@") {
 		if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: use}); err == nil {
 			connection = row.Connection.Name
 		}
 	}
-	if connection != "" && slices.Contains(uses, connection) {
-		return nil
+	for _, subject := range []string{use, connection} {
+		n := registry.Need{Right: manifest.Money, Subject: subject}
+		if subject != "" && m.Declares(n) {
+			declared, held = true, held || m.Holds(g, n)
+		}
 	}
-	p, _ := s.St.Q.GetProject(ctx, act.ProjectID)
-	return registry.Refuse("project %s does not name %s in the models of its manifest; add %q to models, and the owner grants it", p.Name, use, use)
+	if !declared {
+		p, _ := s.St.Q.GetProject(ctx, act.ProjectID)
+		return false, false, registry.Refuse("module %s does not declare the right money on %s; it declares it in rights with why, and the owner grants it", p.Name, use)
+	}
+	return declared, held, nil
 }
 
 // free says a call of a model costs nothing: every model it may reach is free or on the owner's own hardware, and
 // the manifest names it. A call no model takes is an error, since no answer of the owner would route it.
 func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMessage) (bool, error) {
-	if act.ProjectID == 0 || s.manifestNames(ctx, act, input) != nil {
+	if declared, _, err := s.spends(ctx, act, input); act.ProjectID == 0 || err != nil || !declared {
 		return false, nil
 	}
 	hops, err := s.route(ctx, act, input)
@@ -304,7 +314,7 @@ func (s *Service) Proxy(act registry.Actor, permit func(ctx context.Context, act
 				in["body"] = string(body)
 			}
 			input, _ := json.Marshal(in)
-			return permit(ctx, act, gateway.ModelCommand, input, "a draft or a trial calls through $DECK_MODELS only the free models and those of the owner's machine its manifest names in models; this call was not made: the owner enables the project, or an agent asks with "+gateway.ModelCommand+", which waits for the owner's yes")
+			return permit(ctx, act, gateway.ModelCommand, input, "a call through $DECK_MODELS goes only through what the module holds the right money on, granted by the owner, and in a draft or a trial only to the free models and those of the owner's machine it declares; this call was not made: the owner grants it in the module's settings or enables the project, or an agent asks with "+gateway.ModelCommand+", which waits for the owner's yes")
 		}})
 }
 

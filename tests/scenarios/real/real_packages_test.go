@@ -39,7 +39,7 @@ func TestRealScriptPackages(t *testing.T) {
 	}
 	for _, c := range cases {
 		m := strings.NewReplacer(`"scripts/main.py", "runtime": "python"`, `"`+c.file+`", `+c.runtime).
-			Replace(harness.ScriptManifest("use", "", `, "domains": {"read": [`+c.domains+`]}`))
+			Replace(harness.ScriptManifest("use", "", `, "rights": [{"right": "network", "what": [`+c.domains+`], "why": "reads it"}]`))
 		e.Project(c.project, m)
 		e.SaveScript(c.project, c.file, c.src)
 		p := e.WaitState(e.Start(c.project, "use", nil), "done", "error")
@@ -122,7 +122,7 @@ func TestRealReferenceScripts(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.project, func(t *testing.T) {
 			m := strings.NewReplacer(`"scripts/main.py", "runtime": "python"`, `"`+c.file+`", `+c.runtime).
-				Replace(harness.ScriptManifest("use", "", `, "domains": {"read": [`+c.domains+`]}`))
+				Replace(harness.ScriptManifest("use", "", `, "rights": [{"right": "network", "what": [`+c.domains+`], "why": "reads it"}]`))
 			e.Project(c.project, m)
 			e.SaveScript(c.project, c.file, c.src)
 			id := e.Start(c.project, "use", nil)
@@ -132,11 +132,11 @@ func TestRealReferenceScripts(t *testing.T) {
 		})
 	}
 	t.Run("npx", func(t *testing.T) {
-		e.Project("everything", harness.Manifest(`{"commands": [{"name": "echo", "title": "Echo", "description": "Echoes a message.", "class": "internal",
+		e.Project("everything", harness.Manifest(`{"commands": [{"name": "echo", "title": "Echo", "description": "Echoes a message.",
     "input": {"type": "object", "properties": {"message": {"type": "string"}}, "required": ["message"]},
     "executor": {"type": "tool", "tool": "everything.echo"}}],
   "tools": {"mcp": {"servers": {"everything": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-everything"],
-    "toolFilter": ["echo"], "classes": {"echo": "internal"}}}}}}`))
+    "toolFilter": ["echo"], "right": {"echo": "network"}}}}}}`))
 		id := e.Start("everything", "echo", map[string]any{"message": "sandboxed hello"})
 		if p := e.WaitState(id, "done", "error"); p.State != "done" || !strings.Contains(string(p.Result), "sandboxed hello") {
 			t.Fatalf("an MCP server run by npx answers in the sandbox: %+v", p)

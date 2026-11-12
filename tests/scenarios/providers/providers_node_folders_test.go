@@ -52,7 +52,7 @@ func scriptsOnNode(t *testing.T, wait time.Duration, allow ...string) (*harness.
 	n.Allow(allow...)
 	n.Start()
 	e.Until("the node to connect", func() bool { return e.App.Nodes.State(n.Joined.Device).Online })
-	e.Project("lab", harness.ScriptManifest("read", "", ""))
+	e.Project("lab", harness.Declared(harness.OnLogin(harness.ScriptManifest("read", "", ""))))
 	e.SaveScript("lab", "scripts/main.py", nodeScript)
 	return e, n
 }
@@ -113,7 +113,7 @@ func TestAScriptOfAFolderOfANodeRunsOnTheNode(t *testing.T) {
 	}
 
 	local := folderOf(t, "red 7")
-	e.Project("home", harness.ScriptManifest("read", "", ""))
+	e.Project("home", harness.Declared(harness.OnLogin(harness.ScriptManifest("read", "", ""))))
 	e.SaveScript("home", "scripts/main.py", nodeScript)
 	e.Must("deck.folder_add", map[string]any{"project": "home", "path": local, "name": "data"}, nil)
 	p = e.WaitState(e.Start("home", "read", map[string]any{"allowed": local}), "done", "error")
@@ -135,8 +135,8 @@ func TestTheProgramsOfAScriptOnANodeAreNotJudgedByDecksImage(t *testing.T) {
 	n.Allow(data)
 	n.Start()
 	e.Until("the node to connect", func() bool { return e.App.Nodes.State(n.Joined.Device).Online })
-	e.Project("lab", strings.Replace(harness.ScriptManifest("read", "", ""), `"runtime": "python"`,
-		`"runtime": "python", "programs": [{"name": "deck-node-tool", "install": "brew install deck-node-tool"}]`, 1))
+	e.Project("lab", harness.Declared(harness.OnLogin(strings.Replace(harness.ScriptManifest("read", "", ""), `"runtime": "python"`,
+		`"runtime": "python", "programs": [{"name": "deck-node-tool", "install": "brew install deck-node-tool"}]`, 1))))
 	e.SaveScript("lab", "scripts/main.py", nodeScript)
 	if h := e.WaitHealth("command:lab.read", "error"); !strings.Contains(h.Error, "deck's image") {
 		t.Fatalf("a script that runs on deck in its image asks for a newer image: %+v", h)
@@ -248,7 +248,7 @@ func TestAnAgentCommitsInARepositoryOfItsNode(t *testing.T) {
 	n.Allow("codex", repo)
 	n.Start()
 	e.Until("codex@Mac among the agents", func() bool { return hasModel(e, "codex@Mac") })
-	p := e.Project("paint", strings.Replace(harness.ColorManifest, `"executor": {"type": "agent",`, `"executor": {"type": "agent", "folder": true,`, 1))
+	p := e.Project("paint", harness.Declared(harness.OnLogin(strings.Replace(harness.ColorManifest, `"executor": {"type": "agent",`, `"executor": {"type": "agent", "folder": true,`, 1))))
 	var added struct{ Repo bool }
 	e.Must("deck.folder_add", map[string]any{"project": "paint", "path": repo, "node": "Mac"}, &added)
 	if !added.Repo {
@@ -322,7 +322,7 @@ func TestScriptsOnANodeKeepEveryChangeOfTheirData(t *testing.T) {
 	t.Parallel()
 	data := folderOf(t, "x")
 	e, _ := scriptsOnNode(t, time.Minute, data)
-	e.Project("count", strings.Replace(harness.ScriptManifest("read", "", ""), `"executor": {"type": "script"`, `"runs": "many", "executor": {"type": "script"`, 1))
+	e.Project("count", harness.Declared(harness.OnLogin(strings.Replace(harness.ScriptManifest("read", "", ""), `"executor": {"type": "script"`, `"runs": "many", "executor": {"type": "script"`, 1))))
 	e.SaveScript("count", "scripts/main.py", harness.PythonLib+`
 import time
 inp = json.load(sys.stdin)

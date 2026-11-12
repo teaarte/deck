@@ -58,7 +58,7 @@ func New(cfg Config) provider.Provider {
 
 type subscribed struct{ *Provider }
 
-func (subscribed) OnSubscription() {}
+func (s subscribed) OnLogin() string { return s.cfg.Base.(provider.Subscribed).OnLogin() }
 
 // Name is the provider on deck at its node, such as claude-code@Mac.
 func Name(base, node string) string { return base + "@" + node }

@@ -30,7 +30,7 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	e := harness.New(t, harness.WithCodex(c))
 	home := e.Home
 	withSkills := strings.Replace(harness.ColorManifest, `"type": "agent",`, `"type": "agent", "skills": ["module-builder", "module-conventions"],`, 1)
-	p := e.Project("paint", withSkills)
+	p := e.Project("paint", harness.OnLogin(withSkills))
 	id := e.Run(p, "work")
 	a := e.WaitAsk()
 	if a.Kind != "question" || !strings.Contains(a.Text, "Which color should the report use?") {
@@ -148,7 +148,7 @@ func TestCodexInItsBoxHasNoSandboxNorWebOfItsOwn(t *testing.T) {
 	c := harness.NewCodex(t)
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	got := e.WaitState(e.Run(e.Project("paint", harness.ColorManifest), "work"), "done", "error")
+	got := e.WaitState(e.Run(e.Project("paint", harness.OnLogin(harness.ColorManifest)), "work"), "done", "error")
 	cc := c.Call(1)
 	web, _ := cc.Config("web_search")
 	mode, _ := cc.Config("sandbox_mode")
@@ -161,7 +161,7 @@ func TestCodexInItsBoxHasNoSandboxNorWebOfItsOwn(t *testing.T) {
 	}
 }
 
-var outsideManifest = harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Writes outside", "class": "internal",
+var outsideManifest = harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Writes outside",
     "result": {"type": "object", "required": ["written"], "properties": {"written": {"type": "boolean"}}},
     "executor": {"type": "agent", "prompt": "Write the word hi into a file outside your folder."}}]}`)
 
@@ -176,7 +176,7 @@ func TestCodexEscalationWaitsForTheOwner(t *testing.T) {
 		c := harness.NewCodex(t)
 		c.Stream(1, tc.fixture)
 		e := harness.New(t, harness.WithCodex(c))
-		p := e.Project("outside", outsideManifest)
+		p := e.Project("outside", harness.OnLogin(outsideManifest))
 		id := e.Run(p, "work")
 		a := e.WaitAsk()
 		if a.Kind != "confirm" || !strings.Contains(a.Text, "shell") || !strings.Contains(a.Text, "deck-codex-outside.txt") {
@@ -222,8 +222,8 @@ func TestFailedCodexSelfCheckHoldsCodexProcesses(t *testing.T) {
 	if h.Version != "0.155.1" || !strings.Contains(h.Error, "self-check of 0.155.1 failed") {
 		t.Fatalf("a failed self-check of Codex is red with the version and the reason: %+v", h)
 	}
-	on := e.Project("paint", harness.ColorManifest)
-	main := e.Project("main", harness.ColorManifest)
+	on := e.Project("paint", harness.OnLogin(harness.ColorManifest))
+	main := e.Project("main", harness.OnLogin(harness.ColorManifest))
 	e.UseModels("paint.work", "codex")
 	id := e.Run(on, "work")
 	e.WaitState(id, "waiting:provider")
@@ -292,7 +292,7 @@ func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 		`{"method": "item/completed", "params": {"item": {"type": "dynamicToolCall", "id": "dyn1", "tool": "lookup", "arguments": {"q": "moon"}, "status": "failed"}, "completedAtMs": 1790467874000, ` + ids + `}}` + "\n"
 	c.StreamText(1, strings.Join(lines[:9], "")+dynamic+strings.Join(lines[9:], ""))
 	e := harness.New(t, harness.WithCodex(c))
-	p := e.Project("outside", outsideManifest)
+	p := e.Project("outside", harness.OnLogin(outsideManifest))
 	id := e.Run(p, "work")
 	a := e.WaitAsk()
 	if l := e.Log(id); !slices.ContainsFunc(l, func(x map[string]any) bool {
@@ -327,7 +327,7 @@ func TestCodexShellOutsideItsBoxHasTheNetwork(t *testing.T) {
 	c := harness.NewCodex(t)
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCodex(c))
-	listed := e.Project("paint", harness.ManifestWith(harness.ColorManifest, `"domains": {"read": ["data.example.org"]}`))
+	listed := e.Project("paint", harness.OnLogin(harness.ManifestWith(harness.ColorManifest, `"rights": [{"right": "network", "what": ["data.example.org"], "why": "reads it"}]`)))
 	e.WaitState(e.Run(listed, "work"), "done", "error")
 	cc := c.Call(1)
 	mode, _ := cc.Config("permissions.deck.network.mode")

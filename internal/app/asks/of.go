@@ -39,7 +39,7 @@ func buttons(r askView) []map[string]any {
 		delete(a["params"].(map[string]any), "answer")
 		a["input"] = "answer"
 		return []map[string]any{a}
-	case r.Kind == ask.KindCall || r.Kind == ask.KindConfirm || r.Kind == ask.KindGrant:
+	case r.Kind == ask.KindCall || r.Kind == ask.KindConfirm:
 		yes := primary(held("allow", "allow"))
 		yes["icon"] = "check"
 		if r.Allow != "" {

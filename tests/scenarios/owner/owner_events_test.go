@@ -45,7 +45,7 @@ func TestAChangeOfAnotherProjectDoesNotRereadAScreen(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.WebNotesAgent()))
 	e.Project("a", harness.WebNotes)
 	e.Project("b", harness.WebNotes)
-	e.Project("c", strings.Replace(strings.Replace(harness.WebNotes, `"menu": ["main"]}`, `"menu": ["main"], "reads": [{"project": "a", "collections": ["notes"]}]}`, 1),
+	e.Project("c", strings.Replace(strings.Replace(harness.WebNotes, `"menu": ["main"]}`, `"menu": ["main"], "rights": [{"right": "data", "what": ["a.notes"], "why": "reads it"}]}`, 1),
 		`{"name": "main", "title": "Web", "blocks": [`, `{"name": "main", "title": "Web", "blocks": [
       {"type": "table", "title": "Of a", "source": {"from": "deck.records_list", "input": {"project": "a", "collection": "notes"}}, "columns": [{"label": "Title", "bind": "data.title"}]},`, 1))
 	data := func(project, changed string) string {

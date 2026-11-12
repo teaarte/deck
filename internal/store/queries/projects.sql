@@ -37,8 +37,6 @@ DELETE FROM file WHERE project_id = ?;
 
 -- name: DeleteProject :execrows
 DELETE FROM project WHERE id = ?;
--- name: GrantProject :exec
-UPDATE project SET granted_revision = ? WHERE id = ?;
 
 
 -- name: SetImportedFrom :exec

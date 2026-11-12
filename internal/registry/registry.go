@@ -34,11 +34,21 @@ var (
 	OwnerOnly = []string{Owner}
 )
 
+// A command is internal when it stays in deck, external when a call of it needs a right of deck's catalog: the
+// gateway lets it through when the right is granted, else the owner answers.
 const (
-	Internal   = "internal"
-	Reversible = "reversible"
-	External   = "external"
+	Internal = "internal"
+	External = "external"
 )
+
+// Need is the right of deck's catalog a call needs: its name, whom of a network right, the subject it acts on and the
+// print of that subject as it is now, which an answer of always holds to.
+type Need struct {
+	Right   string `json:"right"`
+	Who     string `json:"who,omitempty"`
+	Subject string `json:"subject"`
+	Print   string `json:"print,omitempty"`
+}
 
 // Builtin is the name prefix of commands implemented in Go.
 const Builtin = schemas.Builtin
@@ -48,17 +58,6 @@ func Deck(name string) string { return Builtin + "." + name }
 
 // IsBuiltin says a command name is one of deck's.
 func IsBuiltin(name string) bool { return strings.HasPrefix(name, Builtin+".") }
-
-// ClassRank orders classes from the one that asks least: internal, reversible, external.
-func ClassRank(class string) int {
-	switch class {
-	case Reversible:
-		return 1
-	case External:
-		return 2
-	}
-	return 0
-}
 
 // EmptyInput is the input schema of a command that takes nothing.
 var EmptyInput = json.RawMessage(`{"type":"object","properties":{},"additionalProperties":false}`)
@@ -156,8 +155,11 @@ type Gate struct {
 	Target func(print string, input json.RawMessage) string
 	// ConfirmTTL is the tool's own term for its confirmations.
 	ConfirmTTL time.Duration
+	// Needs is the right a call of an external command needs, from its fingerprint and input; send on the command
+	// itself when nil.
+	Needs func(ctx context.Context, a Actor, print string, input json.RawMessage) Need
 	// Allowed decides whether an external call with this input runs without the owner; listed says the project
-	// allows it.
+	// holds the right it needs.
 	Allowed func(ctx context.Context, a Actor, input json.RawMessage, listed bool) (bool, error)
 	// Free says a call costs nothing and stays on the owner's machine, so it runs in a trial or a draft too; an
 	// error is a call that cannot run at all, so it fails rather than waiting for the owner.
@@ -262,7 +264,7 @@ func Prepare(c *Command) error {
 	if c.Title == "" || c.Description == "" {
 		return fmt.Errorf("command %q: title and description are required", c.Name)
 	}
-	if c.Class != Internal && c.Class != Reversible && c.Class != External {
+	if c.Class != Internal && c.Class != External {
 		return fmt.Errorf("command %q: unknown class %q", c.Name, c.Class)
 	}
 	if len(c.Input) == 0 {

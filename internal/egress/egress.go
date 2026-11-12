@@ -41,7 +41,7 @@ func destination(ctx context.Context, domains []string, hostport string) ([]stri
 		return nil, err
 	}
 	if !listed(domains, hostport) && !wildcard(domains) {
-		return nil, fmt.Errorf("%s is not in the domains of this project; its manifest names it in domains.read and the owner grants it", hostport)
+		return nil, fmt.Errorf("%s is not a host this module holds the network of; it declares it under network in rights, and the owner grants it", hostport)
 	}
 	if ip, err := netip.ParseAddr(host); err == nil {
 		if !Public(ip) && !listed(domains, hostport) && !standing(hostport) {

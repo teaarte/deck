@@ -203,13 +203,12 @@ func cmpPath(p string) string {
 
 // sets are the arrays of a manifest whose order means nothing, by path with "*" for any name: a merge adds and
 // takes their values one by one.
-var sets = []string{"/allowed_external", "/models", "/writes", "/domains/read", "/domains/act", "/reads/*/collections",
-	"/reads/*/documents", "/commands/*/callers", "/commands/*/requires", "/commands/*/executor/calls",
+var sets = []string{"/rights", "/writes", "/commands/*/callers", "/commands/*/requires", "/commands/*/executor/calls",
 	"/commands/*/executor/skills", "/collections/*/immutable", "/tools/mcp/servers/*/toolFilter"}
 
 // named are the arrays of a manifest whose entries a key names, by path: a merge goes entry by entry.
 var named = map[string]string{"/collections": "name", "/commands": "name", "/scripts": "name", "/scripts/*/programs": "name",
-	"/screens": "name", "/tools/http": "name", "/reads": "project"}
+	"/screens": "name", "/tools/http": "name"}
 
 // setPath reports whether the array at path is a set.
 func setPath(path string) bool {

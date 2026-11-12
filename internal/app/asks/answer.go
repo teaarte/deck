@@ -5,15 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
-	"net/url"
-	"slices"
 	"strings"
 	"time"
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
-	"deck2/internal/fault"
 	"deck2/internal/gateway"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -51,7 +49,7 @@ func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswe
 	if out, ok, err := s.Shown(ctx, act, q, in.Answer); ok {
 		return out, err
 	}
-	if q.Kind == ask.KindCall || q.Kind == ask.KindUnknown || q.Kind == ask.KindGrant && q.State == ask.StateOpen {
+	if q.Kind == ask.KindCall || q.Kind == ask.KindUnknown {
 		return s.decide(ctx, act, q, in.Answer)
 	}
 	if err := s.Broker.Answer(ctx, in.Ask, in.Answer); err != nil {
@@ -75,8 +73,8 @@ func (s *Service) dismissExpired(ctx context.Context, q db.Ask, answer string) (
 	return map[string]any{"ok": true}, nil
 }
 
-// decide answers a frozen call, a grant (merged into the current manifest) or an unknown outcome: allowing or
-// retrying makes the call now and delivers what it gave; refusing or counting it done only tells the process.
+// decide answers a frozen call or an unknown outcome: allowing or retrying makes the call now and delivers what it
+// gave, allowing always also keeps the right it needs for its module; refusing or counting it done only tells the process.
 func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error) {
 	if err := ask.Check(q.Kind, answer); err != nil {
 		return nil, err
@@ -99,28 +97,16 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 				return nil, gateway.ErrStale
 			}
 		}
-		var rev int64
-		if q.Kind == ask.KindGrant {
-			var err error
-			if q, rev, err = s.MergeGrant(ctx, q); err != nil {
-				return nil, err
-			}
-		}
 		var then func() error
 		if answer == "allow_always" {
 			then = func() error { return s.allowAlways(ctx, act, q) }
 		}
 		out, err := s.Gateway.Decide(ctx, act, q, answer, then)
-		switch {
-		case errors.Is(err, ask.ErrNotOpen):
+		if errors.Is(err, ask.ErrNotOpen) {
 			return nil, err
-		case q.Kind == ask.KindGrant && fault.Status(err) == 409 && rev != 0:
-			return nil, registry.Conflict("the manifest changed while you answered; allow it again")
-		case q.Kind == ask.KindGrant && fault.Status(err) == 409:
-			return nil, registry.Conflict("the manifest changed after this request; deny it and ask again")
 		}
 		s.LateAnswer(ctx, q)
-		if err != nil || q.Kind == ask.KindGrant {
+		if err != nil {
 			return out, err
 		}
 		return map[string]any{"ok": true, "result": out}, nil
@@ -128,15 +114,15 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 		if err := s.Broker.Answer(ctx, q.ID, answer); err != nil {
 			return nil, err
 		}
-		if q.Kind == ask.KindCall || q.Kind == ask.KindGrant {
+		if q.Kind == ask.KindCall {
 			s.Gateway.Record(ctx, q, "rejected", "the owner said no")
 		}
 		return map[string]any{"ok": true}, nil
 	}
 }
 
-// allowAlways adds the tool or command of a frozen call to the allowed external list of its project, or the
-// site of a browser action to its act domains, as the owner's own manifest change.
+// allowAlways keeps the owner's always to the right a frozen call needs, for its module: the same right on the same
+// subject at its print runs without asking; one of the module's own counts only while its manifest declares it.
 func (s *Service) allowAlways(ctx context.Context, act registry.Actor, q db.Ask) error {
 	f, err := ask.Decode[gateway.Frozen](q.Payload)
 	if err != nil {
@@ -144,38 +130,31 @@ func (s *Service) allowAlways(ctx context.Context, act registry.Actor, q db.Ask)
 	}
 	p, err := s.St.Q.GetProject(ctx, q.ProjectID.Int64)
 	if err != nil {
-		return registry.Invalid("only a tool or command of a project can be allowed always")
+		return registry.Invalid("only a call of a module can be allowed always")
 	}
-	local, ok := strings.CutPrefix(f.Call.Command, p.Name+".")
-	if strings.HasPrefix(f.Call.Command, registry.Deck("browser_")) {
-		u, err := url.Parse(f.Tool)
-		if err != nil || u.Host == "" {
-			return registry.Invalid("deck could not tell the page of this browser action; allow it once or add the site to domains.act")
-		}
-		return s.AddToList(ctx, act, p, u.Host, "domains", "act")
-	}
-	if !ok {
-		return registry.Invalid("only a tool or command of the project can be allowed always")
-	}
-	if c, err := s.Registry.Lookup(ctx, p.WorkspaceID, f.Call.Command); err == nil && c.Class != registry.External {
-		return registry.Invalid("%s is %s: it runs without asking, so only external ones are allowed always", c.Name, c.Class)
-	}
-	m, err := docs.Manifest(ctx, s.St.Q, p)
+	c, err := s.Registry.Lookup(ctx, p.WorkspaceID, f.Call.Command)
 	if err != nil {
-		return err
+		return registry.Invalid("%s is gone: allow it once", f.Call.Command)
 	}
-	if server, tool, ok := strings.Cut(local, "."); ok {
-		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			return q.ApproveMCPTool(ctx, db.ApproveMCPToolParams{ProjectID: p.ID, Server: server, Name: tool})
-		})
+	if c.Class != registry.External {
+		return registry.Invalid("%s needs no right, so there is nothing to allow always", c.Name)
+	}
+	n := s.Gateway.Need(ctx, registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID}, c, f.Tool, f.Call.Input)
+	if n.Subject == "" {
+		return registry.Invalid("deck could not tell what %s acts on, so it can be allowed only once", c.Name)
+	}
+	if c.ProjectID == p.ID {
+		m, err := docs.Manifest(ctx, s.St.Q, p)
 		if err != nil {
 			return err
 		}
+		if !m.Declares(n) {
+			return registry.Invalid("%s does not declare the right %s on %s, so it can be allowed only once; the module declares it in rights", p.Name, n.Right, n.Subject)
+		}
 	}
-	if slices.Contains(m.AllowedExternal, local) {
-		return nil
-	}
-	return s.AddToList(ctx, act, p, local, "allowed_external")
+	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return docs.Grant(ctx, q, act, p.ID, n, manifest.Always, s.Now())
+	})
 }
 
 // LateAnswer delivers an answer nobody was waiting for live; an answer to a process that has finished goes to the

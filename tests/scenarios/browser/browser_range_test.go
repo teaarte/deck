@@ -9,7 +9,7 @@ import (
 
 var rangeManifest = harness.Manifest(`{"title": "Shop", "icon": "coin",
   "commands": [
-    {"name": "offer", "title": "Offer", "description": "Offers a price.", "class": "internal",
+    {"name": "offer", "title": "Offer", "description": "Offers a price.",
       "input": {"type": "object", "required": ["price"], "properties": {
         "price": {"type": "integer", "title": "Price, $", "minimum": 0, "maximum": 1000, "multipleOf": 10, "examples": [50, 100, 200, 500, 1000]},
         "count": {"type": "integer", "title": "Count"},

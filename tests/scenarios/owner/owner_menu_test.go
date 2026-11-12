@@ -50,7 +50,7 @@ func TestMenuShowsIconsAndWhatEachProjectIsBusyWith(t *testing.T) {
 	manifest = strings.Replace(manifest, `{"name": "main", "title": "Web",`, `{"name": "main", "title": "Web", "icon": "chart-line",`, 1)
 	manifest = strings.Replace(manifest, `{"type": "table", "title": "Notes",`, `{"type": "table", "title": "Notes", "icon": "notes",`, 1)
 	manifest = strings.Replace(manifest, `{"label": "Open", "screen": "note"}`, `{"label": "Open", "icon": "arrow-right", "screen": "note"}`, 1)
-	p := e.Project("web", manifest)
+	p := e.Project("web", harness.Declared(manifest))
 	e.Must("deck.document_save", map[string]any{"project": "web", "name": "custom/chart.html", "kind": "custom", "text": "<p>x</p>"}, nil)
 	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 	drawn, _ := json.Marshal(e.ScreenMessages("web", "main", nil))
@@ -100,8 +100,8 @@ func TestTheCockpitTheHeroAndTheMenuCountAlike(t *testing.T) {
 		return provider.Result{Text: "cut"}
 	}))
 
-	e.Project("clips", strings.Replace(cutModule, harness.Manifest(`{`), harness.Manifest(`{"tools": {"http": [
-    {"name": "photos", "description": "d", "method": "GET", "url": "https://example.com/p", "class": "internal", "headers": {"X-Key": "$secret.pexels"}}]},`), 1))
+	e.Project("clips", harness.Declared(strings.Replace(cutModule, harness.Manifest(`{`), harness.Manifest(`{"tools": {"http": [
+    {"name": "photos", "description": "d", "method": "GET", "url": "https://example.com/p", "headers": {"X-Key": "$secret.pexels"}}]},`), 1)))
 	e.WaitState(e.Start("clips", "cut", map[string]any{"clip": "a"}), "running")
 	var m struct {
 		Pulse struct {
@@ -141,7 +141,7 @@ func TestThePulseSaysTalkingWhileOnlyTheMasterWorks(t *testing.T) {
 	}
 	e.Say(0, "plan my week")
 	e.Until("the master at work", func() bool { return state() == "talking" })
-	e.Project("clips", cutModule)
+	e.Project("clips", harness.Declared(cutModule))
 	e.WaitState(e.Start("clips", "cut", map[string]any{"clip": "a"}), "running")
 	if got := state(); got != "running" {
 		t.Fatalf("a run of a module beside the master is running: %s", got)
@@ -153,8 +153,8 @@ func TestThePulseSaysTalkingWhileOnlyTheMasterWorks(t *testing.T) {
 func TestAPausedProjectLeavesTheMenu(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
-	e.Project("alpha", harness.NotesManifest)
-	e.Project("beta", harness.PlainManifest)
+	e.Project("alpha", harness.Declared(harness.NotesManifest))
+	e.Project("beta", harness.Declared(harness.PlainManifest))
 	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
 	e.Must("deck.project_pause", map[string]any{"project": "master", "paused": true}, nil)
 	if names, master := e.SideMenu(); !slices.Equal(names, []string{"beta"}) || master != "master" {

@@ -28,10 +28,10 @@ var cascadeModule = harness.Manifest(`{"collections": [
     {"name": "scenes", "description": "A scene of a video.", "key": "video + '-' + string(n)", "parent": {"collection": "videos", "key": "video"},
       "schema": {"type": "object", "properties": {"video": {"type": "string"}, "n": {"type": "integer"}}, "required": ["video", "n"]}}],
   "commands": [
-    {"name": "render", "title": "Render", "description": "Renders a video.", "class": "internal",
+    {"name": "render", "title": "Render", "description": "Renders a video.",
      "input": {"type": "object", "properties": {"record": {"type": "integer"}, "take": {"type": "integer"}}, "required": ["record"]},
      "result": {"type": "object"}, "executor": {"type": "script", "script": "render"}},
-    {"name": "watch", "title": "Watch", "description": "Watches a video.", "class": "internal",
+    {"name": "watch", "title": "Watch", "description": "Watches a video.",
      "input": {"type": "object", "properties": {"record": {"type": "integer"}}, "required": ["record"]},
      "executor": {"type": "agent", "prompt": "Watch it."}}],
   "scripts": [{"name": "render", "file": "scripts/render.py", "runtime": "python"}]}`)
@@ -582,7 +582,7 @@ var filmsModule = harness.Manifest(`{"collections": [
     {"name": "scenes", "description": "A scene of a video.", "key": "video + '-' + string(n)", "parent": {"collection": "videos", "key": "video"},
       "schema": {"type": "object", "properties": {"video": {"type": "string"}, "n": {"type": "integer"}}, "required": ["video", "n"]}}],
   "commands": [
-    {"name": "render", "title": "Render", "description": "Renders a video.", "class": "internal",
+    {"name": "render", "title": "Render", "description": "Renders a video.",
      "input": {"type": "object", "properties": {"record": {"type": "integer"}}, "required": ["record"]},
      "result": {"type": "object"}, "executor": {"type": "script", "script": "render"}}],
   "scripts": [{"name": "render", "file": "scripts/render.py", "runtime": "python"}]}`)

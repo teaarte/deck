@@ -144,14 +144,15 @@ func TestTriggeredExternalCallWaitsWithoutTheAgentAndRunsAfterYes(t *testing.T) 
 	}), harness.WithClock())
 
 	p := e.Project("feed", harness.Manifest(fmt.Sprintf(`{"commands": [
-    {"name": "send", "title": "Send", "description": "Sends out.", "class": "external",
+    {"name": "send", "title": "Send", "description": "Sends out.",
      "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}},
      "executor": {"type": "tool", "tool": "note"}},
-    {"name": "work", "title": "Work", "description": "Works.", "class": "internal", "result": {"type": "object"},
+    {"name": "work", "title": "Work", "description": "Works.", "result": {"type": "object"},
      "executor": {"type": "agent", "prompt": "Work."}}],
   "triggers": [{"command": "send", "after": "work"}, {"command": "send", "cron": "0 9 * * *"}],
   "tools": {"http": [{"name": "note", "description": "d", "method": "POST", "url": "%s/n",
-    "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}}}]}}`, svc.URL)))
+    "input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}}}}]},
+  "rights": [{"right": "send", "what": ["send", "note"], "why": "sends notes"}]}`, svc.URL)))
 	if got := e.WaitState(e.Run(p, "work"), "done", "waiting:answer"); got.State != "done" {
 		t.Fatalf("the agent whose finish starts a trigger does not wait for its confirmation: %+v", got)
 	}
@@ -252,7 +253,8 @@ func TestIdenticalExternalCallIsNotMadeWhileTheFirstIsOut(t *testing.T) {
 		harness.JsonReply(w, `{"id": "x"}`)
 	})
 	e := harness.New(t)
-	e.Project("pics", harness.ToolManifest(svc.URL, `, "allowed_external": ["note"]`))
+	e.Project("pics", harness.ToolManifest(svc.URL, ""))
+	e.Grant("pics", "send", "note")
 	first := make(chan int)
 	go func() { code, _ := e.Call("pics.note", map[string]any{"text": "pay"}); first <- code }()
 	e.Until("the first call is out", func() bool { return len(svc.Requests()) == 1 })

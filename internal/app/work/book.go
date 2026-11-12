@@ -12,7 +12,6 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/models"
 	"deck2/internal/provider"
-	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/words"
 )
@@ -306,7 +305,7 @@ func (b *Book) Agents() []string {
 // commandWork is who does the work of a command of a project by the manifest in force: an agent command's model,
 // a model command's model of its kind; nothing for the other commands.
 func (s *Service) commandWork(ctx context.Context, b *Book, projectID int64, command string) provider.Work {
-	m, err := docs.For(ctx, s.St.Q, registry.Actor{}, projectID)
+	m, err := docs.ManifestAt(ctx, s.St.Q, projectID, 0)
 	if err != nil {
 		return provider.Work{}
 	}
@@ -372,7 +371,7 @@ func (s *Service) Places(ctx context.Context, workspace int64) map[string]provid
 		for _, w := range s.rolesWork(ctx, b, p.ID) {
 			add(w, p.Name)
 		}
-		m, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID)
+		m, err := docs.ManifestAt(ctx, s.St.Q, p.ID, 0)
 		if err != nil {
 			continue
 		}
@@ -390,7 +389,7 @@ func (s *Service) Places(ctx context.Context, workspace int64) map[string]provid
 // rolesWork is who does each kind of work a project calls models for apart from its commands, such as the pictures
 // its scripts make, by the @roles of its manifest in force.
 func (s *Service) rolesWork(ctx context.Context, b *Book, projectID int64) []provider.Work {
-	m, err := docs.For(ctx, s.St.Q, registry.Actor{}, projectID)
+	m, err := docs.ManifestAt(ctx, s.St.Q, projectID, 0)
 	if err != nil {
 		return nil
 	}
@@ -399,7 +398,7 @@ func (s *Service) rolesWork(ctx context.Context, b *Book, projectID int64) []pro
 		return nil
 	}
 	var out []provider.Work
-	for _, use := range m.Models {
+	for _, use := range m.Called() {
 		if role, ok := strings.CutPrefix(use, "@"); ok && slices.Contains(roles, role) {
 			out = append(out, s.roleWork(ctx, b, p, "", role))
 		}

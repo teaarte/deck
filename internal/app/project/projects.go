@@ -33,11 +33,11 @@ type projectView struct {
 	Description   string                `json:"description"`
 	Screens       []manifest.ScreenLink `json:"screens"`
 	ManifestError string                `json:"manifest_error"`
-	// Rights are what enabling a draft at Revision of its manifest grants.
+	// Rights are what enabling a draft at Revision of its manifest grants, in deck's words of the catalog.
 	Rights []string `json:"rights"`
-	// Asks are the tools and commands of a draft that will wait for the owner on every call once it is enabled.
+	// Asks are what a draft sends in the owner's name, which asks them the first time once it is enabled.
 	Asks []string `json:"asks"`
-	// Models are what the manifest in force lets the project call: connections, models and @kinds.
+	// Models are what the manifest declares it spends money through: connections, models and @kinds.
 	Models   []string     `json:"models"`
 	Revision int64        `json:"revision"`
 	Folders  []folderView `json:"folders"`
@@ -103,11 +103,15 @@ func (s *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Man
 	v.Revision = m.Revision
 	v.Title, v.Icon, v.Screens = manifest.Nav(p.Name, m, ws)
 	if p.Status == store.ProjectDraft {
-		v.Rights, v.Asks = append(v.Rights, rights(m)...), append(v.Asks, m.AskEachTime()...)
+		for _, r := range rows(p, m, nil, func(t string) string { return t }) {
+			if r.Right == manifest.Send {
+				v.Asks = append(v.Asks, r.Subject)
+			} else {
+				v.Rights = append(v.Rights, r.Says)
+			}
+		}
 	}
-	if f, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID); err == nil {
-		v.Models = append(v.Models, f.Uses()...)
-	}
+	v.Models = append(v.Models, m.Uses()...)
 	v.Meta = s.meta(words.In(lang), v)
 	return v
 }
@@ -131,7 +135,7 @@ func (s *Service) meta(ws map[string]string, v projectView) string {
 		parts = append(parts, say("enabling grants: %s", strings.Join(v.Rights, "; ")))
 	}
 	if v.Status == store.ProjectDraft && len(v.Asks) > 0 {
-		parts = append(parts, say("asks you each time: %s", strings.Join(v.Asks, ", ")))
+		parts = append(parts, say("asks you the first time: %s", strings.Join(v.Asks, ", ")))
 	}
 	return strings.Join(parts, " · ")
 }
@@ -192,7 +196,7 @@ func (s *Service) createProject(ctx context.Context, act registry.Actor, name st
 		if _, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: act.Workspace, Name: name}); err == nil {
 			return registry.Invalid("project %q already exists", name)
 		}
-		if err := checkReads(ctx, q, act.Workspace, name, pm.m); err != nil {
+		if err := checkData(ctx, q, db.Project{WorkspaceID: act.Workspace, Name: name}, pm.m); err != nil {
 			return err
 		}
 		if err := s.checkToolFit(ctx, q, act.Workspace, 0, pm.m); err != nil {
@@ -202,12 +206,13 @@ func (s *Service) createProject(ctx context.Context, act registry.Actor, name st
 			return err
 		}
 		ref := docs.Ref{Scope: docs.ProjectScope(p), Name: docs.ManifestName}
-		_, n, _, err := docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), "create project")
-		if err != nil {
+		if _, _, _, err := docs.Save(ctx, q, ref, docs.KindManifest, string(pm.text), act.Author(), "create project"); err != nil {
 			return err
 		}
-		if err := grant(ctx, q, p, n, pm.m); err != nil {
-			return err
+		if status == store.ProjectEnabled {
+			if err := s.grantDeclared(ctx, q, act, p, pm.m); err != nil {
+				return err
+			}
 		}
 		if prompt != "" {
 			ref.Name = docs.PromptName

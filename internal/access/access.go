@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"deck2/internal/docs"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/master"
@@ -105,84 +106,68 @@ func ReadProject(ctx context.Context, q *db.Queries, act registry.Actor, name, c
 
 // MayRead reports whether the actor may read a collection or document of p; both empty asks for the project.
 func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, collection, document string) error {
-	if act.Within(p.ID) {
-		return nil
-	}
-	if p.Builtin == 1 || strings.HasPrefix(document, docs.MemoryDir) {
+	if strings.HasPrefix(document, docs.MemoryDir) && !act.Within(p.ID) {
 		return registry.Refuse("the memory of a project and project %s are for its own agents and the master only", master.Name)
 	}
-	collections, documents, listed, err := reads(ctx, q, act, p.Name)
+	switch {
+	case collection != "":
+		return Reads(ctx, q, act, p, p.Name+"."+collection)
+	case document != "":
+		return Reads(ctx, q, act, p, p.Name+"/"+document)
+	}
+	if act.Within(p.ID) || !act.Confined() {
+		return nil
+	}
+	m, g, err := docs.Rights(ctx, q, act.ProjectID)
+	if err != nil {
+		return err
+	}
+	if p.Builtin == 0 && slices.ContainsFunc(m.Held(g, manifest.Data, ""), func(s string) bool { return s == "*" || manifest.Covers(manifest.Data, p.Name, s) }) {
+		return nil
+	}
+	return Reads(ctx, q, act, p, p.Name)
+}
+
+// Reads says whether a confined actor may read a subject of data of another project p: its own module holds the
+// right data on it; the master and its memory no module reads.
+func Reads(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, subject string) error {
+	if act.Within(p.ID) || !act.Confined() {
+		return nil
+	}
+	if p.Builtin == 1 {
+		return registry.Refuse("project %s keeps the owner's memory and topics: it is for its own agents only", master.Name)
+	}
+	n := registry.Need{Right: manifest.Data, Subject: subject}
+	m, g, err := docs.Rights(ctx, q, act.ProjectID)
 	if err != nil {
 		return err
 	}
 	switch {
-	case !listed:
-	case collection != "" && slices.Contains(collections, collection):
+	case m.Holds(g, n):
 		return nil
-	case document != "" && slices.Contains(documents, document):
-		return nil
-	case collection == "" && document == "":
-		return nil
+	case m.Declares(n):
+		return registry.Refuse("this module declares the right data on %s, but the owner has not granted it; they grant it in the module's settings, Access → Rights", subject)
 	}
-	what := p.Name
-	if collection != "" || document != "" {
-		what += " " + collection + document
-	}
-	return registry.Refuse("this project does not read %s; reads in its manifest lists what it may read, and it never writes to another project", what)
-}
-
-// reads is the reads entry of the manifest in force of the actor's project for another project; listed is false
-// without one.
-func reads(ctx context.Context, q *db.Queries, act registry.Actor, other string) (collections, documents []string, listed bool, err error) {
-	m, err := docs.For(ctx, q, act, act.ProjectID)
-	if err != nil {
-		return nil, nil, false, err
-	}
-	for _, r := range m.Reads {
-		if r.Project == other && r.Data() {
-			return r.Collections, r.Documents, true, nil
-		}
-	}
-	return nil, nil, false, nil
+	return registry.Refuse("this module does not read %s: the right data in its manifest names what it may ask the owner to read, and it never writes to another module", subject)
 }
 
 // ReadModels resolves a project whose models' work a call reads, the caller's own when the name is empty: a confined
-// actor reads another one only where reads of its manifest gives models of it or of every project.
+// actor reads another one only where its module holds data on its models or those of every project.
 func ReadModels(ctx context.Context, q *db.Queries, act registry.Actor, name string) (db.Project, error) {
 	if name == "" || !act.Confined() {
 		return Project(ctx, q, act, name)
 	}
 	p, err := ByName(ctx, q, act, name)
-	if err != nil || act.Within(p.ID) {
-		return p, err
-	}
-	m, err := docs.For(ctx, q, act, act.ProjectID)
 	if err != nil {
 		return p, err
 	}
-	if m.ReadOf(p.Name).Models {
-		return p, nil
-	}
-	return p, registry.Refuse("this project does not read which models do the work of %s; a reads entry of its manifest with \"models\": true gives that", p.Name)
+	return p, Reads(ctx, q, act, p, p.Name+":models")
 }
 
-// ReadRuns says whether a confined actor reads the runs of another project p in brief: a reads entry of its manifest
-// with runs gives that for p or for every project.
+// ReadRuns says whether a confined actor reads the runs of another project p in brief: its module holds data on its
+// runs or those of every project.
 func ReadRuns(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) error {
-	if act.Within(p.ID) {
-		return nil
-	}
-	if p.Builtin == 1 {
-		return registry.Refuse("the runs of project %s are for the master only", master.Name)
-	}
-	m, err := docs.For(ctx, q, act, act.ProjectID)
-	if err != nil {
-		return err
-	}
-	if m.ReadOf(p.Name).Runs {
-		return nil
-	}
-	return registry.Refuse("this process cannot touch another project; a reads entry of its manifest with \"runs\": true reads its runs in brief")
+	return Reads(ctx, q, act, p, p.Name+":runs")
 }
 
 // Master is the built-in project master of a workspace.

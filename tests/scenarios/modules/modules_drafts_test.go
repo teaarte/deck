@@ -45,7 +45,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	if code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	if p := e.ProjectRow("notes"); p.Status != store.ProjectDraft || !slices.Equal(p.Rights, []string{"reaches and may send data to: example.com"}) {
+	if p := e.ProjectRow("notes"); p.Status != store.ProjectDraft || !slices.Equal(p.Rights, []string{"its programs reach example.com and may send its data there"}) {
 		t.Fatalf("a project the master creates is a draft that shows the rights it asks for: %+v", p)
 	}
 
@@ -91,7 +91,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	if code, out := e.As(tok).Call("deck.project_enable", map[string]any{"project": "notes", "revision": shown.Revision}); code != 403 {
 		t.Fatalf("only the owner enables a draft: %d %s", code, out)
 	}
-	wider := strings.Replace(harness.DraftManifest, `"domains": {"read": ["example.com"]}`, `"domains": {"read": ["example.com"], "act": ["example.com"]}`, 1)
+	wider := strings.Replace(harness.DraftManifest, `"what": ["example.com"], "why": "reads its pages"`, `"what": ["example.com", "example.org"], "why": "reads its pages"`, 1)
 	if code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": wider}); code != 200 {
 		t.Fatalf("manifest_save: %d %s", code, out)
 	}
@@ -103,7 +103,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 		Rights []string
 	}
 	e.Must("deck.project_enable", map[string]any{"project": "notes", "revision": e.ProjectRow("notes").Revision}, &en)
-	if en.Status != store.ProjectEnabled || len(en.Rights) != 2 {
+	if en.Status != store.ProjectEnabled || !slices.Equal(en.Rights, []string{"it acts in your name: send"}) {
 		t.Fatalf("enable: %+v", en)
 	}
 	if code, _ := e.Call("deck.project_enable", map[string]any{"project": "notes", "revision": e.ProjectRow("notes").Revision}); code != 409 {
@@ -180,7 +180,7 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": harness.PlainManifest}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	wider := strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "domains": {"read": ["example.com"]}`, 1)
+	wider := strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "rights": [{"right": "network", "what": ["example.com"], "why": "reads it"}]`, 1)
 	code, out := e.As(tok).Call("deck.manifest_save", map[string]any{"project": "notes", "manifest": wider})
 	if code != 200 || !strings.Contains(string(out), `"revision":2`) {
 		t.Fatalf("in a draft rights are part of what the owner enables, so the change applies: %d %s", code, out)
@@ -190,16 +190,9 @@ func TestChangesToADraftApplyAtOnce(t *testing.T) {
 	if len(feed) != 0 {
 		t.Fatalf("changes to a draft are not done without the owner: %v", feed)
 	}
-	if p := e.ProjectRow("notes"); !slices.Equal(p.Rights, []string{"reaches and may send data to: example.com"}) {
+	if p := e.ProjectRow("notes"); !slices.Equal(p.Rights, []string{"its programs reach example.com and may send its data there"}) {
 		t.Fatalf("the draft shows the rights enabling it grants: %+v", p)
 	}
-}
-
-func manifestDocument(e *harness.Env, project string) int64 {
-	e.T.Helper()
-	var cur struct{ Document int64 }
-	e.Must("deck.manifest_get", map[string]any{"project": project}, &cur)
-	return cur.Document
 }
 
 func TestEnablingADraftDropsAScheduledRunAlreadyPicked(t *testing.T) {
@@ -233,7 +226,7 @@ func TestCommandRunsTheRevisionItWasAuthorizedAgainst(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Must("deck.manifest_save", map[string]any{"project": "nums",
-		"manifest": strings.NewReplacer(`"class": "internal"`, `"class": "external", "callers": ["owner"]`, "OLD PROMPT", "NEW PROMPT").Replace(harness.CalcManifest)}, nil)
+		"manifest": strings.NewReplacer(`"executor": {`, `"callers": ["owner"], "executor": {`, "OLD PROMPT", "NEW PROMPT").Replace(harness.CalcManifest)}, nil)
 	out, err := cmd.Handler(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.ProjectID("nums")}, []byte(`{}`))
 	if err != nil {
 		t.Fatal(err)
@@ -244,14 +237,14 @@ func TestCommandRunsTheRevisionItWasAuthorizedAgainst(t *testing.T) {
 	}
 }
 
-// TestAScriptOfADraftInstallsItsPackages: before the owner enables a draft, its scripts reach the package
-// registries its domains name and nothing else there.
-func TestAScriptOfADraftInstallsItsPackages(t *testing.T) {
+// TestAScriptOfADraftReachesWhatTheOwnerGrantsIt: before the owner enables a draft its scripts reach no host it
+// declares, the package registries too, until the owner grants one on its card.
+func TestAScriptOfADraftReachesWhatTheOwnerGrantsIt(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	_, tok := e.Token("terminal", "deck.*", "pkgs.*")
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "pkgs",
-		"manifest": harness.ScriptManifest("run", "", `, "domains": {"read": ["pypi.org", "example.com"]}`)}); code != 200 {
+		"manifest": harness.ScriptManifest("run", "", `, "rights": [{"right": "network", "what": ["pypi.org", "example.com"], "why": "reads it"}]`)}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	e.SaveScript("pkgs", "scripts/main.py", harness.PythonLib+`
@@ -267,38 +260,46 @@ def why(url):
         return str(e)
 print(json.dumps({"registry": why("http://pypi.org/simple/"), "site": why("http://example.com/")}))
 `)
-	var run struct{ Process int64 }
-	e.Must("pkgs.run", map[string]any{}, &run)
-	p := e.WaitState(run.Process, "done", "error")
-	var got struct{ Registry, Site string }
-	_ = json.Unmarshal(p.Result, &got)
-	if strings.Contains(got.Registry, "not in the domains") || !strings.Contains(got.Site, "not in the domains") {
-		t.Fatalf("a draft's script reaches the registries it names, not its other domains: %s", p.Result)
+	try := func() (got struct{ Registry, Site string }) {
+		var run struct{ Process int64 }
+		e.Must("pkgs.run", map[string]any{}, &run)
+		p := e.WaitState(run.Process, "done", "error")
+		_ = json.Unmarshal(p.Result, &got)
+		return got
+	}
+	refused := func(s string) bool {
+		return strings.Contains(s, "is not reachable from this program") || strings.Contains(s, "is not a host this module holds the network of")
+	}
+	if got := try(); !refused(got.Registry) || !refused(got.Site) {
+		t.Fatalf("a draft's script reaches nothing it declares before the owner grants it: %+v", got)
+	}
+	e.Grant("pkgs", "network", "pypi.org")
+	if got := try(); refused(got.Registry) || !refused(got.Site) {
+		t.Fatalf("a draft's script reaches the host the owner granted, not the others: %+v", got)
 	}
 }
 
-// TestADraftSaysWhichToolsWillAskEachTime: before the owner enables a draft, its row names the tools and commands
-// that will still wait for the owner on every call.
-func TestADraftSaysWhichToolsWillAskEachTime(t *testing.T) {
+// TestADraftSaysWhatAsksTheFirstTime: before the owner enables a draft, its row names what it sends in the owner's
+// name, which waits for the owner the first time.
+func TestADraftSaysWhatAsksTheFirstTime(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	_, tok := e.Token("terminal", "deck.*")
-	m := strings.Replace(harness.PostManifest("http://127.0.0.1:1", ""), `"class": "internal"`, `"class": "reversible"`, 1)
-	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": m}); code != 200 {
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "notes", "manifest": harness.PostManifest("http://127.0.0.1:1", "")}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	if p := e.ProjectRow("notes"); !slices.Equal(p.Asks, []string{"post"}) {
-		t.Fatalf("the draft names the external tool, which asks every time, and not its reversible command: %+v", p)
+		t.Fatalf("the draft names the tool that sends, which asks the first time: %+v", p)
 	}
 	var items []harness.ListItem
 	_ = json.Unmarshal(e.SettingsBlock("Modules", nil)["items"], &items)
-	if !slices.ContainsFunc(items, func(it harness.ListItem) bool { return strings.Contains(it.Meta, "asks you each time: post") }) {
+	if !slices.ContainsFunc(items, func(it harness.ListItem) bool { return strings.Contains(it.Meta, "asks you the first time: post") }) {
 		t.Fatalf("the Projects tab says it before enabling: %+v", items)
 	}
 }
 
-// TestTheScheduleShowsTheModelARunStartsOn: the provider a draft suggests before the owner grants it is not what its
-// run starts on, so the schedule does not show it either.
+// TestTheScheduleShowsTheModelARunStartsOn: the provider a module suggests is its author's wish, no right: its run
+// starts on it, and the schedule shows it.
 func TestTheScheduleShowsTheModelARunStartsOn(t *testing.T) {
 	t.Parallel()
 	main, other := &harness.Fake{Script: harness.Ok}, &harness.Fake{Script: harness.Ok, ProviderName: "other"}
@@ -317,7 +318,7 @@ func TestTheScheduleShowsTheModelARunStartsOn(t *testing.T) {
 	var try struct{ Process int64 }
 	e.Must("deck.command_try", map[string]any{"command": "sketch.work"}, &try)
 	e.WaitState(try.Process, "done")
-	if len(ts) != 1 || ts[0].Model != "fake" || len(main.Calls()) != 1 || len(other.Calls()) != 0 {
+	if len(ts) != 1 || ts[0].Model != "other" || len(main.Calls()) != 0 || len(other.Calls()) != 1 {
 		t.Fatalf("the schedule shows the model the run starts on: %+v, %d on fake, %d on other", ts, len(main.Calls()), len(other.Calls()))
 	}
 }

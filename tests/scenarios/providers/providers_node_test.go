@@ -51,7 +51,7 @@ func TestAnAgentOnANodeAsksAndHandsItsResultInThroughDeck(t *testing.T) {
 	n.Allow("codex")
 	n.Start()
 	e.Until("codex@Mac among the agents", func() bool { return hasModel(e, "codex@Mac") })
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	e.Secret("paint", "PAINT_KEY", "secret-of-paint")
 	e.UseModels("paint.work", "codex@Mac")
 	id := e.Run(p, "work")
@@ -124,7 +124,7 @@ func TestAnAgentWhoseNodeWentAwayWaitsThenGoesToTheNextAgent(t *testing.T) {
 	t.Parallel()
 	e, own, onNode, n := claudeOnNode(t, 2*time.Second)
 	onNode.Before(`sleep 60`)
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.PlainManifest))
 	e.UseModels("plain.work", "claude-code@Mac", "claude-code")
 	id := e.Run(p, "work")
 	e.Until("the turn to start on the node", func() bool { return onNode.Calls() == 1 })
@@ -155,7 +155,7 @@ func TestAnAgentWhoseNodeComesBackGoesOnInItsSession(t *testing.T) {
 	t.Parallel()
 	e, own, onNode, n := claudeOnNode(t, time.Minute)
 	onNode.Before(`[ "$n" = 1 ] && { echo cut > before-the-cut.txt; sleep 60; }`)
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.PlainManifest))
 	e.UseModels("plain.work", "claude-code@Mac", "claude-code")
 	id := e.Run(p, "work")
 	cut := filepath.Join(deckhome.Layout(n.Home).Mirror(e.Session(id)), "work", "runs", harness.Itoa(id), "work", "before-the-cut.txt")
@@ -198,7 +198,7 @@ func TestAnACPAgentOnANodeCallsItsModelThroughDeck(t *testing.T) {
 	onNode.StreamText(1, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
 		`{"shell": "echo painted > canvas.txt"}`, harness.AcpModel,
 		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
-	p := e.Project("paint", harness.ColorManifest)
+	p := e.Project("paint", harness.OnLogin(harness.ColorManifest))
 	e.UseModels("paint.work", "acp@Mac")
 	before := len(llm.Requests())
 	id := e.Run(p, "work")
@@ -254,7 +254,7 @@ func TestTheCLIOfANodeSignsInByALinkFromDeck(t *testing.T) {
 func TestFilesFromANodeNeverGoThroughALinkOnDeck(t *testing.T) {
 	t.Parallel()
 	e, _, onNode, _ := claudeOnNode(t, time.Minute)
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.PlainManifest))
 	h := deckhome.Layout(e.Home)
 	if err := os.MkdirAll(h.Data(p), 0o700); err != nil {
 		t.Fatal(err)

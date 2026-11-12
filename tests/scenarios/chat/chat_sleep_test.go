@@ -108,7 +108,7 @@ func TestSleepStartsOnAFreeModelFirst(t *testing.T) {
 }
 
 // oldMemory is the weekly cleanup of the master before sleep.
-const oldMemory = `{"name": "memory", "title": "Clean up memory", "description": "Merges, shortens and deletes facts of the memory of the owner and of each project by the memory skill.", "class": "internal", "callers": ["owner", "trigger"], "provider": "claude-code", "executor": {"type": "agent", "prompt_file": "prompts/memory.md", "skills": ["memory"], "calls": ["deck.projects_list", "deck.documents_list", "deck.document_get", "deck.document_save", "deck.document_delete"]}}`
+const oldMemory = `{"name": "memory", "title": "Clean up memory", "description": "Merges, shortens and deletes facts of the memory of the owner and of each project by the memory skill.", "callers": ["owner", "trigger"], "provider": "claude-code", "executor": {"type": "agent", "prompt_file": "prompts/memory.md", "skills": ["memory"], "calls": ["deck.projects_list", "deck.documents_list", "deck.document_get", "deck.document_save", "deck.document_delete"]}}`
 
 // TestADeckBeforeSleepWakesUpWithIt: a deck whose owner edited the master, paused its weekly cleanup and gave it a
 // model comes back with sleep in its place, paused, on that model, and the owner's other edit kept.
@@ -163,7 +163,7 @@ func TestADeckBeforeSleepWakesUpWithIt(t *testing.T) {
 	// Nor kept its models the module that added them.
 	e.SQL(`ALTER TABLE model DROP COLUMN project_id`)
 	// Nor had its messages of the master blocks.
-	e.SQL(`ALTER TABLE chat_message DROP COLUMN block; ALTER TABLE chat_message DROP COLUMN answer; ALTER TABLE chat_message DROP COLUMN answered_at; ALTER TABLE model DROP COLUMN tools; ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence`)
+	e.SQL(`ALTER TABLE chat_message DROP COLUMN block; ALTER TABLE chat_message DROP COLUMN answer; ALTER TABLE chat_message DROP COLUMN answered_at; ALTER TABLE model DROP COLUMN tools; ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence; DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''`)
 	e2 := e.Restart()
 	e2.Must("deck.triggers_list", map[string]any{"project": "master"}, &ts)
 	var sleeps int

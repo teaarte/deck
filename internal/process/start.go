@@ -112,9 +112,6 @@ func (r *Runner) Begin(ctx context.Context, projectID int64, m *manifest.Manifes
 	if err != nil {
 		return Started{}, err
 	}
-	if m, err = docs.InForce(ctx, r.st.Q, proj, m); err != nil {
-		return Started{}, err
-	}
 	cmd := m.Command(command)
 	if cmd == nil {
 		return Started{}, fmt.Errorf("project %q has no command %q", proj.Name, command)
@@ -167,6 +164,9 @@ func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Man
 			at.session = o.Session
 		}
 		if !cmd.Executor.Folder.IsZero() {
+			if err := r.holdsFolder(ctx, projectID, m, cmd); err != nil {
+				return at, err
+			}
 			if at.folder, err = r.deps.Folder(ctx, projectID, cmd.Executor.Folder, at.provider); err != nil {
 				return at, err
 			}
@@ -187,6 +187,19 @@ func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Man
 		return at, registry.Invalid("%s executors are not available yet", at.kind)
 	}
 	return at, nil
+}
+
+// holdsFolder refuses an agent a folder of its project its module does not hold the right files on.
+func (r *Runner) holdsFolder(ctx context.Context, projectID int64, m *manifest.Manifest, cmd *manifest.Command) error {
+	g, err := docs.Grants(ctx, r.st.Q, projectID)
+	if err != nil {
+		return err
+	}
+	n := registry.Need{Right: manifest.Files, Subject: cmp.Or(cmd.Executor.Folder.Name, "*")}
+	if !m.Holds(g, n) {
+		return registry.Refuse("%s works in the folder %s, but its module does not hold the right files on it: it declares it in rights, and the owner grants it", cmd.Name, n.Subject)
+	}
+	return nil
 }
 
 // admitted is what the start of a process came to in its transaction: the process, a refusal with its note written,

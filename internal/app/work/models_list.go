@@ -346,7 +346,7 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 		for _, w := range roles {
 			out.Uses = append(out.Uses, useView{Project: p.Name, Work: w})
 		}
-		m, err := docs.For(ctx, s.St.Q, registry.Actor{}, p.ID)
+		m, err := docs.ManifestAt(ctx, s.St.Q, p.ID, 0)
 		if err != nil {
 			continue
 		}

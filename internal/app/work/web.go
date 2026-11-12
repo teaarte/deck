@@ -3,6 +3,7 @@ package work
 import (
 	"context"
 	"deck2/internal/fault"
+	"deck2/internal/manifest"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,17 +37,17 @@ const (
 	maxPageText = 100 << 10
 )
 
-// webDomains are the sites the caller reads pages of: any public one for the owner side, the read domains in force
-// of the project for the rest.
+// webDomains are the sites the caller reads pages of: any public one for the owner side, the hosts its project's
+// programs hold the network of for the rest.
 func (s *Service) webDomains(ctx context.Context, act registry.Actor) ([]string, error) {
 	if act.OwnerSide() || act.ProjectID == 0 {
 		return []string{"*"}, nil
 	}
-	m, err := docs.For(ctx, s.St.Q, act, act.ProjectID)
+	m, g, err := docs.Rights(ctx, s.St.Q, act.ProjectID)
 	if err != nil {
 		return nil, err
 	}
-	return m.Domains.Read, nil
+	return m.Held(g, manifest.Network, manifest.Programs), nil
 }
 
 type webSearchIn struct {
@@ -140,7 +141,7 @@ func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchI
 	}
 	resp, err := egress.Fetch(ctx, domains, in.URL)
 	if err != nil {
-		return nil, registry.Refuse("%v; an agent reads the pages of its project's domains.read", err)
+		return nil, registry.Refuse("%v; an agent reads the pages of the hosts its module holds the network of", err)
 	}
 	defer resp.Body.Close()
 	if at := resp.Request.URL.String(); at != in.URL {
@@ -240,7 +241,7 @@ func (s *Service) webCommands() []*registry.Command {
 			"Searches the web through the search service of deck's settings and gives titles, addresses and snippets.",
 			registry.Everyone, s.webSearch),
 		registry.Def("web_fetch", "Read a page",
-			"Reads a web page as text: the words of an HTML page, a text or JSON one as it is; an agent of a project reads only the sites of its domains.read (\"*\" for any).",
+			"Reads a web page as text: the words of an HTML page, a text or JSON one as it is; an agent of a module reads only the hosts its module holds the network of (\"*\" for any).",
 			registry.Everyone, s.webFetch),
 	}
 	for _, c := range cs {

@@ -3,7 +3,6 @@ package project
 import (
 	"archive/zip"
 	"context"
-	"deck2/internal/events"
 	"io"
 	"os"
 	"path"
@@ -16,11 +15,9 @@ import (
 	"deck2/internal/access"
 	"deck2/internal/docs"
 	"deck2/internal/home"
-	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
-	"deck2/internal/words"
 )
 
 // maxZipEntries bounds the entries of an imported .zip.
@@ -236,48 +233,10 @@ func (s *Service) writeZip(ctx context.Context, w io.Writer, p db.Project, ds []
 	return zw.Close()
 }
 
-// rightRow is one thing enabling a draft lets it do beyond its internal actions.
-type rightView struct {
-	What   string `json:"what"`
-	Detail string `json:"detail"`
-}
-
-// projectRights lists what enabling a draft grants and what will wait for the owner on each call, one row each.
-func (s *Service) projectRights(ctx context.Context, act registry.Actor, in projectExportIn) ([]rightView, error) {
-	p, err := access.Project(ctx, s.St.Q, act, in.Project)
-	if err != nil {
-		return nil, err
-	}
-	ms, failed := docs.All(ctx, s.St.Q, []db.Project{p})
-	if err := failed[p.ID]; err != nil {
-		return nil, registry.Invalid("the manifest of %s does not load: %v", p.Name, err)
-	}
-	v := s.viewProject(ctx, p, ms[p.ID], nil, "")
-	ws := words.In(registry.Lang(ctx))
-	out := []rightView{}
-	for _, r := range append(v.Rights, asked(v.Asks)...) {
-		what, detail, _ := strings.Cut(manifest.TrNamed(ws, r), ": ")
-		out = append(out, rightView{What: what, Detail: detail})
-	}
-	return out, nil
-}
-
-// asked are the lines of the calls that wait for the owner each time.
-func asked(asks []string) []string {
-	out := make([]string, len(asks))
-	for i, a := range asks {
-		out[i] = "asks you each time: " + a
-	}
-	return out
-}
-
 func (s *Service) moduleZipCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_export", "Export project",
 			"Keeps a .zip of the documents of a project to share as a module: manifest, prompts, skills, scripts and the other documents; with data, also its records, memory and data folder, which an import brings back, not the documents of its records or its stored files; never its secrets. The result names the file.",
 			registry.OwnerOnly, s.projectExport),
-		registry.Read("project_rights_list", "List what a draft may do",
-			"Lists what enabling a draft lets it do beyond its own records, such as the web, secrets, folders and models, and the calls that will wait for the owner each time.",
-			registry.OwnerSide, s.projectRights).On(events.Projects, events.Documents),
 	}
 }

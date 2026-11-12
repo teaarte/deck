@@ -81,7 +81,7 @@ func TestScriptCommandRunsInTheSandbox(t *testing.T) {
 	e := harness.New(t)
 	allowed, other := harness.Served(t), harness.Served(t)
 	host := strings.TrimPrefix(allowed.URL, "http://")
-	pid := e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "domains": {"read": [%q]}`, host)))
+	pid := e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "rights": [{"right": "network", "what": [%q], "why": "reads it"}]`, host)))
 	e.SaveScript("tools", "scripts/main.py", collectScript)
 	home := e.App.Cfg.Home
 	secret := filepath.Join(deckhome.Layout(home).State(), "secrets", "key")
@@ -436,7 +436,7 @@ func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testi
 	e := harness.New(t)
 	self := harness.Fakes
 	e.Project("tools", harness.ScriptManifest("collect", "", fmt.Sprintf(`, "tools": {"mcp": {"servers": {"fake": {"command": %q,
-    "env": {"DECK_FAKE_MCP": "project"}, "toolFilter": ["peek"], "classes": {"peek": "internal"}}}}}`, self)))
+    "env": {"DECK_FAKE_MCP": "project"}, "toolFilter": ["peek"], "right": {"peek": "network"}}}}}`, self)))
 	e.Must("deck.folder_add", map[string]any{"project": "tools", "path": filepath.Join(owner, "code")}, nil)
 	e.SaveScript("tools", "scripts/main.py", homeScript)
 	p := e.WaitState(e.Start("tools", "collect", map[string]any{"home": owner, "folder": filepath.Join(owner, "code")}), "done", "error")

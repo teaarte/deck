@@ -10,8 +10,8 @@ import (
 	"deck2/tests/harness"
 )
 
-// TestAStoredManifestOfFormat14ReadsInFormat15: the network of a module is only its rights in format 15, so a stored
-// manifest of format 14 loses no_network and local_browser; a module whose agents now reach its domains says so once.
+// TestAStoredManifestOfFormat14ReadsInFormat15: a stored manifest of format 14 loses no_network and local_browser; a
+// module whose agents on a login no longer reach its domains, as format 17 has it, says so once.
 func TestAStoredManifestOfFormat14ReadsInFormat15(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithHome(t.TempDir()))
@@ -21,7 +21,7 @@ func TestAStoredManifestOfFormat14ReadsInFormat15(t *testing.T) {
 		if strings.Contains(requires, "images") {
 			m = strings.Replace(m, `"version": 14`, `"version": 14, "domains": {"read": ["data.example.org"]}`, 1)
 		}
-		return strings.Replace(m, `"class": "internal",`, `"class": "internal", "requires": `+requires+`,`, 1)
+		return strings.Replace(m, `"executor": {`, `"requires": `+requires+`, "executor": {`, 1)
 	}
 	for name, requires := range map[string]string{"ideas": `["images", "local_browser"]`, "notes": `["local_browser"]`} {
 		e.Project(name, harness.IdeasManifest)
@@ -33,7 +33,7 @@ func TestAStoredManifestOfFormat14ReadsInFormat15(t *testing.T) {
 	// Nor kept its models the module that added them.
 	e.SQL(`ALTER TABLE model DROP COLUMN project_id`)
 	// Nor had its messages of the master blocks.
-	e.SQL(`ALTER TABLE chat_message DROP COLUMN block; ALTER TABLE chat_message DROP COLUMN answer; ALTER TABLE chat_message DROP COLUMN answered_at; ALTER TABLE model DROP COLUMN tools; ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence`)
+	e.SQL(`ALTER TABLE chat_message DROP COLUMN block; ALTER TABLE chat_message DROP COLUMN answer; ALTER TABLE chat_message DROP COLUMN answered_at; ALTER TABLE model DROP COLUMN tools; ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence; DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''`)
 	// Nor had its connections a node.
 	e.SQL(`ALTER TABLE connection DROP COLUMN node_id`)
 	// Nor had it the devices of the owner.
@@ -68,15 +68,15 @@ func TestAStoredManifestOfFormat14ReadsInFormat15(t *testing.T) {
 	e.Must("deck.feed_list", map[string]any{"kind": "note"}, &feed)
 	told := 0
 	for _, f := range feed {
-		if strings.Contains(f.Text, "had no_network") {
+		if strings.Contains(f.Text, "no longer reach the network from their shells") {
 			told++
-			if !strings.Contains(f.Text, "ideas") || !strings.Contains(f.Text, "data.example.org") {
-				t.Fatalf("the module whose agents now reach its domains is told: %s", f.Text)
+			if !strings.Contains(f.Text, "The agents of ideas") || !strings.Contains(f.Text, "data.example.org") || strings.Contains(f.Text, "had no_network") {
+				t.Fatalf("the module whose agents no longer reach its domains is told: %s", f.Text)
 			}
 		}
 	}
 	if told != 1 {
-		t.Fatalf("one module had no_network with domains, told %d times: %+v", told, feed)
+		t.Fatalf("one note tells the modules whose agents lost their network, told %d times: %+v", told, feed)
 	}
 }
 
@@ -85,7 +85,7 @@ func TestAStoredManifestOfFormat14ReadsInFormat15(t *testing.T) {
 func TestAStoredManifestOfFormat15ReadsInFormat16(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithHome(t.TempDir()))
-	one := strings.Replace(harness.AgentCommand("kept", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1)
+	one := strings.Replace(harness.AgentCommand("kept", ""), `"executor": {`, `"runs": "one", "executor": {`, 1)
 	m := harness.TestManifest([]string{harness.AgentCommand("beside", ""), harness.AgentCommand("after", ""), one}, nil)
 	p := e.Project("jobs", m)
 	// The manifest of format 15 an older deck kept.
@@ -105,7 +105,7 @@ func TestAStoredManifestOfFormat15ReadsInFormat16(t *testing.T) {
 	// Nor kept its models the module that added them.
 	e.SQL(`ALTER TABLE model DROP COLUMN project_id`)
 	// Nor had its messages of the master blocks.
-	e.SQL(`ALTER TABLE chat_message DROP COLUMN block; ALTER TABLE chat_message DROP COLUMN answer; ALTER TABLE chat_message DROP COLUMN answered_at; ALTER TABLE model DROP COLUMN tools; ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence`)
+	e.SQL(`ALTER TABLE chat_message DROP COLUMN block; ALTER TABLE chat_message DROP COLUMN answer; ALTER TABLE chat_message DROP COLUMN answered_at; ALTER TABLE model DROP COLUMN tools; ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence; DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''`)
 	// Nor had its connections a node.
 	e.SQL(`ALTER TABLE connection DROP COLUMN node_id`)
 	// Nor had it the devices of the owner.

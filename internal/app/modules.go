@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"sync"
 
 	"deck2/internal/docs"
@@ -58,13 +59,13 @@ func (s *modules) commands(ctx context.Context, workspace int64, name string) ([
 			slog.Error("project manifest", "project", p.Name, "err", failed[p.ID])
 			continue
 		}
-		granted, err := docs.InForce(ctx, s.a.Store.Q, p, m)
+		granted, err := docs.Grants(ctx, s.a.Store.Q, p.ID)
 		if err != nil {
 			slog.Error("project rights", "project", p.Name, "err", err)
 			continue
 		}
-		out = append(out, s.compiled(p, m, granted)...)
-		mcpCmds, err := s.a.MCP.Commands(ctx, s.a.Store.Q, p, granted)
+		out = append(out, s.compiled(p, m, m.Held(granted, manifest.Network, manifest.Programs))...)
+		mcpCmds, err := s.a.MCP.Commands(ctx, s.a.Store.Q, p, m)
 		if err != nil {
 			return nil, err
 		}
@@ -79,29 +80,36 @@ func (s *modules) commands(ctx context.Context, workspace int64, name string) ([
 	return out, nil
 }
 
-// compiled are the commands and HTTP tools of a manifest as registry commands, compiled once per revision and
-// grant, with the rights the owner gave: those of granted, m in force.
-func (s *modules) compiled(p db.Project, m, granted *manifest.Manifest) []*registry.Command {
-	key := preparedKey{p.ID, m, p.GrantedRevision.Int64}
+// compiled are the commands and HTTP tools of a manifest as registry commands, compiled once per revision and the
+// hosts its programs hold the network of, which its tools reach; a command that declares send needs that right.
+func (s *modules) compiled(p db.Project, m *manifest.Manifest, hosts []string) []*registry.Command {
+	key := preparedKey{p.ID, m, strings.Join(hosts, " ")}
 	s.mu.Lock()
 	cmds, ok := s.prepared[key]
 	s.mu.Unlock()
 	if ok {
 		return cmds
 	}
-	for _, c := range granted.Commands {
-		cmd := registry.Loose(p.Name+"."+c.Name, c.Title, c.Description, c.Class, c.Callable(), c.InputSchema(),
+	for _, c := range m.Commands {
+		class := registry.Internal
+		need, sends := m.CommandNeed(c.Name)
+		if sends {
+			class = registry.External
+		}
+		cmd := registry.Loose(p.Name+"."+c.Name, c.Title, c.Description, class, c.Callable(), c.InputSchema(),
 			s.startHandler(p.ID, m, c.Name)).Retried()
 		cmd.Result, cmd.ProjectID, cmd.Words = c.Result, p.ID, m.I18n
+		if sends {
+			cmd.Gate.Needs = func(context.Context, registry.Actor, string, json.RawMessage) registry.Need { return need }
+		}
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project command", "command", cmd.Name, "err", err)
 			continue
 		}
 		cmds = append(cmds, cmd)
 	}
-	domains := granted.Domains.All()
-	for _, t := range granted.Tools.HTTP {
-		cmd := s.a.Tools.Command(p, t, domains)
+	for _, t := range m.Tools.HTTP {
+		cmd := s.a.Tools.Command(p, t, hosts)
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project tool", "tool", cmd.Name, "err", err)
 			continue
@@ -120,7 +128,7 @@ func (s *modules) compiled(p db.Project, m, granted *manifest.Manifest) []*regis
 type preparedKey struct {
 	project  int64
 	manifest *manifest.Manifest
-	granted  int64
+	hosts    string
 }
 
 // startHandler runs a command of the manifest the registry checked the call against; the calling process

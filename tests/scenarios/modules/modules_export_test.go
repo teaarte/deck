@@ -68,7 +68,7 @@ func TestAModuleExportedByTheSkillImportsAsADraft(t *testing.T) {
 	if failed || json.Unmarshal([]byte(out), &im) != nil {
 		t.Fatalf("the terminal agent imports the folder: %s", out)
 	}
-	if im.Name != "links-copy" || im.Status != store.ProjectDraft || !slices.Contains(im.Rights, "allowed external: post_link") {
+	if im.Name != "links-copy" || im.Status != store.ProjectDraft || !slices.Contains(im.Rights, "it acts in your name: post_link") {
 		t.Fatalf("import creates a draft named after the folder and shows its rights: %+v", im)
 	}
 	var list []docView
@@ -255,7 +255,7 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		Rights       []string
 	}
 	e.Must("deck.project_import", map[string]any{"file": strconv.FormatInt(id, 10), "name": "links-shared"}, &im)
-	if im.Name != "links-shared" || im.Status != store.ProjectDraft || !slices.Contains(im.Rights, "allowed external: post_link") {
+	if im.Name != "links-shared" || im.Status != store.ProjectDraft || !slices.Contains(im.Rights, "it acts in your name: post_link") {
 		t.Fatalf("an uploaded .zip from a screen of deck comes in as a draft with its rights: %+v", im)
 	}
 	var list []docView
@@ -264,11 +264,11 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 		t.Fatalf("import takes every file of the .zip, out of its folder: %+v", list)
 	}
 
-	var rights []struct{ What, Detail string }
-	e.Must("deck.project_rights_list", map[string]any{"project": "links-shared"}, &rights)
-	if !slices.Contains(rights, struct{ What, Detail string }{"allowed external", "post_link"}) ||
-		!slices.Contains(rights, struct{ What, Detail string }{"reaches and may send data to", "news.example.com"}) {
-		t.Fatalf("what a draft may do is a row each: %+v", rights)
+	var rights []struct{ Right, Subject, Says, Why string }
+	e.Must("deck.rights_list", map[string]any{"project": "links-shared"}, &rights)
+	if !slices.Contains(rights, struct{ Right, Subject, Says, Why string }{"send", "post_link", "it acts in your name: post_link", "shares the links you pick to your feed service"}) ||
+		!slices.Contains(rights, struct{ Right, Subject, Says, Why string }{"network", "news.example.com", "its programs reach news.example.com and may send its data there", "reads the news it rates"}) {
+		t.Fatalf("what a draft may do is a row a subject: %+v", rights)
 	}
 	if b, _ := json.Marshal(e.Screen("", "settings", nil)); !strings.Contains(string(b), `"params":{"project":"links-shared","revision":`) ||
 		!strings.Contains(string(b), `"screen":"draft"`) {

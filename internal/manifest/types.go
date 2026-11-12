@@ -10,31 +10,25 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-const FormatVersion = 16
+const FormatVersion = 17
 
 type Manifest struct {
-	Version         int          `json:"version"`
-	Collections     []Collection `json:"collections,omitempty"`
-	Commands        []Command    `json:"commands,omitempty"`
-	Scripts         []Script     `json:"scripts,omitempty"`
-	Triggers        []Trigger    `json:"triggers,omitempty"`
-	Tools           Tools        `json:"tools,omitzero"`
-	AllowedExternal []string     `json:"allowed_external,omitempty"`
-	Domains         Domains      `json:"domains,omitzero"`
-	Screens         []Screen     `json:"screens,omitempty"`
+	Version     int          `json:"version"`
+	Collections []Collection `json:"collections,omitempty"`
+	Commands    []Command    `json:"commands,omitempty"`
+	Scripts     []Script     `json:"scripts,omitempty"`
+	Triggers    []Trigger    `json:"triggers,omitempty"`
+	Tools       Tools        `json:"tools,omitzero"`
+	Screens     []Screen     `json:"screens,omitempty"`
 	// Widgets are the views of the card of the project on the tiles, each from the least size it fits.
 	Widgets []Widget `json:"widgets,omitempty"`
 	Menu    []string `json:"menu,omitempty"`
 	Icon    string   `json:"icon,omitempty"`
 	Title   string   `json:"title,omitempty"`
 	// I18n translates the texts the owner sees, by language and then by the text as the manifest writes it.
-	I18n  map[string]map[string]string `json:"i18n,omitempty"`
-	Reads []Read                       `json:"reads,omitempty"`
-	// GPU opens the graphics card to the programs of the project, a right the owner gives.
-	GPU bool `json:"gpu,omitempty"`
-	// Models are the connections, models and @roles the project calls models through, besides its commands of
-	// type model.
-	Models []string `json:"models,omitempty"`
+	I18n map[string]map[string]string `json:"i18n,omitempty"`
+	// Rights are what the module may ask the owner for, each with why; a declaration grants nothing.
+	Rights []Declared `json:"rights,omitempty"`
 	// Writes are the documents of the project its agents and scripts write besides artifacts and memory: a name, or a
 	// folder ending in "/" for all under it.
 	Writes []string `json:"writes,omitempty"`
@@ -49,30 +43,6 @@ type Manifest struct {
 	text []byte
 	// warnings are problems a read lets pass and a save refuses.
 	warnings []string
-	// granted, once set by Clip, are the only model uses in force.
-	granted *[]string
-}
-
-// Uses are the connections, models and @roles the project calls models through: its models and what its
-// commands of type model name, the models assigned to their kind when they name none.
-func (m *Manifest) Uses() []string {
-	if m.granted != nil {
-		return *m.granted
-	}
-	out := slices.Clone(m.Models)
-	for _, c := range m.Commands {
-		if c.Executor.Type != "model" {
-			continue
-		}
-		use := c.Executor.Model
-		if use == "" {
-			use = "@" + c.Executor.Kind
-		}
-		if !slices.Contains(out, use) {
-			out = append(out, use)
-		}
-	}
-	return out
 }
 
 type Collection struct {
@@ -109,10 +79,11 @@ type Parent struct {
 const FreeProvider = "free"
 
 type Command struct {
-	Name           string          `json:"name"`
-	Title          string          `json:"title"`
-	Description    string          `json:"description"`
-	Class          string          `json:"class"`
+	Name        string `json:"name"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	// Undo is the command or tool of the module that takes a call of this one back; it gives no right.
+	Undo           string          `json:"undo,omitempty"`
 	Input          json.RawMessage `json:"input,omitempty"`
 	Result         json.RawMessage `json:"result,omitempty"`
 	Callers        []string        `json:"callers,omitempty"`
@@ -238,19 +209,21 @@ type Tools struct {
 }
 
 type HTTPTool struct {
-	Name              string            `json:"name"`
-	Title             string            `json:"title,omitempty"`
-	Description       string            `json:"description"`
-	Method            string            `json:"method"`
-	URL               string            `json:"url"`
-	Hosts             []string          `json:"hosts,omitempty"`
-	Headers           map[string]string `json:"headers,omitempty"`
-	Body              json.RawMessage   `json:"body,omitempty"`
-	Input             json.RawMessage   `json:"input,omitempty"`
-	Result            json.RawMessage   `json:"result,omitempty"`
-	Class             string            `json:"class"`
-	Auth              json.RawMessage   `json:"auth,omitempty"`
-	ConfirmTTLMinutes int               `json:"confirm_ttl_minutes,omitempty"`
+	Name        string            `json:"name"`
+	Title       string            `json:"title,omitempty"`
+	Description string            `json:"description"`
+	Method      string            `json:"method"`
+	URL         string            `json:"url"`
+	Hosts       []string          `json:"hosts,omitempty"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	Body        json.RawMessage   `json:"body,omitempty"`
+	Input       json.RawMessage   `json:"input,omitempty"`
+	Result      json.RawMessage   `json:"result,omitempty"`
+	// Right is the right the author names when deck's reading by method and key is wrong: network, data or send.
+	Right             string          `json:"right,omitempty"`
+	Undo              string          `json:"undo,omitempty"`
+	Auth              json.RawMessage `json:"auth,omitempty"`
+	ConfirmTTLMinutes int             `json:"confirm_ttl_minutes,omitempty"`
 }
 
 type MCPServer struct {
@@ -259,47 +232,9 @@ type MCPServer struct {
 	Env        map[string]string `json:"env,omitempty"`
 	URL        string            `json:"url,omitempty"`
 	ToolFilter []string          `json:"toolFilter,omitempty"`
-	Classes    map[string]string `json:"classes,omitempty"`
+	// Right is the right of each tool by name, send for one it does not list.
+	Right map[string]string `json:"right,omitempty"`
 }
-
-type Domains struct {
-	Read []string `json:"read,omitempty"`
-	Act  []string `json:"act,omitempty"`
-}
-
-// All are the domains read and acted on, read first.
-func (d Domains) All() []string { return append(slices.Clone(d.Read), d.Act...) }
-
-type Read struct {
-	Project     string   `json:"project"`
-	Collections []string `json:"collections,omitempty"`
-	Documents   []string `json:"documents,omitempty"`
-	// Models reads which models do the work of the project, or of every one under AnyProject.
-	Models bool `json:"models,omitempty"`
-	// Runs reads the runs of the project in brief, or of every one under AnyProject: command, state, failure, model,
-	// times; never input, result or log.
-	Runs bool `json:"runs,omitempty"`
-}
-
-// ReadOf is what the reads entries naming project give together: models and runs also under AnyProject.
-func (m *Manifest) ReadOf(project string) Read {
-	out := Read{Project: project}
-	for _, r := range m.Reads {
-		if r.Project == project || r.Project == AnyProject {
-			out.Models, out.Runs = out.Models || r.Models, out.Runs || r.Runs
-		}
-		if r.Project == project {
-			out.Collections, out.Documents = append(out.Collections, r.Collections...), append(out.Documents, r.Documents...)
-		}
-	}
-	return out
-}
-
-// Data says the entry reads data of its project, not only which models do its work or its runs.
-func (r Read) Data() bool { return !r.Models && !r.Runs || len(r.Collections)+len(r.Documents) > 0 }
-
-// AnyProject in reads names every project; it reads only which models do their work and their runs.
-const AnyProject = "*"
 
 type Screen struct {
 	Name  string `json:"name"`

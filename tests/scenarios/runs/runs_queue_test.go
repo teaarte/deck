@@ -85,7 +85,7 @@ func TestACommandOfManyRunsRunsTheNextCallBeside(t *testing.T) {
 func TestAStoppedRunLetsTheNextOneStart(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("spans", strings.Replace(harness.ScriptManifest("run", "", ""), `"class": "internal",`, `"class": "internal", "runs": "one",`, 1))
+	e.Project("spans", strings.Replace(harness.ScriptManifest("run", "", ""), `"executor": {`, `"runs": "one", "executor": {`, 1))
 	e.SaveScript("spans", "scripts/main.py", strings.Replace(spanScript, "time.sleep(1)", "time.sleep(30)", 1))
 	first, second := e.Start("spans", "run", nil), e.Start("spans", "run", nil)
 	e.WaitState(second, "waiting:run")

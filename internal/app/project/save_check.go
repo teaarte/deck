@@ -7,7 +7,6 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
-	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -27,11 +26,10 @@ type manifestCheckView struct {
 	Refused []string `json:"refused"`
 	// Warnings are what keeps it from working though a save takes it, such as a command no model takes.
 	Warnings []string `json:"warnings"`
-	// Widens are the rights it adds to those in force; Waits says a save by this caller waits for the owner's yes,
-	// Enable that the project is a draft whose rights come when the owner enables it.
-	Widens []string `json:"widens"`
-	Waits  bool     `json:"waits"`
-	Enable bool     `json:"enable,omitempty"`
+	// Ungranted are the rights it declares the owner has not answered, in deck's words: a declaration grants nothing.
+	// Enable says the project is a draft, whose enable grants them but send.
+	Ungranted []string `json:"ungranted"`
+	Enable    bool     `json:"enable,omitempty"`
 	// Screens name the blocks of its screens that fail on the data there is now.
 	Screens      []string `json:"screens"`
 	Unused       []string `json:"unused_i18n"`
@@ -40,7 +38,7 @@ type manifestCheckView struct {
 
 // check runs the checks of a save on a manifest and writes nothing; a migration script it would run it only names.
 func (s *Service) check(ctx context.Context, act registry.Actor, in manifestCheckIn) (manifestCheckView, error) {
-	out := manifestCheckView{Refused: []string{}, Warnings: []string{}, Widens: []string{}, Screens: []string{}, Unused: []string{}, Untranslated: []string{}}
+	out := manifestCheckView{Refused: []string{}, Warnings: []string{}, Ungranted: []string{}, Screens: []string{}, Unused: []string{}, Untranslated: []string{}}
 	var p db.Project
 	if in.Project != "" {
 		var err error
@@ -68,8 +66,7 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in manifestChec
 		out.Refused = refusals(err)
 		return out, nil
 	}
-	out.Refused = append(out.Refused, refusals(checkReads(ctx, s.St.Q, act.Workspace, p.Name, pm.m))...)
-	prev := &manifest.Manifest{}
+	out.Refused = append(out.Refused, refusals(checkData(ctx, s.St.Q, db.Project{WorkspaceID: act.Workspace, Name: p.Name, Builtin: p.Builtin}, pm.m))...)
 	if p.ID != 0 {
 		out.Refused = append(out.Refused, refusals(s.checkToolFit(ctx, s.St.Q, act.Workspace, p.ID, pm.m))...)
 		if plan, err := s.migrate(ctx, p, pm.m, 0, true); err != nil {
@@ -82,18 +79,12 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in manifestChec
 				}
 			}
 		}
-		if cur, err := docs.Manifest(ctx, s.St.Q, p); err == nil {
-			if prev, err = docs.InForce(ctx, s.St.Q, p, cur); err != nil {
-				prev = &manifest.Manifest{}
-			}
-		}
 		out.Screens = append(out.Screens, s.CheckScreens(ctx, act, p, pm.m)...)
 		out.Warnings = append(append(out.Warnings, s.unassigned(ctx, p, pm.m)...), s.unpaged(ctx, p, pm.m)...)
 		out.Enable = p.Status != store.ProjectEnabled
+		out.Ungranted = append(out.Ungranted, s.ungranted(ctx, p, pm.m)...)
 	}
 	out.Warnings = append(out.Warnings, untold(p, pm.m)...)
-	out.Widens = append(out.Widens, manifest.Widens(prev, pm.m)...)
-	out.Waits = len(out.Widens) > 0 && act.Kind != registry.Owner && !out.Enable
 	unused, untranslated := s.words(ctx, p, pm.m)
 	out.Unused = append(out.Unused, unused...)
 	out.Untranslated = append(out.Untranslated, untranslated...)
@@ -104,7 +95,7 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in manifestChec
 func (s *Service) saveCheckCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("manifest_check", "Check manifest",
-			"Checks a manifest without saving it, as a save would: what a save refuses, what it warns of, what it widens and whether that waits for the owner, the screens that fail on the data there is now and the texts without a translation; of a project, or alone, such as one from an old .zip.",
+			"Checks a manifest without saving it, as a save would: what a save refuses, what it warns of, the rights it declares the owner has not granted, the screens that fail on the data there is now and the texts without a translation; of a project, or alone, such as one from an old .zip.",
 			registry.OwnerSide, s.check).On(registry.Static),
 	}
 }

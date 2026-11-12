@@ -344,7 +344,7 @@ func TestAMessageReachesAReplyThatParkedForTheOwner(t *testing.T) {
 		return provider.Result{Text: "Put it on the market list."}
 	}))
 
-	e.Project("ext", strings.Replace(harness.PlainManifest, `"class": "internal"`, `"class": "external"`, 1))
+	e.Project("ext", harness.Declare(harness.PlainManifest, `{"right": "send", "what": ["work"], "why": "sends what it made"}`))
 	topic := e.Say(0, "buy apples")
 	e.MasterSaid(topic, 1)
 	e.Until("the reply parked", func() bool {

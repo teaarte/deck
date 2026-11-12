@@ -30,7 +30,7 @@ func TestResultNotBySchemaAfterOneRetry(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"count": 1}`)}
 	}))
 
-	p := e.Project("ideas", harness.IdeasManifest)
+	p := e.Project("ideas", harness.OnLogin(harness.IdeasManifest))
 	id := e.Run(p, "collect")
 	got := e.WaitState(id, "done")
 	if !got.NotBySchema || string(got.Result) != `{"count":1}` {
@@ -64,10 +64,10 @@ func TestAToolAddedToTheProjectReachesARunningTurn(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}))
 
-	p := e.Project("notes", harness.PlainManifest)
+	p := e.Project("notes", harness.OnLogin(harness.PlainManifest))
 	id := e.Run(p, "work")
 	before := <-listed
-	more := strings.Replace(harness.PlainManifest, `"commands": [{`, `"commands": [{"name": "extra", "title": "Extra", "description": "Does more", "class": "internal",
+	more := strings.Replace(harness.PlainManifest, `"commands": [{`, `"commands": [{"name": "extra", "title": "Extra", "description": "Does more",
     "executor": {"type": "agent", "prompt": "More."}}, {`, 1)
 	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": more}, nil)
 	close(saved)
@@ -99,8 +99,8 @@ func TestAgentCallsReturnAtOnceAndRetryKeyReusesTheProcess(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 3}`)}
 	}))
 
-	p := e.Project("jobs", harness.TestManifest([]string{harness.AgentCommand("fan", ""),
-		harness.AgentCommand("work", `{"type": "object", "properties": {"item": {"type": "string"}}, "additionalProperties": false}`)}, nil))
+	p := e.Project("jobs", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("fan", ""),
+		harness.AgentCommand("work", `{"type": "object", "properties": {"item": {"type": "string"}}, "additionalProperties": false}`)}, nil)))
 	fan := e.Run(p, "fan")
 	got := harness.Receive(t, "the process ids of the commands the agent called, without waiting for them", ids)
 	e.WaitState(fan, "done")
@@ -145,7 +145,7 @@ func TestReworkContinuesTheSessionAndRevisesTheArtifact(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(fmt.Sprintf(`{"n": %d}`, c.N))}
 	}))
 
-	p := e.Project("docs", harness.TestManifest([]string{harness.AgentCommand("write", "")}, nil))
+	p := e.Project("docs", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("write", "")}, nil)))
 	id := e.Run(p, "write")
 	e.WaitState(id, "done")
 	var started struct{ Process int64 }
@@ -176,8 +176,8 @@ func TestCeilingStopsTheAgentAndManifestOverridesIt(t *testing.T) {
 		return provider.Result{}
 	}), harness.WithClock())
 
-	p := e.Project("long", harness.TestManifest([]string{harness.AgentCommand("short", ""),
-		strings.Replace(harness.AgentCommand("long", ""), `"class"`, `"timeout_minutes": 120, "class"`, 1)}, nil))
+	p := e.Project("long", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("short", ""),
+		strings.Replace(harness.AgentCommand("long", ""), `"executor": {`, `"timeout_minutes": 120, "executor": {`, 1)}, nil)))
 	a, b := e.Run(p, "short"), e.Run(p, "long")
 	e.Until("both ceilings to run and both models to give a sign", func() bool {
 		return e.Proc(a).Deadline != "" && e.Proc(b).Deadline != "" && len(e.Log(a)) == 1 && len(e.Log(b)) == 1
@@ -208,7 +208,7 @@ func TestCeilingAndSilenceWaitForABlockingQuestion(t *testing.T) {
 
 		func(c *app.Config) { c.QuestionWait = 3 * time.Hour }))
 
-	p := e.Project("ask", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("ask", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
 	id := e.Run(p, "job")
 	a := e.WaitAsk()
 	e.Until("the ceiling to pause", func() bool { return e.Proc(id).Deadline == "" })
@@ -240,7 +240,7 @@ func TestSilentProcessShowsSinceItsLastOutput(t *testing.T) {
 		return provider.Result{}
 	}), harness.WithClock())
 
-	p := e.Project("quiet", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("quiet", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
 	id := e.Run(p, "job")
 	e.Until("the first output", func() bool { return len(e.Log(id)) == 1 })
 	e.Clock.Add(29 * time.Minute)
@@ -271,7 +271,7 @@ func TestQuestionWaitEndsByTheClock(t *testing.T) {
 
 		func(c *app.Config) { c.QuestionWait = 30 * time.Minute }))
 
-	p := e.Project("ask", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("ask", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
 	live := e.Run(p, "job")
 	a := e.WaitAsk()
 	e.Clock.Add(20 * time.Minute)
@@ -302,7 +302,7 @@ func TestStopEndsRunningAndParkedProcesses(t *testing.T) {
 		return provider.Result{}
 	}), harness.WithClock())
 
-	p := e.Project("stop", harness.TestManifest([]string{harness.AgentCommand("job", ""), harness.AgentCommand("ask", "")}, nil))
+	p := e.Project("stop", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", ""), harness.AgentCommand("ask", "")}, nil)))
 	running := e.Run(p, "job")
 	e.Until("the turn to start", func() bool { return len(e.Fake.Calls()) == 1 })
 	e.Must("deck.process_stop", map[string]any{"process": running}, nil)
@@ -330,7 +330,7 @@ func TestLogSurvivesARestartAndTheClose(t *testing.T) {
 		return provider.Result{}
 	}}
 	e1 := harness.New(t, harness.WithHome(home), harness.WithProvider(fake))
-	p := e1.Project("logs", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e1.Project("logs", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
 	id := e1.Run(p, "job")
 	<-started
 	if l := e1.Log(id); len(l) != 1 || l[0]["text"] != "first" {
@@ -359,7 +359,7 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 	c.Stream(0, "ok.jsonl")
 	home := t.TempDir()
 	e1 := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)))
-	p := e1.Project("plain", harness.PlainManifest)
+	p := e1.Project("plain", harness.OnLogin(harness.PlainManifest))
 	var pgids []int
 	group := func(args ...string) chan struct{} {
 		cmd := exec.Command("sh", append([]string{"-c", "sleep 300; true"}, args...)...)
@@ -422,8 +422,8 @@ func TestClaudeCodeEmptyResultIsNull(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.Stream(0, "empty_result.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("quiet", harness.Nullable(harness.TestManifest([]string{harness.AgentCommand("check", ""), harness.AgentCommand("notify", harness.ProcessField)},
-		[]string{`{"command": "notify", "after": "check"}`})))
+	p := e.Project("quiet", harness.OnLogin(harness.Nullable(harness.TestManifest([]string{harness.AgentCommand("check", ""), harness.AgentCommand("notify", harness.ProcessField)},
+		[]string{`{"command": "notify", "after": "check"}`}))))
 	id := e.Run(p, "check")
 	got := e.WaitState(id, "done", "error")
 	e.Settle()
@@ -449,7 +449,7 @@ func TestCeilingDoesNotTickWhileParked(t *testing.T) {
 
 		func(c *app.Config) { c.ConfirmWait = time.Minute }))
 
-	p := e.Project("park", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("park", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
 	id := e.Run(p, "job")
 	a := e.WaitAsk()
 	e.Clock.Add(2 * time.Minute)
@@ -479,7 +479,7 @@ func TestCeilingDoesNotCountTheTimeDeckWasDown(t *testing.T) {
 		return blocked(ctx, c)
 	}}), harness.WithClock(clock))
 
-	p := e1.Project("long", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e1.Project("long", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
 	id := e1.Run(p, "job")
 	e1.Until("the first output", func() bool { return len(e1.Log(id)) == 1 })
 	_ = e1.App.Close()
@@ -509,7 +509,7 @@ func TestCeilingRunsAgainWhenAQuestionGoesUnanswered(t *testing.T) {
 
 		func(c *app.Config) { c.QuestionWait = 30 * time.Minute }))
 
-	p := e.Project("ask", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("ask", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
 	id := e.Run(p, "job")
 	e.WaitAsk()
 	e.Until("the ceiling to pause", func() bool { return e.Proc(id).Deadline == "" })
@@ -538,7 +538,7 @@ func TestReworkKeepsTheRetryKeyUnique(t *testing.T) {
 	}))
 
 	defer close(release)
-	e.Project("jobs", harness.TestManifest([]string{harness.Many(harness.AgentCommand("work", ""))}, nil))
+	e.Project("jobs", harness.OnLogin(harness.TestManifest([]string{harness.Many(harness.AgentCommand("work", ""))}, nil)))
 	var first, second struct{ Process int64 }
 	e.Must("jobs.work", map[string]any{"retry_key": "a"}, &first)
 	e.WaitState(first.Process, "done")
@@ -555,7 +555,7 @@ func TestProcessGetWaitsForTheEnd(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 1}`)}
 	}))
 
-	id := e.Run(e.Project("ideas", harness.IdeasManifest), "collect")
+	id := e.Run(e.Project("ideas", harness.OnLogin(harness.IdeasManifest)), "collect")
 	time.AfterFunc(time.Second, func() { close(release) })
 	var p struct{ State string }
 	began := time.Now()
@@ -570,8 +570,8 @@ func TestProcessGetWaitsForTheEnd(t *testing.T) {
 func TestHistoryFindsAnOldRunOfAQuietProject(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
-	quiet := e.Project("quiet", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
-	busy := e.Project("busy", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	quiet := e.Project("quiet", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
+	busy := e.Project("busy", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
 	old := e.Run(quiet, "job")
 	e.WaitState(old, "done")
 	// More finished runs of a busy project than a page holds, as a month of its schedule leaves them, without running each.
@@ -593,7 +593,7 @@ func TestFinishedProcessSessionIsClosed(t *testing.T) {
 		return provider.Result{Text: "ok"}
 	}))
 
-	p := e.Project("nums", harness.CalcManifest)
+	p := e.Project("nums", harness.OnLogin(harness.CalcManifest))
 	e.WaitState(e.Run(p, "calc"), "done")
 	body := `{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"record_upsert","arguments":{"collection":"nums","records":"{\"n\": 5}"}}}`
 	req, _ := http.NewRequest("POST", url, strings.NewReader(body))
@@ -623,7 +623,7 @@ func TestCeilingWaitsForAConfirmationToo(t *testing.T) {
 
 		func(c *app.Config) { c.ConfirmWait = 3 * time.Hour }))
 
-	p := e.Project("ask", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("ask", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
 	id := e.Run(p, "job")
 	a := e.WaitAsk()
 	e.Until("the ceiling to pause", func() bool { return e.Proc(id).Deadline == "" })
@@ -644,7 +644,7 @@ func TestNullIsAResultOnlyWhereTheSchemaAllowsIt(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`null`)}
 	}))
 
-	p := e.Project("strict", harness.TestManifest([]string{harness.AgentCommand("check", "")}, nil))
+	p := e.Project("strict", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("check", "")}, nil)))
 	if got := e.Proc(e.WaitState(e.Run(p, "check"), "done", "error").ID); !got.NotBySchema || got.Empty {
 		t.Fatalf("null against a schema of an object is not by the schema: %+v", got)
 	}
@@ -653,7 +653,7 @@ func TestNullIsAResultOnlyWhereTheSchemaAllowsIt(t *testing.T) {
 	if nullable == m {
 		t.Fatal("fixture replacement did not apply")
 	}
-	open := e.Project("open", nullable)
+	open := e.Project("open", harness.OnLogin(nullable))
 	if got := e.Proc(e.WaitState(e.Run(open, "check"), "done", "error").ID); got.NotBySchema || !got.Empty {
 		t.Fatalf("null against a schema that takes null is nothing to do: %+v", got)
 	}
@@ -687,7 +687,7 @@ func TestACallThatOutlivesItsTurnLeavesAParkedProcessWithoutACeiling(t *testing.
 
 		func(c *app.Config) { c.ConfirmWait = time.Hour }))
 
-	p := e.Project("ask", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))
+	p := e.Project("ask", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)))
 	id := e.Run(p, "job")
 	a := e.WaitAsk()
 	asked.Store(true)
@@ -710,7 +710,7 @@ func TestTheQuestionToolIsTheProvidersOwn(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}}
 	e := harness.New(t, harness.WithProvider(fake))
-	e.Run(e.Project("ask", harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil)), "job")
+	e.Run(e.Project("ask", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("job", "")}, nil))), "job")
 	a := e.WaitAsk()
 	if a.Kind != "question" || a.Text != "Which color?" {
 		t.Fatalf("the question tool of the provider asks the owner: %+v", a)
@@ -736,7 +736,7 @@ func TestFilesATurnLeftPastTheLimitsAreToldOf(t *testing.T) {
 		return provider.Result{Text: "done"}
 	}))
 
-	e.WaitState(e.Run(e.Project("plain", harness.PlainManifest), "work"), "done")
+	e.WaitState(e.Run(e.Project("plain", harness.OnLogin(harness.PlainManifest)), "work"), "done")
 	if n := e.WaitNote("deck kept 50 of 54 files"); !strings.Contains(n.Text, "hidden") {
 		t.Fatalf("the note says why: %+v", n)
 	}
@@ -768,7 +768,7 @@ func TestAnAgentHearsItsCeilingNearAndTheErrorNamesWhatStillRuns(t *testing.T) {
 	}}
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithProvider(fake), harness.WithClock(clock))
-	p := e.Project("long", harness.TestManifest([]string{harness.AgentCommand("parent", ""), harness.AgentCommand("child", "")}, nil))
+	p := e.Project("long", harness.OnLogin(harness.TestManifest([]string{harness.AgentCommand("parent", ""), harness.AgentCommand("child", "")}, nil)))
 	id := e.Run(p, "parent")
 	kid := <-child
 	e.Until("the ceiling to run and the child to give a sign", func() bool { return e.Proc(id).Deadline != "" && len(e.Log(kid)) == 1 })
@@ -800,8 +800,8 @@ func TestASecondPressWithARetryKeyReturnsTheRunningProcess(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}))
 
-	e.Project("web", strings.Replace(harness.WebNotes, `"actions": [{"label": "Open", "screen": "note"}]`,
-		`"actions": [{"label": "Open", "screen": "note"}, {"label": "Touch", "command": "touch", "params": {"note": "=_id", "retry_key": "='touch:' + string(_id)"}}]`, 1))
+	e.Project("web", harness.OnLogin(strings.Replace(harness.WebNotes, `"actions": [{"label": "Open", "screen": "note"}]`,
+		`"actions": [{"label": "Open", "screen": "note"}, {"label": "Touch", "command": "touch", "params": {"note": "=_id", "retry_key": "='touch:' + string(_id)"}}]`, 1)))
 	e.Must("deck.record_upsert", map[string]any{"project": "web", "collection": "notes", "records": harness.Jsonl(map[string]any{"title": "alpha"})}, nil)
 	a := e.RowAction("web", "main", "web.touch", nil)
 	var first, second struct{ Process int64 }

@@ -87,7 +87,7 @@ func (s *Service) screenGet(ctx context.Context, act registry.Actor, in screenGe
 		if err != nil {
 			return nil, err
 		}
-		m, err := docs.For(ctx, s.St.Q, act, p.ID)
+		m, err := docs.Manifest(ctx, s.St.Q, p)
 		if err != nil {
 			return nil, err
 		}

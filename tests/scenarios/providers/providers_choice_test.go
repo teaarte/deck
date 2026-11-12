@@ -96,7 +96,7 @@ func TestProviderIsSwitchedWithoutARestart(t *testing.T) {
 	if code, _ := e.Call("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "nothing", "models": []string{"api"}}); code == 200 {
 		t.Fatal("only agent commands take a provider")
 	}
-	suggests := strings.Replace(harness.PlainManifest, `"class": "internal",`, `"class": "internal", "provider": "api",`, 1)
+	suggests := strings.Replace(harness.PlainManifest, `"executor": {`, `"provider": "api", "executor": {`, 1)
 	s := e.Project("suggests", suggests)
 	if got := e.WaitState(e.Run(s, "work"), "done"); string(got.Result) != `"from the API"` {
 		t.Fatalf("without a setting the provider the manifest suggests runs: %+v", got)

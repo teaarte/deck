@@ -50,6 +50,7 @@ func addTracker(t *testing.T, dir, url string) {
 	m["commands"] = append(m["commands"].([]any), in["commands"].([]any)...)
 	m["screens"] = append(m["screens"].([]any), in["screen"])
 	m["menu"] = append(m["menu"].([]any), "intake")
+	m["rights"] = append(m["rights"].([]any), in["rights"].([]any)...)
 	b, _ := json.Marshal(m)
 	files := map[string][]byte{"manifest.json": b}
 	for _, f := range []string{"poll_gitlab.py", "follow_gitlab.py"} {
@@ -79,12 +80,13 @@ func (e *Env) ImportEnabled(dir, name string) int64 {
 
 // PostManifest has an agent command and an HTTP tool of the given extra fields that is not allowed yet.
 func PostManifest(url, extra string) string {
-	return Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works with the service.", "class": "internal",
+	return Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works with the service.",
     "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Post the note."}}],
   "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "%s/items/{id}",
     "headers": {"X-Key": "$secret.svc"}, "body": {"text": "{text}", "n": "{n}"}%s,
     "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}, "n": {"type": "integer"}},
-      "required": ["id", "text"]}}]}}`, url, extra))
+      "required": ["id", "text"]}}]},
+  "rights": [{"right": "send", "what": ["post"], "why": "posts notes to the service"}]}`, url, extra))
 }
 
 type ProjectV struct {

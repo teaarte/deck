@@ -27,7 +27,7 @@ func (s *Service) problems(ctx context.Context, p db.Project) []string {
 	}
 	var out []string
 	for _, err := range []error{
-		checkReads(ctx, s.St.Q, p.WorkspaceID, p.Name, pm.m),
+		checkData(ctx, s.St.Q, p, pm.m),
 		s.checkToolFit(ctx, s.St.Q, p.WorkspaceID, p.ID, pm.m),
 	} {
 		out = append(out, refusals(err)...)
@@ -77,27 +77,12 @@ func (s *Service) CheckManifests(ctx context.Context) {
 		if err != nil {
 			slog.Error("check manifest", "project", p.Name, "err", err)
 		}
-		s.tellWidened(ctx, p)
 	}
-}
-
-// widenedText tells the owner that the agents of a module that had no_network reach the domains of its scripts.
-const widenedText = "The module %s had no_network, which manifests no longer have: the network of an agent is the rights of its module, so its agents now reach its domains.read (%s) and, with them, the package registries, GitHub and Hugging Face. Take out of domains.read what they must not reach."
-
-// tellWidened writes once in the feed that format 15 widened the network of the agents of p, when it did.
-func (s *Service) tellWidened(ctx context.Context, p db.Project) {
-	name := fmt.Sprintf("%s%d", store.Widened, p.ID)
-	domains, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: name})
-	if err != nil {
-		return
-	}
-	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: fmt.Sprintf(widenedText, p.Name, domains)}); err != nil {
-			return err
+	seen := map[int64]bool{}
+	for _, p := range ps {
+		if !seen[p.WorkspaceID] {
+			seen[p.WorkspaceID] = true
+			s.tellRights(ctx, p.WorkspaceID)
 		}
-		return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: p.WorkspaceID, Name: name})
-	})
-	if err != nil {
-		slog.Error("tell widened network", "project", p.Name, "err", err)
 	}
 }

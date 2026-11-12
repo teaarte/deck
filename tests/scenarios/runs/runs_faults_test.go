@@ -201,7 +201,7 @@ func TestAScriptFailedOnDecksAnswerTakesItsType(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "cloud", "api": "openai", "url": api.URL + "/v1", "key": "sk-cloud"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "cloud", "model": "m1", "kind": "text", "name": "m1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "cloud", "model": "m2", "kind": "text", "name": "m2"}, nil)
-	e.Project("calls", harness.ScriptManifest("call", "", `, "models": ["cloud"]`))
+	e.Project("calls", harness.ScriptManifest("call", "", `, "rights": [{"right": "money", "what": ["cloud"], "why": "calls models"}]`))
 	e.SaveScript("calls", "scripts/main.py", callScript)
 	for _, c := range []struct{ key, body, named, use, want, says string }{
 		{"commands/deck.record_get", `{"record": 987654}`, "", "", "input.invalid", "deck refused its calls: deck.record_get: 404"},
@@ -234,7 +234,7 @@ func TestTheHelpersOfTheSkillRunAsScripts(t *testing.T) {
 			e.Must("deck.document_get", map[string]any{"name": "skills/module-builder/helpers/" + c.file}, &doc)
 			name := "h" + c.runtime
 			script := "scripts/main" + filepath.Ext(c.file)
-			e.Project(name, harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "step", "title": "Step", "description": "Adds a value.", "class": "internal",
+			e.Project(name, harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "step", "title": "Step", "description": "Adds a value.",
     "input": {"type": "object", "properties": {"record": {"type": "integer"}, "value": {"type": "string"}}},
     "result": {"type": "object"}, "executor": {"type": "script", "script": "main"}}],
   "scripts": [{"name": "main", "file": %q, "runtime": %q}]}`, script, c.runtime)))
@@ -341,7 +341,7 @@ func TestABaseWithTheTriggersOfTheFeedJoinsItsNotesInDeck(t *testing.T) {
 	// A base an older deck left, before the notes joined in deck.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 75`)
 	// Nor had its topics a language.
-	e.SQL(`ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence`)
+	e.SQL(`ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence; DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''`)
 	// Its trigger joined deck's same unread note.
 	e.SQL(`CREATE TRIGGER feed_repeat BEFORE INSERT ON feed
 WHEN NEW.author = 'deck' AND NEW.kind = 'note' AND NEW.for_master = 0 AND EXISTS (SELECT 1 FROM feed f

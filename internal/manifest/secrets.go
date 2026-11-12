@@ -9,7 +9,7 @@ import (
 )
 
 // SecretPrefix begins a reference to a secret, $secret.<name>.
-const SecretPrefix = "$secret."
+const SecretPrefix = schemas.SecretPrefix
 
 // SecretRef finds a reference to a secret; its group is the name.
 var SecretRef = regexp.MustCompile(regexp.QuoteMeta(SecretPrefix) + `(` + schemas.SecretChar + `+)`)

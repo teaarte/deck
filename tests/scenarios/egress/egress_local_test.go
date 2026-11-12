@@ -46,9 +46,9 @@ func TestAnMCPServerByURLIsNotRedirectedToTheLocalNetwork(t *testing.T) {
 		}
 		return provider.Result{Structured: json.RawMessage(`{}`)}
 	}))
-	e.Project("srv", harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+	e.Project("srv", harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "work", "title": "Work", "description": "Works.",
     "input": {"type": "object", "properties": {}}, "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Work."}}],
-  "tools": {"mcp": {"servers": {"loopback": {"url": %q, "classes": {"ping": "internal"}}, "metadata": {"url": %q, "classes": {"ping": "internal"}}}}}}`,
+  "tools": {"mcp": {"servers": {"loopback": {"url": %q, "right": {"ping": "network"}}, "metadata": {"url": %q, "right": {"ping": "network"}}}}}}`,
 		loopback.URL+"/mcp", metadata.URL+"/mcp")))
 	e.WaitState(e.Start("srv", "work", nil), "done")
 	if len(loopback.Requests()) == 0 || len(metadata.Requests()) == 0 {
@@ -64,27 +64,28 @@ func TestAnMCPServerByURLIsNotRedirectedToTheLocalNetwork(t *testing.T) {
 	}
 }
 
-// TestAToolOnALocalAddressNeedsTheDomainsToNameIt: the host of an HTTP tool's URL is reached by itself only when
-// public; a private address, or one that carries a private IPv4 in NAT64 or 6to4, is refused before any dial.
-func TestAToolOnALocalAddressNeedsTheDomainsToNameIt(t *testing.T) {
+// TestAToolOnALocalAddressNeedsItsModuleToHoldIt: a private address of an HTTP tool is reached only when its module
+// holds that address; "*" holds none, nor one that carries a private IPv4 in NAT64 or 6to4.
+func TestAToolOnALocalAddressNeedsItsModuleToHoldIt(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	tool := func(project, url, domains string) {
-		e.Project(project, harness.Manifest(fmt.Sprintf(`{%s"tools": {"http": [{"name": "get", "description": "Gets.", "method": "GET",
-  "url": %q, "class": "internal", "input": {"type": "object", "properties": {}}}]}}`, domains, url)))
+	tool := func(url, rights string) string {
+		return harness.Manifest(fmt.Sprintf(`{%s"tools": {"http": [{"name": "get", "description": "Gets.", "method": "GET",
+  "url": %q, "input": {"type": "object", "properties": {}}}]}}`, rights, url))
 	}
-	tool("lan", "http://10.0.0.1/x", "")
-	if code, out := e.Call("lan.get", map[string]any{}); code != 403 || !strings.Contains(string(out), "not in the domains") {
-		t.Fatalf("a tool on 10.0.0.1 without domains is refused: %d %s", code, out)
+	e.Project("lan", harness.Declared(tool("http://10.0.0.1/x", "")))
+	e.Must("deck.right_set", map[string]any{"project": "lan", "right": "network", "subject": "10.0.0.1", "answer": "revoke"}, nil)
+	if code, out := e.Call("lan.get", map[string]any{}); code != 403 || !strings.Contains(string(out), "not a host this module holds the network of") {
+		t.Fatalf("a tool on 10.0.0.1 its module does not hold is refused: %d %s", code, out)
 	}
 	for project, url := range map[string]string{"nat": "http://[64:ff9b::a9fe:a9fe]/latest", "six": "http://[2002:a9fe:a9fe::1]/latest",
 		"wide": "http://10.0.0.1/x"} {
-		tool(project, url, `"domains": {"read": ["*"]}, `)
-		if code, out := e.Call(project+".get", map[string]any{}); code != 403 || !strings.Contains(string(out), "not a public address") {
+		code, out := e.Call("deck.project_create", map[string]any{"name": project, "manifest": tool(url, `"rights": [{"right": "network", "what": ["*"], "why": "reads it"}], `)})
+		if code != 422 || !strings.Contains(string(out), "it needs the right network on") {
 			t.Errorf("%s is no public address, whatever \"*\" lets in: %d %s", url, code, out)
 		}
 	}
-	e.Project("box", harness.ScriptManifest("collect", "", `, "domains": {"read": ["*"]}`))
+	e.Project("box", harness.ScriptManifest("collect", "", `, "rights": [{"right": "network", "what": ["*"], "why": "reads it"}]`))
 	e.SaveScript("box", "scripts/main.py", harness.PythonLib+`
 print(json.dumps({"nat": fetch("http://[64:ff9b::a9fe:a9fe]/latest"), "six": fetch("http://[2002:a9fe:a9fe::1]/latest")}))
 `)
@@ -95,22 +96,22 @@ print(json.dumps({"nat": fetch("http://[64:ff9b::a9fe:a9fe]/latest"), "six": fet
 	}
 }
 
-// TestAGrantOfEveryAddressSaysItReachesTheLocalNetwork: a domain that holds addresses beyond the internet, such as
-// 0.0.0.0/0, is a right of its own the owner sees: the local network.
+// TestAGrantOfEveryAddressSaysItReachesTheLocalNetwork: a host that holds addresses beyond the internet, such as
+// 0.0.0.0/0, is the local network in what deck tells the owner.
 func TestAGrantOfEveryAddressSaysItReachesTheLocalNetwork(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	_, tok := e.Token("terminal", "deck.*")
-	e.As(tok).Call("deck.project_create", map[string]any{"name": "all", "manifest": harness.ScriptManifest("collect", "",
-		`, "domains": {"read": ["0.0.0.0/0", "example.com"], "act": ["192.168.1.7"]}`)})
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "all", "manifest": harness.ScriptManifest("collect", "",
+		`, "rights": [{"right": "network", "what": ["0.0.0.0/0", "example.com", "192.168.1.7"], "why": "reads it"}]`)}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
 	r := e.ProjectRow("all").Rights
-	for _, want := range []string{"reaches and may send data to: 0.0.0.0/0", "local network: 0.0.0.0/0", "reaches and may send data to: example.com", "local network: 192.168.1.7"} {
+	for _, want := range []string{"its programs reach 0.0.0.0/0 on your local network and may send its data there",
+		"its programs reach example.com and may send its data there", "its programs reach 192.168.1.7 on your local network and may send its data there"} {
 		if !slices.Contains(r, want) {
 			t.Errorf("the rights show %q: %v", want, r)
 		}
-	}
-	if slices.Contains(r, "local network: example.com") {
-		t.Fatalf("a name is no local network: %v", r)
 	}
 }
 
@@ -119,7 +120,7 @@ func TestAGrantOfEveryAddressSaysItReachesTheLocalNetwork(t *testing.T) {
 func TestABoxWithEveryHostReachesNoGatewayOfItsHost(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	e.Project("box", harness.ScriptManifest("collect", "", `, "domains": {"read": ["*"]}`))
+	e.Project("box", harness.ScriptManifest("collect", "", `, "rights": [{"right": "network", "what": ["*"], "why": "reads it"}]`))
 	e.SaveScript("box", "scripts/main.py", harness.PythonLib+`
 hosts = ["host.docker.internal:7794", "0.250.250.254:7700", "198.19.249.3", "[::ffff:0.250.250.254]:7700", "[64:ff9b::fa:fafe]:7700",
     "[2002:fa:fafe::1]:7700"]

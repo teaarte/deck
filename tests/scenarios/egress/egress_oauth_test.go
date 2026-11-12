@@ -85,9 +85,10 @@ func (f *fakeOAuth) handler(w http.ResponseWriter, r *http.Request, _ int) {
 
 func oauthManifest(url string) string {
 	return harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
-    {"name": "me", "description": "Who am I", "method": "GET", "url": "%[1]s/me", "class": "internal",
+    {"name": "me", "description": "Who am I", "method": "GET", "url": "%[1]s/me",
      "auth": {"type": "oauth2", "auth_url": "%[1]s/authorize", "token_url": "%[1]s/token", "client_id": "svc_id",
-       "client_secret": "svc_secret", "token": "svc_token", "scopes": ["read"]}}]}}`, url))
+       "client_secret": "svc_secret", "token": "svc_token", "scopes": ["read"]}}]},
+  "rights": [{"right": "data", "what": ["me"], "why": "reads who you are"}]}`, url))
 }
 
 func TestOAuth2SignsInRefreshesAndAsksForSignInWhenRevoked(t *testing.T) {
@@ -177,8 +178,9 @@ func TestAFailedRefreshAfterARefusalIsNotAnUnknownOutcome(t *testing.T) {
 	f := &fakeOAuth{access: "valid", refresh: "r0", broken: true}
 	svc := harness.NewService(t, f.handler)
 	e := harness.New(t)
-	m := strings.Replace(oauthManifest(svc.URL), `"class": "internal",`, `"class": "external",`, 1)
-	e.Project("svc", strings.TrimSuffix(m, "}")+`, "allowed_external": ["me"]}`)
+	m := strings.NewReplacer(`"method": "GET",`, `"method": "GET", "right": "send",`, `{"right": "data", "what": ["me"]`, `{"right": "send", "what": ["me"]`).Replace(oauthManifest(svc.URL))
+	e.Project("svc", m)
+	e.Grant("svc", "send", "me")
 	for k, v := range map[string]string{"svc_id": "c", "svc_secret": "s", "svc_token": `{"access_token":"stale","refresh_token":"r0","expiry":"2099-01-01T00:00:00Z"}`} {
 		e.Secret("svc", k, v)
 	}
@@ -211,19 +213,19 @@ func TestTheTokenURLGoesByTheDomainsOfTheModule(t *testing.T) {
 	t.Cleanup(tokens.Close)
 	manifest := func(at, domains string) string {
 		return harness.Manifest(fmt.Sprintf(`{"tools": {"http": [
-    {"name": "me", "description": "Who am I", "method": "GET", "url": "%s/me", "class": "internal",
+    {"name": "me", "description": "Who am I", "method": "GET", "url": "%s/me",
      "auth": {"type": "oauth2", "auth_url": "%[2]s/authorize", "token_url": "%[2]s/token", "client_id": "svc_id",
        "client_secret": "svc_secret", "token": "svc_token", "scopes": ["read"]}}]}%s}`, api.URL, at, domains))
 	}
 	e := harness.New(t)
-	e.Project("closed", manifest("https://10.0.0.1:9", ""))
-	e.Project("svc", manifest(tokens.URL, fmt.Sprintf(`, "domains": {"read": [%q]}`, strings.TrimPrefix(tokens.URL, "http://"))))
+	e.Project("closed", harness.Declared(manifest("https://10.0.0.1:9", "")))
+	e.Project("svc", harness.Declared(manifest(tokens.URL, fmt.Sprintf(`, "rights": [{"right": "network", "what": [%q], "why": "reads it"}]`, strings.TrimPrefix(tokens.URL, "http://")))))
 	for _, p := range []string{"closed", "svc"} {
 		for k, v := range map[string]string{"svc_id": "c", "svc_secret": "s", "svc_token": `{"access_token":"gone","refresh_token":"r0","expiry":"2020-01-01T00:00:00Z"}`} {
 			e.Secret(p, k, v)
 		}
 	}
-	if code, out := e.Call("closed.me", map[string]any{}); code == 200 || !strings.Contains(string(out), "is not in the domains of this project") {
+	if code, out := e.Call("closed.me", map[string]any{}); code == 200 || !strings.Contains(string(out), "is not a host this module holds the network of") {
 		t.Fatalf("a local token URL the domains do not name is not reached: %d %s", code, out)
 	}
 	var me struct{ Token string }

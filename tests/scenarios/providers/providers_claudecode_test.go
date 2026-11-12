@@ -27,7 +27,7 @@ func TestCLIGetsOnlyAllowlistedEnvironment(t *testing.T) {
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
 	home := e.Home
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.Declared(harness.OnLogin(harness.PlainManifest)))
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
@@ -92,7 +92,7 @@ func TestLargeValuesAreNotArguments(t *testing.T) {
 	desc := strings.Repeat("d", 200*1024)
 	m := strings.Replace(harness.IdeasManifest, `"properties": {"written": {"type": "integer"}}`,
 		`"properties": {"written": {"type": "integer", "description": "`+desc+`"}}`, 1)
-	p := e.Project("ideas", m)
+	p := e.Project("ideas", harness.Declared(harness.OnLogin(m)))
 	e.WaitState(e.Run(p, "collect"), "done", "error")
 	call := c.Call(1)
 	for _, a := range call.Args {
@@ -129,7 +129,7 @@ func TestCLIThatDoesNotExitAfterItsResultIsKilled(t *testing.T) {
 until [ -e "$c/alive.held" ]; do sleep 0.05; done`, harness.Fakes, tc.out))
 			c.After(tc.after)
 			e := harness.New(t, harness.WithCLI(c))
-			p := e.Project("plain", harness.PlainManifest)
+			p := e.Project("plain", harness.Declared(harness.OnLogin(harness.PlainManifest)))
 			start := time.Now()
 			got := e.WaitState(e.Run(p, "work"), "done", "error")
 			if got.State != "done" || !strings.Contains(string(got.Result), "ok") {
@@ -179,7 +179,7 @@ func TestTurnSucceedsOnlyStrictly(t *testing.T) {
 				m = strings.Replace(m, "Do the work.", tc.prompt, 1)
 			}
 			e := harness.New(t, harness.WithCLI(c))
-			p := e.Project("plain", m)
+			p := e.Project("plain", harness.Declared(harness.OnLogin(m)))
 			got := e.WaitState(e.Run(p, "work"), "done", "error")
 			if got.State != "error" || !strings.Contains(got.Error, tc.want) {
 				t.Fatalf("want error with %q, got %+v", tc.want, got)
@@ -195,7 +195,7 @@ func TestPromptMentionsOnlyConnectedTools(t *testing.T) {
 			return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 		}}
 		e := harness.New(t, harness.WithProvider(fake))
-		p := e.Project("ideas", harness.IdeasManifest)
+		p := e.Project("ideas", harness.Declared(harness.OnLogin(harness.IdeasManifest)))
 		e.WaitState(e.Run(p, "collect"), "done")
 		prompt := fake.Calls()[0].Prompt
 		if strings.Contains(prompt, "AskUserQuestion") == noQuestions || !strings.Contains(prompt, "record_upsert") {
@@ -211,7 +211,7 @@ func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
 	e := harness.New(t, harness.WithCLI(c))
 	home := e.Home
 	skilled := strings.Replace(harness.PlainManifest, `"prompt": "Do the work."}`, `"prompt": "Do the work.", "skills": ["reader"]}`, 1)
-	p := e.Project("plain", skilled)
+	p := e.Project("plain", harness.Declared(harness.OnLogin(skilled)))
 	skill := "---\nname: reader\ndescription: Reads.\n---\nRead.\n"
 	e.Must("deck.document_save", map[string]any{"project": "plain", "name": "skills/reader/SKILL.md", "kind": "skill", "text": skill}, nil)
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
@@ -233,7 +233,7 @@ func TestSkillsReachTheCLIAsAPluginOutsideTheAgentFolder(t *testing.T) {
 		t.Fatalf("the plugin folder stays at its path for the next turn of the session: %v", err)
 	}
 
-	e.Project("bare", harness.PlainManifest)
+	e.Project("bare", harness.Declared(harness.OnLogin(harness.PlainManifest)))
 	e.WaitState(e.Start("bare", "work", nil), "done")
 	if _, ok := harness.Flag(c.Call(2).Args, "--plugin-dir"); ok {
 		t.Fatal("a command without skills gets no plugin")
@@ -245,7 +245,7 @@ func TestModelCallsCountTokensFromTheTurnResult(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.Declared(harness.OnLogin(harness.PlainManifest)))
 	id := e.Run(p, "work")
 	e.WaitState(id, "done")
 	var calls []map[string]any
@@ -270,7 +270,7 @@ func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
 	c.Stream(0, "ok.jsonl")
 	e := harness.ClockCLIEnv(t, c)
 	e.Clock.Add(time.Unix(1790379000, 0).Add(-2 * time.Hour).Sub(e.Clock.Now()))
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.Declared(harness.OnLogin(harness.PlainManifest)))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting:limit")
 	pp, _ := e.App.Store.Q.GetProcess(context.Background(), id)
@@ -291,7 +291,7 @@ func TestClaudeCodeReadsInItsFoldersAndShowsWhatItRefused(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.Stream(0, "denied.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
-	id := e.Run(e.Project("ideas", harness.IdeasManifest), "collect")
+	id := e.Run(e.Project("ideas", harness.Declared(harness.OnLogin(harness.IdeasManifest))), "collect")
 	e.WaitState(id, "done", "error")
 	call := c.Call(c.Calls())
 	var set struct {
@@ -331,7 +331,7 @@ func TestAnAgentKilledFromOutsideGoesOnInItsSession(t *testing.T) {
 	c.Stream(0, "ok.jsonl")
 	c.Before(`if [ "$n" = 1 ]; then sed "s/{{session}}/$session/g" "$d/stream" | head -2; exit 143; fi`)
 	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.Declared(harness.OnLogin(harness.PlainManifest)))
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("the killed turn goes on in its session: %+v", got)
@@ -351,7 +351,7 @@ func TestAnAgentKilledTwiceSaysWhoKilledIt(t *testing.T) {
 	c.Stream(0, "ok.jsonl")
 	c.Before(`sed "s/{{session}}/$session/g" "$d/stream" | head -2; kill -TERM $$`)
 	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.Declared(harness.OnLogin(harness.PlainManifest)))
 	got := e.WaitState(e.Run(p, "work"), "done", "error")
 	if got.State != "error" || c.Calls() != 2 || !strings.Contains(got.Error, "SIGTERM") || !strings.Contains(got.Error, "not deck") {
 		t.Fatalf("a turn killed twice fails once, naming the signal and that it came from outside deck: %d calls, %+v", c.Calls(), got)

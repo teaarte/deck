@@ -23,7 +23,7 @@ func TestCommandAgentCannotReadSecretsAndGetsEveryDeckTool(t *testing.T) {
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
 	home := e.Home
-	p := e.Project("notes", harness.PostManifest("http://127.0.0.1:1", ""))
+	p := e.Project("notes", harness.OnLogin(harness.PostManifest("http://127.0.0.1:1", "")))
 	if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}

@@ -64,7 +64,7 @@ type Browser struct {
 func (b *Browser) dir(name string) string { return filepath.Join(b.Home.Browser(), name) }
 
 func (b *Browser) spec(open bool) mcphost.Spec {
-	box, key := boxes.For(sandbox.KindBrowser, nil, nil), BrowserKey
+	box, key := boxes.For(sandbox.KindBrowser, nil, nil, false, nil), BrowserKey
 	box.Home = b.dir("home")
 	args := append(slices.Clone(b.Argv[1:]), "--user-data-dir", b.dir("profile"), "--output-dir", b.dir("out"))
 	box.Write = []string{b.dir("profile"), b.dir("out")}
@@ -165,15 +165,17 @@ func (b *Browser) build(list []*mcp.Tool) {
 			b.reader(t.Name)).Foreign()
 		if act {
 			c.Class, c.Gate.Journals, c.Handler, c.Gate.Probes = registry.External, true, b.actor(t.Name), true
-			c.Gate.Allowed = b.allowed
+			c.Gate.Needs = func(_ context.Context, _ registry.Actor, page string, _ json.RawMessage) registry.Need {
+				return registry.Need{Right: manifest.Send, Subject: siteOf(page)}
+			}
 			c.Gate.Fingerprint = func(ctx context.Context, _, project int64, _ json.RawMessage) string {
-				m, err := docs.For(ctx, b.Store.Q, registry.Actor{}, project)
+				_, _, sites, err := b.rights(ctx, project)
 				if err != nil {
 					return ""
 				}
 				b.mu.Lock()
 				defer b.mu.Unlock()
-				page, _ := b.current(ctx, readsAnySite(m))
+				page, _ := b.current(ctx, readsAnySite(sites))
 				return page
 			}
 			c.Gate.Target = func(page string, _ json.RawMessage) string {
@@ -192,8 +194,35 @@ func (b *Browser) build(list []*mcp.Tool) {
 	b.listMu.Unlock()
 }
 
-// readsAnySite says a project has "*" in read: it gets the browser without the owner's sign-ins.
-func readsAnySite(m *manifest.Manifest) bool { return slices.Contains(m.Domains.Read, "*") }
+// rights are the declared rights of a project, the owner's answers and the sites it reads pages of in deck's browser:
+// the hosts its programs hold the network of.
+func (b *Browser) rights(ctx context.Context, project int64) (*manifest.Manifest, manifest.Grants, []string, error) {
+	m, g, err := docs.Rights(ctx, b.Store.Q, project)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return m, g, m.Held(g, manifest.Network, manifest.Programs), nil
+}
+
+// readsAnySite says a project holds the network of every site: it gets the browser without the owner's sign-ins.
+func readsAnySite(sites []string) bool { return slices.Contains(sites, "*") }
+
+// siteOf is the host of a page with the port its URL names, the subject of a right to act on it; empty for a page
+// that has none.
+func siteOf(page string) string {
+	u, err := url.Parse(page)
+	if err != nil || u.Hostname() == "" {
+		return ""
+	}
+	return strings.ToLower(u.Host)
+}
+
+// acts says a project holds the right to act on the site of a page without the owner: send on its host, granted
+// always.
+func acts(m *manifest.Manifest, g manifest.Grants, page string) bool {
+	n := registry.Need{Right: manifest.Send, Subject: siteOf(page)}
+	return n.Subject != "" && (m.Holds(g, n) || g.Gives(n))
+}
 
 func (b *Browser) call(ctx context.Context, open bool, tool string, args json.RawMessage) (*mcp.CallToolResult, error) {
 	if open {
@@ -239,42 +268,30 @@ func on(domains []string, page string) bool {
 	return egress.Reachable(domains, net.JoinHostPort(u.Hostname(), port))
 }
 
-// allowed lets an action run without the owner when the page is on an act domain.
-func (b *Browser) allowed(ctx context.Context, act registry.Actor, _ json.RawMessage, _ bool) (bool, error) {
-	m, err := docs.For(ctx, b.Store.Q, act, act.ProjectID)
-	if err != nil {
-		return false, err
-	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	page, err := b.current(ctx, readsAnySite(m))
-	return err == nil && on(m.Domains.Act, page), nil
-}
-
 func (b *Browser) reader(tool string) registry.Handler {
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
 		var args struct{ URL, Action string }
 		_ = json.Unmarshal(raw, &args)
-		m, err := docs.For(ctx, b.Store.Q, act, act.ProjectID)
+		_, _, sites, err := b.rights(ctx, act.ProjectID)
 		if err != nil {
 			return nil, err
 		}
 		if tool == "browser_navigate" || tool == "browser_tabs" && args.Action == "new" && args.URL != "" {
-			if !on(m.Domains.All(), args.URL) {
-				return nil, registry.Refuse("%s is not on a read or act domain of this project; the owner adds domains to its manifest (\"*\" in read reads any site)", args.URL)
+			if !on(sites, args.URL) {
+				return nil, registry.Refuse("%s is not a site this module holds the network of; it declares hosts under network in rights and the owner grants them (* is any site)", args.URL)
 			}
 		}
 		b.mu.Lock()
 		defer b.mu.Unlock()
-		res, err := b.call(ctx, readsAnySite(m), tool, raw)
+		res, err := b.call(ctx, readsAnySite(sites), tool, raw)
 		if err != nil {
 			return nil, fmt.Errorf("deck: %s: %v", tool, err)
 		}
 		if tool == "browser_tabs" && args.Action == "list" {
-			ownTabs(res, m.Domains.All())
+			ownTabs(res, sites)
 		} else if tool != "browser_close" && tool != "browser_resize" {
 			if page, off := b.offDomains(ctx, act.ProjectID); off {
-				return nil, registry.Refuse("the browser shows %s, which is not on a read or act domain of this project; what it shows is withheld", untrusted.Line(page, 300))
+				return nil, registry.Refuse("the browser shows %s, which is not a site this module holds the network of; what it shows is withheld", untrusted.Line(page, 300))
 			}
 		}
 		return Content(b.Home, act.ProcessID, tool, res)
@@ -301,15 +318,15 @@ func ownTabs(res *mcp.CallToolResult, domains []string) {
 
 // offDomains reports the page the browser shows when it is off the project's read and act domains; b.mu is held.
 func (b *Browser) offDomains(ctx context.Context, project int64) (string, bool) {
-	m, err := docs.For(ctx, b.Store.Q, registry.Actor{}, project)
+	_, _, sites, err := b.rights(ctx, project)
 	if err != nil {
 		return "", true
 	}
-	page, perr := b.current(ctx, readsAnySite(m))
+	page, perr := b.current(ctx, readsAnySite(sites))
 	if perr != nil {
 		return page, true
 	}
-	return page, !on(m.Domains.All(), page)
+	return page, !on(sites, page)
 }
 
 // Login opens a window of deck's browser at the page, for the owner to sign in with deck's profile.

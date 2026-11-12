@@ -385,13 +385,13 @@ func ownSave(kind string) error {
 }
 
 // mayWrite refuses an agent or script a document of its project other than artifacts and memory unless writes in
-// the manifest in force names it.
+// its manifest names it.
 func mayWrite(ctx context.Context, q *db.Queries, act registry.Actor, s docs.Scope, kind, name string) error {
 	if act.Kind != registry.Agent || kind == docs.KindArtifact || kind == docs.KindMemory {
 		return nil
 	}
 	if s.Project != 0 {
-		m, err := docs.For(ctx, q, act, s.Project)
+		m, err := docs.ManifestAt(ctx, q, s.Project, 0)
 		if err != nil {
 			return err
 		}
@@ -399,7 +399,7 @@ func mayWrite(ctx context.Context, q *db.Queries, act registry.Actor, s docs.Sco
 			return nil
 		}
 	}
-	return registry.Refuse("this project does not write %s; its agents write artifacts, its memory and the documents writes in its manifest names (%q, or its folder with / at the end), and the owner grants it", name, name)
+	return registry.Refuse("this project does not write %s; its agents write artifacts, its memory and the documents writes in its manifest names (%q, or its folder with / at the end), which its author adds", name, name)
 }
 
 // ownersFact refuses a run no one started by hand a save or delete of a memory fact that is not a lesson, as it is

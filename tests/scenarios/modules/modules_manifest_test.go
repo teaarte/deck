@@ -36,19 +36,19 @@ func TestAManifestIsCheckedWithoutASave(t *testing.T) {
 	chat := strings.Replace(harness.WebNotes, `"screens": [`, `"screens": [{"name": "inbox", "title": "Inbox", "blocks": [{"type": "list", "source": {"collection": "notes"},
     "item": {"title": "title"}, "actions": [{"label": "New note", "chat": true}]}]},`, 1)
 	var c struct {
-		Ok       bool
-		Refused  []string
-		Widens   []string
-		Warnings []string
+		Ok        bool
+		Refused   []string
+		Ungranted []string
+		Warnings  []string
 	}
 	e.Must("deck.manifest_check", map[string]any{"project": "web", "manifest": chat}, &c)
 	if c.Ok || !slices.ContainsFunc(c.Refused, func(r string) bool { return strings.Contains(r, "button of Deki") }) {
 		t.Fatalf("a chat button is refused by the check: %+v", c)
 	}
-	wider := strings.Replace(harness.WebNotes, harness.Manifest(`{`), harness.Manifest(`{"domains": {"read": ["example.com"]},`), 1)
+	wider := strings.Replace(harness.WebNotes, `"rights": [`, `"rights": [{"right": "network", "what": ["example.com"], "why": "reads it"}, `, 1)
 	e.Must("deck.manifest_check", map[string]any{"project": "web", "manifest": wider}, &c)
-	if !c.Ok || len(c.Widens) == 0 {
-		t.Fatalf("the check says what a manifest widens: %+v", c)
+	if !c.Ok || !slices.Contains(c.Ungranted, "its programs reach example.com and may send its data there") {
+		t.Fatalf("the check says what a manifest declares the owner has not granted: %+v", c)
 	}
 	e.Must("deck.manifest_check", map[string]any{"manifest": harness.Manifest(`{"commands": [{"name": "x"}]}`)}, &c)
 	if c.Ok || len(c.Refused) == 0 {
@@ -72,19 +72,22 @@ var fullManifest = harness.Manifest(`{
        "score": {"type": "integer"}, "found_at": {"type": "string"}}, "required": ["url", "title"]}}
   ],
   "commands": [
-    {"name": "collect", "title": "Collect links", "description": "Reads every source and stores new links.", "class": "internal",
+    {"name": "collect", "title": "Collect links", "description": "Reads every source and stores new links.",
      "result": {"type": ["object", "null"]}, "timeout_minutes": 30,
      "executor": {"type": "agent", "prompt_file": "prompts/collect.md", "skills": ["reader"]}},
-    {"name": "parse", "title": "Parse a source", "description": "Parses one source page with a script.", "class": "internal",
+    {"name": "parse", "title": "Parse a source", "description": "Parses one source page with a script.",
      "input": {"type": "object", "properties": {"source": {"type": "integer", "format": "record"}}, "required": ["source"]},
      "callers": ["agent", "owner"], "executor": {"type": "script", "script": "parse"}},
-    {"name": "rate", "title": "Rate links", "description": "Scores new links.", "class": "internal",
+    {"name": "rate", "title": "Rate links", "description": "Scores new links.",
      "input": {"type": "object", "properties": {"limit": {"type": "integer"},
        "process": {"type": "integer", "format": "process"}}},
      "executor": {"type": "agent", "prompt": "Score the new links 1-10."}},
-    {"name": "share", "title": "Share a link", "description": "Posts a link to the owner's feed service.", "class": "external",
+    {"name": "share", "title": "Share a link", "description": "Posts a link to the owner's feed service.", "undo": "unshare",
      "input": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
-     "executor": {"type": "tool", "tool": "post_link"}}
+     "executor": {"type": "tool", "tool": "post_link"}},
+    {"name": "unshare", "title": "Take a link back", "description": "Deletes a shared link.",
+     "input": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
+     "executor": {"type": "tool", "tool": "delete_link"}}
   ],
   "scripts": [{"name": "parse", "file": "scripts/parse.py", "runtime": "python", "timeout_minutes": 5}],
   "triggers": [
@@ -93,13 +96,19 @@ var fullManifest = harness.Manifest(`{
   ],
   "tools": {
     "http": [{"name": "post_link", "description": "Posts a link", "method": "POST", "url": "https://feed.example.com/api/links",
-      "headers": {"X-Api-Key": "$secret.feed"}, "body": {"url": "{url}"}, "class": "external", "confirm_ttl_minutes": 60,
-      "input": {"type": "object", "properties": {"url": {"type": "string"}}}}],
+      "headers": {"X-Api-Key": "$secret.feed"}, "body": {"url": "{url}"}, "confirm_ttl_minutes": 60, "undo": "delete_link",
+      "input": {"type": "object", "properties": {"url": {"type": "string"}}}},
+      {"name": "delete_link", "description": "Deletes a link", "method": "DELETE", "url": "https://feed.example.com/api/links?url={url}",
+      "headers": {"X-Api-Key": "$secret.feed"}, "input": {"type": "object", "properties": {"url": {"type": "string"}}}},
+      {"name": "search", "description": "Searches the feed", "method": "POST", "url": "https://feed.example.com/api/search", "right": "data",
+      "headers": {"X-Api-Key": "$secret.feed"}, "input": {"type": "object", "properties": {"q": {"type": "string"}}}}],
     "mcp": {"servers": {"browser": {"command": "npx", "args": ["@playwright/mcp"], "toolFilter": ["browser_navigate", "browser_snapshot"],
-      "classes": {"browser_navigate": "internal", "browser_snapshot": "internal"}}}}
+      "right": {"browser_navigate": "network", "browser_snapshot": "network"}}}}
   },
-  "allowed_external": ["post_link"],
-  "domains": {"read": ["news.example.com"], "act": []},
+  "rights": [
+    {"right": "network", "what": ["news.example.com"], "why": "reads the news it rates"},
+    {"right": "send", "what": ["share", "post_link", "delete_link"], "why": "shares the links you pick to your feed service"},
+    {"right": "data", "what": ["search"], "why": "finds what your feed already has"}],
   "screens": [{"name": "main", "title": "Links", "blocks": [{"type": "table", "title": "Best",
     "source": {"collection": "links", "where": "score >= 7", "sort": "-score", "limit": 20},
     "columns": [{"label": "Title", "bind": "title"}, {"label": "Score", "bind": "score"}],
@@ -166,7 +175,8 @@ func TestManifestReferencesAreChecked(t *testing.T) {
        "process": {"type": "integer", "format": "process"}}`, `"limit": {"type": "integer"}}`, `must declare input field "process"`},
 		{"unknown script", `"script": "parse"}`, `"script": "scrape"}`, `unknown script "scrape"`},
 		{"unknown tool", `"tool": "post_link"`, `"tool": "post_it"`, `unknown tool "post_it"`},
-		{"unknown external", `"allowed_external": ["post_link"]`, `"allowed_external": ["mail"]`, `"mail" is neither`},
+		{"undeclared right", `"what": ["share", "post_link", "delete_link"]`, `"what": ["share", "post_link"]`, `it needs the right send on delete_link`},
+		{"unknown undo", `"undo": "unshare"`, `"undo": "unpost"`, `"unpost" is neither another command nor a tool`},
 		{"key field", `"key": "url", "display": "title`, `"key": "link", "display": "title`, `unknown field "link"`},
 		{"where field", `"where": "score >= 7"`, `"where": "rating >= 7"`, `unknown field "rating"`},
 		{"sort field", `"sort": "-score"`, `"sort": "-rank"`, `unknown field "rank"`},
@@ -175,8 +185,8 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 		{"menu", `"menu": ["main"]`, `"menu": ["home"]`, `unknown screen "home"`},
 		{"unknown function", `"display": "title + ' (' + site + ')'"`, `"display": "shout(title)"`, `unknown function "shout"`},
 		{"action params", `"params": {"url": "=url"}`, `"params": {"link": "=url"}`, `needs param "url"`},
-		{"reads project", `"menu": ["main"]`, `"menu": ["main"], "reads": [{"project": "nope"}]`, `no project "nope"`},
-		{"reads collection", `"menu": ["main"]`, `"menu": ["main"], "reads": [{"project": "other", "collections": ["nope"]}]`, `no collection "nope"`},
+		{"data of a module", `"what": ["search"]`, `"what": ["search", "nope"]`, `no module "nope"`},
+		{"data of a collection", `"what": ["search"]`, `"what": ["search", "other.nope"]`, `no collection "nope"`},
 		{"trigger caller", `"callers": ["agent", "owner"], "executor": {"type": "script"`, `"callers": ["agent"], "executor": {"type": "script"`, ""},
 	}
 	for i, c := range cases {
@@ -195,7 +205,7 @@ func TestManifestReferencesAreChecked(t *testing.T) {
 			t.Errorf("%s: want 422 containing %q, got %d %s", c.name, c.want, code, out)
 		}
 	}
-	m := strings.Replace(fullManifest, `"menu": ["main"]`, `"menu": ["main"], "reads": [{"project": "other", "collections": ["ideas"]}]`, 1)
+	m := strings.Replace(fullManifest, `"what": ["search"]`, `"what": ["search", "other.ideas"]`, 1)
 	e.Project("links", m)
 }
 
@@ -328,7 +338,7 @@ func TestKeyFieldsStayAndEmptyTriggersAreRefused(t *testing.T) {
 	e := harness.New(t)
 	contacts := harness.Manifest(`{"collections": [{"name": "contacts", "description": "People", "key": "lower(email)",
 	    "schema": {"type": "object", "properties": {"email": {"type": "string"}, "big": {"type": "integer"}}, "required": ["email"]}}],
-	  "commands": [{"name": "fetch-all", "title": "Fetch", "description": "Fetches <all> & more", "class": "internal",
+	  "commands": [{"name": "fetch-all", "title": "Fetch", "description": "Fetches <all> & more",
 	    "executor": {"type": "agent", "prompt": "Fetch."}}]}`)
 	e.Project("contacts", contacts)
 	var cur struct{ Manifest string }
@@ -550,7 +560,7 @@ func TestAnAgentThatWritesSaysWhatItChanged(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	module := func(calls, result string) string {
-		return harness.Manifest(`{"commands": [{"name": "tidy", "title": "Tidy", "description": "Tidies the notes.", "class": "internal",
+		return harness.Manifest(`{"commands": [{"name": "tidy", "title": "Tidy", "description": "Tidies the notes.",
     "result": ` + result + `, "executor": {"type": "agent", "prompt": "Tidy the notes."` + calls + `}}]}`)
 	}
 	silent := `{"type": "object", "properties": {"n": {"type": "integer"}}}`

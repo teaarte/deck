@@ -23,6 +23,8 @@ func TestFreeModelsRemovesItsSpareModelBrokenForAWeek(t *testing.T) {
 	var imported struct{ ID int64 }
 	e.Must("deck.project_import", map[string]any{"starter": "free-models"}, &imported)
 	e.Must("deck.project_enable", map[string]any{"project": "free-models", "revision": e.ManifestRevision("free-models")}, nil)
+	// Sending asks the first time; the owner lets the module remove its own models always.
+	e.Grant("free-models", "send", "deck.model_delete")
 
 	names := []string{"spare", "used", "fresh", "tested"}
 	var recs []map[string]any

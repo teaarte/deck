@@ -649,48 +649,6 @@ func (q *Queries) ListOpenCallAsks(ctx context.Context) ([]Ask, error) {
 	return items, nil
 }
 
-const listOpenGrantAsks = `-- name: ListOpenGrantAsks :many
-SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask WHERE project_id = ?1 AND kind = 'grant' AND state = 'open' ORDER BY id
-`
-
-func (q *Queries) ListOpenGrantAsks(ctx context.Context, projectID sql.NullInt64) ([]Ask, error) {
-	rows, err := q.db.QueryContext(ctx, listOpenGrantAsks, projectID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Ask
-	for rows.Next() {
-		var i Ask
-		if err := rows.Scan(
-			&i.ID,
-			&i.WorkspaceID,
-			&i.ProjectID,
-			&i.ProcessID,
-			&i.Kind,
-			&i.Text,
-			&i.Payload,
-			&i.Answer,
-			&i.State,
-			&i.CreatedAt,
-			&i.AnsweredAt,
-			&i.ExpiresAt,
-			&i.DeliveredAt,
-			&i.UnheardAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listRemarks = `-- name: ListRemarks :many
 SELECT id, process_id, text, created_at, delivered_at, author FROM process_remark WHERE process_id = ? ORDER BY id
 `

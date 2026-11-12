@@ -1,27 +1,48 @@
 {
-  "version": 16,
+  "version": 17,
   "title": "Free models",
   "icon": "gift",
-  "models": [
-    "nvidia",
-    "openrouter",
-    "groq"
-  ],
-  "reads": [
+  "rights": [
     {
-      "project": "*",
-      "models": true
+      "right": "network",
+      "what": [
+        "openrouter.ai",
+        "integrate.api.nvidia.com",
+        "unpkg.com"
+      ],
+      "why": "reads the lists of free models and loads the chart library"
+    },
+    {
+      "right": "login",
+      "what": [
+        "claude-code",
+        "codex"
+      ],
+      "why": "its review agent works on a subscription CLI"
+    },
+    {
+      "right": "data",
+      "what": [
+        "*:models"
+      ],
+      "why": "sees which models do the work of each module, to suggest free ones"
+    },
+    {
+      "right": "money",
+      "what": [
+        "nvidia",
+        "openrouter",
+        "groq"
+      ],
+      "why": "tries the models it finds to rate them"
+    },
+    {
+      "right": "send",
+      "what": [
+        "deck.model_delete"
+      ],
+      "why": "removes from your settings the models that are no longer free, when you apply its review"
     }
-  ],
-  "domains": {
-    "read": [
-      "openrouter.ai",
-      "integrate.api.nvidia.com",
-      "unpkg.com"
-    ]
-  },
-  "allowed_external": [
-    "deck.model_delete"
   ],
   "collections": [
     {
@@ -518,7 +539,6 @@
     {
       "name": "collect",
       "title": "Collect the lists",
-      "class": "internal",
       "description": "Reads the free models of OpenRouter and NVIDIA and the cheap text models of OpenRouter, and queues the new ones for review.",
       "executor": {
         "type": "script",
@@ -538,7 +558,6 @@
     {
       "name": "review",
       "title": "Rate the models",
-      "class": "internal",
       "description": "Rates the queued models and checks other free sources, writing how to connect each strong one to deck.",
       "executor": {
         "type": "agent",
@@ -646,7 +665,6 @@
     {
       "name": "save",
       "title": "Save the ratings",
-      "class": "internal",
       "description": "Writes the verdicts of review into the list and tells the owner about new strong models.",
       "executor": {
         "type": "script",
@@ -673,7 +691,6 @@
     {
       "name": "enrich",
       "title": "Logos and the in-deck mark",
-      "class": "internal",
       "description": "Gives each strong model the logo of its maker and marks the ones deck already has.",
       "executor": {
         "type": "script",
@@ -694,7 +711,6 @@
     {
       "name": "compare",
       "title": "Compare with deck",
-      "class": "internal",
       "description": "Compares the models of deck's work with the list: notes models in use that are gone or broken, marks applied and stale proposals, and gives the plan the work with better candidates.",
       "executor": {
         "type": "script",
@@ -724,7 +740,6 @@
     {
       "name": "plan",
       "title": "Pick models",
-      "class": "internal",
       "description": "Picks the best free or cheap model for each piece of work of deck from the candidates of compare, with a reason.",
       "executor": {
         "type": "agent",
@@ -788,7 +803,6 @@
     {
       "name": "test",
       "title": "Test the proposals",
-      "class": "internal",
       "description": "Tests each proposed model on a sample as large as its real work (an agent: several tool turns over real-size records; looping or losing a tool result fails), proposes models deck lacks, and writes the proposals; only those that pass are ready.",
       "executor": {
         "type": "script",
@@ -816,7 +830,6 @@
     {
       "name": "mark",
       "title": "Mark a proposal",
-      "class": "internal",
       "description": "Sets the status of a proposal, such as rejected by the owner.",
       "executor": {
         "type": "script",
@@ -849,7 +862,6 @@
     {
       "name": "watch",
       "title": "Watch after a change",
-      "class": "internal",
       "description": "For about three days after a proposal was applied, compares the real runs of that work with the runs before; when it got worse, proposes going back to the earlier models.",
       "executor": {
         "type": "script",
@@ -866,7 +878,6 @@
     {
       "name": "apply",
       "title": "Apply a proposal",
-      "class": "internal",
       "description": "Asks the owner to assign the models of a ready proposal: a call of deck.assignment_set that waits for the owner's yes.",
       "executor": {
         "type": "script",
@@ -890,7 +901,6 @@
     {
       "name": "add",
       "title": "Add a model to deck",
-      "class": "internal",
       "description": "Asks the owner to add a model of the list to deck: a call of deck.model_set that waits for the owner's yes.",
       "executor": {
         "type": "script",
@@ -914,7 +924,6 @@
     {
       "name": "prune",
       "title": "Remove broken models",
-      "class": "internal",
       "description": "Removes a model this module added to deck once it has been broken and in no assignment for a week: deck.model_delete without the owner, who sees it with an undo.",
       "executor": {
         "type": "script",

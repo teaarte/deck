@@ -52,7 +52,7 @@ func realACP(t *testing.T) (map[string]string, string, string) {
 
 func acpRealManifest(name, url, extra, home, dir string) string {
 	return fmt.Sprintf(`{"version": %[6]d%[1]s,
-  "commands": [{"name": "work", "title": "Work", "description": "Writes files and posts a note", "class": "internal",
+  "commands": [{"name": "work", "title": "Work", "description": "Writes files and posts a note",
     "result": {"type": "object", "required": ["done"], "properties": {"done": {"type": "boolean"}}},
     "executor": {"type": "agent", "prompt": "Do these steps in order, one tool call at a time.\n1. Run this shell command: echo deck-ok > %[2]s/marker.txt\n2. Run this shell command once, even if it fails: curl -s -m 10 -o /dev/null -w '%%{http_code}' https://example.com > %[2]s/curl.txt\n3. Run this shell command once, even if it fails: cat %[3]s/token > %[2]s/token.txt 2>&1\n4. Ask the owner with the ask tool of the deck MCP server: May I post the note? Wait for the answer.\n5. Call the %[4]s__post tool of the deck MCP server with id a1 and text hi. If it says it waits for the owner, end your turn.\n6. Hand in {\"done\": true} with the result_submit tool."}}],
   "tools": {"http": [{"name": "post", "description": "Posts a note", "method": "POST", "url": "%[5]s/items/{id}",
@@ -107,7 +107,7 @@ func TestRealACPAgents(t *testing.T) {
 			for _, p := range all {
 				next = max(next, p.ID+1)
 			}
-			for i, tc := range []struct{ name, extra string }{{"open", `, "domains": {"read": ["*"]}`}, {"closed", ""}} {
+			for i, tc := range []struct{ name, extra string }{{"open", `, "rights": [{"right": "network", "what": ["*"], "why": "reads it"}]`}, {"closed", ""}} {
 				data := filepath.Join(deckhome.Layout(home).Work(), "projects", harness.Itoa(next+int64(i)), "data")
 				p := e.AcpProject(tc.name, acpRealManifest(tc.name, svc.URL, tc.extra, deckhome.Layout(home).State(), data))
 				if p != next+int64(i) {

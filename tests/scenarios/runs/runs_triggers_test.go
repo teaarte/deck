@@ -61,7 +61,7 @@ func TestANewModuleWithoutCode(t *testing.T) {
 
 	m := strings.Replace(harness.IdeasManifest, `"triggers": [{"command": "collect", "cron": "0 9 * * *"}]`,
 		`"triggers": [{"command": "collect", "cron": "0 9 * * *"}, {"command": "digest", "after": "collect"}]`, 1)
-	m = strings.Replace(m, `"commands": [{`, `"commands": [{"name": "digest", "title": "Digest", "description": "Sums up a collection run", "class": "internal",
+	m = strings.Replace(m, `"commands": [{`, `"commands": [{"name": "digest", "title": "Digest", "description": "Sums up a collection run",
     "input": `+harness.ProcessField+`, "executor": {"type": "agent", "prompt": "Sum up."},
     "result": {"type": "object", "properties": {"seen": {"type": "integer"}}, "required": ["seen"]}}, {`, 1)
 	p := e.Project("ideas", m)
@@ -322,8 +322,8 @@ func TestAScheduledCallTheOwnerAllowedIsTheLastRunOfItsTrigger(t *testing.T) {
 	}), harness.WithClock())
 
 	defer close(release)
-	pub := strings.Replace(harness.AgentCommand("publish", ""), `"class": "internal"`, `"class": "external"`, 1)
-	e.Project("daily", harness.TestManifest([]string{pub}, []string{`{"command": "publish", "cron": "0 9 * * *"}`}))
+	e.Project("daily", harness.Declare(harness.TestManifest([]string{harness.AgentCommand("publish", "")}, []string{`{"command": "publish", "cron": "0 9 * * *"}`}),
+		`{"right": "send", "what": ["publish"], "why": "publishes outside"}`))
 	e.Clock.Add(time.Hour)
 	e.Tick()
 	a := e.WaitAsk()
@@ -345,8 +345,9 @@ func TestAScheduledCallTheOwnerAllowedIsTheLastRunOfItsTrigger(t *testing.T) {
 func TestAnAfterTriggerCallTheOwnerAllowedKeepsItsParent(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
-	pub := strings.Replace(harness.AgentCommand("publish", `{"type": "object", "properties": {"process": {"type": "integer"}}}`), `"class": "internal"`, `"class": "external"`, 1)
-	e.Project("chain", harness.TestManifest([]string{harness.AgentCommand("first", ""), pub}, []string{`{"command": "publish", "after": "first"}`}))
+	pub := harness.AgentCommand("publish", `{"type": "object", "properties": {"process": {"type": "integer"}}}`)
+	e.Project("chain", harness.Declare(harness.TestManifest([]string{harness.AgentCommand("first", ""), pub}, []string{`{"command": "publish", "after": "first"}`}),
+		`{"right": "send", "what": ["publish"], "why": "publishes outside"}`))
 	first := e.Start("chain", "first", nil)
 	e.WaitState(first, "done")
 	a := e.WaitAsk()
@@ -495,7 +496,7 @@ func TestRunNowReturnsTheRunStillGoing(t *testing.T) {
 func TestRunNowTakesACommandOnlyTriggersCallAndTheScheduleHearsAboutRuns(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithClock())
-	own := strings.Replace(harness.AgentCommand("digest", ""), `"class": "internal"`, `"class": "internal", "callers": ["trigger"]`, 1)
+	own := strings.Replace(harness.AgentCommand("digest", ""), `"executor": {`, `"callers": ["trigger"], "executor": {`, 1)
 	e.Project("alpha", harness.TestManifest([]string{own}, []string{`{"command": "digest", "cron": "0 9 * * *"}`}))
 	tr := e.Triggers()[0]
 	ctx, cancel := context.WithCancel(context.Background())
@@ -583,10 +584,10 @@ func TestAHungToolIsSeenAndStopsAtItsCeiling(t *testing.T) {
 	t.Parallel()
 	slow := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { <-r.Context().Done() })
 	e := harness.New(t, harness.WithClock())
-	e.Project("feed", harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "fetch", "title": "Fetch", "description": "Fetches the feed.",
-	  "class": "internal", "executor": {"type": "tool", "tool": "pull"}}],
-	  "tools": {"http": [{"name": "pull", "description": "Pulls the feed", "method": "GET", "url": "%s/feed", "class": "internal"}]},
-	  "triggers": [{"command": "fetch", "cron": "0 9 * * *"}]}`, slow.URL)))
+	e.Project("feed", harness.Declared(harness.Manifest(fmt.Sprintf(`{"commands": [{"name": "fetch", "title": "Fetch", "description": "Fetches the feed.",
+	  "executor": {"type": "tool", "tool": "pull"}}],
+	  "tools": {"http": [{"name": "pull", "description": "Pulls the feed", "method": "GET", "url": "%s/feed"}]},
+	  "triggers": [{"command": "fetch", "cron": "0 9 * * *"}]}`, slow.URL))))
 	e.Clock.Add(time.Hour)
 	e.Tick()
 	e.Until("the first run", func() bool { return e.CountOf("fetch") == 1 })

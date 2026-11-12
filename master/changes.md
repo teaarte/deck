@@ -403,3 +403,19 @@ and bring the modules in line.
   gives each as `{"cut": "<its first 500 characters>"}` once it was longer than 1000; revisions of documents stay
   whole. An incident the master does not take (paused, no `on_incident`, a start that fails) is a note of deck in the
   owner's feed.
+- 2026-11-12, format 17: a module declares in `rights` what it may ask the owner for, each with `why` — the seven
+  rights of deck's catalog: `network` (hosts, `"who": "agent"` for the shells of its agents), `login` (`claude-code`,
+  `codex`), `data` (another module, `module.collection`, `module/document`, `module:models`, `*:runs`, its own tool
+  that reads with a key), `files` (`gpu`, a folder of the project), `money` (a connection, a model, an `@role`),
+  `send` (its command or tool, `server.tool`, a command of deck, a site the browser acts on), `modules`. Gone:
+  `domains`, `allowed_external`, `reads`, `models`, `gpu`, `class` of commands and HTTP tools, `classes` of MCP
+  servers; new: `undo` of a command or tool, `right` of an HTTP tool and of the tools of an MCP server. deck reads the
+  right of a tool: GET or HEAD without a key is `network` on its host, with a key `data` on the tool, another method
+  `send`. A declaration grants nothing and a save no longer waits for the owner: their answers live apart (always or
+  no), enabling grants every declared right but `send`, which asks the first time, and a right declared later the
+  owner grants in the module's settings or when it is used; an answer of always holds to the tool or command as it
+  was. An agent on a subscription login, or of a module that reads the data of others, has no network in its shell:
+  a script installs and clones. A trial of a draft reaches no host, the package registries neither, until the owner
+  grants it. What a draft may do is read with `deck.rights_list`, the old read of it gone; the owner answers with `deck.right_set`;
+  `manifest_check` and `manifest_save` list `ungranted` instead of `widens`. Stored manifests moved to format 17 and
+  keep as always what the owner had granted; an imported module of an older format is raised to it.

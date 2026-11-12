@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"maps"
-	"slices"
 	"strings"
 )
 
@@ -63,50 +61,6 @@ func Unescaped(text string) string {
 type object struct {
 	keys []string
 	vals map[string]any
-}
-
-// Ordered is v as JSON with the keys of each object in the order the same object has in was, new keys after them
-// sorted, so a changed manifest keeps the order of its fields and of the properties of its schemas.
-func Ordered(v any, was []byte) []byte {
-	switch v := v.(type) {
-	case map[string]any:
-		var old map[string]json.RawMessage
-		_ = json.Unmarshal(was, &old)
-		keys := keysOf(was)
-		for _, k := range slices.Sorted(maps.Keys(v)) {
-			if !slices.Contains(keys, k) {
-				keys = append(keys, k)
-			}
-		}
-		out := []byte{'{'}
-		for _, k := range keys {
-			x, ok := v[k]
-			if !ok {
-				continue
-			}
-			if len(out) > 1 {
-				out = append(out, ',')
-			}
-			out = append(append(append(out, JSON(k, "")...), ':'), Ordered(x, old[k])...)
-		}
-		return append(out, '}')
-	case []any:
-		var old []json.RawMessage
-		_ = json.Unmarshal(was, &old)
-		out := []byte{'['}
-		for i, x := range v {
-			if i > 0 {
-				out = append(out, ',')
-			}
-			var w []byte
-			if i < len(old) {
-				w = old[i]
-			}
-			out = append(out, Ordered(x, w)...)
-		}
-		return append(out, ']')
-	}
-	return JSON(v, "")
 }
 
 // keysOf are the keys of a JSON object in the order they are written.

@@ -59,7 +59,6 @@
         "description": "Open issues of a GitLab project created at or after a time, oldest first.",
         "method": "GET",
         "url": "https://gitlab.com/api/v4/projects/{project}/issues?state=opened&order_by=created_at&sort=asc&per_page=50&created_after={after}&labels={labels}&page={page}",
-        "class": "internal",
         "auth": {
           "type": "secret",
           "secret": "gitlab",
@@ -97,7 +96,6 @@
       "name": "follow_gitlab",
       "title": "Follow a GitLab project",
       "description": "Makes the open issues of a GitLab project arrive as tasks.",
-      "class": "internal",
       "callers": [
         "owner",
         "master"
@@ -138,7 +136,6 @@
       "name": "poll_gitlab",
       "title": "Take GitLab issues",
       "description": "Makes a task in backlog for each new open issue of the followed GitLab projects.",
-      "class": "internal",
       "result": {
         "type": "object",
         "required": [
@@ -190,5 +187,14 @@
         ]
       }
     ]
-  }
+  },
+  "rights": [
+    {
+      "right": "data",
+      "what": [
+        "gitlab_issues"
+      ],
+      "why": "reads the open issues of your GitLab project"
+    }
+  ]
 }

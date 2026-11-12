@@ -97,7 +97,7 @@ func (s *Service) tell(ctx context.Context, a db.Ask, answer string) bool {
 	// The asking process is named in the input, not as the parent: its turn did not start this run.
 	input := manifest.TriggerInput(t, a.ID)
 	input["answer"], input["process"] = answer, p.ID
-	if c := m.Command(t.Command); c == nil || c.Class == registry.External {
+	if _, needs := m.CommandNeed(t.Command); m.Command(t.Command) == nil || needs {
 		err = registry.Invalid("%s is not a command that runs without the owner", t.Command)
 	} else {
 		_, err = s.Start(context.WithoutCancel(ctx), proj.ID, m, t.Command, input, process.Origin{Key: key})

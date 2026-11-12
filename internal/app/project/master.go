@@ -10,6 +10,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/master"
@@ -35,14 +36,16 @@ func (s *Service) SeedMaster(ctx context.Context) error {
 		return err
 	}
 	for _, w := range ws {
-		if err := s.seedMaster(ctx, w, files); err != nil {
+		if err := s.seedMaster(ctx, w, files, m); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Service) seedMaster(ctx context.Context, workspace int64, files []docs.File) error {
+// seedMaster ships the files of the master into a workspace and grants it the rights deck's own manifest of it
+// declares, shipped, so an edit of the master widens none.
+func (s *Service) seedMaster(ctx context.Context, workspace int64, files []docs.File, shipped *manifest.Manifest) error {
 	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: master.Name})
 		switch {
@@ -66,6 +69,9 @@ func (s *Service) seedMaster(ctx context.Context, workspace int64, files []docs.
 		}
 		done, err := docs.Ship(ctx, q, docs.ProjectScope(p), "", files, s.Now())
 		if err != nil {
+			return err
+		}
+		if err := s.grantDeclared(ctx, q, registry.Actor{}, p, shipped); err != nil {
 			return err
 		}
 		for _, n := range done.Notes {

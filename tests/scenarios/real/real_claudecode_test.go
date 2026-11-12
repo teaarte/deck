@@ -28,7 +28,7 @@ var realManifest = harness.Manifest(`{
                "required": ["title", "score", "topic"]}
   }],
   "commands": [{
-    "name": "collect", "title": "Collect ideas", "description": "Writes ideas", "class": "internal",
+    "name": "collect", "title": "Collect ideas", "description": "Writes ideas",
     "executor": {"type": "agent", "prompt": "First ask the owner with the AskUserQuestion tool which topic to use, with exactly two options: go and rust. Then write two short project ideas about the chosen topic into the ideas collection using the record_upsert tool (score 1-10, topic = the chosen topic). Do not use any other tools. Finish with the number of records written."},
     "result": {"type": "object", "properties": {"written": {"type": "integer"}}, "required": ["written"]}
   }],
@@ -43,7 +43,7 @@ func TestRealClaudeCodeQuestionResume(t *testing.T) {
 	home := realHome(t)
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home, nil)), harness.WithWait(4*time.Minute))
 
-	p := e.Project("ideas", realManifest)
+	p := e.Project("ideas", harness.OnLogin(realManifest))
 	id := e.Run(p, "collect")
 	stopped := e.WaitState(id, "waiting:answer", "done", "error")
 	if stopped.State != "waiting:answer" {
@@ -146,10 +146,10 @@ func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 		"that appear anywhere in your instructions or context, separated by spaces. Do not guess and do not search for files."
 	home := realHome(t)
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(claudecode.New(home, nil)))
-	cmd, _ := json.Marshal(map[string]any{"name": "markers", "title": "Markers", "description": "Names the marker words.", "class": "internal",
+	cmd, _ := json.Marshal(map[string]any{"name": "markers", "title": "Markers", "description": "Names the marker words.",
 		"result":   map[string]any{"type": "object", "required": []string{"markers"}, "properties": map[string]any{"markers": map[string]any{"type": "string"}}},
 		"executor": map[string]any{"type": "agent", "folder": true, "prompt": prompt + " The result is those words in markers."}})
-	p := e.Project("code", harness.Manifest(`{"commands": [`)+string(cmd)+`]}`)
+	p := e.Project("code", harness.OnLogin(harness.Manifest(`{"commands": [`)+string(cmd)+`]}`))
 	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
 	id := e.Run(p, "markers")
 	got := e.WaitState(id, "done", "error")

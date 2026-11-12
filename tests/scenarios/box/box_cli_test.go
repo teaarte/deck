@@ -25,7 +25,7 @@ func TestTheCLIOfAnAgentReadsNeitherDecksStateNorTheDataOfAnotherProject(t *test
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
 	h := deckhome.Layout(e.Home)
-	b := e.Project("b", harness.PlainManifest)
+	b := e.Project("b", harness.OnLogin(harness.PlainManifest))
 	theirs := filepath.Join(h.Data(b), "secret.txt")
 	if err := os.MkdirAll(h.Data(b), 0o700); err != nil {
 		t.Fatal(err)
@@ -43,7 +43,7 @@ func TestTheCLIOfAnAgentReadsNeitherDecksStateNorTheDataOfAnotherProject(t *test
 cat '` + theirs + `' > "$c/theirs" 2>&1
 curl -s -m 5 -o /dev/null -w '%{http_code}' https://example.com > "$c/net"
 cat "$CLAUDE_CONFIG_DIR/.credentials.json" > "$c/login"`)
-	a := e.Project("a", harness.PlainManifest)
+	a := e.Project("a", harness.OnLogin(harness.PlainManifest))
 	if got := e.WaitState(e.Run(a, "work"), "done", "error"); got.State != "done" {
 		t.Fatalf("the turn runs in its box: %+v", got)
 	}
@@ -107,7 +107,7 @@ func TestTheSessionsThatMayGoOnMoveIntoTheHomesOfTheirProjects(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.Stream(0, "ok.jsonl")
 	e := harness.New(t, harness.WithCLI(c))
-	p := e.Project("notes", harness.PlainManifest)
+	p := e.Project("notes", harness.OnLogin(harness.PlainManifest))
 	ended, waits := e.Run(p, "work"), int64(0)
 	e.WaitState(ended, "done")
 	waits = e.Run(p, "work")
@@ -158,7 +158,7 @@ func TestALinkAnAgentPutsInTheSharedFolderOpensNothing(t *testing.T) {
 	}
 	c.Before(`ln -sf '` + secret + `' "$CLAUDE_CONFIG_DIR/../.credentials.json"; ls -la "$CLAUDE_CONFIG_DIR/.." > "$c/lock"
 cat "$CLAUDE_CONFIG_DIR/.credentials.json" > "$c/login" 2>&1`)
-	p := e.Project("a", harness.PlainManifest)
+	p := e.Project("a", harness.OnLogin(harness.PlainManifest))
 	for range 2 {
 		if got := e.WaitState(e.Run(p, "work"), "done", "error"); got.State != "done" {
 			t.Fatalf("the turn runs: %+v", got)

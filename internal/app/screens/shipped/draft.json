@@ -5,7 +5,7 @@
   "params": {"project": "string", "revision": "number"},
   "blocks": [
     {"type": "card", "title": "Before you enable it", "icon": "power", "span": "full", "source": {"from": "deck.project_draft_list", "input": {"project": "=param.project"}},
-      "description": "Install modules only from authors you know. Once enabled, a module does what is listed here without asking you again; until then it is a draft, and only its trials run.",
+      "description": "Install modules only from authors you know. Enabling it grants the rights listed here, but acting in your name, which asks you the first time; until then it is a draft, and only its trials run.",
       "fields": [
         {"label": "Module", "bind": "title"},
         {"label": "What it does", "bind": "description", "markdown": true},
@@ -17,6 +17,20 @@
         {"verb": "enable", "primary": true, "command": "deck.project_enable", "params": {"project": "=name", "revision": "=revision"}, "when": "draft"},
         {"label": "Set the secrets", "icon": "key", "screen": "settings", "project": "=name", "params": {"tab": "Access"}, "when": "secrets"},
         {"label": "Models", "icon": "cpu", "screen": "settings", "params": {"tab": "Models"}, "when": "(lacks ?? '') != ''"}
+      ]},
+    {"type": "table", "title": "Rights", "icon": "shield-check", "span": "full", "source": {"from": "deck.rights_list", "input": {"project": "=param.project"}},
+      "description": "What the module may ask you for, in deck's words, and why in its own; your answer to each.",
+      "empty": "It declares no rights: it keeps to its own records, documents and files",
+      "columns": [
+        {"label": "What it may do", "bind": "says", "details": "why"},
+        {"label": "Answer", "bind": "answer == 'always' ? 'always' : answer == 'no' ? 'no' : 'asks first'", "format": "tag",
+          "tone": "answer == 'always' ? 'ok' : answer == 'no' ? 'muted' : 'warn'"}
+      ],
+      "actions": [
+        {"label": "Allow always", "icon": "check", "command": "deck.right_set",
+          "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && answer != 'always'"},
+        {"label": "Revoke", "icon": "rotate", "command": "deck.right_set",
+          "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "answer != ''"}
       ]},
     {"type": "table", "title": "What it needs to work", "icon": "puzzle", "span": "full", "collapsed": true, "source": {"from": "deck.project_readiness_get", "input": {"project": "=param.project"}, "where": "kind != 'right'"},
       "description": "Secrets, programs and models it needs besides what enabling grants; give them before or after enabling it.",

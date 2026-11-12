@@ -130,7 +130,7 @@ func TestDeckKeepsNoBoards(t *testing.T) {
 	for _, name := range []string{"deck.cards_list", "deck.card_create", "deck.card_move", "deck.card_transfer", "deck.chat_interview"} {
 		e.Refused(name, map[string]any{"project": "work", "card": 1, "title": "x"}, 404, "unknown command")
 	}
-	plain := harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Works.", "class": "internal",
+	plain := harness.Manifest(`{"commands": [{"name": "work", "title": "Work", "description": "Works.",
     "executor": {"type": "agent", "prompt": "Work."}}],
   "triggers": [{"command": "work", "cron": "0 9 * * *"}],
   "screens": [{"name": "main", "title": "Main", "blocks": [{"type": "actions", "title": "Work", "actions": [{"label": "Work", "command": "work"}]}]}], "menu": ["main"]}`)
@@ -156,8 +156,8 @@ func TestADeckThatRefusesASavedManifestSaysSoOnce(t *testing.T) {
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
 	e.Project("clean", harness.PlainManifest)
 	e.Project("old", harness.PlainManifest)
-	older := strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "domains": {"read": ["https://example.com/feed"]}`, 1)
-	// A manifest an older deck saved before the check of domains.read.
+	older := strings.Replace(harness.PlainManifest, `"screens": []`, `"screens": [], "rights": [{"right": "network", "what": ["https://example.com/feed"], "why": "reads it"}]`, 1)
+	// A manifest an older deck saved before the check of the hosts of a network.
 	e.PlantRevision("old", "manifest.json", older)
 	restart := func() {
 		_ = e.App.Close()
@@ -165,7 +165,7 @@ func TestADeckThatRefusesASavedManifestSaysSoOnce(t *testing.T) {
 	}
 	restart()
 	n := e.WaitNote("The manifest of old")
-	if !strings.Contains(n.Text, "domains.read") || !strings.Contains(n.Text, "not a URL") {
+	if !strings.Contains(n.Text, "rights[0]") || !strings.Contains(n.Text, "not a URL") {
 		t.Fatalf("the note says what to fix: %s", n.Text)
 	}
 	for _, f := range e.Notes() {

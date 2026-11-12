@@ -38,7 +38,7 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	if h.Version != "2.1.281" || !strings.Contains(h.Error, "self-check of 2.1.281 failed") || !strings.Contains(h.Error, "first turn") {
 		t.Fatalf("a failed self-check is red with the version and the reason: %+v", h)
 	}
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.Declared(harness.PlainManifest)))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting:provider")
 	if n := c.Calls(); n != 1 {
@@ -99,7 +99,7 @@ func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
 			if got := healthIn(e, "ru", "provider:claude-code"); !strings.Contains(got, "; первый ход: ") {
 				t.Fatalf("the step of the self-check reads in Russian: %q", got)
 			}
-			p := e.Project("plain", harness.PlainManifest)
+			p := e.Project("plain", harness.OnLogin(harness.Declared(harness.PlainManifest)))
 			want := map[string]string{"paused": "waiting:provider", "needs_login": "done"}[c.status]
 			if got := e.WaitState(e.Run(p, "work"), "done", "error", "waiting:provider"); got.State != want {
 				t.Fatalf("a limit holds turns until it resets, a lost login holds none, the turn asks: %+v", got)
@@ -141,7 +141,7 @@ func TestAnswerWhileTheProviderIsRedWaitsAndThenResumes(t *testing.T) {
 	}
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithProvider(cf), harness.WithClock(clock))
-	p := e.Project("notes", strings.Replace(harness.NotesManifest, `"requires": ["no_cloud"],`, "", 1))
+	p := e.Project("notes", harness.OnLogin(harness.Declared(strings.Replace(harness.NotesManifest, `"requires": ["no_cloud"],`, "", 1))))
 	id := e.Run(p, "collect")
 	e.WaitState(id, "waiting:answer")
 	cf.set(errors.New("broken"))
@@ -261,7 +261,7 @@ func TestAHungSelfCheckDoesNotStopTheSchedule(t *testing.T) {
 	clock := &harness.Clock{At: harness.T0}
 	e := harness.New(t, harness.WithProvider(hv), harness.WithClock(clock))
 	t.Cleanup(func() { close(hv.release) })
-	e.Project("plain", strings.Replace(harness.PlainManifest, `"triggers": []`, `"triggers": [{"command": "work", "cron": "30 * * * *"}]`, 1))
+	e.Project("plain", harness.OnLogin(harness.Declared(strings.Replace(harness.PlainManifest, `"triggers": []`, `"triggers": [{"command": "work", "cron": "30 * * * *"}]`, 1))))
 	e.App.Run(t.Context(), 20*time.Millisecond)
 	// The loop starts the self-check that hangs; its health need not show it.
 	time.Sleep(200 * time.Millisecond)
@@ -296,7 +296,7 @@ func TestASlowModelIsAWarningThatHoldsNoTurn(t *testing.T) {
 	if n := slow.checks.Load(); n != 1 {
 		t.Fatalf("a warning is not checked again by the timer, which repeats only what holds turns: %d checks", n)
 	}
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.Declared(harness.PlainManifest)))
 	if got := e.WaitState(e.Run(p, "work"), "done", "error", "waiting:provider"); got.State != "done" {
 		t.Fatalf("a slow model holds no turn: %+v", got)
 	}
@@ -313,7 +313,7 @@ func TestATurnTheProviderReportsAsAnErrorChecksIt(t *testing.T) {
 	c.Stream(4, "error.jsonl")
 	c.Stream(5, "error.jsonl")
 	e.Clock.Add(31 * time.Minute)
-	if got := e.WaitState(e.Run(e.Project("plain", harness.PlainManifest), "work"), "done", "error"); got.State != "error" {
+	if got := e.WaitState(e.Run(e.Project("plain", harness.OnLogin(harness.Declared(harness.PlainManifest))), "work"), "done", "error"); got.State != "error" {
 		t.Fatalf("the turn fails: %+v", got)
 	}
 	e.WaitHealth("provider:claude-code", "error")
@@ -355,7 +355,7 @@ fi`)
 	if err := os.WriteFile(nomcp, nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	id := e.Run(e.Project("plain", harness.PlainManifest), "work")
+	id := e.Run(e.Project("plain", harness.OnLogin(harness.Declared(harness.PlainManifest))), "work")
 	e.WaitState(id, "waiting:provider")
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "without deck's tools") || !strings.Contains(h.Error, "mcp__deck__approve") {
 		t.Fatalf("the provider is red with why: %+v", h)
@@ -396,7 +396,7 @@ func TestASelfCheckIsRedWhenAgentsDoNotReachDecksMCP(t *testing.T) {
 	if h := e.WaitHealth("provider:fake", "error"); !strings.Contains(h.Error, "do not reach deck's MCP server") {
 		t.Fatalf("an unreachable gateway turns the provider red: %+v", h)
 	}
-	if got := e.WaitState(e.Run(e.Project("plain", harness.PlainManifest), "work"), "done", "error", "waiting:provider"); got.State != "waiting:provider" {
+	if got := e.WaitState(e.Run(e.Project("plain", harness.OnLogin(harness.Declared(harness.PlainManifest))), "work"), "done", "error", "waiting:provider"); got.State != "waiting:provider" {
 		t.Fatalf("turns wait while agents would get no tools: %+v", got)
 	}
 }
@@ -424,7 +424,7 @@ fi`)
 	if err := os.WriteFile(filepath.Join(c.Dir, "nomcp"), nil, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	id := e.Run(e.Project("plain", harness.PlainManifest), "work")
+	id := e.Run(e.Project("plain", harness.OnLogin(harness.Declared(harness.PlainManifest))), "work")
 	e.WaitState(id, "waiting:provider")
 	first := e.Proc(id).Wait
 	if first.Silence != "fail:deck.tools" || first.On != "claude-code" {
@@ -477,7 +477,7 @@ func TestToolsLostInEarlierTurnsDoNotCountAgainstALaterOne(t *testing.T) {
 	ctx := context.Background()
 	e.App.Providers.Checks(ctx, clock.Now())
 	e.WaitHealth("provider:fake", "ok")
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.Declared(harness.PlainManifest)))
 	lf.lose.Store(1)
 	id := e.Run(p, "work")
 	for i := range 3 {
@@ -529,7 +529,7 @@ func TestASelfCheckATurnBrokeDuringIsRunAgain(t *testing.T) {
 	e.WaitHealth("provider:fake", "ok")
 	g.hold.Store(true)
 	clock.Add(31 * time.Minute)
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.Declared(harness.PlainManifest)))
 	e.WaitState(e.Run(p, "work"), "error")
 	<-g.entered
 	g.lose.Store(1)
@@ -572,7 +572,7 @@ func TestAPausedOrLoggedOutProviderIsCheckedAgainWithoutItsProcess(t *testing.T)
 			e.App.Providers.Checks(ctx, clock.Now())
 			e.WaitHealth("provider:fake", "ok")
 			clock.Add(31 * time.Minute)
-			id := e.Run(e.Project("plain", harness.PlainManifest), "work")
+			id := e.Run(e.Project("plain", harness.OnLogin(harness.Declared(harness.PlainManifest))), "work")
 			e.WaitState(id, "waiting:limit", "waiting:sign_in")
 			if c.status == "needs_login" {
 				var asks []struct{ Text string }
@@ -608,7 +608,7 @@ func TestASessionWaitsForItsPausedProviderWhileANewStartTakesTheNext(t *testing.
 	e.App.Providers.Checks(ctx, clock.Now())
 	e.WaitHealth("provider:fake", "ok")
 	e.WaitHealth("provider:other", "ok")
-	p := e.Project("plain", harness.PlainManifest)
+	p := e.Project("plain", harness.OnLogin(harness.Declared(harness.PlainManifest)))
 	e.UseModels("plain.work", "fake", "other")
 	done := e.Run(p, "work")
 	e.WaitState(done, "done")

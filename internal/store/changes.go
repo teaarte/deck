@@ -64,6 +64,7 @@ var tables = map[string]table{
 	"connection":        {events.Models, ofWorkspace, nil},
 	"model":             {events.Models, ofWorkspace, nil},
 	"mcp_tool":          {events.Tools, ofProject, nil},
+	"right_grant":       {events.Projects, ofProject, nil},
 	"trigger":           {events.Triggers, ofProject, nil},
 	"process":           {events.Processes, ofProject, []string{"output_ms"}},
 	"process_remark":    {events.Processes, ofProcess, nil},

@@ -15,18 +15,19 @@ import (
 var waitsManifest = harness.Manifest(`{"collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}}],
   "commands": [
-    {"name": "work", "title": "Work", "description": "Does work.", "class": "internal",
+    {"name": "work", "title": "Work", "description": "Does work.",
      "executor": {"type": "agent", "prompt": "Do the work."}, "result": {"type": "object", "properties": {"n": {"type": "integer"}}}},
-    {"name": "child", "title": "Child", "description": "Does a part.", "class": "internal",
+    {"name": "child", "title": "Child", "description": "Does a part.",
      "executor": {"type": "agent", "prompt": "Do a part."}, "result": {"type": "object", "properties": {"n": {"type": "integer"}}}},
-    {"name": "quick", "title": "Quick", "description": "Ends at once.", "class": "internal",
+    {"name": "quick", "title": "Quick", "description": "Ends at once.",
      "result": {"type": "object"}, "executor": {"type": "script", "script": "quick"}},
-    {"name": "slow", "title": "Slow", "description": "Takes long.", "class": "internal",
+    {"name": "slow", "title": "Slow", "description": "Takes long.",
      "result": {"type": "object"}, "executor": {"type": "script", "script": "slow"}},
-    {"name": "send", "title": "Send", "description": "Sends outside.", "class": "external",
+    {"name": "send", "title": "Send", "description": "Sends outside.",
      "result": {"type": "object"}, "executor": {"type": "script", "script": "quick"}}],
   "scripts": [{"name": "quick", "file": "scripts/quick.py", "runtime": "python"},
-    {"name": "slow", "file": "scripts/slow.py", "runtime": "python"}]}`)
+    {"name": "slow", "file": "scripts/slow.py", "runtime": "python"}],
+  "rights": [{"right": "send", "what": ["send"], "why": "sends outside"}]}`)
 
 // toolCall makes a call of a deck tool the way a provider shows it, so deck's watch of the turn sees it.
 func toolCall(ctx context.Context, c *harness.Call, id, name string, args map[string]any) string {

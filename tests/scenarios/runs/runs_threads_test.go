@@ -528,7 +528,7 @@ func TestAStepGetsOnlyAnIntegerRecordAndAFailedStepIsSeen(t *testing.T) {
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Count."}}`,
 		`"input": {"type": "object", "properties": {"process": {"type": "integer", "format": "process"}, "record": {"type": "string"}}},
      "result": {"type": "object"}, "executor": {"type": "agent", "prompt": "Count."}},
-    {"name": "label", "title": "Label", "description": "Labels a clip.", "class": "internal",
+    {"name": "label", "title": "Label", "description": "Labels a clip.",
      "input": {"type": "object", "properties": {"record": {"type": "integer"}, "process": {"type": "integer", "format": "process"}}},
      "result": {"type": "object"}, "executor": {"type": "script", "script": "label"}}`, 1)
 	m = strings.Replace(m, `{"after": "check", "command": "tally"}`, `{"after": "check", "command": "tally"}, {"after": "check", "command": "label"}`, 1)

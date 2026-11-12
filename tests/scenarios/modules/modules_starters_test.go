@@ -197,7 +197,7 @@ func TestAStarterReadsInBothLanguages(t *testing.T) {
 	en, deckOwn := page("en")
 	ru, _ := page("ru")
 	for _, w := range []string{"Free models", "Strengths", "already added", "$0.1 / $0.4 · input / output per 1M tokens",
-		"A module calls the model by its role: `@tts`", "Assign it to this role in Settings → Models", "Proposals"} {
+		"A module calls the model by its role: `@tts`", "When the model is in Settings → Models, [assign it to this role]", "Proposals"} {
 		if !strings.Contains(en, w) {
 			t.Errorf("in English the screens say %q", w)
 		}
@@ -207,7 +207,7 @@ func TestAStarterReadsInBothLanguages(t *testing.T) {
 		t.Errorf("the English screens hold no Russian: %s", russian)
 	}
 	for _, w := range []string{"Бесплатные модели", "Чем хороша", "уже добавлена", "$0.1 / $0.4 · вход / выход за 1M токенов",
-		"Модуль зовёт модель по роли: `@tts`", "Назначьте её на эту роль в Настройках → Модели", "Предложения"} {
+		"Модуль зовёт модель по роли: `@tts`", "Когда модель есть в Настройках → Модели, [назначьте её на эту роль]", "Предложения"} {
 		if !strings.Contains(ru, w) {
 			t.Errorf("in Russian the screens say %q", w)
 		}

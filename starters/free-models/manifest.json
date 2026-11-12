@@ -1102,7 +1102,7 @@
             {
               "label": "Role in deck",
               "markdown": true,
-              "bind": "kind in ['image', 'video', 'tts', 'stt', 'music'] ? 'A module calls the model by its role' + ': `@' + kind + '`. [' + 'Assign it to this role in Settings → Models' + '](' + '#/deck/settings?tab=Models&dialog=assign&role=' + kind + ').' : nil"
+              "bind": "kind in ['image', 'video', 'tts', 'stt', 'music'] ? 'A module calls the model by its role' + ': `@' + kind + '`. ' + 'When the model is in Settings → Models,' + ' [' + 'assign it to this role' + '](' + '#/deck/settings?tab=Models&dialog=assign&role=' + kind + ').' : nil"
             },
             {
               "label": "How to connect",
@@ -1434,7 +1434,8 @@
       "input / output per 1M tokens": "вход / выход за 1M токенов",
       "already added": "уже добавлена",
       "A module calls the model by its role": "Модуль зовёт модель по роли",
-      "Assign it to this role in Settings → Models": "Назначьте её на эту роль в Настройках → Модели"
+      "When the model is in Settings → Models,": "Когда модель есть в Настройках → Модели,",
+      "assign it to this role": "назначьте её на эту роль"
     }
   }
 }

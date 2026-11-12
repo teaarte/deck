@@ -76,7 +76,7 @@ line of a screen says only what is not seen below. A new screen of deck adds a r
 |---|---|---|
 | Tiles | Open deck and see in a second where something waits. | the state as an icon and a word on the tile (TestRealBrowserOneAccent); D3 |
 | Today | In 2 seconds it is seen whether something waits for an answer, and it can be answered right here. | one fill — at the first decision (TestRealBrowserOneAccent); D4 |
-| Module screen | It is seen what the module does now, and it can be given something new. | D3: the state line and "Assign …" |
+| Module screen | It is seen what the module does now, and it can be given something new. | D3: the state line and "Give a task …" |
 | Settings | First it is seen whether everything works; the rest is by tabs. | D6 |
 | Schedule | It is seen what failed, and it can be rerun with one button. | D6 |
 | Spending | How much was paid in money and how much the subscription covered. | D6 |

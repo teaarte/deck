@@ -15,9 +15,9 @@ import (
 // Russian are the files that keep Russian, each with why; a folder ends in /. The list only shrinks.
 var Russian = map[string]string{
 	"install.sh":                                         "a Russian yes to the installer's question",
-	"internal/app/documents/search.go":                   "Russian endings and ё of the search of memory",
+	"internal/app/documents/search.go":                   "Russian endings and the letter yo of the search of memory",
 	"internal/gateway/approve.go":                        "a request named in Russian in a question",
-	"internal/store/migrations/00068_memory_trigram.sql": "ё folded in the index of memory",
+	"internal/store/migrations/00068_memory_trigram.sql": "the Russian yo folded in the index of memory",
 	"web/src/settings/Appearance.tsx":                    "the name of the Russian language in Russian",
 	"web/dist/":                                          "the build of the client: ru.json and libraries",
 	"skills/module-builder/SKILL.md":                     "examples of a module's translations",

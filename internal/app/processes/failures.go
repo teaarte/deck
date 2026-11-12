@@ -52,8 +52,13 @@ func (s *Service) Incident(ctx context.Context, p db.Process, kind, text string)
 	if err != nil || p.Trial == 1 || proj.Builtin == 1 {
 		return
 	}
+	note := text
+	if kind == process.IncidentAfter {
+		// deck noted a trigger it did not start already.
+		note = ""
+	}
 	s.handOver(ctx, proj, manifest.OnIncident, fmt.Sprintf("%s%d.%s", incidentPrefix, p.ID, kind), 0,
-		map[string]any{"process": p.ID, "incident": kind, "text": text}, text, nil)
+		map[string]any{"process": p.ID, "incident": kind, "text": text}, note, nil)
 }
 
 // Due hands the master the processes that handed in their result and still run long after.

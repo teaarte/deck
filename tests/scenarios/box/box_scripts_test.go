@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -382,7 +383,7 @@ print(json.dumps({"read": can_read(inp["other"]), "write": can_write(os.path.joi
 }
 
 const homeScript = harness.PythonLib + `
-import subprocess
+import subprocess, time
 inp = json.load(sys.stdin)
 home = os.path.expanduser(inp["home"])
 tool = subprocess.run(["tool"], capture_output=True, text=True)
@@ -791,4 +792,36 @@ print(json.dumps({"read": can_read(os.path.join(inp["folder"], "secret.txt"))}))
 	if runtime.GOOS == "linux" && (p.State != "error" || !strings.Contains(p.Error, "a link a program could have made")) {
 		t.Fatalf("on Linux deck builds no box through such a link and says why: %+v", p)
 	}
+}
+
+// survivorScript starts a child that leaves the process group of its box with setsid, writes its pid in the data
+// folder and lives on, then hands in its result.
+const survivorScript = harness.PythonLib + `
+import subprocess, time
+child = "import os, time\nopen(os.path.join(os.environ['DECK_DATA'], 'child.pid'), 'w').write(str(os.getpid()))\ntime.sleep(300)\n"
+subprocess.Popen([sys.executable, "-c", child], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+while not os.path.exists(os.path.join(os.environ["DECK_DATA"], "child.pid")):
+    time.sleep(0.05)
+print(json.dumps({"ok": True}))
+`
+
+// TestAChildOfAScriptThatLeavesItsGroupEndsWithTheProcess: a child a script starts in a session of its own does not
+// outlive the process: deck ends every process the box started, not only its group.
+func TestAChildOfAScriptThatLeavesItsGroupEndsWithTheProcess(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	pid := e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	e.SaveScript("tools", "scripts/main.py", survivorScript)
+	if p := e.WaitState(e.Start("tools", "collect", map[string]any{"n": 1}), "done", "error"); p.State != "done" {
+		t.Fatalf("the script runs: %+v %+v", p, e.Fault(p.ID))
+	}
+	b, err := os.ReadFile(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Data(pid), "child.pid"))
+	child, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	if err != nil || child == 0 {
+		t.Fatalf("the child wrote its pid: %q %v", b, err)
+	}
+	t.Cleanup(func() { _ = syscall.Kill(child, syscall.SIGKILL) })
+	harness.UntilWithin(t, 10*time.Second, "the end of the child that left the group of its box", func() bool {
+		return syscall.Kill(child, 0) != nil
+	})
 }

@@ -14,7 +14,8 @@ import (
 	"time"
 )
 
-// Proc is the program of a box running: a process group of its own, ended whole once the program exits.
+// Proc is the program of a box running: a process group of its own, ended whole with every process it started once
+// the program exits.
 type Proc struct {
 	// Stdin and Stdout are pipes to the program when its IO gave none.
 	Stdin  io.WriteCloser
@@ -77,6 +78,7 @@ func start(cmd *exec.Cmd, door *Door, o IO, secrets []string) (*Proc, error) {
 		return fail(err)
 	}
 	cmd.Stderr, theirs, copies = w, append(theirs, w), append(copies, c)
+	end := descend(cmd)
 	err = cmd.Start()
 	if err == nil {
 		p.pid = cmd.Process.Pid
@@ -95,6 +97,7 @@ func start(cmd *exec.Cmd, door *Door, o IO, secrets []string) (*Proc, error) {
 	go func() {
 		p.err = cmd.Wait()
 		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		end()
 		late, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		for _, c := range copies {
 			c.drain(late)

@@ -160,7 +160,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 
 	a.Secrets = secrets.Service{St: st, Emit: a.Bus.Emit, Home: h}
 	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Invoke: a.Registry.Invoke}
-	a.Journal = journal.Service{St: st, Now: cfg.Now, Groups: a.Work.Groups}
+	a.Journal = journal.Service{St: st, Now: cfg.Now, Groups: a.Work.Groups, Explain: a.Gateway.Explain}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
 	a.Themes = themes.Service{St: st, Now: cfg.Now, Home: h, Invoke: a.Registry.Invoke, Language: a.Settings.Language,
 		Picked: a.Settings.Theme, Pick: a.Settings.SetTheme, Keep: a.Files.Keep, Thumb: a.Files.Thumb, Drop: a.Files.Drop}
@@ -211,7 +211,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}
 	a.Feed = feed.Service{St: st, Now: cfg.Now,
-		Home: h, Invoke: a.Registry.Invoke, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.Gives, Reads: a.Chats.LangOf}
+		Home: h, Invoke: a.Registry.Invoke, Call: a.Gateway.CallAs, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.Gives, Reads: a.Chats.LangOf}
 	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
 		Works: a.Work.Works}
 	a.Health = apphealth.Service{St: st, Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Work.Unassigned, NoSearch: a.Work.NoSearch, Missing: a.Work.Missing,
@@ -389,6 +389,7 @@ func (a *App) slow(ctx context.Context, now time.Time) {
 	cancel()
 	a.Themes.Thumbs(ctx)
 	a.Files.Thumbs(ctx)
+	a.Answers.Consent(ctx, now)
 }
 
 // daily is the work of the loop that may take minutes once a day: the cleanup and snapshot, and the look for an

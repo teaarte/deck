@@ -178,25 +178,30 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		if !ok || r.Listed == 0 || r.Spec != SpecID(s) || len(s.ToolFilter) > 0 && !slices.Contains(s.ToolFilter, r.Name) {
 			continue
 		}
-		right, class := manifest.ServerRight(s, r.Name), registry.External
-		if right == manifest.Network {
-			class = registry.Internal
-		}
+		right := manifest.ServerRight(s, r.Name)
 		print := r.Spec + "/" + r.Fingerprint
 		need := registry.Need{Right: right, Subject: r.Server + "." + r.Name, Print: print}
-		c := registry.Loose(p.Name+"."+r.Server+"."+r.Name, cmp.Or(r.Title, r.Name), cmp.Or(r.Description, r.Name), class, registry.Everyone, json.RawMessage(r.Input),
-			x.handler(p, r.Server, s, m, r.Name, class, r.Fingerprint)).Foreign()
+		c := registry.Loose(p.Name+"."+r.Server+"."+r.Name, cmp.Or(r.Title, r.Name), cmp.Or(r.Description, r.Name), registry.Everyone, json.RawMessage(r.Input),
+			x.handler(p, r.Server, s, m, r.Name, right == manifest.Send, r.Fingerprint)).Foreign()
 		c.ProjectID = p.ID
-		c.Gate = registry.Gate{Journals: right == manifest.Send,
-			Fingerprint: func(context.Context, int64, int64, json.RawMessage) string { return print },
-			Target:      func(string, json.RawMessage) string { return "server " + r.Server + ", tool " + r.Name },
-			Needs:       func(context.Context, registry.Actor, string, json.RawMessage) registry.Need { return need }}
+		if right == manifest.Network {
+			// A tool that only reaches the hosts the box of the server holds stays in deck's sight.
+			c.Stays()
+		} else {
+			c.Gate = registry.Gate{
+				Subject: func(context.Context, registry.At, json.RawMessage) registry.Subject {
+					return registry.Subject{Print: print, Where: "server " + r.Server + ", tool " + r.Name}
+				},
+				Needs: func(context.Context, registry.Actor, registry.Subject, json.RawMessage) ([]registry.Need, error) {
+					return []registry.Need{need}, nil
+				}}
+		}
 		out = append(out, c)
 	}
 	return out, nil
 }
 
-func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, m *manifest.Manifest, tool, class, print string) registry.Handler {
+func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, m *manifest.Manifest, tool string, external bool, print string) registry.Handler {
 	name := p.Name + "." + server + "." + tool
 	frozen := SpecID(s) + "/" + print
 	same := func(list []*mcp.Tool) error {
@@ -211,7 +216,6 @@ func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, m *mani
 		return registry.Refuse("%s changed since this call was checked; it was not made, call it again", name)
 	}
 	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
-		external := class == registry.External
 		spec, err := x.spec(ctx, p, server, s, m)
 		if err == nil && external {
 			var intent int64

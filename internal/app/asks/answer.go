@@ -5,13 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
 	"deck2/internal/ask"
-	"deck2/internal/docs"
 	"deck2/internal/gateway"
-	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -40,10 +39,10 @@ func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswe
 			return nil, err
 		}
 	}
-	if q.State == ask.StateExpired && (q.Kind == ask.KindCall || q.Kind == ask.KindConfirm) {
+	if q.State == ask.StateExpired && q.Kind == ask.KindCall {
 		return s.dismissExpired(ctx, q, in.Answer)
 	}
-	if err := ask.Check(q.Kind, in.Answer); err != nil {
+	if err := ask.Check(q, in.Answer); err != nil {
 		return nil, err
 	}
 	if out, ok, err := s.Shown(ctx, act, q, in.Answer); ok {
@@ -60,8 +59,8 @@ func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswe
 
 // dismissExpired clears an expired confirmation on deny; the agent was already told it expired.
 func (s *Service) dismissExpired(ctx context.Context, q db.Ask, answer string) (any, error) {
-	if answer != "deny" && !strings.HasPrefix(answer, "deny:") {
-		return nil, registry.Conflict("this confirmation expired and the agent was told no; it can only be cleared")
+	if !ask.Denies(answer) {
+		return nil, registry.Conflict("this request expired and the caller was told no; it can only be cleared")
 	}
 	err := s.St.Tx(ctx, func(ctx context.Context, tq *db.Queries) error {
 		_, err := tq.DismissExpiredAsk(ctx, q.ID)
@@ -73,88 +72,44 @@ func (s *Service) dismissExpired(ctx context.Context, q db.Ask, answer string) (
 	return map[string]any{"ok": true}, nil
 }
 
-// decide answers a frozen call or an unknown outcome: allowing or retrying makes the call now and delivers what it
-// gave, allowing always also keeps the right it needs for its module; refusing or counting it done only tells the process.
+// decide answers a frozen call or an unknown outcome: a yes makes the call and keeps the answer to its right, for
+// always or the work of its process; a no tells the caller and is kept for a right its module declared.
 func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, error) {
-	if err := ask.Check(q.Kind, answer); err != nil {
-		return nil, err
-	}
-	run := answer == "allow" || answer == "allow_always" || answer == ask.UnknownRetry
-	switch {
-	case run:
-		if q.State != ask.StateOpen {
-			return nil, ask.ErrNotOpen
-		}
+	if !slices.Contains([]string{"allow", gateway.AllowWork, gateway.AllowAlways, ask.UnknownRetry}, answer) {
 		if q.Kind == ask.KindCall {
-			switch got, err := s.settle(ctx, q, true); {
-			case err != nil:
+			if err := s.Gateway.Deny(ctx, act, q, answer); err != nil {
 				return nil, err
-			case got == gateway.InForce && answer == "allow_always":
-				return map[string]any{"ok": true, "in_force": true}, s.allowAlways(ctx, act, q)
-			case got == gateway.InForce:
-				return map[string]any{"ok": true, "in_force": true}, nil
-			case got == gateway.Changed:
-				return nil, gateway.ErrStale
 			}
+			s.LateAnswer(ctx, q)
+			return map[string]any{"ok": true}, nil
 		}
-		var then func() error
-		if answer == "allow_always" {
-			then = func() error { return s.allowAlways(ctx, act, q) }
-		}
-		out, err := s.Gateway.Decide(ctx, act, q, answer, then)
-		if errors.Is(err, ask.ErrNotOpen) {
-			return nil, err
-		}
-		s.LateAnswer(ctx, q)
-		if err != nil {
-			return out, err
-		}
-		return map[string]any{"ok": true, "result": out}, nil
-	default:
 		if err := s.Broker.Answer(ctx, q.ID, answer); err != nil {
 			return nil, err
 		}
-		if q.Kind == ask.KindCall {
-			s.Gateway.Record(ctx, q, "rejected", "the owner said no")
-		}
 		return map[string]any{"ok": true}, nil
 	}
-}
-
-// allowAlways keeps the owner's always to the right a frozen call needs, for its module: the same right on the same
-// subject at its print runs without asking; one of the module's own counts only while its manifest declares it.
-func (s *Service) allowAlways(ctx context.Context, act registry.Actor, q db.Ask) error {
-	f, err := ask.Decode[gateway.Frozen](q.Payload)
-	if err != nil {
-		return err
+	if q.State != ask.StateOpen {
+		return nil, ask.ErrNotOpen
 	}
-	p, err := s.St.Q.GetProject(ctx, q.ProjectID.Int64)
-	if err != nil {
-		return registry.Invalid("only a call of a module can be allowed always")
-	}
-	c, err := s.Registry.Lookup(ctx, p.WorkspaceID, f.Call.Command)
-	if err != nil {
-		return registry.Invalid("%s is gone: allow it once", f.Call.Command)
-	}
-	if c.Class != registry.External {
-		return registry.Invalid("%s needs no right, so there is nothing to allow always", c.Name)
-	}
-	n := s.Gateway.Need(ctx, registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID}, c, f.Tool, f.Call.Input)
-	if n.Subject == "" {
-		return registry.Invalid("deck could not tell what %s acts on, so it can be allowed only once", c.Name)
-	}
-	if c.ProjectID == p.ID {
-		m, err := docs.Manifest(ctx, s.St.Q, p)
-		if err != nil {
-			return err
-		}
-		if !m.Declares(n) {
-			return registry.Invalid("%s does not declare the right %s on %s, so it can be allowed only once; the module declares it in rights", p.Name, n.Right, n.Subject)
+	if q.Kind == ask.KindCall {
+		switch got, err := s.settle(ctx, q, true); {
+		case err != nil:
+			return nil, err
+		case got == gateway.InForce:
+			return map[string]any{"ok": true, "in_force": true}, nil
+		case got == gateway.Changed:
+			return nil, gateway.ErrStale
 		}
 	}
-	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return docs.Grant(ctx, q, act, p.ID, n, manifest.Always, s.Now())
-	})
+	out, err := s.Gateway.Decide(ctx, act, q, answer)
+	if errors.Is(err, ask.ErrNotOpen) {
+		return nil, err
+	}
+	s.LateAnswer(ctx, q)
+	if err != nil {
+		return out, err
+	}
+	return map[string]any{"ok": true, "result": out}, nil
 }
 
 // LateAnswer delivers an answer nobody was waiting for live; an answer to a process that has finished goes to the
@@ -198,7 +153,7 @@ func (s *Service) ExpireAsks(ctx context.Context, now time.Time) {
 func (s *Service) answerCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("ask_answer", "Answer",
-			"Answers what waits for the owner: a question with text; a confirmation with allow, allow_always, deny or deny:<reason>; a login with retry or new_session; an unknown outcome with retry or done. Deny on an expired confirmation clears it.",
-			registry.OwnerOnly, s.askAnswer),
+			"Answers what waits for the owner: a question with text; a request about a call with allow (once), allow_work (for the work of its process), allow_always or deny (no, which a module that declared the right does not ask again; deny:<reason> tells why); a sign-in of a provider with retry or new_session; an unknown outcome with retry or done. Deny on an expired request clears it.",
+			registry.OwnerOnly, s.askAnswer).Stays(),
 	}
 }

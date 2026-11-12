@@ -111,7 +111,7 @@ func (a *Adapter) box(project int64, argv []string, hostsOf []string) sandbox.Bo
 
 func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []string {
 	args := []string{"-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose",
-		"--strict-mcp-config", "--mcp-config", mcp, "--settings", settings, "--permission-mode", "auto"}
+		"--strict-mcp-config", "--mcp-config", mcp, "--settings", settings, "--permission-mode", mode()}
 	if a.model != "" {
 		args = append(args, "--model", a.model)
 	}
@@ -137,7 +137,11 @@ func (a *Adapter) args(req provider.Request, mcp, settings, plugin string) []str
 	if req.PermissionMCP != "" {
 		args = append(args, "--permission-prompt-tool", req.PermissionMCP)
 	}
-	args = append(args, "--allowedTools", strings.Join(append(slices.Clone(freeTools), req.AllowedTools...), ","))
+	free := slices.Clone(freeTools)
+	if sandbox.Homed() {
+		free = append(free, boxTools...)
+	}
+	args = append(args, "--allowedTools", strings.Join(append(free, req.AllowedTools...), ","))
 	if req.Resume {
 		return append(args, "--resume", req.SessionID)
 	}
@@ -348,4 +352,13 @@ func (a *Adapter) Move(project int64, session string) error {
 		}
 	}
 	return nil
+}
+
+// mode is the permission mode of a turn: in a box of its own the default, its tools allowed by deck and bounded by the
+// box; outside one the CLI's auto mode, as the owner's Mac runs it.
+func mode() string {
+	if sandbox.Homed() {
+		return "default"
+	}
+	return "auto"
 }

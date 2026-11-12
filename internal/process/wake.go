@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
+	"deck2/internal/ask"
 	"deck2/internal/fault"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -112,6 +114,13 @@ func wakers() map[string]waker {
 				return r.deps.Goes(ctx, h.WorkspaceID, h.Process.Provider), nil
 			},
 			busy: func(r *Runner, ctx context.Context, h db.ListHeldRow) { r.reassigned(ctx, h.WorkspaceID, h.Process) }},
+		WaitRight: {
+			key: func(h db.ListHeldRow) string { return "right:" + h.Process.WaitOn },
+			free: func(r *Runner, ctx context.Context, h db.ListHeldRow) (bool, *slot) {
+				id, _ := strconv.ParseInt(h.Process.WaitOn, 10, 64)
+				a, err := r.st.Q.GetAsk(ctx, id)
+				return err != nil || a.State != ask.StateOpen, nil
+			}},
 		WaitSlot: {
 			key: func(h db.ListHeldRow) string { return fmt.Sprint("slot:", h.WorkspaceID) },
 			free: func(r *Runner, ctx context.Context, h db.ListHeldRow) (bool, *slot) {
@@ -243,7 +252,7 @@ func (r *Runner) heldTurn(ctx context.Context, p db.Process) (turn, error) {
 	if p.WaitFresh == 0 {
 		t.resume, t.message = true, w.Message
 		pending, _ := r.untold(ctx, p.ID)
-		if more := pending.except(w.told, ""); !more.empty() {
+		if more := pending.except(w.told, nil); !more.empty() {
 			t.message = strings.TrimSpace(t.message + "\n" + more.message())
 			t.asks = t.asks.add(more.ids())
 		}

@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/events"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"math"
@@ -14,6 +15,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -27,6 +29,8 @@ type Service struct {
 	Now func() time.Time
 	// Groups give the group of a model of a workspace where models are listed, in a language, and its place.
 	Groups func(ctx context.Context, workspace int64, lang string) func(model string) (string, int)
+	// Explain is how the gateway would decide a call now.
+	Explain func(ctx context.Context, act registry.Actor, command string, input json.RawMessage) (gateway.Verdict, error)
 }
 
 type callsListIn struct {
@@ -36,14 +40,15 @@ type callsListIn struct {
 	Process int64  `opt:"" desc:"Only the calls of this process"`
 }
 
-// callRow is a call of the gateway: who called what, of which class, and how it ended.
+// callRow is a call of the gateway: who called what, with the right it needed, and how it ended.
 type callView struct {
-	ID         int64  `json:"id"`
-	Tool       string `json:"tool"`
-	Actor      string `json:"actor"`
-	Project    string `json:"project"`
-	Process    int64  `json:"process"`
-	Class      string `json:"class"`
+	ID      int64  `json:"id"`
+	Tool    string `json:"tool"`
+	Actor   string `json:"actor"`
+	Project string `json:"project"`
+	Process int64  `json:"process"`
+	// Need is the right of deck's catalog the call needed, empty for one that stayed in deck.
+	Need       string `json:"need"`
 	Outcome    string `json:"outcome"`
 	ExternalID string `json:"external_id"`
 	Error      string `json:"error"`
@@ -69,7 +74,7 @@ func (s *Service) callsList(ctx context.Context, act registry.Actor, in callsLis
 	out := make([]callView, 0, len(rows))
 	for _, c := range rows {
 		out = append(out, callView{ID: c.ID, Tool: c.Tool, Actor: c.Actor, Project: names[c.ProjectID.Int64], Process: c.ProcessID.Int64,
-			Class: c.Class, Outcome: c.Outcome, ExternalID: c.ExternalID, Error: c.Error, Params: c.Params, CreatedAt: c.CreatedAt})
+			Need: c.Need, Outcome: c.Outcome, ExternalID: c.ExternalID, Error: c.Error, Params: c.Params, CreatedAt: c.CreatedAt})
 	}
 	return out, nil
 }
@@ -378,9 +383,9 @@ func (s *Service) titles(ctx context.Context, act registry.Actor, in spendDaysLi
 
 // Commands are the commands of the journal.
 func (s *Service) Commands() []*registry.Command {
-	return []*registry.Command{
+	return append(s.explainCommands(),
 		registry.Read("calls_list", "Journal of calls",
-			"Lists the calls of the gateway, newest first: tool, who, project, process, class, outcome, external id and error; params only of external and waiting calls.",
+			"Lists the calls of the gateway, newest first: tool, who, project, process, the right of deck's catalog it needed (empty for one that stayed in deck), outcome, external id and error; params only of calls that needed a right.",
 			registry.OwnerOnly, s.callsList).On(events.Calls),
 		registry.Read("spend_list", "Spend",
 			"Lists the tokens and cost of model calls by project, command, provider and model, the largest first.",
@@ -388,5 +393,5 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Read("spend_days_list", "Spend by day",
 			"Gives the tokens, calls and cost of model calls of the last days: a row for every day, or the totals of each provider or project with their share; by provider also the runs each model did.",
 			registry.OwnerOnly, s.spendDaily).On(events.Usage, events.Processes),
-	}
+	)
 }

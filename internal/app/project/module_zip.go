@@ -237,6 +237,6 @@ func (s *Service) moduleZipCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_export", "Export project",
 			"Keeps a .zip of the documents of a project to share as a module: manifest, prompts, skills, scripts and the other documents; with data, also its records, memory and data folder, which an import brings back, not the documents of its records or its stored files; never its secrets. The result names the file.",
-			registry.OwnerOnly, s.projectExport),
+			registry.OwnerOnly, s.projectExport).Stays(),
 	}
 }

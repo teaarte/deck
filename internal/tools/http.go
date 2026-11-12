@@ -52,13 +52,17 @@ func (h *HTTP) Command(p db.Project, t manifest.HTTPTool, domains []string) *reg
 		need.Print = ""
 	}
 	sends := right == manifest.Send
-	c := registry.Loose(p.Name+"."+t.Name, cmp.Or(t.Title, t.Name), t.Description, registry.External, registry.Everyone, t.Input, h.handler(p, t, domains, sends))
+	c := registry.Loose(p.Name+"."+t.Name, cmp.Or(t.Title, t.Name), t.Description, registry.Everyone, t.Input, h.handler(p, t, domains, sends))
 	c.Result, c.ProjectID = t.Result, p.ID
-	c.Gate = registry.Gate{Journals: sends,
-		Fingerprint: func(context.Context, int64, int64, json.RawMessage) string { return print },
-		Target:      func(_ string, input json.RawMessage) string { return t.Method + " " + target(t, input) },
-		Needs:       func(context.Context, registry.Actor, string, json.RawMessage) registry.Need { return need },
-		ConfirmTTL:  time.Duration(t.ConfirmTTLMinutes) * time.Minute}
+	c.Gate = registry.Gate{
+		Subject: func(_ context.Context, _ registry.At, input json.RawMessage) registry.Subject {
+			return registry.Subject{Print: print, Where: t.Method + " " + target(t, input)}
+		},
+		Needs: func(context.Context, registry.Actor, registry.Subject, json.RawMessage) ([]registry.Need, error) {
+			return []registry.Need{need}, nil
+		},
+		Undo: undoOf(p.Name, t.Undo),
+		Term: time.Duration(t.ConfirmTTLMinutes) * time.Minute}
 	return c
 }
 
@@ -210,4 +214,20 @@ func (h *HTTP) response(act registry.Actor, t manifest.HTTPTool, resp *http.Resp
 		return nil, "", err
 	}
 	return map[string]any{"file": name, "type": ct, "size": n}, "", nil
+}
+
+// undoOf is the undo of a call of a command or tool of a module that names one: the call of that one with the same
+// input; nil when it names none.
+func undoOf(project, undo string) func(context.Context, int64, json.RawMessage) (string, json.RawMessage, bool) {
+	if undo == "" {
+		return nil
+	}
+	return func(_ context.Context, _ int64, input json.RawMessage) (string, json.RawMessage, bool) {
+		return project + "." + undo, input, true
+	}
+}
+
+// UndoOf is undoOf for the commands of a module.
+func UndoOf(project, undo string) func(context.Context, int64, json.RawMessage) (string, json.RawMessage, bool) {
+	return undoOf(project, undo)
 }

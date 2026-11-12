@@ -343,7 +343,7 @@ func (s *Service) layoutCommands() []*registry.Command {
 			registry.OwnerSide, s.layout).On(events.Settings, events.Projects),
 		registry.Def("layout_set", "Arrange the tiles",
 			"Keeps where the cards of the tiles stand on a device for a number of columns, in cells.",
-			registry.OwnerSide, s.layoutSet),
+			registry.OwnerSide, s.layoutSet).Stays(),
 	}
 }
 

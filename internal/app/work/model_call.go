@@ -168,7 +168,9 @@ func (s *Service) callCommands() []*registry.Command {
 	c := registry.Def("model_call", "Ask a model",
 		"Asks the model assigned to a kind of work, or one named: text by a JSON schema, a picture or an edit of the one in file, speech of text, text of a recording, music or a video from its first and last frames; pictures, sound and video come back as files.",
 		registry.Everyone, s.modelCall)
-	c.Class, c.Gate.Allowed, c.Gate.Free, c.Gate.OwnYes, c.Gate.Needs = registry.External, s.allowed, s.free, true, s.moneyNeed
-	c.Gate.Fingerprint = func(context.Context, int64, int64, json.RawMessage) string { return gateway.ModelCommand }
+	c.Gate.Needs = s.moneyNeeds
+	c.Gate.Subject = func(context.Context, registry.At, json.RawMessage) registry.Subject {
+		return registry.Subject{Print: gateway.ModelCommand}
+	}
 	return []*registry.Command{c}
 }

@@ -127,7 +127,7 @@ type CommandView struct {
 	Title       string          `json:"title"`
 	Description string          `json:"description"`
 	Input       json.RawMessage `json:"input"`
-	Class       string          `json:"class"`
+	NeedsRight  bool            `json:"needs_right"`
 }
 
 // Commands are what the owner may call, each as command_describe tells it.

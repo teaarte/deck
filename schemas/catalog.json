@@ -303,7 +303,7 @@
         "project": {"type": "string"},
         "screen": {"type": "string"},
         "record": {"type": "integer"},
-        "class": {"type": "string", "description": "Class of the command of a custom block's button; the host asks the owner before one that is not internal."},
+        "stays": {"type": "boolean", "description": "The command of a custom block's button needs no right of deck's catalog; the host asks the owner before one that may."},
         "from_block": {"type": "array", "items": {"type": "string"}, "description": "The fields a custom block's call fills beside params; the host refuses any other."},
         "from_items": {"type": "array", "items": {"type": "string"}, "description": "The fields of from_block that name a record: the host takes only the id of an item of the block or of the record of its page."},
         "confirm": {"type": "boolean", "description": "The client asks the owner before the call: a button of deck that deletes or revokes."}, "hold": {"type": "boolean", "description": "The call goes a few seconds after the press, while a note on the screen offers to take it back; for an answer the owner may change their mind about, such as a decision."},

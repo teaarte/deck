@@ -10,6 +10,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/gateway"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -32,61 +33,28 @@ const proposalDiff = 2000
 func (s *Service) proposeCommands() []*registry.Command {
 	c := registry.Def("document_propose", "Propose a document change",
 		"Proposes a new text of a skill file or of a memory fact of the owner or a module, or deleting a fact, with why; the owner makes the change with one button, and without the owner's yes the document stays as it is.",
-		registry.OwnerSide, s.documentPropose).As(registry.External)
-	// The owner says yes to the diff the ask shows; a button the master drew does not stand for it.
-	c.Gate.OwnYes = true
-	c.Gate.Allowed = func(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
-		return s.proposal(ctx, act, input)
-	}
-	c.Gate.Free = s.proposal
-	// The fingerprint is the revision the proposal changes, so a yes does not apply it over a newer text.
-	c.Gate.Fingerprint = func(ctx context.Context, workspace, _ int64, input json.RawMessage) string {
-		_, cur, err := s.proposed(ctx, s.St.Q, registry.Actor{Kind: registry.Master, Workspace: workspace}, input)
+		registry.OwnerSide, s.documentPropose)
+	// The subject is the revision the proposal changes, so a yes does not apply it over a newer text.
+	c.Gate.Subject = func(ctx context.Context, at registry.At, input json.RawMessage) registry.Subject {
+		in, cur, err := s.proposed(ctx, s.St.Q, registry.Actor{Kind: registry.Master, Workspace: at.Workspace}, input)
+		if in.Delete && errors.Is(err, errGone) {
+			return registry.Subject{InForce: true}
+		}
 		if err != nil {
-			return ""
+			return registry.Subject{}
 		}
-		return fmt.Sprintf("document %d revision %d", cur.DocumentID, cur.N)
-	}
-	c.Gate.Holds = func(ctx context.Context, workspace int64, input json.RawMessage) bool {
-		in, cur, err := s.proposed(ctx, s.St.Q, registry.Actor{Kind: registry.Master, Workspace: workspace}, input)
-		if in.Delete {
-			return errors.Is(err, errGone)
-		}
-		return err == nil && cur.Text == in.Text
-	}
-	c.Gate.Target = func(print string, input json.RawMessage) string {
-		var in documentProposeIn
-		_ = json.Unmarshal(input, &in)
 		where := in.Name
 		if in.Project != "" {
 			where += " of " + in.Project
 		}
-		var r db.GetRevisionParams
-		if _, err := fmt.Sscanf(print, "document %d revision %d", &r.DocumentID, &r.N); err != nil {
-			return where + ": " + in.Reason
-		}
-		old, err := s.St.Q.GetRevision(context.Background(), r)
-		if err != nil {
-			return where + ": " + in.Reason
-		}
-		return where + ": " + in.Reason + "\n" + docs.Diff(old.Text, in.Text)
-	}
-	c.Gate.Changes = func(print string, input json.RawMessage) []string {
-		var in documentProposeIn
-		_ = json.Unmarshal(input, &in)
+		out := registry.Subject{Print: fmt.Sprintf("document %d revision %d", cur.DocumentID, cur.N), InForce: !in.Delete && cur.Text == in.Text,
+			Where: where + ": " + in.Reason + "\n" + docs.Diff(cur.Text, in.Text)}
 		if in.Delete {
-			return []string{fmt.Sprintf("Delete %s", in.Name)}
-		}
-		var r db.GetRevisionParams
-		if _, err := fmt.Sscanf(print, "document %d revision %d", &r.DocumentID, &r.N); err != nil {
-			return []string{fmt.Sprintf("Rewrite %s", in.Name)}
-		}
-		old, err := s.St.Q.GetRevision(context.Background(), r)
-		if err != nil {
-			return []string{fmt.Sprintf("Rewrite %s", in.Name)}
+			out.Where, out.Changes = where+": "+in.Reason, []string{fmt.Sprintf("Delete %s", in.Name)}
+			return out
 		}
 		added, removed := 0, 0
-		for _, l := range strings.Split(docs.Diff(old.Text, in.Text), "\n") {
+		for _, l := range strings.Split(docs.Diff(cur.Text, in.Text), "\n") {
 			switch {
 			case strings.HasPrefix(l, "+ "):
 				added++
@@ -94,10 +62,19 @@ func (s *Service) proposeCommands() []*registry.Command {
 				removed++
 			}
 		}
-		if added+removed == 0 {
-			return nil
+		out.Changes = []string{}
+		if added+removed > 0 {
+			out.Changes = []string{fmt.Sprintf("Rewrite %s: %d lines added, %d removed", in.Name, added, removed)}
 		}
-		return []string{fmt.Sprintf("Rewrite %s: %d lines added, %d removed", in.Name, added, removed)}
+		return out
+	}
+	// The owner says yes to the diff the request shows; a press or an answer for the work does not stand for it.
+	asked := gateway.Itself(c.Name, true)
+	c.Gate.Needs = func(ctx context.Context, act registry.Actor, sub registry.Subject, input json.RawMessage) ([]registry.Need, error) {
+		if done, err := s.proposal(ctx, act, input); err != nil || done {
+			return nil, err
+		}
+		return asked(ctx, act, sub, input)
 	}
 	return []*registry.Command{c}
 }

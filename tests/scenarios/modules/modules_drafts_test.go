@@ -155,15 +155,15 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 		t.Fatalf("an external command of the master outside the allowed list waits for the owner: %d %s", code, out)
 	}
 	var params string
-	var calls []struct{ Tool, Class, Params string }
+	var calls []struct{ Tool, Need, Params string }
 	e.Must("deck.calls_list", map[string]any{"outcome": "waiting"}, &calls)
 	for _, c := range calls {
-		if c.Tool == "notes.send" && c.Class == "external" {
+		if c.Tool == "notes.send" && c.Need == "send" {
 			params = c.Params
 		}
 	}
 	if params != `{"retry_key":"x"}` {
-		t.Fatalf("the journal keeps the parameters of a call that is not internal: %q", params)
+		t.Fatalf("the journal keeps the parameters of a call that needs a right: %q", params)
 	}
 }
 

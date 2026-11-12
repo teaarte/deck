@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
-	"strconv"
+	"slices"
 	"strings"
 	"time"
 
 	"deck2/internal/ask"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -69,12 +69,6 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 	until := g.cfg.Now().Add(s.wait(g.cfg.QuestionWait))
 	text := strings.Join(texts, "\n")
 	open, _ := g.st.Q.ListOpenAsksOfProcess(ctx, s.ProcessID)
-	for _, o := range open {
-		if o.State == ask.StateOpen && o.Kind != ask.KindQuestion && names(text, o.ID) {
-			return decision{Behavior: "deny", Message: fmt.Sprintf("deck: ask %d already waits for the owner, and deck brings you how they decide on it: "+
-				"do not ask them about it. Go on with other work, or end your turn and deck resumes this session with the answer.", o.ID)}
-		}
-	}
 	a, err := g.again(open, text), error(nil)
 	if a.ID == 0 {
 		// A question waits as long as a confirmation; at its term the agent goes on without the answer.
@@ -98,19 +92,6 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 	}
 	upd["answers"] = QuestionAnswers(texts, answer)
 	return decision{Behavior: "allow", UpdatedInput: upd}
-}
-
-// named finds an ask named in the text of a question: the word ask, request or запрос before its number, or its link.
-var named = regexp.MustCompile(`(?i)(?:(?:^|[^\p{L}\p{N}_])(?:ask|request|confirmation|запрос\p{L}*|подтверждени\p{L}*)\s*[#№]?\s*|focus=)(\d+)`)
-
-// names says the text of a question names ask id.
-func names(text string, id int64) bool {
-	for _, m := range named.FindAllStringSubmatch(text, -1) {
-		if m[1] == strconv.FormatInt(id, 10) {
-			return true
-		}
-	}
-	return false
 }
 
 // again is the open question of the process with the same text that no call waits on any more, which a question asked
@@ -144,58 +125,124 @@ func QuestionAnswers(texts []string, answer string) map[string]string {
 	return answers
 }
 
-// ConfirmPayload is the frozen call a confirmation is about; an "allow" answer permits exactly this call once.
-func ConfirmPayload(tool string, input map[string]any) string {
-	b, _ := json.Marshal(map[string]any{"tool": tool, "input": input})
-	return string(b)
-}
-
 // TrialRefusal is what an agent in a trial run gets for any call that needs the owner's confirmation.
 const TrialRefusal = "deck: trial run: external actions are declined; this call was not made."
 
+// confirm decides a call of a tool of the agent's provider as any call is decided: by the table, with the owner's
+// answer waited for while the turn waits.
 func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) decision {
-	payload := ConfirmPayload(in.ToolName, in.Input)
-	if s.Trial {
-		g.log(ctx, s, in.ToolName, "external", "rejected", payload)
-		return decision{Behavior: "deny", Message: TrialRefusal}
+	act := s.actor()
+	input, _ := json.Marshal(in.Input)
+	params := Canonical(input)
+	v := g.turnVerdict(ctx, act, in.ToolName, input)
+	switch v.Does {
+	case DoRefuse:
+		g.log(ctx, s, in.ToolName, "", "rejected", params)
+		if v.Name == "draft" {
+			return decision{Behavior: "deny", Message: TrialRefusal}
+		}
+		return decision{Behavior: "deny", Message: "deck: " + v.Text}
+	case DoAsk:
+	default:
+		if g.taken(ctx, act, in.ToolName, input, v) {
+			g.log(ctx, s, in.ToolName, "", "done", params)
+			return decision{Behavior: "allow", UpdatedInput: in.Input}
+		}
 	}
-	consumed := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.ConsumeApproval(ctx, db.ConsumeApprovalParams{ProcessID: s.ProcessID, Payload: payload, Now: store.Time(g.cfg.Now())})
-		return err
-	})
-	if consumed == nil {
-		g.log(ctx, s, in.ToolName, "external", "done", payload)
-		return decision{Behavior: "allow", UpdatedInput: in.Input}
-	}
-	g.log(ctx, s, in.ToolName, "external", "waiting", payload)
-	params, _ := json.Marshal(in.Input)
-	text := fmt.Sprintf("Agent wants %s with %s", in.ToolName, untrusted.Cut(string(params), 500))
-	now := g.cfg.Now()
-	var expires time.Time
-	if ttl := g.confirmTTL(ctx, s.Workspace); ttl > 0 {
-		expires = now.Add(ttl)
-	}
-	a, err := g.asks.CreateRaw(ctx, s.ProcessID, ask.KindConfirm, text, payload, expires)
+	a, err := g.turnRequest(ctx, act, in.ToolName, input)
 	if err != nil {
-		return decision{Behavior: "deny", Message: "deck: could not request confirmation: " + err.Error()}
+		return decision{Behavior: "deny", Message: "deck: could not ask the owner: " + err.Error()}
 	}
-	answer, ok := g.awaitOwner(ctx, s, a.ID, now.Add(s.wait(g.cfg.ConfirmWait)))
+	answer, ok := g.awaitOwner(ctx, s, a.ID, g.cfg.Now().Add(s.wait(g.cfg.ConfirmWait)))
 	if !ok {
 		return decision{Behavior: "deny", Message: "deck: waiting for the owner to confirm this call; it was not made." + stopAndWait}
 	}
-	if answer == "allow" {
-		n, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-			return q.UseApproval(ctx, db.UseApprovalParams{ID: a.ID, Now: store.Time(g.cfg.Now())})
-		})
-		if err != nil || n == 0 {
-			return decision{Behavior: "deny", Message: "deck: this approval was already used by an identical call."}
-		}
-		g.log(ctx, s, in.ToolName, "external", "done", "")
+	if v := g.turnVerdict(ctx, act, in.ToolName, input); v.Does != DoAsk && v.Does != DoRefuse && g.taken(ctx, act, in.ToolName, input, v) {
+		g.delivered(ctx, a.ID)
+		g.log(ctx, s, in.ToolName, "", "done", params)
 		return decision{Behavior: "allow", UpdatedInput: in.Input}
 	}
 	g.delivered(ctx, a.ID)
-	g.log(ctx, s, in.ToolName, "external", "rejected", "")
+	g.log(ctx, s, in.ToolName, "", "rejected", params)
 	return decision{Behavior: "deny", Message: RejectMessage(answer)}
+}
+
+// turnVerdict decides a call of a tool of the agent's provider: deck's to answer, for the work of the turn or once.
+func (g *Gateway) turnVerdict(ctx context.Context, act registry.Actor, tool string, input json.RawMessage) Verdict {
+	v := Verdict{Facts: Facts{Needs: true, Declared: true, Draft: act.Trial}}
+	allows, _ := g.allowsOf(ctx, act)
+	same := Canonical(input)
+	for _, a := range allows {
+		switch {
+		case a.Command != tool:
+		case a.Any:
+			v.Facts.Answer = Work
+		case Canonical(a.Params) == same:
+			v.Facts.Pressed = true
+		}
+	}
+	v.Row = decide(v.Facts)
+	return v
+}
+
+// taken takes the yes a row of a turn's call stands on: a call allowed once is taken; one for the work stays.
+func (g *Gateway) taken(ctx context.Context, act registry.Actor, tool string, input json.RawMessage, v Verdict) bool {
+	if v.Name != "pressed" {
+		return true
+	}
+	took := false
+	same := Canonical(input)
+	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		p, err := q.GetProcess(ctx, act.ProcessID)
+		if err != nil {
+			return err
+		}
+		var as []Allow
+		_ = json.Unmarshal([]byte(p.Allows), &as)
+		i := slices.IndexFunc(as, func(a Allow) bool { return a.Command == tool && !a.Any && Canonical(a.Params) == same })
+		if i < 0 {
+			return nil
+		}
+		took = true
+		return q.SetProcessAllows(ctx, db.SetProcessAllowsParams{Allows: allowsText(slices.Delete(as, i, i+1)), ID: p.ID})
+	})
+	return took
+}
+
+// turnRequest is the request of a call of a tool of the agent's provider the turn waits on: the open one of the same
+// call when an earlier call gave up waiting on it, else a new one.
+func (g *Gateway) turnRequest(ctx context.Context, act registry.Actor, tool string, input json.RawMessage) (db.Ask, error) {
+	f := Freeze(act, tool, input)
+	f.As = AsTurn
+	if act.ProcessID != 0 && !act.Trial {
+		f.Offers = []string{Work}
+	}
+	same := Canonical(input)
+	open, err := g.st.Q.ListOpenAsksOfProcess(ctx, act.ProcessID)
+	if err != nil {
+		return db.Ask{}, err
+	}
+	for _, o := range open {
+		old, err := ask.Decode[Frozen](o.Payload)
+		if err == nil && o.Kind == ask.KindCall && old.As == AsTurn && old.Call.Command == tool && Canonical(old.Call.Input) == same {
+			if !g.asks.Rejoin(o.ID) {
+				return db.Ask{}, fmt.Errorf("an identical call already waits for the owner (ask %d)", o.ID)
+			}
+			return o, nil
+		}
+	}
+	var expires time.Time
+	if ttl := g.confirmTTL(ctx, act.Workspace); ttl > 0 {
+		expires = g.cfg.Now().Add(ttl)
+	}
+	text := fmt.Sprintf("Agent wants %s with %s", tool, untrusted.Cut(same, 500))
+	a, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {
+		return Hold(ctx, q, act, act.ProjectID, act.ProcessID, ask.KindCall, "", text, f, expires, g.cfg.Now())
+	})
+	if err == nil && !g.asks.Rejoin(a.ID) {
+		err = fmt.Errorf("ask %d has a waiter already", a.ID)
+	}
+	return a, err
 }
 
 // RejectMessage turns a "deny" or "deny:<reason>" answer into the refusal text the agent gets.
@@ -213,19 +260,31 @@ func RejectMessage(answer string) string {
 	return msg
 }
 
-// awaitOwner waits until the owner answers ask id or until passes, with the ceiling of the process paused
-// meanwhile; the ceiling runs again even when the call went away.
+// awaitOwner waits until the owner answers ask id or until passes, with the ceiling of the process paused while any
+// call of it waits for the owner; the ceiling runs again once none does, even when the call went away.
 func (g *Gateway) awaitOwner(ctx context.Context, s *Session, id int64, until time.Time) (string, bool) {
-	g.ceiling(ctx, s.ProcessID, false)
-	defer g.ceiling(context.WithoutCancel(ctx), s.ProcessID, true)
+	g.waits(ctx, s.ProcessID, 1)
+	defer g.waits(context.WithoutCancel(ctx), s.ProcessID, -1)
 	return g.asks.Wait(ctx, id, until)
 }
 
-// ceiling runs or pauses the ceiling of a process: it does not tick while the owner owes a blocking answer.
-func (g *Gateway) ceiling(ctx context.Context, processID int64, run bool) {
+// waits counts the calls of a process that wait for the owner: the first pauses its ceiling, the last runs it again.
+func (g *Gateway) waits(ctx context.Context, processID int64, by int) {
+	g.mu.Lock()
+	n := g.owed[processID] + by
+	if n <= 0 {
+		delete(g.owed, processID)
+	} else {
+		g.owed[processID] = n
+	}
+	edge := by > 0 && n == 1 || by < 0 && n <= 0
+	g.mu.Unlock()
+	if !edge {
+		return
+	}
 	now := g.cfg.Now().UnixMilli()
 	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if run {
+		if by < 0 {
 			return q.StartCeiling(ctx, db.StartCeilingParams{Now: now, ID: processID})
 		}
 		return q.PauseCeiling(ctx, db.PauseCeilingParams{Now: now, ID: processID})

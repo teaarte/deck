@@ -101,8 +101,10 @@ type Gateway struct {
 
 	mu       sync.Mutex
 	sessions map[string]*entry
-	tokens   map[int64]*automationEntry
-	handler  http.Handler
+	// waiting counts the calls of each process that wait for the owner, which pause its ceiling.
+	owed    map[int64]int
+	tokens  map[int64]*automationEntry
+	handler http.Handler
 }
 
 type entry struct {
@@ -120,7 +122,7 @@ type entry struct {
 
 func New(cfg Config, deps Deps) *Gateway {
 	g := &Gateway{cfg: cfg, st: deps.Store, asks: deps.Asks, reg: deps.Registry, clear: deps.Registry.Clearance(),
-		sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}}
+		sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}, owed: map[int64]int{}}
 	bus := deps.Bus
 	g.handler = stateful(g.serverFor)
 	bus.Follow(cfg.Go, []string{events.Projects, events.Tools}, func(ctx context.Context, _ int64, _ []string) { g.renew(ctx) })
@@ -208,7 +210,7 @@ func (g *Gateway) Close(tok string) {
 }
 
 // AllowedTools lists the gateway tools the provider may call without the approve round-trip, every one, since the
-// gateway applies the class rules itself.
+// gateway decides each call itself.
 func (g *Gateway) AllowedTools(tok string) []string {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -406,79 +408,73 @@ func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json
 	return res
 }
 
-// call runs a registry command for a caller other than the owner: the class rules decide whether it runs now, by the
-// owner's press that named it, or waits for the owner; the journal keeps it with the class of the command.
+// call runs a registry command for a caller other than the owner, as the table of decisions says: now, waiting for the
+// owner, or refused; the journal keeps it with the right it needs.
 func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, args json.RawMessage) (any, error) {
-	why := registry.WhyOf(args)
-	act.Why = cmp.Or(act.Why, why)
+	act.Why = cmp.Or(act.Why, registry.WhyOf(args))
 	c, input, err := g.reg.Resolve(ctx, act, name, args)
-	class, project := registry.Internal, act.ProjectID
+	project := act.ProjectID
+	params := ""
 	if c != nil {
-		class = c.Class
 		if project == 0 || c.ProjectID != 0 {
 			project = c.ProjectID
 		}
-	}
-	params := ""
-	if class != registry.Internal {
-		params = Canonical(args)
-		if err == nil {
-			params = Canonical(input)
-		}
-	}
-	if err == nil && class != registry.Internal && !act.Cleared(c.Name) && act.Kind != registry.Owner {
-		var now, press bool
-		if now, err = g.gate(ctx, act, c, project, input); err == nil && !now {
-			if press, err = g.pressed(ctx, act, c, input); err == nil {
-				if press {
-					g.wrote(ctx, act, c)
-					return g.byPress(ctx, act, c, project, input)
-				}
-				var out any
-				if out, err = g.hold(ctx, act, c, project, input, why); err == nil {
-					if _, same := out.(Unchanged); same {
-						g.journal(ctx, act, project, name, class, "unchanged", params, "")
-					} else {
-						g.wrote(ctx, act, c)
-					}
-					return out, nil
-				}
+		if c.Gated() {
+			params = Canonical(args)
+			if err == nil {
+				params = Canonical(input)
 			}
 		}
-		act = g.clear.Clear(act, c.Name)
+	}
+	var v Verdict
+	if err == nil {
+		v, err = g.verdict(ctx, act, c, project, input, true)
+	}
+	right := ""
+	if v.Need != nil {
+		right = v.Need.Right
+	}
+	if err == nil && v.Does == DoRefuse {
+		err = v.refusal(c, g.projectName(ctx, project))
 	}
 	if err != nil {
-		g.journal(ctx, act, project, name, class, "rejected", params, err.Error())
+		g.journal(ctx, act, project, name, right, "rejected", params, err.Error())
 		return nil, err
 	}
-	out, err := g.reg.Invoke(ctx, act, name, input)
-	if err == nil {
-		g.wrote(ctx, act, c)
+	switch v.Does {
+	case DoUnchanged:
+		g.journal(ctx, act, project, name, right, "unchanged", params, "")
+		return Unchanged{Unchanged: true, Text: fmt.Sprintf("deck: %s changes nothing, it is so already; no request went to the owner.", c.Name)}, nil
+	case DoAsk:
+		return g.request(ctx, act, c, project, input, v)
 	}
-	if !c.Gate.Journals {
-		outcome, text := "done", ""
-		if err != nil {
-			outcome, text = "rejected", err.Error()
-		}
-		g.journal(ctx, act, project, name, class, outcome, params, text)
-	}
-	return out, err
+	return g.made(ctx, act, c, project, input, v, params)
 }
 
-func (g *Gateway) log(ctx context.Context, s *Session, tool, class, outcome, params string) {
-	g.journal(ctx, s.actor(), s.ProjectID, tool, class, outcome, params, "")
+// projectName is the name of a project for the words of a refusal.
+func (g *Gateway) projectName(ctx context.Context, project int64) string {
+	p, err := g.st.Q.GetProject(ctx, project)
+	if err != nil {
+		return "this module"
+	}
+	return p.Name
+}
+
+func (g *Gateway) log(ctx context.Context, s *Session, tool, right, outcome, params string) {
+	g.journal(ctx, s.actor(), s.ProjectID, tool, right, outcome, params, "")
 }
 
 // Journal writes a call to the journal for a command that writes its own line: one the owner made past the gateway,
 // such as a delete from a screen, or a read of the web with the address it read.
-func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params, errText string) {
-	g.journal(ctx, act, project, tool, class, outcome, params, errText)
+func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64, tool, right, outcome, params, errText string) {
+	ownLine(ctx)
+	g.journal(ctx, act, project, tool, right, outcome, params, errText)
 }
 
-func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params, errText string) {
+func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool, right, outcome, params, errText string) {
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(),
-			Caller: frozenCaller(act), Tool: tool, Class: class, Outcome: outcome, Params: params, Error: errText})
+			Caller: frozenCaller(act), Tool: tool, Need: right, Outcome: outcome, Params: params, Error: errText})
 		return err
 	})
 	if err != nil {
@@ -486,7 +482,7 @@ func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64
 	}
 }
 
-// Command looks a registry command up for callers that need its class.
+// Command looks a registry command up for callers that need its declaration.
 func (g *Gateway) Command(ctx context.Context, workspace int64, name string) (*registry.Command, error) {
 	return g.reg.Lookup(ctx, workspace, name)
 }

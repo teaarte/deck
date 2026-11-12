@@ -144,7 +144,7 @@ func (s *Service) tokenRevoke(ctx context.Context, act registry.Actor, in tokenR
 	if n == 0 {
 		return nil, registry.NotFound("no active token %d", in.Token)
 	}
-	s.Journal(ctx, act, 0, registry.Deck("token_revoke"), registry.External, "done", fmt.Sprintf(`{"token": %d}`, in.Token), "")
+	s.Journal(ctx, act, 0, registry.Deck("token_revoke"), "", "done", fmt.Sprintf(`{"token": %d}`, in.Token), "")
 	return map[string]any{"revoked": in.Token}, nil
 }
 
@@ -157,12 +157,12 @@ func (s *Service) tokenCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("token_create", "Create automation token",
 			"Creates a token for a terminal agent, Shortcuts or a script; it acts as the master and may call only the listed commands.",
-			registry.OwnerOnly, s.tokenCreate),
+			registry.OwnerOnly, s.tokenCreate).Stays(),
 		registry.Read("tokens_list", "Automation tokens",
 			"Lists automation tokens by name with their commands, never the tokens themselves; revoked ones too.",
 			registry.OwnerSide, s.tokensList).On(events.Devices).NoTokens(),
 		registry.Def("token_revoke", "Revoke token",
 			"Revokes an automation token; calls with it are refused from then on.",
-			registry.OwnerOnly, s.tokenRevoke).As(registry.External),
+			registry.OwnerOnly, s.tokenRevoke).Stays(),
 	}
 }

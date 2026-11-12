@@ -40,8 +40,8 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 	e.Secret("notes", "svc", "s3cret-value\n")
 
 	for _, c := range e.Commands() {
-		if c.Name == "notes.post" && c.Class != "external" {
-			t.Fatalf("a tool without a class is external: %+v", c)
+		if c.Name == "notes.post" && !c.NeedsRight {
+			t.Fatalf("a tool that posts needs a right: %+v", c)
 		}
 	}
 
@@ -430,7 +430,7 @@ func TestConfirmationRejectedWithReason(t *testing.T) {
 	p := e.Project("ideas", harness.IdeasManifest)
 	id := e.Run(p, "collect")
 	a := e.WaitAsk()
-	if a.Kind != "confirm" || !strings.Contains(a.Text, "git push") {
+	if a.Kind != "call" || !strings.Contains(a.Text, "git push") {
 		t.Fatalf("unexpected ask %+v", a)
 	}
 	e.Answer(a.ID, "deny:not now")

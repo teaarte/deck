@@ -716,8 +716,11 @@ right. deck's catalog:
 | `modules` | another module, `module.command` |
 
 Ask for roles (`@text`, `@image`, `@tts`, `@stt`), not the owner's connections or model names: another owner has
-their own. Enabling grants every declared right but `send`, which asks the first time; a right declared later the
-owner grants in the module's settings (Access → Rights) or when it is first used. A save that declares something new
+their own. Enabling grants `network` of programs, `data` and `files`; `login`, `money`, `send`, `modules` and the
+network of agents the owner answers the first time they are used: once, for this work, always or no (a no is kept).
+A turn that needs a login or its agents' network waits for that answer before it starts; a script's call through
+`$DECK_MODELS` is refused and asks the owner once. A right declared later the owner grants in the module's settings
+(Access → Rights) or when it is first used. A save that declares something new
 saves at once and lists it in `ungranted`: tell the owner what to grant and why. The owner's answers live apart from
 the manifest, so an edit never widens what is granted, and always holds to the tool or command as it was: a changed
 one asks again.

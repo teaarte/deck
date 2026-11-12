@@ -167,7 +167,7 @@ func (s *Service) projectsCommands() []*registry.Command {
 			registry.OwnerSide, s.projectsList).On(events.Projects, events.Folders, events.Documents, events.Files, events.Settings),
 		registry.Def("project_create", "Create module",
 			"Creates a project from its name, an md prompt and a manifest; without a manifest it is empty.",
-			registry.OwnerSide, s.projectCreate),
+			registry.OwnerSide, s.projectCreate).Stays(),
 	}
 }
 

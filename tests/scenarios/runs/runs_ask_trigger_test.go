@@ -89,6 +89,8 @@ print(json.dumps(json.load(sys.stdin)))
 	e.Answer(yes, "allow")
 	no, noBy := ask("jobs")
 	e.Answer(no, "deny")
+	// The no is kept for the module, so it would not ask again; the owner takes it back.
+	e.Must("deck.right_set", map[string]any{"project": "jobs", "right": "send", "subject": "publish", "answer": "revoke"}, nil)
 	others, _ := ask("other")
 	e.Answer(others, "deny")
 	late, lateBy := ask("jobs")

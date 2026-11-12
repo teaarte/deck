@@ -419,3 +419,18 @@ and bring the modules in line.
   grants it. What a draft may do is read with `deck.rights_list`, the old read of it gone; the owner answers with `deck.right_set`;
   `manifest_check` and `manifest_save` list `ungranted` instead of `widens`. Stored manifests moved to format 17 and
   keep as always what the owner had granted; an imported module of an older format is raised to it.
+- 2026-11-13: one question at first use. Every call deck decides goes by one table, whose row `deck.call_explain`
+  names for a call by whom (`in_deck`, `owner`, `cleared`, `refused`, `draft`, `draft_tool`, `undeclared`, `denied`,
+  `always`, `for_work`, `pressed`, `in_force`, `ask`). The owner answers a request once, for the work of its process,
+  always or no: `ask_answer` takes `allow`, `allow_work`, `allow_always`, `deny` (a no to a right the module declared
+  is kept, so it does not ask again; `deny:<reason>` refuses that call alone). A call made without the owner that acts
+  in their name, or that deck can take back, is a line among the changes, with the `undo` its command or tool names.
+  A tool of an agent's provider the owner confirms is the same request (`kind: call`); a login of a provider is a
+  `sign_in`; the kinds `confirm` and `login` are gone. Enabling a module gives in advance `network` of its programs,
+  `data` and `files`; `login`, `money`, `send`, `modules` and the network of its agents are asked when first used: a
+  turn waits for the answer before it starts (`waiting`, reason `right`), a script's call through `$DECK_MODELS` is
+  refused and the owner is asked once. `command_describe` says `needs_right` instead of `class`, `calls_list` gives
+  `need` (the right a call needed) instead of `class`, a button of a custom block says `stays` for a command that
+  needs no right. A button a module's agent writes on a note whose command needs a right calls `deck.feed_press`:
+  the call of the module, which asks the owner with what it sends. In deck's box Claude Code runs without its auto
+  mode, its tools bounded by the box, and Codex asks no approvals; outside a box both run as before.

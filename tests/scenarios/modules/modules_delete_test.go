@@ -52,8 +52,8 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	// A failing check of a tool of the project.
 	e.SQL(`INSERT INTO health (workspace_id, project_id, subject, status, error) VALUES (1, ?, 'tool:gone.fetch', 'error', 'x')`, id)
 	// A call of the project in the journal outside any process.
-	e.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome, params)
-		VALUES (1, NULL, ?, 'gone.publish', 'external', 'done', '{"to": "all"}')`, id)
+	e.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, need, outcome, params)
+		VALUES (1, NULL, ?, 'gone.publish', 'send', 'done', '{"to": "all"}')`, id)
 	var procs []int64
 	for _, x := range e.Procs() {
 		procs = append(procs, x.ID)
@@ -114,7 +114,7 @@ func TestProjectDeleteTakesASnapshotAndLeavesNothingOfTheProject(t *testing.T) {
 	}
 	var journal []map[string]any
 	e.Must("deck.calls_list", nil, &journal)
-	if len(journal) != 3 || journal[0]["tool"] != "deck.project_delete" || journal[0]["class"] != "external" ||
+	if len(journal) != 3 || journal[0]["tool"] != "deck.project_delete" || journal[0]["need"] != "" ||
 		!strings.Contains(fmt.Sprint(journal[0]["params"]), `"project":"gone"`) || !strings.Contains(fmt.Sprint(journal[1]["params"]), `"project":"reader"`) ||
 		journal[2]["outcome"] != "rejected" || journal[2]["actor"] != "token:1" {
 		t.Fatalf("the deletes and the refused token are in the journal, the calls of the project are not: %+v", journal)
@@ -144,8 +144,8 @@ func TestProjectsTabDeletesAfterAYes(t *testing.T) {
 	}
 	var d harness.CommandView
 	e.Must("deck.command_describe", map[string]any{"command": "deck.project_delete"}, &d)
-	if d.Class != "external" {
-		t.Fatalf("deleting a project is external: %q", d.Class)
+	if !d.NeedsRight {
+		t.Fatal("deleting a project may need a right of the catalog")
 	}
 	if code, out := e.Press(del); code != 200 {
 		t.Fatalf("the button deletes the project: %d %s", code, out)

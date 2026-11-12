@@ -15,16 +15,16 @@ import (
 	"deck2/internal/store/db"
 )
 
+// The kinds of ask: a question of an agent, a request about a call, an unknown outcome and a sign-in.
 const (
 	KindQuestion = "question"
-	KindConfirm  = "confirm"
-	// KindLogin asks the owner to log the provider in again and pick one of LoginAnswers.
-	KindLogin = "login"
-	// KindCall waits for the owner to allow a frozen gateway call that deck then makes itself.
+	// KindCall waits for the owner's answer to a call that needs a right: deck makes it once allowed, or the agent's
+	// turn does for a tool of its provider.
 	KindCall = "call"
 	// KindUnknown is an external call whose outcome deck lost; the owner answers with one of UnknownAnswers.
 	KindUnknown = "unknown"
-	// KindSignIn asks the owner to sign in to a site or service; its payload names the site or the tool.
+	// KindSignIn asks the owner to sign in to a site or service, its payload naming the site or the tool, or to log a
+	// provider in again and pick one of LoginAnswers.
 	KindSignIn = "sign_in"
 )
 
@@ -56,18 +56,34 @@ var answers = map[string]struct {
 	ok  []string
 	say string
 }{
-	KindLogin:   {LoginAnswers, "answer a login ask with retry or new_session"},
+	login:       {LoginAnswers, "answer a sign-in of a provider with retry or new_session"},
 	KindUnknown: {UnknownAnswers, "answer an unknown outcome with retry or done"},
-	KindCall:    {[]string{"allow", "allow_always", "deny", "deny:"}, "answer a confirmation with allow, allow_always, deny or deny:<reason>"},
+	KindCall:    {[]string{"allow", "allow_work", "allow_always", "deny", "deny:"}, "answer a request with allow, allow_work, allow_always, deny or deny:<reason>"},
 }
 
-// Check refuses an answer the kind does not take.
-func Check(kind, answer string) error {
+// login is the key of answers of a sign-in of a provider.
+const login = "sign_in:provider"
+
+// Check refuses an answer the ask does not take.
+func Check(q db.Ask, answer string) error {
+	kind := q.Kind
+	if Provider(q) {
+		kind = login
+	}
 	a, ok := answers[kind]
 	if !ok || slices.ContainsFunc(a.ok, func(o string) bool { return answer == o || strings.HasSuffix(o, ":") && strings.HasPrefix(answer, o) }) {
 		return nil
 	}
 	return registry.Invalid("%s", a.say)
+}
+
+// Provider says an ask is a sign-in of an agent's provider, which the owner answers with retry or new_session.
+func Provider(q db.Ask) bool {
+	if q.Kind != KindSignIn {
+		return false
+	}
+	p, err := Decode[SignIn](q.Payload)
+	return err == nil && p.Provider
 }
 
 // New stores an ask a process waits on in the caller's transaction; a zero expires is no deadline.
@@ -83,12 +99,9 @@ func ForProject(ctx context.Context, q *db.Queries, workspace, project, processI
 	return heard(ctx, q, a, err)
 }
 
-// Confirmations are the kinds of ask whose close the module of the process that asked hears.
-var Confirmations = []string{KindCall, KindConfirm}
-
-// heard keeps a new confirmation of a process for its module to hear how it closes.
+// heard keeps a new request of a process for its module to hear how it closes.
 func heard(ctx context.Context, q *db.Queries, a db.Ask, err error) (db.Ask, error) {
-	if err != nil || !a.ProcessID.Valid || !slices.Contains(Confirmations, a.Kind) {
+	if err != nil || !a.ProcessID.Valid || a.Kind != KindCall {
 		return a, err
 	}
 	return a, q.AddUnheardAsk(ctx, a.ID)
@@ -264,3 +277,6 @@ func (b *Broker) Answer(ctx context.Context, id int64, answer string) error {
 	}
 	return nil
 }
+
+// Denies says an answer is a no: deny, or deny with a reason after it.
+func Denies(answer string) bool { return answer == "deny" || strings.HasPrefix(answer, "deny:") }

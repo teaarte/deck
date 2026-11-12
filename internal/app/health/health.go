@@ -195,7 +195,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerSide, s.shown).On(events.Health, events.Secrets, events.Projects, events.Models, events.Assignments, events.Triggers, events.Documents),
 		registry.Def("health_mark_seen", "Mark a failing check read",
 			"Marks a failing check read: it stops counting among the failing until its status or error changes.",
-			registry.OwnerOnly, s.seen),
+			registry.OwnerOnly, s.seen).Stays(),
 	}
 }
 

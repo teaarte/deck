@@ -179,7 +179,7 @@ func TestCodexEscalationWaitsForTheOwner(t *testing.T) {
 		p := e.Project("outside", harness.OnLogin(outsideManifest))
 		id := e.Run(p, "work")
 		a := e.WaitAsk()
-		if a.Kind != "confirm" || !strings.Contains(a.Text, "shell") || !strings.Contains(a.Text, "deck-codex-outside.txt") {
+		if a.Kind != "call" || !strings.Contains(a.Text, "shell") || !strings.Contains(a.Text, "deck-codex-outside.txt") {
 			t.Fatalf("%s: the escalation reaches the owner as a confirmation of the command: %+v", tc.fixture, a)
 		}
 		e.Answer(a.ID, tc.answer)
@@ -302,7 +302,7 @@ func TestCodexFileChangeConfirmationShowsTheChange(t *testing.T) {
 	}) {
 		t.Fatalf("other tool items of Codex are tool calls in the log too: %v", l)
 	}
-	if a.Kind != "confirm" || !strings.Contains(a.Text, "apply_patch") || !strings.Contains(a.Text, "/Users/owner/notes.txt") {
+	if a.Kind != "call" || !strings.Contains(a.Text, "apply_patch") || !strings.Contains(a.Text, "/Users/owner/notes.txt") {
 		t.Fatalf("the owner sees which file the patch changes: %+v", a)
 	}
 	if l := e.Log(id); !slices.ContainsFunc(l, func(x map[string]any) bool {

@@ -73,25 +73,23 @@ RETURNING *;
 
 
 -- name: ExpireStaleAsks :many
--- The asks past their term: confirmations, and the questions and logins a process waits on.
+-- The asks past their term: requests about calls, and the questions and sign-ins a process waits on.
 UPDATE ask SET state = 'expired'
-WHERE (kind IN ('confirm', 'call') OR kind IN ('question', 'login') AND process_id IS NOT NULL)
+WHERE (kind = 'call' OR kind IN ('question', 'sign_in') AND process_id IS NOT NULL)
   AND state = 'open' AND expires_at <= CAST(sqlc.arg(now) AS TEXT) RETURNING *;
 
 
--- name: ConsumeApproval :one
-UPDATE ask SET state = 'used', delivered_at = CAST(sqlc.arg(now) AS TEXT)
-WHERE id = (
-    SELECT a.id FROM ask a
-    WHERE a.process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND a.kind = 'confirm' AND a.state = 'answered' AND a.answer = 'allow'
-      AND a.payload = sqlc.arg(payload)
-    ORDER BY a.id LIMIT 1)
-AND state = 'answered'
-RETURNING *;
+-- name: ListOpenProjectAsks :many
+SELECT * FROM ask WHERE project_id IS sqlc.arg(project_id) AND process_id IS NULL AND state = 'open' ORDER BY id;
 
 
--- name: UseApproval :execrows
-UPDATE ask SET state = 'used', delivered_at = CAST(sqlc.arg(now) AS TEXT) WHERE id = sqlc.arg(id) AND state = 'answered';
+-- name: ListRecentRequests :many
+SELECT project_id, created_at, shown_at, answered_at, answer FROM ask
+WHERE workspace_id = sqlc.arg(workspace_id) AND kind = 'call' AND created_at >= CAST(sqlc.arg(since) AS TEXT) ORDER BY id;
+
+
+-- name: ShowAsks :exec
+UPDATE ask SET shown_at = CAST(sqlc.arg(now) AS TEXT) WHERE workspace_id = sqlc.arg(workspace_id) AND state = 'open' AND shown_at IS NULL;
 
 
 -- name: FindOpenCallAsk :one
@@ -112,7 +110,7 @@ UPDATE ask SET state = 'open', answer = '' WHERE id = ? AND state = 'answered';
 
 -- name: ListWorkspaceExpiredConfirms :many
 SELECT * FROM ask
-WHERE workspace_id = sqlc.arg(workspace_id) AND state = 'expired' AND kind IN ('confirm', 'call')
+WHERE workspace_id = sqlc.arg(workspace_id) AND state = 'expired' AND kind = 'call'
   AND expires_at <= CAST(sqlc.arg(now) AS TEXT)
 ORDER BY id;
 
@@ -179,7 +177,7 @@ DELETE FROM process_remark WHERE id = ? AND process_id = ? AND delivered_at IS N
 
 
 -- name: ListAnsweredAsksOfProcess :many
-SELECT kind, text, answer FROM ask WHERE process_id = ? AND state IN ('answered', 'used') AND answer != '' ORDER BY id;
+SELECT kind, text, answer FROM ask WHERE process_id = ? AND state = 'answered' AND answer != '' ORDER BY id;
 
 
 -- name: AddUnheardAsk :exec
@@ -195,3 +193,7 @@ ORDER BY a.id;
 
 -- name: HearAsk :exec
 DELETE FROM ask_unheard WHERE ask_id = ?;
+
+
+-- name: ListAsksOfProcess :many
+SELECT * FROM ask WHERE process_id = ? ORDER BY id DESC;

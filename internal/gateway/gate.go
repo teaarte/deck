@@ -2,26 +2,19 @@ package gateway
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"slices"
-	"strings"
 	"time"
 
 	"deck2/internal/ask"
-	"deck2/internal/docs"
-	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
-	"deck2/internal/untrusted"
 )
 
-// Waiting is what a caller gets for a call that waits for the owner's confirmation.
+// Waiting is what a caller gets for a call that waits for the owner's answer.
 type Waiting struct {
 	Ask  int64  `json:"waiting"`
 	Text string `json:"text"`
@@ -63,28 +56,42 @@ func (c Caller) actor() registry.Actor {
 		TriggerID: c.Trigger, Confirmed: c.Trigger != 0, Token: c.Token, Commands: c.Commands}
 }
 
-// Frozen is a call with its parameters as they were when it was asked for: a call that waits for a yes, a
-// change of rights.
+// Frozen is a call with its parameters as they were when the owner was asked about it.
 type Frozen struct {
 	Call struct {
 		Command string          `json:"command"`
 		Input   json.RawMessage `json:"input"`
 	} `json:"call"`
 	Caller Caller `json:"caller"`
-	// As is AsOwner for a call the owner's yes makes as the owner, else empty: as the caller.
+	// As is AsOwner for a call the owner's yes makes as the owner, AsTurn for one the agent's turn makes itself, else
+	// empty: deck makes it as the caller.
 	As string `json:"as,omitempty"`
-	// Tool is the fingerprint of the tool, so a changed tool is not made on an old yes.
+	// Tool is the print of what the call acts on, so a changed subject is not made on an old yes.
 	Tool string `json:"tool,omitempty"`
-	// Target is where the call goes, as the owner reads it: method and URL, a page, a server and tool.
+	// Target is where the call goes or what it changes, as the owner reads it.
 	Target string `json:"target,omitempty"`
+	// Changes are the places it changes, a line each, when its command can tell; Sets the places it sets.
+	Changes []string `json:"changes,omitempty"`
+	Sets    []string `json:"sets,omitempty"`
+	// Need is the right of the catalog the owner's answer goes to.
+	Need *registry.Need `json:"need,omitempty"`
+	// Offers are the answers the owner may give beside once: work, always, no.
+	Offers []string `json:"offers,omitempty"`
 	// Reason is why the caller asks.
 	Reason string `json:"reason,omitempty"`
 	// Replaces are the calls of the same caller this one took the place of while they waited.
 	Replaces []int64 `json:"replaces,omitempty"`
 }
 
-// AsOwner makes a frozen call as the owner who allows it.
-const AsOwner = "owner"
+// What a frozen call is made as.
+const (
+	// AsOwner makes a frozen call as the owner who allows it.
+	AsOwner = "owner"
+	// AsTurn is a call of a tool of the agent's provider: the turn makes it itself once allowed.
+	AsTurn = "turn"
+	// AsStart is a right a turn needs before it starts, the login of a CLI or the network of the shells of agents.
+	AsStart = "start"
+)
 
 // Freeze is a call of the actor as it is now.
 func Freeze(act registry.Actor, command string, input json.RawMessage) Frozen {
@@ -98,19 +105,20 @@ func (f Frozen) String() string {
 	return string(b)
 }
 
-// Hold keeps a frozen call of a project in an ask of kind until the owner decides, with its row in the journal.
-func Hold(ctx context.Context, q *db.Queries, act registry.Actor, project, process int64, kind, class, text string, f Frozen, expires, now time.Time) (db.Ask, error) {
+// Hold keeps a frozen call of a project in an ask of kind until the owner decides, with its row in the journal under
+// the right it needs.
+func Hold(ctx context.Context, q *db.Queries, act registry.Actor, project, process int64, kind, right, text string, f Frozen, expires, now time.Time) (db.Ask, error) {
 	a, err := ask.ForProject(ctx, q, act.Workspace, project, process, kind, text, f.String(), expires)
 	if err != nil {
 		return a, err
 	}
 	_, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(now), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project),
-		Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Class: class, Outcome: "waiting", Params: Canonical(f.Call.Input),
+		Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Need: right, Outcome: "waiting", Params: Canonical(f.Call.Input),
 		AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
 	return a, err
 }
 
-// Canonical is JSON with sorted keys and numbers as they came, so the same input compares equal.
+// Canonical is JSON with sorted keys and numbers as they came, as the owner and the journal read an input.
 func Canonical(raw json.RawMessage) string {
 	d := json.NewDecoder(bytes.NewReader(raw))
 	d.UseNumber()
@@ -122,195 +130,10 @@ func Canonical(raw json.RawMessage) string {
 	return string(b)
 }
 
-// gate reports whether a call that needs a right runs now: when its project holds the right; a draft declines it,
-// and a tool of a draft or a trial waits for the owner.
-func (g *Gateway) gate(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) (bool, error) {
-	if project == 0 {
-		if c.Gate.Allowed != nil {
-			return c.Gate.Allowed(ctx, act, input, false)
-		}
-		return false, nil
-	}
-	p, err := g.st.Q.GetProject(ctx, project)
-	if err != nil {
-		return false, err
-	}
-	if c.Gate.Fingerprint != nil && (act.Trial || p.Status == store.ProjectDraft) {
-		if c.Gate.Free == nil {
-			return false, nil
-		}
-		return c.Gate.Free(ctx, act, input)
-	}
-	var print string
-	if c.Gate.Fingerprint != nil {
-		print = c.Gate.Fingerprint(ctx, act.Workspace, project, input)
-	}
-	n := g.Need(ctx, act, c, print, input)
-	if p.Status == store.ProjectDraft {
-		return false, registry.Refuse("%s is a draft: %s needs the right %s, so it was declined until the owner enables the project", p.Name, c.Name, n.Right)
-	}
-	m, granted, err := docs.Rights(ctx, g.st.Q, project)
-	if err != nil {
-		return false, err
-	}
-	if granted.Denies(n) {
-		return false, registry.Refuse("the owner said no to %s using the right %s on %s, so it was not made and is not asked again", p.Name, n.Right, n.Subject)
-	}
-	held := m.Holds(granted, n) || c.ProjectID != project && granted.Gives(n)
-	if c.Gate.Allowed != nil {
-		return c.Gate.Allowed(ctx, act, input, held)
-	}
-	return held, nil
-}
-
-// Need is the right of deck's catalog a call of c with input needs, what it acts on at print: what its command says,
-// else send on the command itself.
-func (g *Gateway) Need(ctx context.Context, act registry.Actor, c *registry.Command, print string, input json.RawMessage) registry.Need {
-	if c.Gate.Needs != nil {
-		return c.Gate.Needs(ctx, act, print, input)
-	}
-	return registry.Need{Right: manifest.Send, Subject: c.Name, Print: print}
-}
-
-// fingerprint is what a call acts on beside its input; empty for commands without one and unknown names.
-func (g *Gateway) fingerprint(ctx context.Context, workspace, project int64, name string, input json.RawMessage) string {
-	c, err := g.reg.Lookup(ctx, workspace, name)
-	if err != nil || c.Gate.Fingerprint == nil {
-		return ""
-	}
-	return c.Gate.Fingerprint(ctx, workspace, project, input)
-}
-
-// ttl is how long a confirmation of the command stays open: its tool's own term, else the workspace's.
-func (g *Gateway) ttl(ctx context.Context, c *registry.Command, workspace int64) time.Duration {
-	if c.Gate.ConfirmTTL > 0 {
-		return c.Gate.ConfirmTTL
-	}
-	return g.confirmTTL(ctx, workspace)
-}
-
-func (g *Gateway) confirmTTL(ctx context.Context, workspace int64) time.Duration {
-	if g.cfg.ConfirmTTL == nil {
-		return 0
-	}
-	return g.cfg.ConfirmTTL(ctx, workspace)
-}
-
-// hold freezes a call until the owner decides; the caller goes on with other work. An identical call that is
-// already waiting returns the same ask.
-func (g *Gateway) hold(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, why string) (any, error) {
-	var print string
-	if c.Gate.Fingerprint != nil {
-		print = c.Gate.Fingerprint(ctx, act.Workspace, project, input)
-	}
-	if c.Gate.Holds != nil && c.Gate.Holds(ctx, act.Workspace, input) || c.Gate.Changes != nil && len(c.Gate.Changes(print, input)) == 0 {
-		return Unchanged{Unchanged: true, Text: fmt.Sprintf("deck: %s changes nothing, it is so already; no request went to the owner.", c.Name)}, nil
-	}
-	if registry.IsBuiltin(c.Name) {
-		why = cmp.Or(why, reasonOf(input))
-	}
-	if why == "" && act.Run == "" && (act.Kind == registry.Master || act.Kind == registry.Agent) {
-		return nil, registry.Invalid("%s waits for the owner's yes, and the owner says yes only to what they understand: call it again with %s, "+
-			"one short sentence in the language deck gives of why you need it; nothing was asked or made", c.Name, registry.WhyKey)
-	}
-	target := ""
-	if c.Gate.Target != nil {
-		target = c.Gate.Target(print, input)
-	}
-	f := Freeze(act, c.Name, input)
-	f.Tool, f.Target, f.Reason = print, target, why
-	payload := f.String()
-	process := act.ProcessID
-	if act.Kind == registry.Trigger {
-		process = 0
-	}
-	var expires time.Time
-	if ttl := g.ttl(ctx, c, act.Workspace); ttl > 0 {
-		expires = g.cfg.Now().Add(ttl)
-	}
-	where := ""
-	if target != "" {
-		where = " (" + target + ")"
-	}
-	text := fmt.Sprintf("%s wants %s%s with %s", act.Author(), c.Name, where, untrusted.Cut(Canonical(input), 500))
-	if why != "" {
-		text = untrusted.Line(why, 300) + "\n" + text
-	}
-	var a db.Ask
-	var replaced []db.Ask
-	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		var err error
-		a, err = q.FindOpenCallAsk(ctx, db.FindOpenCallAskParams{ProjectID: project, Payload: payload, ProcessID: process})
-		if err == nil || !errors.Is(err, sql.ErrNoRows) {
-			return err
-		}
-		var same bool
-		if a, replaced, same = replacedBy(ctx, q, c, process, f); same {
-			return nil
-		}
-		f.Replaces = nil
-		for _, r := range replaced {
-			f.Replaces = append(f.Replaces, r.ID)
-		}
-		a, err = Hold(ctx, q, act, project, process, ask.KindCall, c.Class, text, f, expires, g.cfg.Now())
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, r := range replaced {
-		if err := g.asks.Answer(ctx, r.ID, fmt.Sprint(ask.Replaced, a.ID)); err == nil {
-			g.Record(ctx, r, "rejected", fmt.Sprintf("replaced by ask %d of the same caller", a.ID))
-		}
-	}
-	return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s needs a right the owner has not granted this module always, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
-		"Go on with other work: once the owner allows it, deck makes exactly this call and tells you the result.", c.Name, a.ID), Link: ask.Link(a.ID)}, nil
-}
-
 // Unchanged is the answer to a call that would change nothing: no request goes to the owner.
 type Unchanged struct {
 	Unchanged bool   `json:"unchanged"`
 	Text      string `json:"text"`
-}
-
-// reasonOf is the reason the input of one of deck's commands gives, as document_propose does.
-func reasonOf(input json.RawMessage) string {
-	var in struct {
-		Reason string `json:"reason"`
-	}
-	_ = json.Unmarshal(input, &in)
-	return strings.TrimSpace(in.Reason)
-}
-
-// replacedBy are the calls of a process waiting for the owner that a new call of the same command sets all the places
-// of; same is an open call of the same command, input and tool, which the new call is whatever its why.
-func replacedBy(ctx context.Context, q *db.Queries, c *registry.Command, process int64, f Frozen) (db.Ask, []db.Ask, bool) {
-	if process == 0 {
-		return db.Ask{}, nil, false
-	}
-	open, _ := q.ListOpenAsksOfProcess(ctx, process)
-	var sets []string
-	if c.Gate.Sets != nil {
-		sets = c.Gate.Sets(f.Call.Input)
-	}
-	var out []db.Ask
-	for _, o := range open {
-		old, err := ask.Decode[Frozen](o.Payload)
-		if o.Kind != ask.KindCall || o.State != ask.StateOpen || err != nil || old.Call.Command != f.Call.Command {
-			continue
-		}
-		// The same call asked again, in other words of why, is the request already open.
-		if string(old.Call.Input) == string(f.Call.Input) && old.Tool == f.Tool {
-			return o, nil, true
-		}
-		if c.Gate.Sets == nil {
-			continue
-		}
-		if was := c.Gate.Sets(old.Call.Input); len(was) > 0 && !slices.ContainsFunc(was, func(s string) bool { return !slices.Contains(sets, s) }) {
-			out = append(out, o)
-		}
-	}
-	return db.Ask{}, out, false
 }
 
 // Outcome is what a frozen call gave when deck made it: the result, or the error text.
@@ -326,20 +149,38 @@ type retryingKey struct{}
 
 type approvedKey struct{}
 
-// Approved is the fingerprint the owner said yes to, for a tool that checks it again while it acts.
+// Approved is the print the owner said yes to, for a tool that checks it again while it acts.
 func Approved(ctx context.Context) (string, bool) {
 	s, ok := ctx.Value(approvedKey{}).(string)
 	return s, ok
 }
 
-// Decide makes the frozen call the owner allowed and keeps what it gave on the journal row of the ask, answered
-// first, so it runs once; a failing then, or a failing call made as the owner, opens the ask again.
-func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, answer string, then func() error) (any, error) {
+// print is what a frozen call acts on now, as its command sees it; empty for commands without a subject.
+func (g *Gateway) print(ctx context.Context, workspace, project int64, name string, input json.RawMessage) string {
+	c, err := g.reg.Lookup(ctx, workspace, name)
+	if err != nil || c.Gate.Subject == nil {
+		return ""
+	}
+	return c.Gate.Subject(ctx, registry.At{Workspace: workspace, Project: project, Look: true}, input).Print
+}
+
+// Decide keeps the owner's answer to the right of a frozen call, then makes the call once and keeps what it gave; a
+// failing keep or owner's call opens the ask again. A call of the agent's turn gets only the answer.
+func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, answer string) (any, error) {
 	f, err := ask.Decode[Frozen](a.Payload)
 	if err != nil {
 		return nil, err
 	}
-	if f.Tool != g.fingerprint(ctx, f.Caller.Workspace, f.Caller.Project, f.Call.Command, f.Call.Input) {
+	if err := offered(f, answer); err != nil {
+		return nil, err
+	}
+	if f.As == AsTurn || f.As == AsStart {
+		if err := g.keep(ctx, owner, a, f, answer); err != nil {
+			return nil, err
+		}
+		return nil, g.asks.Answer(ctx, a.ID, answer)
+	}
+	if f.Tool != g.print(ctx, f.Caller.Workspace, f.Caller.Project, f.Call.Command, f.Call.Input) {
 		return nil, ErrChanged
 	}
 	n, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
@@ -360,11 +201,9 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 			return errors.Join(q.UndoDecision(ctx, sql.NullInt64{Int64: a.ID, Valid: true}), q.ReopenDecision(ctx, a.ID))
 		})
 	}
-	if then != nil {
-		if err := then(); err != nil {
-			reopen()
-			return nil, err
-		}
+	if err := g.keep(ctx, owner, a, f, answer); err != nil {
+		reopen()
+		return nil, err
 	}
 	act := g.clear.Clear(f.Caller.actor(), f.Call.Command)
 	if f.As == AsOwner {
@@ -396,10 +235,22 @@ func (g *Gateway) Record(ctx context.Context, a db.Ask, outcome, why string) {
 	if err != nil {
 		return
 	}
-	act := f.Caller.actor()
-	class := registry.External
-	if c, err := g.reg.Lookup(ctx, act.Workspace, f.Call.Command); err == nil {
-		class = c.Class
+	right := ""
+	if f.Need != nil {
+		right = f.Need.Right
 	}
-	g.journal(ctx, act, a.ProjectID.Int64, f.Call.Command, class, outcome, string(f.Call.Input), why)
+	g.journal(ctx, f.Caller.actor(), a.ProjectID.Int64, f.Call.Command, right, outcome, string(f.Call.Input), why)
+}
+
+// TurnMakes says the payload of a request is a call the agent's turn makes itself, a tool of its provider.
+func TurnMakes(payload string) bool { return made(payload) == AsTurn }
+
+// Holds says the payload of a request is one its process cannot go on without: a call its turn makes, or a right
+// its turn needs before it starts.
+func Holds(payload string) bool { return made(payload) == AsTurn || made(payload) == AsStart }
+
+// made is whom a frozen call is made by, as its payload says.
+func made(payload string) string {
+	f, _ := ask.Decode[Frozen](payload)
+	return f.As
 }

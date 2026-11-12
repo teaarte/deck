@@ -1,4 +1,4 @@
-// Package asks keeps what waits for the owner: questions, confirmations of calls and sign-ins, and
+// Package asks keeps what waits for the owner: questions, requests about calls, unknown outcomes and sign-ins, and
 // the answers that let a parked process go on.
 package asks
 
@@ -37,6 +37,9 @@ type Service struct {
 	Lang func(ctx context.Context, workspace, process int64) string
 	// hearing keeps one Heard at a time.
 	hearing sync.Mutex
+	// consentAt is when Consent last measured the requests.
+	consentMu sync.Mutex
+	consentAt time.Time
 }
 
 // Commands are the commands of asks.

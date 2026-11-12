@@ -32,7 +32,7 @@ func TestCustomBlockGetsItsDataAndButtonsAndItsFrameLivesOnTheSecondOrigin(t *te
 		Actions []map[string]any `json:"actions"`
 	}](t, e.Screen("web", "main", nil)["b2"]["value"])
 	if v.HTML != "<p>chart</p>" || len(v.Items) != 2 || v.Items[0]["title"] != "a" || v.Items[0]["_id"] == nil || v.Items[0]["_updated"] != nil ||
-		len(v.Actions) != 4 || v.Actions[0]["command"] != "web.mark" || v.Actions[0]["class"] != "internal" || v.Actions[3]["class"] != "external" {
+		len(v.Actions) != 4 || v.Actions[0]["command"] != "web.mark" || v.Actions[0]["stays"] != true || v.Actions[3]["stays"] != nil {
 		t.Fatalf("a custom block gets its HTML, the items of its source and its buttons: %+v", v)
 	}
 
@@ -202,8 +202,8 @@ func TestAHiddenButtonOfACustomBlockLeavesTheClassOfTheOthers(t *testing.T) {
 	v := harness.BlockData[struct {
 		Actions []map[string]any `json:"actions"`
 	}](t, e.Screen("web", "main", nil)["b2"]["value"])
-	if len(v.Actions) != 3 || v.Actions[2]["command"] != "web.publish" || v.Actions[2]["class"] != "external" || v.Actions[0]["class"] != "internal" {
-		t.Fatalf("each button keeps the class of its command: %+v", v.Actions)
+	if len(v.Actions) != 3 || v.Actions[2]["command"] != "web.publish" || v.Actions[2]["stays"] != nil || v.Actions[0]["stays"] != true {
+		t.Fatalf("each button says whether its command stays in deck: %+v", v.Actions)
 	}
 }
 

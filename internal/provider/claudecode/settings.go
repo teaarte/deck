@@ -18,6 +18,10 @@ var webTools = []string{"WebFetch", "WebSearch"}
 // freeTools run without asking: read-only and planning tools.
 var freeTools = []string{"Read", "Glob", "Grep", "TodoWrite", "StructuredOutput", "Skill"}
 
+// boxTools run without asking in a box of the CLI's own, whose walls bound them: the CLI's own classifier does not
+// decide there, and what leaves the box goes through deck's tools.
+var boxTools = []string{"Bash", "Edit", "Write", "MultiEdit", "NotebookEdit", "Task", "BashOutput", "KillShell", "KillBash"}
+
 // apiVariables are login and API selection variables the settings of deck blank out over those of the repo.
 var apiVariables = []string{"ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL",
 	"ANTHROPIC_CUSTOM_HEADERS", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
@@ -38,7 +42,10 @@ func (a *Adapter) settings(req provider.Request) map[string]any {
 		env[name] = ""
 	}
 	// deck keeps the one memory of every provider; the CLI's own is off, the variable over that of a repo too.
-	s := map[string]any{"apiKeyHelper": "", "env": env, "autoMode": autoMode(req), "autoMemoryEnabled": false}
+	s := map[string]any{"apiKeyHelper": "", "env": env, "autoMemoryEnabled": false}
+	if !sandbox.Homed() {
+		s["autoMode"] = autoMode(req)
+	}
 	var deny []string
 	if req.Repo {
 		blank(req.Cwd, env)

@@ -12,6 +12,7 @@ import (
 
 	"deck2/internal/gateway"
 	"deck2/internal/health"
+	"deck2/internal/manifest"
 	"deck2/internal/models"
 	"deck2/internal/process"
 	"deck2/internal/provider"
@@ -50,41 +51,49 @@ type modelSetIn struct {
 func (s *Service) modelCommands() []*registry.Command {
 	c := registry.Def("model_set", "Set model",
 		"Adds or changes a model of a connection with its kind and price; what is left out comes from the catalog of the connection. A module or the master proposes a model it needs this way, and the owner adds it with one button.",
-		registry.Everyone, s.modelSet).Enum("agent", s.agentNames()...).As(registry.External)
-	// A model sets prices and what is free: money, which only the owner's own yes changes.
-	c.Gate.OwnYes = true
-	c.Gate.Target = func(_ string, input json.RawMessage) string {
-		var in map[string]any
-		_ = json.Unmarshal(input, &in)
-		name := fmt.Sprint(in["connection"], "/", in["model"])
-		if n, ok := in["name"].(string); ok && n != "" {
-			name = n
-		}
-		var sets []string
-		for _, k := range slices.Sorted(maps.Keys(in)) {
-			if k != "connection" && k != "model" && k != "name" {
-				sets = append(sets, fmt.Sprintf("%s %v", k, in[k]))
-			}
-		}
-		return name + " → " + cmp.Or(strings.Join(sets, ", "), "as the catalog of the connection has it")
+		registry.Everyone, s.modelSet).Enum("agent", s.agentNames()...)
+	// A model sets prices and what is free: money, which only the owner's answer to its request changes.
+	c.Gate.Needs = gateway.Itself(c.Name, true)
+	c.Gate.Subject = func(_ context.Context, _ registry.At, input json.RawMessage) registry.Subject {
+		return registry.Subject{Where: modelTarget(input)}
 	}
 	d := registry.Def("model_delete", "Remove model",
 		"Removes a model and takes it out of the assignments that name it. A module the owner lets send it always removes without the owner a free model its own call added that no assignment names, and the owner sees it with an undo; any other removal waits for the owner.",
-		registry.Everyone, s.modelDelete).As(registry.External)
-	d.Gate.Allowed = func(ctx context.Context, a registry.Actor, input json.RawMessage, listed bool) (bool, error) {
+		registry.Everyone, s.modelDelete)
+	// A removal takes the model out of its assignments, which no undo brings back: only the owner's answer to its
+	// request allows it, or their always to a module that removes a spare model its own call added.
+	d.Gate.Needs = func(ctx context.Context, a registry.Actor, _ registry.Subject, input json.RawMessage) ([]registry.Need, error) {
+		n := registry.Need{Right: manifest.Send, Subject: d.Name, Asked: true}
 		var in modelDeleteIn
-		if !listed || a.Trial || json.Unmarshal(input, &in) != nil {
-			return false, nil
+		if !a.Trial && json.Unmarshal(input, &in) == nil {
+			if m, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: a.Workspace, Name: in.Name}); err == nil {
+				spare, err := s.spare(ctx, s.St.Q, a, m.Model)
+				if err != nil {
+					return nil, err
+				}
+				n.Asked = !spare
+			}
 		}
-		m, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: a.Workspace, Name: in.Name})
-		if err != nil {
-			return false, nil
-		}
-		return s.spare(ctx, s.St.Q, a, m.Model)
+		return []registry.Need{n}, nil
 	}
-	// A removal takes the model out of its assignments, which no undo brings back: only the owner's own yes allows it.
-	d.Gate.OwnYes = true
 	return []*registry.Command{c, d}
+}
+
+// modelTarget says what a call of model_set sets, for the owner who decides on it.
+func modelTarget(input json.RawMessage) string {
+	var in map[string]any
+	_ = json.Unmarshal(input, &in)
+	name := fmt.Sprint(in["connection"], "/", in["model"])
+	if n, ok := in["name"].(string); ok && n != "" {
+		name = n
+	}
+	var sets []string
+	for _, k := range slices.Sorted(maps.Keys(in)) {
+		if k != "connection" && k != "model" && k != "name" {
+			sets = append(sets, fmt.Sprintf("%s %v", k, in[k]))
+		}
+	}
+	return name + " → " + cmp.Or(strings.Join(sets, ", "), "as the catalog of the connection has it")
 }
 
 // spare says a module may remove a model without the owner: the call of its own project added it, it is free, no

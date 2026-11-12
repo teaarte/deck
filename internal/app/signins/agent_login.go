@@ -231,10 +231,10 @@ func (s *Service) agentLoginCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("agent_login", "Sign in to agent",
 			"Starts the sign-in of a built-in CLI agent (claude-code, codex) on this machine by a link: gives the link and the code to enter there, or that the page of the link gives a code to hand in with agent_login_finish; the self-check runs once it is signed in.",
-			registry.OwnerOnly, s.agentLogin),
+			registry.OwnerOnly, s.agentLogin).Stays(),
 		registry.Def("agent_login_finish", "Sign-in code",
 			"Hands the sign-in of a CLI agent started with agent_login the code the page of its link gave.",
-			registry.OwnerOnly, s.agentLoginFinish),
+			registry.OwnerOnly, s.agentLoginFinish).Stays(),
 		registry.Read("agent_logins_list", "Sign-ins",
 			"Lists the sign-ins of CLI agents started from deck that wait for the owner, with their link and code, and those that failed.",
 			registry.OwnerOnly, s.agentLoginsList).On(events.Health),

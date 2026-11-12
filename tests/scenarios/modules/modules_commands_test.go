@@ -89,8 +89,8 @@ func TestEveryCommandFitsAppIntents(t *testing.T) {
 	names := map[string]bool{}
 	for _, c := range cmds {
 		names[c.Name] = true
-		if c.Title == "" || c.Description == "" || c.Class == "" {
-			t.Errorf("%s: title, description and class are required", c.Name)
+		if c.Title == "" || c.Description == "" {
+			t.Errorf("%s: title and description are required", c.Name)
 		}
 		var in struct {
 			Type       string                 `json:"type"`

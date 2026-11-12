@@ -15,6 +15,7 @@ import (
 var Tabled = map[string][]string{
 	"internal/boxes":    {"For"},
 	"internal/egress":   {"Public", "listed"},
+	"internal/gateway":  {"decide"},
 	"internal/home":     {"Within"},
 	"internal/manifest": {"ToolRight", "Covers"},
 	"internal/registry": {"Permits"},

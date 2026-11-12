@@ -136,7 +136,7 @@ func (s *Service) manifestCommands() []*registry.Command {
 			registry.Everyone, s.manifestGet).On(events.Projects),
 		registry.Def("manifest_save", "Save manifest",
 			"Validates a manifest and stores it as a new revision: the whole manifest, or old parts of the current one replaced with new ones.",
-			registry.OwnerSide, s.manifestSave),
+			registry.OwnerSide, s.manifestSave).Stays(),
 	}
 }
 

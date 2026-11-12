@@ -20,6 +20,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -44,6 +45,8 @@ type turn struct {
 	live *liveTurn
 	// slot is the agent slot the turn holds, handed to it or taken when it starts.
 	slot *slot
+	// work are the rights the owner gave the work of the process as it started, beside its module's.
+	work manifest.Grants
 }
 
 func (r *Runner) run(ctx context.Context, t turn) {
@@ -117,6 +120,9 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		fail(fault.Of(err))
 		return nil, false
 	}
+	if !r.started(ctx, t, proj, trial, fail) {
+		return nil, false
+	}
 	if !r.deps.Goes(ctx, proj.WorkspaceID, pv.Name()) {
 		r.hold(ctx, *t, wait{reason: WaitProvider, on: pv.Name(), silence: SilenceFail + fault.ModelUnavailable, until: r.now().Add(providerTerm)})
 		return nil, false
@@ -188,7 +194,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	var box sandbox.Box
 	if now, granted, err := docs.Rights(ctx, r.st.Q, t.project); err == nil {
 		_, login := pv.(provider.Subscribed)
-		box = boxes.For(sandbox.KindAgent, now, granted, login, read)
+		box = boxes.For(sandbox.KindAgent, now, append(granted, t.work...), login, read)
 	}
 	processID := t.process
 	a.req = provider.Request{
@@ -233,7 +239,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		a.req.Prompt, err = r.firstPrompt(ctx, proj, *t, a.tools, a.data, false)
 		// Messages that came before the first turn, such as another call for its record, go with it.
 		if u, uerr := r.untold(ctx, processID); err == nil && uerr == nil {
-			if ids := u.except(t.asks, "").ids().Remarks; len(ids) > 0 {
+			if ids := u.except(t.asks, nil).ids().Remarks; len(ids) > 0 {
 				t.asks.Remarks = append(t.asks.Remarks, ids...)
 				a.req.Prompt += r.remarksText(ctx, processID, ids)
 			}
@@ -436,4 +442,33 @@ func submitted(s *gateway.Submit) bool {
 type again struct {
 	Why, Error string
 	Submit     bool
+}
+
+// started asks the owner, before a turn starts, for the rights it needs that are not answered yet: the login of its
+// CLI and the network of the shells of its agents; false when it waits for the answer or a login was not given.
+func (r *Runner) started(ctx context.Context, t *turn, proj db.Project, trial bool, fail func(*fault.F)) bool {
+	login := ""
+	if sub, ok := t.pv.(provider.Subscribed); ok {
+		login = sub.OnLogin()
+	}
+	m, granted, err := docs.Rights(ctx, r.st.Q, t.project)
+	if err != nil {
+		fail(fault.Of(err))
+		return false
+	}
+	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: t.process, Trial: trial}
+	if proj.Builtin == 1 {
+		act.Kind = registry.Master
+	}
+	ask, work, err := r.gw.Start(ctx, act, proj.Name+"."+t.cmd.Name, m, granted, login)
+	switch {
+	case err != nil:
+		fail(fault.New(fault.RightsDenied, err.Error()))
+		return false
+	case ask != 0:
+		r.hold(ctx, *t, wait{reason: WaitRight, on: fmt.Sprint(ask)})
+		return false
+	}
+	t.work = work
+	return true
 }

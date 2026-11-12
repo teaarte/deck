@@ -413,7 +413,7 @@ func TestTodaySaysWhatIsNotSeenBelow(t *testing.T) {
 	}
 	var asks []struct{ Allow string }
 	e.Must("deck.asks_list", map[string]any{"lang": "ru"}, &asks)
-	if len(asks) != 1 || asks[0].Allow != "Разрешить: Задать модель" {
+	if len(asks) != 1 || asks[0].Allow != "Разрешить один раз: Задать модель" {
 		t.Fatalf("the yes of a decision says what it lets happen: %+v", asks)
 	}
 }
@@ -547,17 +547,18 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 		return out
 	}
 	by := fmt.Sprintf("#%d work", second)
-	if fresh.Title != "post" || !strings.HasSuffix(fresh.Text, "POST "+svc.URL+"/items/n2\nfor the test") || fresh.Meta != "notes · Work" ||
+	if fresh.Title != "post" || !strings.HasPrefix(fresh.Text, "it acts in your name: post\nPOST "+svc.URL+"/items/n2\n") ||
+		!strings.HasSuffix(fresh.Text, "id: n2\ntext: hi\nfor the test") || fresh.Meta != "notes · Work" ||
 		!strings.HasPrefix(fresh.Details, by+"\nnotes.post\n") {
-		t.Fatalf("a confirmation says what, where, its module and who asks in words; the process and the command under its details: %+v", fresh)
+		t.Fatalf("a request says what the right lets, where, what it sends, its module and who asks in words; the process and the command under its details: %+v", fresh)
 	}
 	if !strings.Contains(fresh.Details, `"id": "n2"`) || !strings.Contains(fresh.Details, `"text": "hi"`) || strings.Contains(fresh.Details, `"process": `) ||
 		strings.Contains(fresh.Details, `"caller"`) {
 		t.Fatalf("the call and only the call is in the details: %s", fresh.Details)
 	}
-	if got := verbs(fresh); !slices.Equal(got, []string{"Allow: post", "Deny", "Always let notes run post", "Deny because…"}) ||
-		fresh.Actions[0]["primary"] != true || fresh.Actions[0]["until"] == nil || fresh.Actions[3]["input"] != "reason" {
-		t.Fatalf("a confirmation offers what its yes allows first until it expires, then deny with a reason: %v", fresh.Actions)
+	if got := verbs(fresh); !slices.Equal(got, []string{"Allow once: post", "For this work", "Always let notes: it acts in your name: post", "No, and do not ask again", "Deny because…"}) ||
+		fresh.Actions[0]["primary"] != true || fresh.Actions[0]["until"] == nil || fresh.Actions[4]["input"] != "reason" {
+		t.Fatalf("a request offers once, for this work and always, each until it expires, then a kept no and a no with a reason: %v", fresh.Actions)
 	}
 	if got := verbs(old); !slices.Equal(got, []string{"Deny"}) || !strings.Contains(old.Details, `"id": "n1"`) {
 		t.Fatalf("an expired confirmation keeps only deny: %+v", old)

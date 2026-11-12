@@ -99,6 +99,6 @@ func (s *Service) offCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("provider_switch", "Turn provider off",
 			"Turns a built-in provider (claude-code, codex) off or on again: off, deck does not check it, gives it no work and offers none of its models; a provider whose program is not installed is off by itself.",
-			registry.OwnerOnly, s.providerSwitch),
+			registry.OwnerOnly, s.providerSwitch).Stays(),
 	}
 }

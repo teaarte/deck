@@ -376,7 +376,7 @@ func (s *Service) hold(ctx context.Context, q *db.Queries, act registry.Actor, p
 		for _, pt := range parts {
 			fmt.Fprintf(&b, "- %s %s\n", pt.Kind, untrusted.Line(pt.Name, 200))
 		}
-		a, err = gateway.Hold(ctx, q, act, p.ID, act.ProcessID, ask.KindCall, registry.Internal, untrusted.Cut(b.String(), 4000), f, time.Time{}, s.Now())
+		a, err = gateway.Hold(ctx, q, act, p.ID, act.ProcessID, ask.KindCall, "", untrusted.Cut(b.String(), 4000), f, time.Time{}, s.Now())
 	}
 	return gateway.Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: deleting record %d takes what the master did not make (%s), so it waits for the owner's confirmation (ask %d); "+
 		"nothing was deleted yet. Go on with other work: once the owner allows it, deck deletes it and tells you.", rec.ID, untrusted.Line(others, 300), a.ID)}, err

@@ -65,6 +65,6 @@ func (s *Service) transcribeCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("recording_transcribe", "Speech to text",
 			"Turns a recording the owner uploaded into text with the model assigned to speech to text; the recording is not kept.",
-			registry.OwnerOnly, s.recordingTranscribe),
+			registry.OwnerOnly, s.recordingTranscribe).Stays(),
 	}
 }

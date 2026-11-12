@@ -124,8 +124,8 @@ func (s *Service) connectionCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("connection_set", "Set connection",
 			"Adds or changes a connection models are reached through: its API, address and key.",
-			registry.OwnerOnly, s.connectionSet),
+			registry.OwnerOnly, s.connectionSet).Stays(),
 		registry.Def("connection_delete", "Remove connection", "Removes a connection that has no models left.",
-			registry.OwnerOnly, s.connectionDelete),
+			registry.OwnerOnly, s.connectionDelete).Stays(),
 	}
 }

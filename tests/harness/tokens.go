@@ -9,6 +9,9 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"deck2/internal/gateway"
+	"deck2/internal/registry"
 )
 
 // bearer adds an automation token to every request, the way a terminal agent's MCP config does.
@@ -84,17 +87,17 @@ func (e *Env) callWith(tok, name string, input any) (int, []byte) {
 }
 
 type JournalRow struct {
-	Actor, Tool, Class, Outcome string
+	Actor, Tool, Need, Outcome string
 }
 
 func (e *Env) Journal() []JournalRow {
 	e.T.Helper()
-	rows := e.SQLRows(`SELECT actor, tool, class, outcome FROM tool_call ORDER BY id`)
+	rows := e.SQLRows(`SELECT actor, tool, need, outcome FROM tool_call ORDER BY id`)
 	defer rows.Close()
 	var out []JournalRow
 	for rows.Next() {
 		var r JournalRow
-		_ = rows.Scan(&r.Actor, &r.Tool, &r.Class, &r.Outcome)
+		_ = rows.Scan(&r.Actor, &r.Tool, &r.Need, &r.Outcome)
 		out = append(out, r)
 	}
 	return out
@@ -111,4 +114,10 @@ func (e *Env) TokenRows() []string {
 		out = append(out, s)
 	}
 	return out
+}
+
+// Sends makes a command of a test one that needs a right: send on itself, as a command of deck a module proposes.
+func Sends(c *registry.Command) *registry.Command {
+	c.Gate.Needs = gateway.Itself(c.Name, false)
+	return c
 }

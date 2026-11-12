@@ -176,7 +176,7 @@ func (s *Service) journalRead(ctx context.Context, act registry.Actor, name stri
 		outcome, text = "rejected", err.Error()
 	}
 	raw, _ := json.Marshal(read)
-	s.Journal(ctx, act, act.ProjectID, registry.Deck(name), registry.Internal, outcome, string(raw), text)
+	s.Journal(ctx, act, act.ProjectID, registry.Deck(name), manifest.Network, outcome, string(raw), text)
 }
 
 // skipped are the elements whose content is no text of a page.
@@ -236,16 +236,12 @@ func pageText(r io.Reader) (string, string) {
 // webCommands are the web of deck's agents, whose boxes reach only their rights; each writes its line of the journal
 // with the addresses it read.
 func (s *Service) webCommands() []*registry.Command {
-	cs := []*registry.Command{
+	return []*registry.Command{
 		registry.Def("web_search", "Search the web",
 			"Searches the web through the search service of deck's settings and gives titles, addresses and snippets.",
-			registry.Everyone, s.webSearch),
+			registry.Everyone, s.webSearch).Stays(),
 		registry.Def("web_fetch", "Read a page",
 			"Reads a web page as text: the words of an HTML page, a text or JSON one as it is; an agent of a module reads only the hosts its module holds the network of (\"*\" for any).",
-			registry.Everyone, s.webFetch),
+			registry.Everyone, s.webFetch).Stays(),
 	}
-	for _, c := range cs {
-		c.Gate.Journals = true
-	}
-	return cs
 }

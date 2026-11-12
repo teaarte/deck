@@ -34,10 +34,14 @@ func (g *Gateway) Freshness(ctx context.Context, a db.Ask, probe bool) int {
 	if err != nil {
 		return AsAsked
 	}
-	if c.Gate.Holds != nil && c.Gate.Holds(ctx, f.Caller.Workspace, f.Call.Input) {
-		return InForce
+	if c.Gate.Subject == nil || f.As == AsTurn {
+		return AsAsked
 	}
-	if c.Gate.Fingerprint != nil && (probe || !c.Gate.Probes) && f.Tool != c.Gate.Fingerprint(ctx, f.Caller.Workspace, f.Caller.Project, f.Call.Input) {
+	s := c.Gate.Subject(ctx, registry.At{Workspace: f.Caller.Workspace, Project: f.Caller.Project, Look: probe}, f.Call.Input)
+	switch {
+	case s.InForce:
+		return InForce
+	case !s.Unseen && f.Tool != s.Print:
 		return Changed
 	}
 	return AsAsked

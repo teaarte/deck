@@ -342,13 +342,13 @@ func (s *Service) Commands() []*registry.Command {
 			registry.Everyone, s.triggersList).On(events.Triggers, events.Processes, events.Models, events.Assignments, events.Projects, events.Documents, events.Health),
 		registry.Def("trigger_pause", "Pause trigger",
 			"Pauses or resumes one trigger; a resumed schedule does not catch up its pause.",
-			registry.OwnerSide, s.triggerPause),
+			registry.OwnerSide, s.triggerPause).Stays(),
 		registry.Def("trigger_run", "Run now",
 			"Starts the command of a schedule trigger now with its params; its schedule stays, a run still going is returned, and only the owner starts one of a paused trigger or project.",
-			registry.OwnerSide, s.triggerRun),
+			registry.OwnerSide, s.triggerRun).Stays(),
 		registry.Def("project_pause", "Pause project",
 			"Pauses or resumes every trigger of a project, including triggers added later.",
-			registry.OwnerSide, s.projectPause),
+			registry.OwnerSide, s.projectPause).Stays(),
 	}
 }
 

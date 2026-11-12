@@ -145,6 +145,6 @@ func (s *Service) processAsksCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("process_asks_list", "Asks of a run",
 			"Gives what a process the owner started by a button came to once it asks or ends, a few seconds at most: the calls it waits to make and those its result names as {\"waiting\": <ask>}, so the owner answers them at the button, where it stands and why it failed.",
-			registry.OwnerOnly, s.processAsks),
+			registry.OwnerOnly, s.processAsks).Stays(),
 	}
 }

@@ -43,7 +43,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("snapshot_create", "Take a snapshot",
 			"Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.",
-			registry.OwnerOnly, s.snapshotCreate),
+			registry.OwnerOnly, s.snapshotCreate).Stays(),
 		registry.Read("snapshots_list", "Snapshots",
 			"Lists the snapshots of the base and files deck keeps, newest first.",
 			registry.OwnerOnly, func(context.Context, registry.Actor, struct{}) ([]snapshot, error) {

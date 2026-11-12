@@ -261,10 +261,10 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("secret_set", "Set a secret",
 			"Stores a secret of a module for its tools (a header, or the whole URL of a private link) as a file only deck reads; no other module reads it.",
-			registry.OwnerOnly, s.secretSet),
+			registry.OwnerOnly, s.secretSet).Stays(),
 		registry.Def("secret_delete", "Delete secret",
 			"Deletes a stored secret of a module; the tools that name it fail until it is set again.",
-			registry.OwnerOnly, s.secretDelete),
+			registry.OwnerOnly, s.secretDelete).Stays(),
 		registry.Read("secrets_list", "Secrets",
 			"Lists the secrets of a module, or of every module: those its manifest names and whether each is set, and those set it does not name; never their values.",
 			registry.OwnerSide, s.secretsList).On(events.Secrets).NoTokens(),

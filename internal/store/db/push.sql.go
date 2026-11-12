@@ -74,7 +74,7 @@ func (q *Queries) DropPushEndpoint(ctx context.Context, arg DropPushEndpointPara
 }
 
 const listAsksAfter = `-- name: ListAsksAfter :many
-SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask WHERE workspace_id = ? AND id > ? AND state = 'open' ORDER BY id
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at FROM ask WHERE workspace_id = ? AND id > ? AND state = 'open' ORDER BY id
 `
 
 type ListAsksAfterParams struct {
@@ -106,6 +106,7 @@ func (q *Queries) ListAsksAfter(ctx context.Context, arg ListAsksAfterParams) ([
 			&i.ExpiresAt,
 			&i.DeliveredAt,
 			&i.UnheardAt,
+			&i.ShownAt,
 		); err != nil {
 			return nil, err
 		}

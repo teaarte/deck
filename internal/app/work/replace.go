@@ -84,6 +84,6 @@ func (s *Service) replaceCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("model_replace", "Replace a model",
 			"Puts a model in place of another in every work of a kind that goes to that one first, such as a model that is down, where each takes its models from; the replaced one leaves those assignments.",
-			registry.OwnerOnly, s.modelReplace),
+			registry.OwnerOnly, s.modelReplace).Stays(),
 	}
 }

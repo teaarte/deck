@@ -39,28 +39,37 @@ func buttons(r askView) []map[string]any {
 		delete(a["params"].(map[string]any), "answer")
 		a["input"] = "answer"
 		return []map[string]any{a}
-	case r.Kind == ask.KindCall || r.Kind == ask.KindConfirm:
+	case r.Kind == ask.KindCall:
 		yes := primary(held("allow", "allow"))
 		yes["icon"] = "check"
 		if r.Allow != "" {
 			yes["label"] = r.Allow
 		}
-		if r.ExpiresAt != "" {
-			yes["until"] = r.ExpiresAt
+		out := []map[string]any{yes}
+		if r.Work != "" {
+			work := held("allow_work", "allow_work")
+			work["label"] = r.Work
+			out = append(out, work)
 		}
-		out := []map[string]any{yes, held("deny", "deny")}
-		if r.Kind == ask.KindCall && r.Always != "" {
+		if r.Always != "" {
 			always := held("allow_always", "allow_always")
 			always["label"] = r.Always
-			if r.ExpiresAt != "" {
-				always["until"] = r.ExpiresAt
-			}
 			out = append(out, always)
+		}
+		no := held("deny", "deny")
+		if r.Kept {
+			no["verb"] = "deny_kept"
 		}
 		because := held("deny_because", "deny")
 		because["input"] = "reason"
-		return append(out, because)
-	case r.Kind == ask.KindLogin:
+		out = append(out, no, because)
+		for _, a := range out {
+			if r.ExpiresAt != "" {
+				a["until"] = r.ExpiresAt
+			}
+		}
+		return out
+	case r.Kind == ask.KindSignIn && ask.Provider(db.Ask{Kind: r.Kind, Payload: string(r.Payload)}):
 		return []map[string]any{primary(button(r.ID, "retry", "retry")), button(r.ID, "new_session", "new_session")}
 	case r.Kind == ask.KindUnknown:
 		return []map[string]any{primary(button(r.ID, "retry", "retry")), button(r.ID, "mark_done", "done")}

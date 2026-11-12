@@ -55,6 +55,6 @@ func (s *Service) widgetsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("widget_draw", "Draw a widget",
 			"Asks the master to make a view of the card of a module on the tiles for a size, as a widget of its manifest, on the model of the role widget, the master's own without one.",
-			registry.OwnerOnly, s.widgetDraw),
+			registry.OwnerOnly, s.widgetDraw).Stays(),
 	}
 }

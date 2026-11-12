@@ -611,14 +611,15 @@ func (s *Service) documentsCommands() []*registry.Command {
 			Answers(`Answer: {"id", "project", "kind", "name", "revision", "text"}.`),
 		registry.Def("document_save", "Save document",
 			"Writes a new revision of a document, creating it on first save.",
-			registry.Everyone, s.documentSave).Enum("kind", docs.Kinds...).
+			registry.Everyone, s.documentSave).Stays().
+			Enum("kind", docs.Kinds...).
 			Answers(`Answer: {"id", "project", "kind", "name", "revision", "warning"}; the text is not in it. Example input: {"name": "notes/plan.md", "old": ["- [ ] call"], "new": ["- [x] call"], "reason": "called"}.`),
 		registry.Def("document_delete", "Delete document",
 			"Deletes a document; its revisions stay and the owner can bring it back. Agents delete only the memory of their project.",
-			registry.Everyone, s.documentDelete),
+			registry.Everyone, s.documentDelete).Stays(),
 		registry.Def("document_restore", "Bring document back",
 			"Brings a deleted document back as it was.",
-			registry.OwnerOnly, s.documentRestore),
+			registry.OwnerOnly, s.documentRestore).Stays(),
 		registry.Read("memory_search", "Search memory",
 			"Finds words in memory, the summaries of the master's topics, skills and finished processes, those the caller reads; what an index does not list is found here. A memory document says how many times it reached a turn of an agent or a search before (reads) and when it last did; a hit of an agent or the master counts as one.",
 			registry.Everyone, s.memorySearch).On(events.Documents, events.Processes),

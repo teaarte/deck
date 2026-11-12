@@ -47,7 +47,7 @@ func TestLostLoginWaitsForOwnerAndRetries(t *testing.T) {
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting:sign_in")
 	a := e.WaitAsk()
-	if a.Kind != "login" || !strings.Contains(a.Text, "Not logged in") || !strings.Contains(string(a.Payload), "new_session") {
+	if a.Kind != "sign_in" || !strings.Contains(a.Text, "Not logged in") || !strings.Contains(string(a.Payload), "new_session") {
 		t.Fatalf("want a login ask with the choices, got %+v", a)
 	}
 	if h := e.HealthRowOf("provider:claude-code"); h["status"] != "needs_login" || !strings.Contains(h["error"].(string), "Not logged in") {
@@ -80,7 +80,7 @@ func TestLostLoginNewSessionGetsReportOfWhatWasDone(t *testing.T) {
 	e.WaitState(id, "waiting:sign_in")
 	first := e.Session(id)
 	// A call the turn made before its login was lost, which the fake CLI cannot make.
-	e.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome) VALUES (1, ?, ?, 'record_upsert', 'internal', 'done')`, id, p)
+	e.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, need, outcome) VALUES (1, ?, ?, 'record_upsert', '', 'done')`, id, p)
 	e.Answer(e.WaitAsk().ID, "new_session")
 	if got := e.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
@@ -124,7 +124,7 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 	id := e1.Run(p, "work")
 	e1.WaitState(id, "waiting:sign_in")
 	// A call the turn made before its login was lost, which the fake CLI cannot make.
-	e1.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, class, outcome) VALUES (1, ?, ?, 'record_upsert', 'internal', 'done')`, id, p)
+	e1.SQL(`INSERT INTO tool_call (workspace_id, process_id, project_id, tool, need, outcome) VALUES (1, ?, ?, 'record_upsert', '', 'done')`, id, p)
 	e1.Answer(e1.WaitAsk().ID, "new_session")
 	harness.Until(t, "the CLI to start 5 times", func() bool { return c.Calls() >= 5 })
 	_ = e1.App.Close()

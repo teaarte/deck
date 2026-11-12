@@ -355,6 +355,6 @@ func (s *Service) pushCommands() []*registry.Command {
 			registry.OwnerOnly, s.pushKey).On(events.Settings),
 		registry.Def("push_key_reset", "Reset the push key",
 			"Makes a new key for pushes; every device subscribed with the old one has to subscribe again.",
-			registry.OwnerOnly, s.pushReset),
+			registry.OwnerOnly, s.pushReset).Stays(),
 	}
 }

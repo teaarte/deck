@@ -244,6 +244,13 @@ func (m *Manifest) service(subject string) bool {
 	return ok && declared
 }
 
+// AtUse says the owner answers need when it is first used, not when enabling the module gives it in advance: a row of
+// the catalog whose always takes a fresh passkey, or the network of the shells of agents.
+func AtUse(n registry.Need) bool {
+	r, ok := RightOf(n.Right)
+	return !ok || r.Key || whom(n.Right, n.Who) == Agents
+}
+
 // Others are the data subjects of the module that are not its own services: other modules, memory, everything.
 func (m *Manifest) Others() []string {
 	return slices.DeleteFunc(m.DataOf(), m.service)

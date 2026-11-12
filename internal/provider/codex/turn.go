@@ -95,7 +95,11 @@ func (t *turn) run(ctx context.Context, skills string) (provider.Result, error) 
 		}
 	}
 	config := threadConfig(t.req, t.door, servers, skillsOff)
+	// In a box of its own the box bounds what Codex does, and it asks deck nothing; outside one it asks on request.
 	policy := json.RawMessage(`"on-request"`)
+	if sandbox.Homed() {
+		policy = json.RawMessage(`"never"`)
+	}
 	if t.thread == "" {
 		var r ThreadStartResponse
 		if err := t.call(ctx, "thread/start", ThreadStartParams{Cwd: t.req.Cwd, ApprovalPolicy: policy, Config: config, Model: t.a.model}, &r); err != nil {

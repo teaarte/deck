@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"deck2/internal/access"
@@ -28,9 +29,9 @@ type Button struct {
 	Input   string `json:"input,omitempty"`
 }
 
-// outward is a button not the owner wrote whose command is not internal: deck asks first, under the title of the
-// command, the client showing its params. A patch until T5 makes such a press the call of its writer.
-func outward(b Button, m *manifest.Manifest, lang string) Button {
+// outward is a button not the owner wrote whose command needs a right: under the title of its command, its press is
+// the call of its writer, which the gateway decides as any other, and not the owner's yes.
+func outward(b Button, m *manifest.Manifest, lang string, entry int64, i int) Button {
 	var c *manifest.Command
 	if m != nil {
 		c = m.Command(b.Command)
@@ -40,11 +41,11 @@ func outward(b Button, m *manifest.Manifest, lang string) Button {
 			return b
 		}
 	}
-	b.Confirm, b.Label = true, b.Command
+	label := b.Command
 	if c != nil {
-		b.Label = cmp.Or(m.I18n[lang][c.Title], c.Title, c.Name)
+		label = cmp.Or(m.I18n[lang][c.Title], c.Title, c.Name)
 	}
-	return b
+	return Button{Label: label, Command: registry.Deck("feed_press"), Params: map[string]any{"entry": entry, "button": i}, Icon: b.Icon}
 }
 
 type ownerNotifyIn struct {
@@ -126,8 +127,39 @@ func (s *Service) notify(ctx context.Context, act registry.Actor, in ownerNotify
 
 func (s *Service) notifyCommands() []*registry.Command {
 	return []*registry.Command{
+		registry.Def("feed_press", "Press a button of a note",
+			"Makes the call of a button a module wrote on its note, as that module: the gateway decides it as the module's own call, and asks the owner with what it sends unless the module holds the right.",
+			registry.OwnerOnly, s.feedPress).Stays(),
 		registry.Def("owner_notify", "Notify the owner",
 			"Writes a line to the feed of the cockpit, with a screen of the project to open and buttons; the caller decides it is worth it.",
-			registry.Everyone, s.notify),
+			registry.Everyone, s.notify).Stays(),
 	}
+}
+
+type feedPressIn struct {
+	Entry  int64 `desc:"Id of a note in the feed"`
+	Button int64 `desc:"The place of its button, from 0"`
+}
+
+// feedPress makes the call of a button a module wrote on its note, as that module: its writer chose the words and the
+// params, so the press is no yes of the owner, and the gateway decides the call, asking the owner with what it sends.
+func (s *Service) feedPress(ctx context.Context, act registry.Actor, in feedPressIn) (any, error) {
+	f, err := s.St.Q.GetFeed(ctx, in.Entry)
+	if err != nil || f.WorkspaceID != act.Workspace || f.Author == registry.Owner || f.Author == "deck" {
+		return nil, registry.NotFound("no note %d with a button of a module", in.Entry)
+	}
+	var buttons []Button
+	_ = json.Unmarshal([]byte(f.Actions), &buttons)
+	if in.Button < 0 || int(in.Button) >= len(buttons) {
+		return nil, registry.NotFound("note %d has no button %d", in.Entry, in.Button)
+	}
+	p, err := s.St.Q.GetProject(ctx, f.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	b := buttons[in.Button]
+	input, _ := json.Marshal(b.Params)
+	writer := registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID, ProcessID: f.ProcessID.Int64,
+		Why: fmt.Sprintf("You pressed %q on its note", b.Label)}
+	return s.Call(ctx, writer, p.Name+"."+b.Command, input)
 }

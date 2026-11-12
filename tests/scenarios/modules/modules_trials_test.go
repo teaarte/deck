@@ -158,7 +158,7 @@ func TestTrialScriptWritesInsideDeckAndIsRefusedOutside(t *testing.T) {
 	}
 	_ = json.Unmarshal(p.Result, &res)
 	if !res.Internal || len(res.External) != 2 || res.External[0] != 403.0 ||
-		res.External[1] != "deck: trial run: tried.publish is external, so it was declined\n" {
+		res.External[1] != "deck: trial run: tried.publish may need a right of deck's catalog, so it was declined\n" {
 		t.Fatalf("a trial script writes records and is refused anything external with the trial reason: %s", p.Result)
 	}
 	var recs []any

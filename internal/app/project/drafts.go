@@ -82,7 +82,7 @@ func (s *Service) commandTry(ctx context.Context, act registry.Actor, in command
 		return nil, err
 	case c.ProjectID == 0:
 		return nil, registry.Invalid("only project commands have trial runs")
-	case c.Gate.Fingerprint != nil:
+	case c.Gate.Subject != nil:
 		return nil, registry.Invalid("%s is a tool, the call itself; only commands have trial runs", c.Name)
 	}
 	if err := s.liveTrial(ctx, c, in.Live); err != nil {
@@ -118,9 +118,9 @@ func (s *Service) draftsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_enable", "Enable project",
 			"Turns a draft on: its triggers start running and the rights its manifest declares are granted always, but sending in the owner's name, which asks the owner the first time; the result lists what still asks.",
-			registry.OwnerOnly, s.projectEnable),
+			registry.OwnerOnly, s.projectEnable).Stays(),
 		registry.Def("command_try", "Try a command",
 			"Runs a command of a project once as a trial to check it before a button or a schedule runs it: calls of commands that are not internal are declined; a call of a tool, or of a model that is neither free nor local, waits for the owner's yes on that call, internal or not.",
-			registry.OwnerSide, s.commandTry),
+			registry.OwnerSide, s.commandTry).Stays(),
 	}
 }

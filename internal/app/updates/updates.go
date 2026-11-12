@@ -418,9 +418,9 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerSide, s.version).On(events.Health),
 		registry.Def("update_check", "Look for an update",
 			"Reads the latest release of deck now and tells the owner when it is newer.",
-			registry.OwnerOnly, s.checkNow),
+			registry.OwnerOnly, s.checkNow).Stays(),
 		registry.Def("update_install", "Update deck",
 			"Puts the latest release of deck in place, checked against its signed list, and restarts deck in it; agents go on in their sessions.",
-			registry.OwnerOnly, s.update),
+			registry.OwnerOnly, s.update).Stays(),
 	}
 }

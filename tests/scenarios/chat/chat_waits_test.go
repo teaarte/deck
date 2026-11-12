@@ -38,8 +38,8 @@ func toldOf(e *harness.Env, topic, process int64) harness.ToldMessage {
 	return harness.ToldMessage{}
 }
 
-// A work that waits for the owner's button and asks about it in the topic twice is one wait: the owner sees the
-// request alone, and once they press it the topic no longer says the work waits for them.
+// A work that waits for the owner's button is told not to ask about it, and is one wait: the owner sees the request
+// alone, and once they press it the topic no longer says the work waits for them.
 func TestAWorkWaitingForARequestAsksAboutItOnce(t *testing.T) {
 	t.Parallel()
 	var from atomic.Int64
@@ -61,14 +61,7 @@ func TestAWorkWaitingForARequestAsksAboutItOnce(t *testing.T) {
 		if m == nil {
 			return provider.Result{Text: "not held: " + said}
 		}
-		var denies []string
-		for range 2 {
-			d := c.Approve(ctx, "AskUserQuestion", map[string]any{"questions": []map[string]any{{
-				"question": "Нажали кнопку запроса " + m[1] + " в кокпите? Продолжать?",
-				"options":  []map[string]any{{"label": "Нажал"}, {"label": "Только NVIDIA"}}}}})
-			denies = append(denies, fmt.Sprint(d["behavior"], ": ", d["message"]))
-		}
-		asked.Store(denies)
+		asked.Store(said)
 		return provider.Result{Text: "Waiting for the button of request " + m[1] + "."}
 	}))
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
@@ -78,14 +71,8 @@ func TestAWorkWaitingForARequestAsksAboutItOnce(t *testing.T) {
 	defer close(goOn)
 	topic := e.Say(0, "set the models of films")
 	waits := e.Told(topic, "waiting", "ru")
-	denies, _ := asked.Load().([]string)
-	if len(denies) != 2 {
-		t.Fatalf("the work asked twice: %v", denies)
-	}
-	for _, d := range denies {
-		if !strings.HasPrefix(d, "deny: ") || !strings.Contains(d, "already waits for the owner") {
-			t.Fatalf("a question about a request that waits is not a second wait: %s", d)
-		}
+	if said, _ := asked.Load().(string); !strings.Contains(said, "do not ask the owner about it") {
+		t.Fatalf("the work is told not to ask the owner about the request that waits: %s", said)
 	}
 	open := openOf(e, waits.Process)
 	if len(open) != 1 || open[0].Kind != "call" {

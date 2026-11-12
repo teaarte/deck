@@ -76,7 +76,7 @@ func (s *Service) projectDelete(ctx context.Context, act registry.Actor, in proj
 		}
 	}
 	params, _ := json.Marshal(map[string]any{"project": p.Name, "snapshot": snapshot})
-	s.Gateway.Journal(ctx, act, 0, registry.Deck("project_delete"), registry.External, "done", string(params), "")
+	s.Gateway.Journal(ctx, act, 0, registry.Deck("project_delete"), "", "done", string(params), "")
 	out := map[string]any{"deleted": p.Name, "snapshot": snapshot}
 	if left != "" {
 		out["folder"] = left
@@ -161,28 +161,28 @@ func (s *Service) deletable(ctx context.Context, q *db.Queries, act registry.Act
 func (s *Service) projectDeleteCommands() []*registry.Command {
 	del := registry.Def("project_delete", "Delete project",
 		"Deletes a project after a snapshot of it (the master deletes only drafts): its records, documents, files, triggers, processes and settings; folders on disk stay.",
-		registry.OwnerSide, s.projectDelete).As(registry.External)
-	del.Gate.Allowed = s.draftOfMaster
+		registry.OwnerSide, s.projectDelete)
+	del.Gate.Needs = s.draftOfMaster
 	return []*registry.Command{del}
 }
 
-// draftOfMaster lets the master delete a draft without the owner and refuses it any other project.
-func (s *Service) draftOfMaster(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
+// draftOfMaster lets the master delete a draft, which stays in deck, and refuses it any other project.
+func (s *Service) draftOfMaster(ctx context.Context, act registry.Actor, _ registry.Subject, input json.RawMessage) ([]registry.Need, error) {
 	if act.Kind != registry.Master {
-		return false, registry.Refuse("only the owner and the master delete a project")
+		return nil, registry.Refuse("only the owner and the master delete a project")
 	}
 	var in projectDeleteIn
 	if err := json.Unmarshal(input, &in); err != nil {
-		return false, err
+		return nil, err
 	}
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	if p.Status != store.ProjectDraft {
-		return false, registry.Refuse("%s is not a draft; only the owner deletes an enabled project", p.Name)
+		return nil, registry.Refuse("%s is not a draft; only the owner deletes an enabled project", p.Name)
 	}
-	return true, nil
+	return nil, nil
 }
 
 // reads says a subject of the right data names project, its data, models or runs.

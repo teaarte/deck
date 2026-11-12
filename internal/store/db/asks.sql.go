@@ -60,7 +60,7 @@ const closeOpenAsksOfProcess = `-- name: CloseOpenAsksOfProcess :many
 UPDATE ask SET state = 'expired', delivered_at = CAST(?1 AS TEXT)
 WHERE process_id = CAST(?2 AS INTEGER) AND state = 'open' AND kind != 'unknown'
   AND (CAST(?3 AS INTEGER) = 1 OR kind != 'call')
-RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at
+RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at
 `
 
 type CloseOpenAsksOfProcessParams struct {
@@ -93,6 +93,7 @@ func (q *Queries) CloseOpenAsksOfProcess(ctx context.Context, arg CloseOpenAsksO
 			&i.ExpiresAt,
 			&i.DeliveredAt,
 			&i.UnheardAt,
+			&i.ShownAt,
 		); err != nil {
 			return nil, err
 		}
@@ -107,51 +108,12 @@ func (q *Queries) CloseOpenAsksOfProcess(ctx context.Context, arg CloseOpenAsksO
 	return items, nil
 }
 
-const consumeApproval = `-- name: ConsumeApproval :one
-UPDATE ask SET state = 'used', delivered_at = CAST(?1 AS TEXT)
-WHERE id = (
-    SELECT a.id FROM ask a
-    WHERE a.process_id = CAST(?2 AS INTEGER) AND a.kind = 'confirm' AND a.state = 'answered' AND a.answer = 'allow'
-      AND a.payload = ?3
-    ORDER BY a.id LIMIT 1)
-AND state = 'answered'
-RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at
-`
-
-type ConsumeApprovalParams struct {
-	Now       string
-	ProcessID int64
-	Payload   string
-}
-
-func (q *Queries) ConsumeApproval(ctx context.Context, arg ConsumeApprovalParams) (Ask, error) {
-	row := q.db.QueryRowContext(ctx, consumeApproval, arg.Now, arg.ProcessID, arg.Payload)
-	var i Ask
-	err := row.Scan(
-		&i.ID,
-		&i.WorkspaceID,
-		&i.ProjectID,
-		&i.ProcessID,
-		&i.Kind,
-		&i.Text,
-		&i.Payload,
-		&i.Answer,
-		&i.State,
-		&i.CreatedAt,
-		&i.AnsweredAt,
-		&i.ExpiresAt,
-		&i.DeliveredAt,
-		&i.UnheardAt,
-	)
-	return i, err
-}
-
 const createAsk = `-- name: CreateAsk :one
 INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, expires_at)
 SELECT p.id, j.workspace_id, j.id, CAST(?1 AS TEXT), CAST(?2 AS TEXT), CAST(?3 AS TEXT),
     ?4
 FROM process p JOIN project j ON j.id = p.project_id WHERE p.id = ?5
-RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at
+RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at
 `
 
 type CreateAskParams struct {
@@ -186,6 +148,7 @@ func (q *Queries) CreateAsk(ctx context.Context, arg CreateAskParams) (Ask, erro
 		&i.ExpiresAt,
 		&i.DeliveredAt,
 		&i.UnheardAt,
+		&i.ShownAt,
 	)
 	return i, err
 }
@@ -216,7 +179,7 @@ func (q *Queries) CreateDeckRemark(ctx context.Context, arg CreateDeckRemarkPara
 const createProjectAsk = `-- name: CreateProjectAsk :one
 INSERT INTO ask (process_id, workspace_id, project_id, kind, text, payload, expires_at)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6,
-    ?7) RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at
+    ?7) RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at
 `
 
 type CreateProjectAskParams struct {
@@ -255,6 +218,7 @@ func (q *Queries) CreateProjectAsk(ctx context.Context, arg CreateProjectAskPara
 		&i.ExpiresAt,
 		&i.DeliveredAt,
 		&i.UnheardAt,
+		&i.ShownAt,
 	)
 	return i, err
 }
@@ -390,11 +354,11 @@ func (q *Queries) ExpireAsk(ctx context.Context, id int64) (int64, error) {
 
 const expireStaleAsks = `-- name: ExpireStaleAsks :many
 UPDATE ask SET state = 'expired'
-WHERE (kind IN ('confirm', 'call') OR kind IN ('question', 'login') AND process_id IS NOT NULL)
-  AND state = 'open' AND expires_at <= CAST(?1 AS TEXT) RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at
+WHERE (kind = 'call' OR kind IN ('question', 'sign_in') AND process_id IS NOT NULL)
+  AND state = 'open' AND expires_at <= CAST(?1 AS TEXT) RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at
 `
 
-// The asks past their term: confirmations, and the questions and logins a process waits on.
+// The asks past their term: requests about calls, and the questions and sign-ins a process waits on.
 func (q *Queries) ExpireStaleAsks(ctx context.Context, now string) ([]Ask, error) {
 	rows, err := q.db.QueryContext(ctx, expireStaleAsks, now)
 	if err != nil {
@@ -419,6 +383,7 @@ func (q *Queries) ExpireStaleAsks(ctx context.Context, now string) ([]Ask, error
 			&i.ExpiresAt,
 			&i.DeliveredAt,
 			&i.UnheardAt,
+			&i.ShownAt,
 		); err != nil {
 			return nil, err
 		}
@@ -434,7 +399,7 @@ func (q *Queries) ExpireStaleAsks(ctx context.Context, now string) ([]Ask, error
 }
 
 const findOpenCallAsk = `-- name: FindOpenCallAsk :one
-SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at FROM ask
 WHERE kind = 'call' AND state = 'open' AND coalesce(project_id, 0) = CAST(?1 AS INTEGER) AND payload = ?2
   AND coalesce(process_id, 0) = CAST(?3 AS INTEGER)
 ORDER BY id LIMIT 1
@@ -464,12 +429,13 @@ func (q *Queries) FindOpenCallAsk(ctx context.Context, arg FindOpenCallAskParams
 		&i.ExpiresAt,
 		&i.DeliveredAt,
 		&i.UnheardAt,
+		&i.ShownAt,
 	)
 	return i, err
 }
 
 const getAsk = `-- name: GetAsk :one
-SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask WHERE id = ?
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at FROM ask WHERE id = ?
 `
 
 func (q *Queries) GetAsk(ctx context.Context, id int64) (Ask, error) {
@@ -490,6 +456,7 @@ func (q *Queries) GetAsk(ctx context.Context, id int64) (Ask, error) {
 		&i.ExpiresAt,
 		&i.DeliveredAt,
 		&i.UnheardAt,
+		&i.ShownAt,
 	)
 	return i, err
 }
@@ -504,7 +471,7 @@ func (q *Queries) HearAsk(ctx context.Context, askID int64) error {
 }
 
 const lastAskOfProcess = `-- name: LastAskOfProcess :one
-SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask WHERE process_id = ? ORDER BY id DESC LIMIT 1
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at FROM ask WHERE process_id = ? ORDER BY id DESC LIMIT 1
 `
 
 func (q *Queries) LastAskOfProcess(ctx context.Context, processID sql.NullInt64) (Ask, error) {
@@ -525,12 +492,13 @@ func (q *Queries) LastAskOfProcess(ctx context.Context, processID sql.NullInt64)
 		&i.ExpiresAt,
 		&i.DeliveredAt,
 		&i.UnheardAt,
+		&i.ShownAt,
 	)
 	return i, err
 }
 
 const listAnsweredAsksOfProcess = `-- name: ListAnsweredAsksOfProcess :many
-SELECT kind, text, answer FROM ask WHERE process_id = ? AND state IN ('answered', 'used') AND answer != '' ORDER BY id
+SELECT kind, text, answer FROM ask WHERE process_id = ? AND state = 'answered' AND answer != '' ORDER BY id
 `
 
 type ListAnsweredAsksOfProcessRow struct {
@@ -562,8 +530,51 @@ func (q *Queries) ListAnsweredAsksOfProcess(ctx context.Context, processID sql.N
 	return items, nil
 }
 
+const listAsksOfProcess = `-- name: ListAsksOfProcess :many
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at FROM ask WHERE process_id = ? ORDER BY id DESC
+`
+
+func (q *Queries) ListAsksOfProcess(ctx context.Context, processID sql.NullInt64) ([]Ask, error) {
+	rows, err := q.db.QueryContext(ctx, listAsksOfProcess, processID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Ask
+	for rows.Next() {
+		var i Ask
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.ProcessID,
+			&i.Kind,
+			&i.Text,
+			&i.Payload,
+			&i.Answer,
+			&i.State,
+			&i.CreatedAt,
+			&i.AnsweredAt,
+			&i.ExpiresAt,
+			&i.DeliveredAt,
+			&i.UnheardAt,
+			&i.ShownAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOpenAsksOfProcess = `-- name: ListOpenAsksOfProcess :many
-SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask a
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at FROM ask a
 WHERE a.process_id = CAST(?1 AS INTEGER)
   AND (a.state = 'open' OR EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running'))
 ORDER BY a.id
@@ -593,6 +604,7 @@ func (q *Queries) ListOpenAsksOfProcess(ctx context.Context, processID int64) ([
 			&i.ExpiresAt,
 			&i.DeliveredAt,
 			&i.UnheardAt,
+			&i.ShownAt,
 		); err != nil {
 			return nil, err
 		}
@@ -608,7 +620,7 @@ func (q *Queries) ListOpenAsksOfProcess(ctx context.Context, processID int64) ([
 }
 
 const listOpenCallAsks = `-- name: ListOpenCallAsks :many
-SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask WHERE state = 'open' AND kind = 'call' ORDER BY id
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at FROM ask WHERE state = 'open' AND kind = 'call' ORDER BY id
 `
 
 func (q *Queries) ListOpenCallAsks(ctx context.Context) ([]Ask, error) {
@@ -635,6 +647,97 @@ func (q *Queries) ListOpenCallAsks(ctx context.Context) ([]Ask, error) {
 			&i.ExpiresAt,
 			&i.DeliveredAt,
 			&i.UnheardAt,
+			&i.ShownAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOpenProjectAsks = `-- name: ListOpenProjectAsks :many
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at FROM ask WHERE project_id IS ?1 AND process_id IS NULL AND state = 'open' ORDER BY id
+`
+
+func (q *Queries) ListOpenProjectAsks(ctx context.Context, projectID sql.NullInt64) ([]Ask, error) {
+	rows, err := q.db.QueryContext(ctx, listOpenProjectAsks, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Ask
+	for rows.Next() {
+		var i Ask
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.ProcessID,
+			&i.Kind,
+			&i.Text,
+			&i.Payload,
+			&i.Answer,
+			&i.State,
+			&i.CreatedAt,
+			&i.AnsweredAt,
+			&i.ExpiresAt,
+			&i.DeliveredAt,
+			&i.UnheardAt,
+			&i.ShownAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecentRequests = `-- name: ListRecentRequests :many
+SELECT project_id, created_at, shown_at, answered_at, answer FROM ask
+WHERE workspace_id = ?1 AND kind = 'call' AND created_at >= CAST(?2 AS TEXT) ORDER BY id
+`
+
+type ListRecentRequestsParams struct {
+	WorkspaceID int64
+	Since       string
+}
+
+type ListRecentRequestsRow struct {
+	ProjectID  sql.NullInt64
+	CreatedAt  string
+	ShownAt    sql.NullString
+	AnsweredAt sql.NullString
+	Answer     string
+}
+
+func (q *Queries) ListRecentRequests(ctx context.Context, arg ListRecentRequestsParams) ([]ListRecentRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRecentRequests, arg.WorkspaceID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListRecentRequestsRow
+	for rows.Next() {
+		var i ListRecentRequestsRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.CreatedAt,
+			&i.ShownAt,
+			&i.AnsweredAt,
+			&i.Answer,
 		); err != nil {
 			return nil, err
 		}
@@ -684,7 +787,7 @@ func (q *Queries) ListRemarks(ctx context.Context, processID int64) ([]ProcessRe
 }
 
 const listUndeliveredAsks = `-- name: ListUndeliveredAsks :many
-SELECT a.id, a.workspace_id, a.project_id, a.process_id, a.kind, a.text, a.payload, a.answer, a.state, a.created_at, a.answered_at, a.expires_at, a.delivered_at, a.unheard_at,
+SELECT a.id, a.workspace_id, a.project_id, a.process_id, a.kind, a.text, a.payload, a.answer, a.state, a.created_at, a.answered_at, a.expires_at, a.delivered_at, a.unheard_at, a.shown_at,
     CAST(coalesce((SELECT t.result FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'settled' ORDER BY t.id DESC LIMIT 1), '') AS TEXT) AS result
 FROM ask a
 WHERE a.process_id = CAST(?1 AS INTEGER) AND a.state IN ('answered', 'expired', 'dismissed') AND a.delivered_at IS NULL
@@ -721,6 +824,7 @@ func (q *Queries) ListUndeliveredAsks(ctx context.Context, processID int64) ([]L
 			&i.Ask.ExpiresAt,
 			&i.Ask.DeliveredAt,
 			&i.Ask.UnheardAt,
+			&i.Ask.ShownAt,
 			&i.Result,
 		); err != nil {
 			return nil, err
@@ -771,7 +875,7 @@ func (q *Queries) ListUndeliveredRemarks(ctx context.Context, processID int64) (
 }
 
 const listUnheardAsks = `-- name: ListUnheardAsks :many
-SELECT a.id, a.workspace_id, a.project_id, a.process_id, a.kind, a.text, a.payload, a.answer, a.state, a.created_at, a.answered_at, a.expires_at, a.delivered_at, a.unheard_at FROM ask_unheard u JOIN ask a ON a.id = u.ask_id
+SELECT a.id, a.workspace_id, a.project_id, a.process_id, a.kind, a.text, a.payload, a.answer, a.state, a.created_at, a.answered_at, a.expires_at, a.delivered_at, a.unheard_at, a.shown_at FROM ask_unheard u JOIN ask a ON a.id = u.ask_id
 WHERE a.state != 'open' AND NOT EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')
 ORDER BY a.id
 `
@@ -801,6 +905,7 @@ func (q *Queries) ListUnheardAsks(ctx context.Context) ([]Ask, error) {
 			&i.ExpiresAt,
 			&i.DeliveredAt,
 			&i.UnheardAt,
+			&i.ShownAt,
 		); err != nil {
 			return nil, err
 		}
@@ -816,8 +921,8 @@ func (q *Queries) ListUnheardAsks(ctx context.Context) ([]Ask, error) {
 }
 
 const listWorkspaceExpiredConfirms = `-- name: ListWorkspaceExpiredConfirms :many
-SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask
-WHERE workspace_id = ?1 AND state = 'expired' AND kind IN ('confirm', 'call')
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at FROM ask
+WHERE workspace_id = ?1 AND state = 'expired' AND kind = 'call'
   AND expires_at <= CAST(?2 AS TEXT)
 ORDER BY id
 `
@@ -851,6 +956,7 @@ func (q *Queries) ListWorkspaceExpiredConfirms(ctx context.Context, arg ListWork
 			&i.ExpiresAt,
 			&i.DeliveredAt,
 			&i.UnheardAt,
+			&i.ShownAt,
 		); err != nil {
 			return nil, err
 		}
@@ -866,7 +972,7 @@ func (q *Queries) ListWorkspaceExpiredConfirms(ctx context.Context, arg ListWork
 }
 
 const listWorkspaceOpenAsks = `-- name: ListWorkspaceOpenAsks :many
-SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at FROM ask WHERE state = 'open' AND workspace_id = ? ORDER BY id
+SELECT id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at FROM ask WHERE state = 'open' AND workspace_id = ? ORDER BY id
 `
 
 func (q *Queries) ListWorkspaceOpenAsks(ctx context.Context, workspaceID int64) ([]Ask, error) {
@@ -893,6 +999,7 @@ func (q *Queries) ListWorkspaceOpenAsks(ctx context.Context, workspaceID int64) 
 			&i.ExpiresAt,
 			&i.DeliveredAt,
 			&i.UnheardAt,
+			&i.ShownAt,
 		); err != nil {
 			return nil, err
 		}
@@ -969,6 +1076,20 @@ func (q *Queries) SetRemarkText(ctx context.Context, arg SetRemarkTextParams) er
 	return err
 }
 
+const showAsks = `-- name: ShowAsks :exec
+UPDATE ask SET shown_at = CAST(?1 AS TEXT) WHERE workspace_id = ?2 AND state = 'open' AND shown_at IS NULL
+`
+
+type ShowAsksParams struct {
+	Now         string
+	WorkspaceID int64
+}
+
+func (q *Queries) ShowAsks(ctx context.Context, arg ShowAsksParams) error {
+	_, err := q.db.ExecContext(ctx, showAsks, arg.Now, arg.WorkspaceID)
+	return err
+}
+
 const tellUnheard = `-- name: TellUnheard :execrows
 UPDATE ask SET unheard_at = CAST(?1 AS TEXT) WHERE id = ?2 AND unheard_at IS NULL
 `
@@ -980,23 +1101,6 @@ type TellUnheardParams struct {
 
 func (q *Queries) TellUnheard(ctx context.Context, arg TellUnheardParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, tellUnheard, arg.Now, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const useApproval = `-- name: UseApproval :execrows
-UPDATE ask SET state = 'used', delivered_at = CAST(?1 AS TEXT) WHERE id = ?2 AND state = 'answered'
-`
-
-type UseApprovalParams struct {
-	Now string
-	ID  int64
-}
-
-func (q *Queries) UseApproval(ctx context.Context, arg UseApprovalParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, useApproval, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}

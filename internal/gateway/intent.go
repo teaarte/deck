@@ -9,42 +9,49 @@ import (
 	"time"
 
 	"deck2/internal/ask"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
 
-// Intent writes the start of an external action with its parameters before it happens. An identical call
-// still being made, or whose outcome is unknown, is refused: only the owner repeats it.
+// Intent writes the start of an action outside deck with its parameters before it happens. An identical call, by the
+// one identity of a call, still being made or whose outcome is unknown, is refused: only the owner repeats it.
 func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64, tool string, params json.RawMessage) (int64, error) {
-	p := Canonical(params)
+	ownLine(ctx)
+	same := Canonical
+	if c, err := g.reg.Lookup(ctx, act.Workspace, tool); err == nil {
+		same = func(raw json.RawMessage) string { return c.Same(raw) }
+	}
+	want := same(params)
 	var id int64
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		retrying, _ := ctx.Value(retryingKey{}).(int64)
-		n, err := q.CountUnknownCalls(ctx, db.CountUnknownCallsParams{Retrying: retrying, ProjectID: store.ID(project), Tool: tool, Params: p})
+		open, err := q.ListUnresolvedCalls(ctx, db.ListUnresolvedCallsParams{Retrying: retrying, ProjectID: store.ID(project), Tool: tool})
 		if err != nil {
 			return err
 		}
-		if n > 0 {
-			return registry.Refuse("an identical call of %s has an unknown outcome; it is not repeated until the owner decides", tool)
-		}
-		if n, err = q.CountStartedCalls(ctx, db.CountStartedCallsParams{ProjectID: store.ID(project), Tool: tool, Params: p}); err != nil || n > 0 {
-			if err == nil {
-				err = registry.Refuse("an identical call of %s is being made now; wait for its outcome instead of repeating it", tool)
+		for _, o := range open {
+			if same(json.RawMessage(o.Params)) != want {
+				continue
 			}
-			return err
+			if o.Outcome == "unknown" {
+				return registry.Refuse("an identical call of %s has an unknown outcome; it is not repeated until the owner decides", tool)
+			}
+			return registry.Refuse("an identical call of %s is being made now; wait for its outcome instead of repeating it", tool)
 		}
 		id, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(), Caller: frozenCaller(act), Tool: tool,
-			Class: registry.External, Outcome: "started", Params: p})
+			Need: manifest.Send, Outcome: "started", Params: Canonical(params)})
 		return err
 	})
 	return id, err
 }
 
-// Refused writes an external call that never left deck because it was refused before its intent.
+// Refused writes a call that would have left deck but was refused before its intent.
 func (g *Gateway) Refused(ctx context.Context, act registry.Actor, project int64, tool string, params json.RawMessage, err error) {
-	g.journal(ctx, act, project, tool, registry.External, "rejected", Canonical(params), err.Error())
+	ownLine(ctx)
+	g.journal(ctx, act, project, tool, manifest.Send, "rejected", Canonical(params), err.Error())
 }
 
 // Finish records the outcome of an action whose intent is id: done when the other side answered, rejected
@@ -66,7 +73,7 @@ func (g *Gateway) Lost(ctx context.Context, id int64) {
 	}
 	var tool string
 	if proj, err := g.st.Q.GetProject(ctx, row.ProjectID.Int64); err == nil {
-		tool = g.fingerprint(ctx, proj.WorkspaceID, proj.ID, row.Tool, json.RawMessage(row.Params))
+		tool = g.print(ctx, proj.WorkspaceID, proj.ID, row.Tool, json.RawMessage(row.Params))
 	}
 	g.LostAt(ctx, id, tool)
 }
@@ -115,14 +122,6 @@ func (g *Gateway) Recover(ctx context.Context) error {
 		return err
 	}
 	res, _ := json.Marshal(Outcome{Error: "deck stopped while making this call; it is listed for the owner as an unknown outcome"})
-	classes := map[string]string{}
-	for _, r := range running {
-		f, _ := ask.Decode[Frozen](r.Ask.Payload)
-		classes[f.Call.Command] = registry.External
-		if c, err := g.reg.Lookup(ctx, r.Ask.WorkspaceID, f.Call.Command); err == nil {
-			classes[f.Call.Command] = c.Class
-		}
-	}
 	err = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		for _, r := range running {
 			a := r.Ask
@@ -142,12 +141,15 @@ func (g *Gateway) Recover(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			act := f.Caller.actor()
+			act, right := f.Caller.actor(), ""
+			if f.Need != nil {
+				right = f.Need.Right
+			}
 			if f.As == AsOwner {
 				act = registry.Actor{Kind: registry.Owner, Workspace: a.WorkspaceID, ProjectID: a.ProjectID.Int64}
 			}
 			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: a.ProjectID,
-				Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Class: classes[f.Call.Command], Outcome: "unknown",
+				Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Need: right, Outcome: "unknown",
 				Params: Canonical(f.Call.Input), AskID: sql.NullInt64{Int64: u.ID, Valid: true}}); err != nil {
 				return err
 			}

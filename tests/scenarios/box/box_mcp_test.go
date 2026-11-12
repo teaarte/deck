@@ -68,8 +68,8 @@ func TestMCPServerToolsFollowClassesAndFilter(t *testing.T) {
 	if c := got["srv__fake__send"]; !strings.Contains(c.Out, `"waiting"`) || len(harness.FakeLog(dir)) != 1 {
 		t.Fatalf("a tool without a class is external and waits for the owner: %+v", c)
 	}
-	if items := e.CockpitItems(); len(items) != 1 || items[0].Text != "server fake, tool send\nfor the test" {
-		t.Fatalf("the confirmation names the server and the tool, then why: %+v", items)
+	if items := e.CockpitItems(); len(items) != 1 || items[0].Text != "it acts in your name: fake.send\nserver fake, tool send\nto: ann\nfor the test" {
+		t.Fatalf("the request says what the right lets the module do, the server and the tool and what it sends, then why: %+v", items)
 	}
 	e.Answer(e.WaitAsk().ID, "allow")
 	e.WaitState(id, "done")
@@ -77,7 +77,7 @@ func TestMCPServerToolsFollowClassesAndFilter(t *testing.T) {
 		t.Fatalf("after yes deck makes exactly the frozen call: %v", harness.FakeLog(dir))
 	}
 	rows := e.Journal()
-	if last := rows[len(rows)-1]; last.Tool != "srv.fake.send" || last.Outcome != "done" || last.Class != "external" {
+	if last := rows[len(rows)-1]; last.Tool != "srv.fake.send" || last.Outcome != "done" || last.Need != "send" {
 		t.Fatalf("the external call went through the journal of intents: %+v", rows)
 	}
 

@@ -67,10 +67,10 @@ func TestAutomationTokenCallsOnlyAllowedCommands(t *testing.T) {
 		}
 	}
 	want := []harness.JournalRow{
-		{Actor: actor, Tool: "deck.projects_list", Class: "internal", Outcome: "done"},
-		{Actor: actor, Tool: "deck.manifest_get", Class: "internal", Outcome: "done"}, {Actor: actor, Tool: "deck.document_save", Class: "internal", Outcome: "rejected"},
-		{Actor: actor, Tool: "deck.token_create", Class: "internal", Outcome: "rejected"}, {Actor: actor, Tool: "deck.project_enable", Class: "internal", Outcome: "rejected"},
-		{Actor: actor, Tool: "deck.screen_get", Class: "internal", Outcome: "rejected"},
+		{Actor: actor, Tool: "deck.projects_list", Outcome: "done"},
+		{Actor: actor, Tool: "deck.manifest_get", Outcome: "done"}, {Actor: actor, Tool: "deck.document_save", Outcome: "rejected"},
+		{Actor: actor, Tool: "deck.token_create", Outcome: "rejected"}, {Actor: actor, Tool: "deck.project_enable", Outcome: "rejected"},
+		{Actor: actor, Tool: "deck.screen_get", Outcome: "rejected"},
 	}
 	if !slices.Equal(mine, want) {
 		t.Fatalf("every call of the token is in the journal with its actor:\n got %v\nwant %v", mine, want)
@@ -284,11 +284,11 @@ func TestASaveOfTheSameTextChangesNothing(t *testing.T) {
 func TestACallOfATokenThatWaitsForTheOwnerIsKept(t *testing.T) {
 	t.Parallel()
 	var sent atomic.Int64
-	out := registry.Def("send_out", "Send out", "Sends something outside deck.", registry.OwnerSide,
+	out := harness.Sends(registry.Def("send_out", "Send out", "Sends something outside deck.", registry.OwnerSide,
 		func(context.Context, registry.Actor, struct{}) (any, error) {
 			sent.Add(1)
 			return map[string]any{"sent": true}, nil
-		}).As(registry.External)
+		}))
 	e := harness.New(t, harness.WithConfig(func(c *app.Config) { c.Commands = append(c.Commands, out) }))
 	_, tok := e.Token("terminal", "deck.*")
 	code, body := e.As(tok).Call("deck.send_out", map[string]any{})
@@ -309,16 +309,16 @@ func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
 	var inner atomic.Int64
 	var nested error
 	var e *harness.Env
-	in := registry.Def("inner_send", "Send inside", "Sends something outside deck.", registry.OwnerSide,
+	in := harness.Sends(registry.Def("inner_send", "Send inside", "Sends something outside deck.", registry.OwnerSide,
 		func(context.Context, registry.Actor, struct{}) (any, error) {
 			inner.Add(1)
 			return map[string]any{"sent": true}, nil
-		}).As(registry.External)
-	out := registry.Def("outer_send", "Send", "Sends and sends again.", registry.OwnerSide,
+		}))
+	out := harness.Sends(registry.Def("outer_send", "Send", "Sends and sends again.", registry.OwnerSide,
 		func(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
 			_, nested = e.App.Registry.Invoke(ctx, act, "deck.inner_send", json.RawMessage(`{}`))
 			return map[string]any{"sent": true}, nil
-		}).As(registry.External)
+		}))
 	e = harness.New(t, harness.WithConfig(func(c *app.Config) { c.Commands = append(c.Commands, in, out) }))
 	_, tok := e.Token("terminal", "deck.*")
 	code, body := e.As(tok).Call("deck.outer_send", map[string]any{})

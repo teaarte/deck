@@ -124,6 +124,6 @@ func (s *Service) chatCommands() []*registry.Command {
 			registry.OwnerSide, s.processChat).On(events.Log, events.Processes),
 		registry.Def("process_message_delete", "Delete message to a process",
 			"Deletes a message of the owner to a process while its agent has not taken it.",
-			registry.OwnerOnly, s.processMessageDelete),
+			registry.OwnerOnly, s.processMessageDelete).Stays(),
 	}
 }

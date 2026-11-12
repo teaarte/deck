@@ -236,13 +236,8 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 	}
 	var journal []map[string]any
 	e.Must("deck.calls_list", nil, &journal)
-	if len(journal) != 1 || journal[0]["tool"] != "deck.token_revoke" || journal[0]["class"] != "external" || journal[0]["actor"] != "owner" {
-		t.Fatalf("revoking a token is an external call in the journal: %+v", journal)
-	}
-	var revoked harness.CommandView
-	e.Must("deck.command_describe", map[string]any{"command": "deck.token_revoke"}, &revoked)
-	if revoked.Class != "external" {
-		t.Fatalf("revoking a token is external: %q", revoked.Class)
+	if len(journal) != 1 || journal[0]["tool"] != "deck.token_revoke" || journal[0]["need"] != "" || journal[0]["actor"] != "owner" {
+		t.Fatalf("revoking a token is a call of the owner in the journal, in deck: %+v", journal)
 	}
 	_, other := e.Token("terminal", "deck.*")
 	if code, _ := e.As(other).Call("deck.calls_list", nil); code != 403 {

@@ -559,10 +559,10 @@ func (s *Service) processCommands() []*registry.Command {
 			registry.Everyone, s.processLeft).On(events.Collection, events.Files, events.Feed, events.Processes),
 		registry.Def("process_stop", "Stop process",
 			"Stops a process; a running agent is killed and what it did so far stays; one that handed in its result ends done with it.",
-			registry.OwnerSide, s.processStop),
+			registry.OwnerSide, s.processStop).Stays(),
 		registry.Def("process_rework", "Send back for rework",
 			"Sends a finished agent process back to the same session with a remark, or one that failed or was stopped on where it stopped; changed artifacts get new revisions.",
-			registry.OwnerSide, s.processRework),
+			registry.OwnerSide, s.processRework).Stays(),
 		registry.Read("process_log_get", "Process log",
 			"Gives a page of the events of a process, oldest first, each with its number n: the last ones, or those before or after a number; only errors, tool calls or messages; a text longer than 1000 bytes is cut, and a page of one event gives it whole. While it runs and for a week after it ended.",
 			registry.Everyone, s.processLog).On(events.Log),
@@ -572,9 +572,10 @@ func (s *Service) processCommands() []*registry.Command {
 	}
 }
 
-// holds is an open ask its process cannot go on without: a question or a confirmation; a frozen call lets it work on.
+// holds is an open ask its process cannot go on without: a question, or a call its turn waits to make; a frozen call
+// deck makes lets it work on.
 func holds(a db.Ask) bool {
-	return a.State == ask.StateOpen && (a.Kind == ask.KindQuestion || a.Kind == ask.KindConfirm)
+	return a.State == ask.StateOpen && (a.Kind == ask.KindQuestion || a.Kind == ask.KindCall && gateway.Holds(a.Payload))
 }
 
 // handedOn is the process that took over the work of p after its model refused it; soon while it is about to start.

@@ -48,14 +48,15 @@ type commandDescribeIn struct {
 // commandSpecView is what a command takes and gives; of an agent or a model command also the model of its work with the
 // models it could take.
 type commandSpecView struct {
-	Name        string          `json:"name"`
-	Title       string          `json:"title"`
-	Description string          `json:"description"`
-	Class       string          `json:"class"`
-	Callers     []string        `json:"callers"`
-	Input       json.RawMessage `json:"input"`
-	Result      json.RawMessage `json:"result,omitempty"`
-	Executor    string          `json:"executor,omitempty"`
+	Name        string `json:"name"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	// NeedsRight says a call may need a right of deck's catalog, so it may wait for the owner's answer.
+	NeedsRight bool            `json:"needs_right"`
+	Callers    []string        `json:"callers"`
+	Input      json.RawMessage `json:"input"`
+	Result     json.RawMessage `json:"result,omitempty"`
+	Executor   string          `json:"executor,omitempty"`
 	provider.Work
 }
 
@@ -65,7 +66,7 @@ func (s *Service) commandDescribe(ctx context.Context, act registry.Actor, in co
 	if err != nil {
 		return commandSpecView{}, err
 	}
-	out := commandSpecView{Name: c.Name, Title: c.Title, Description: c.Description, Class: c.Class, Callers: c.Callers,
+	out := commandSpecView{Name: c.Name, Title: c.Title, Description: c.Description, NeedsRight: c.Gated(), Callers: c.Callers,
 		Input: c.Input, Result: c.Result}
 	if c.of != nil {
 		out.Executor = c.of.Executor.Type
@@ -178,7 +179,7 @@ func (s *Service) commandsList(ctx context.Context, act registry.Actor, in comma
 				}
 			case slices.ContainsFunc(m.Tools.HTTP, func(t manifest.HTTPTool) bool { return t.Name == short }):
 				r.Tool = "http"
-			case c.Gate.Fingerprint != nil:
+			case c.Gate.Subject != nil:
 				r.Tool = "mcp"
 			}
 		}

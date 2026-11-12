@@ -8,11 +8,11 @@ import (
 	"strings"
 )
 
-// Def declares a builtin command of class internal; its input schema is the fields of In in order: json name,
+// Def declares a builtin command, which then says the rights its calls need or that it stays in deck; its input schema is the fields of In in order: json name,
 // `desc`, `type` past the Go type, `enum` joined by "|", `opt` when optional; embedded structs add theirs.
 func Def[In any](name, title, desc string, callers []string, h func(ctx context.Context, a Actor, in In) (any, error)) *Command {
 	ps := fields(reflect.TypeFor[In]())
-	return &Command{Name: Deck(name), Title: title, Description: desc, Class: Internal, Callers: callers,
+	return &Command{Name: Deck(name), Title: title, Description: desc, Callers: callers,
 		Input: Params(ps...), Handler: Typed(h), params: ps}
 }
 
@@ -34,12 +34,6 @@ func (c *Command) Follows(reads ...string) *Command {
 // Brief makes a read give only these fields of each row unless the call asks for fields, the rest of them too.
 func (c *Command) Brief(fields ...string) *Command {
 	c.brief = fields
-	return c
-}
-
-// As gives a declared command another class.
-func (c *Command) As(class string) *Command {
-	c.Class = class
 	return c
 }
 
@@ -76,7 +70,7 @@ func Read[In, Out any](name, title, desc string, callers []string, h func(ctx co
 		return out, nil
 	})
 	c.Result, _ = json.Marshal(resultSchema(reflect.TypeFor[Out]()))
-	c.Readable = true
+	c.Readable, c.stays = true, true
 	if slices.ContainsFunc(c.params, func(p Param) bool { return p.Name == "fields" }) {
 		return c
 	}

@@ -132,7 +132,7 @@ func (s *Service) signedIn(ctx context.Context, workspace int64, to ask.SignIn) 
 		if q.Kind != ask.KindSignIn {
 			continue
 		}
-		if p, err := ask.Decode[ask.SignIn](q.Payload); err != nil || p != to {
+		if p, err := ask.Decode[ask.SignIn](q.Payload); err != nil || p.Provider || p.Site != to.Site || p.Tool != to.Tool {
 			continue
 		}
 		if err := s.Broker.Answer(ctx, q.ID, "done"); err == nil {
@@ -151,16 +151,16 @@ func (s *Service) siteCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("browser_login", "Sign in to a site",
 			"Opens a window of deck's browser at a page so the owner signs in once with deck's own profile.",
-			registry.OwnerOnly, s.browserLogin),
+			registry.OwnerOnly, s.browserLogin).Stays(),
 		registry.Def("browser_login_finish", "Signed in",
 			"Closes the sign-in window of deck's browser; processes waiting for this site go on.",
-			registry.OwnerOnly, s.browserLoginFinish),
+			registry.OwnerOnly, s.browserLoginFinish).Stays(),
 		registry.Def("browser_login_request", "Site needs a sign-in",
 			"Tells the owner that the session of a site ran out; the process waits until the owner signs in again.",
-			[]string{registry.Agent}, s.browserLoginRequest),
+			[]string{registry.Agent}, s.browserLoginRequest).Stays(),
 		registry.Def("oauth_start", "Sign in to a service",
 			"Starts the owner's oauth2 sign-in for a tool in a window of deck's browser; it must finish within ten minutes.",
-			registry.OwnerOnly, s.oauthStart),
+			registry.OwnerOnly, s.oauthStart).Stays(),
 	}
 }
 

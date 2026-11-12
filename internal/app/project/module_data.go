@@ -311,7 +311,7 @@ func (s *Service) projectReset(ctx context.Context, act registry.Actor, in proje
 		}
 	}
 	params, _ := json.Marshal(map[string]any{"project": p.Name, "snapshot": snapshot})
-	s.Gateway.Journal(ctx, act, 0, registry.Deck("project_reset"), registry.External, "done", string(params), "")
+	s.Gateway.Journal(ctx, act, 0, registry.Deck("project_reset"), "", "done", string(params), "")
 	return map[string]any{"reset": p.Name, "records": records, "snapshot": snapshot}, nil
 }
 
@@ -319,7 +319,7 @@ func (s *Service) dataCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_reset", "Reset the data of a module",
 			"Empties a module after a snapshot of deck: its records, their documents, its memory, its files and its data folder; its manifest, prompts, scripts, secrets and settings stay.",
-			registry.OwnerOnly, s.projectReset),
+			registry.OwnerOnly, s.projectReset).Stays(),
 	}
 }
 

@@ -198,7 +198,8 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerSide, s.settingsList).On(events.Settings),
 		registry.Def("setting_set", "Change setting",
 			"Sets one setting of the workspace to a value.",
-			registry.OwnerOnly, s.settingsSet).Enum("name", names()...),
+			registry.OwnerOnly, s.settingsSet).Stays().
+			Enum("name", names()...),
 	}
 }
 

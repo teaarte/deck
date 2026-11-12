@@ -23,6 +23,7 @@ type Ask struct {
 	ExpiresAt   sql.NullString
 	DeliveredAt sql.NullString
 	UnheardAt   sql.NullString
+	ShownAt     sql.NullString
 }
 
 type AskUnheard struct {
@@ -449,7 +450,7 @@ type ToolCall struct {
 	Actor       string
 	Caller      string
 	Tool        string
-	Class       string
+	Need        string
 	Outcome     string
 	Params      string
 	ExternalID  string

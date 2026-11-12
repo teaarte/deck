@@ -31,8 +31,9 @@ type Service struct {
 	St   *store.Store
 	Now  func() time.Time
 	Home home.Layout
-	// Invoke calls a command, as the undo of a change does.
+	// Invoke calls a command, as the undo of a change does; Call calls one for another caller, decided by the gateway.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
+	Call   func(ctx context.Context, act registry.Actor, name string, input []byte) (any, error)
 	// Waiting are how many things wait for the owner, by project, as the menu counts them.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
 	// Hidden says the owner's pushes show only the module they are of; Lang is the language a push of a process
@@ -247,7 +248,9 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 					}
 					mans[f.ProjectID] = m
 				}
-				r.Buttons[i] = outward(r.Buttons[i], m, s.Reads(ctx, act.Workspace, f.ProcessID.Int64))
+				if r.Buttons[i] = outward(r.Buttons[i], m, s.Reads(ctx, act.Workspace, f.ProcessID.Int64), f.ID, i); registry.IsBuiltin(r.Buttons[i].Command) {
+					continue
+				}
 			}
 			r.Buttons[i].Command = r.Project + "." + b.Command
 		}
@@ -490,9 +493,9 @@ func (s *Service) feedCommands() []*registry.Command {
 			registry.OwnerSide, s.feedList).On(events.Feed, events.Processes, events.Asks, events.Projects, events.Documents, events.Health, events.Secrets, events.Models, events.Assignments, events.Triggers),
 		registry.Def("feed_undo", "Undo",
 			"Undoes a change made without the owner, unless the document changed since.",
-			registry.OwnerOnly, s.feedUndo),
+			registry.OwnerOnly, s.feedUndo).Stays(),
 		registry.Def("feed_mark_read", "Mark read",
 			"Marks a note of the feed read, or with all every unread one.",
-			registry.OwnerOnly, s.feedRead),
+			registry.OwnerOnly, s.feedRead).Stays(),
 	}
 }

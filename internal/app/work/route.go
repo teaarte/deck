@@ -155,20 +155,18 @@ func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (models.Hop,
 	return h, nil
 }
 
-// allowed decides whether a call of a model by an agent or script runs without the owner: its module holds the right
-// money on what it goes through; one it does not declare it is refused. Where it goes the call finds once, in its handler.
-func (s *Service) allowed(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
+// moneyNeeds are the rights of money an agent's call of a model needs, which its module declares; none for others'
+// calls, which the owner set up, nor for a trial or draft's call that reaches only free or local models.
+func (s *Service) moneyNeeds(ctx context.Context, act registry.Actor, _ registry.Subject, input json.RawMessage) ([]registry.Need, error) {
 	if act.Kind != registry.Agent {
-		return true, nil
+		return nil, nil
 	}
-	_, held, err := s.spends(ctx, act, input)
-	return held, err
-}
-
-// moneyNeed is the right a call of a model needs: money on the connection, the model or the @role it goes through.
-func (s *Service) moneyNeed(ctx context.Context, _ registry.Actor, _ string, input json.RawMessage) registry.Need {
-	use, _ := s.use(ctx, input)
-	return registry.Need{Right: manifest.Money, Subject: use}
+	if act.Trial {
+		if free, err := s.free(ctx, act, input); err != nil || free {
+			return nil, err
+		}
+	}
+	return s.spends(ctx, act, input)
 }
 
 // route is where a call of a model goes: the hops the proxy found already, else those of what it asks.
@@ -207,15 +205,15 @@ func (s *Service) use(ctx context.Context, input json.RawMessage) (string, strin
 	return in.Connection, in.Connection
 }
 
-// spends says whether the module of act declares and holds money on what a call of a model goes through: the @role,
-// the model or the connection, a model by name also through its connection; one it does not declare is refused.
-func (s *Service) spends(ctx context.Context, act registry.Actor, input json.RawMessage) (declared, held bool, err error) {
+// spends are the rights of money a call of a model may go by: the @role, the model or the connection it goes through,
+// a model by name also through its connection, those the module of act declares; one it declares none of is refused.
+func (s *Service) spends(ctx context.Context, act registry.Actor, input json.RawMessage) ([]registry.Need, error) {
 	if act.ProjectID == 0 {
-		return true, true, nil
+		return nil, nil
 	}
-	m, g, err := docs.Rights(ctx, s.St.Q, act.ProjectID)
+	m, _, err := docs.Rights(ctx, s.St.Q, act.ProjectID)
 	if err != nil {
-		return false, false, err
+		return nil, err
 	}
 	use, connection := s.use(ctx, input)
 	if connection == "" && !strings.HasPrefix(use, "@") {
@@ -223,23 +221,24 @@ func (s *Service) spends(ctx context.Context, act registry.Actor, input json.Raw
 			connection = row.Connection.Name
 		}
 	}
+	var out []registry.Need
 	for _, subject := range []string{use, connection} {
 		n := registry.Need{Right: manifest.Money, Subject: subject}
 		if subject != "" && m.Declares(n) {
-			declared, held = true, held || m.Holds(g, n)
+			out = append(out, n)
 		}
 	}
-	if !declared {
+	if len(out) == 0 {
 		p, _ := s.St.Q.GetProject(ctx, act.ProjectID)
-		return false, false, registry.Refuse("module %s does not declare the right money on %s; it declares it in rights with why, and the owner grants it", p.Name, use)
+		return nil, registry.Refuse("module %s does not declare the right money on %s; it declares it in rights with why, and the owner grants it", p.Name, use)
 	}
-	return declared, held, nil
+	return out, nil
 }
 
 // free says a call of a model costs nothing: every model it may reach is free or on the owner's own hardware, and
 // the manifest names it. A call no model takes is an error, since no answer of the owner would route it.
 func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMessage) (bool, error) {
-	if declared, _, err := s.spends(ctx, act, input); act.ProjectID == 0 || err != nil || !declared {
+	if needs, err := s.spends(ctx, act, input); act.ProjectID == 0 || err != nil || len(needs) == 0 {
 		return false, nil
 	}
 	hops, err := s.route(ctx, act, input)

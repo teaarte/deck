@@ -90,7 +90,7 @@ export function useAppBridge(value: CustomValue, ask: (q: Ask) => Promise<boolea
         return { isError: true, content: text(`deck: this block may call only its buttons' commands with their fields: ${allowed}`) };
       }
       const input = { ...args, ...(act.params ?? {}) };
-      if (act.class !== 'internal') {
+      if (act.stays !== true) {
         if (asking.current) return { isError: true, content: text('deck: another call of this block waits for the owner') };
         asking.current = true;
         const ok = await ask({ act, input }).finally(() => { asking.current = false; });

@@ -77,9 +77,9 @@ func (s *Service) pushCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("push_subscribe", "Get pushes",
 			"Subscribes the device the call comes from to pushes: what waits for the owner and the notes of the feed when no client is open.",
-			registry.OwnerOnly, s.pushSubscribe),
+			registry.OwnerOnly, s.pushSubscribe).Stays(),
 		registry.Def("push_unsubscribe", "Stop pushes",
 			"Stops pushes to a device.",
-			registry.OwnerOnly, s.pushUnsubscribe),
+			registry.OwnerOnly, s.pushUnsubscribe).Stays(),
 	}
 }

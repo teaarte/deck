@@ -228,6 +228,7 @@ func (s *Service) screenCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("screen_get", "Screen",
 			"Resolves a stored screen with its data into A2UI messages; with a topic, only the data of the blocks it changes, with a block only that of the block; the blocks of a dialog get data only while it is open. Anyone but the owner gets the text of a document and the HTML of a custom block by size, and whole by a read of that block.",
-			registry.OwnerSide, s.screenGet).Page(),
+			registry.OwnerSide, s.screenGet).Stays().
+			Page(),
 	}
 }

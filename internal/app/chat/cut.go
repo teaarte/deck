@@ -201,6 +201,6 @@ func (s *Service) cutCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("chat_retry", "Answer again on another provider",
 			"Answers the messages of a reply that broke off once more, on another provider the master may use, for this reply only.",
-			registry.OwnerOnly, s.chatRetry),
+			registry.OwnerOnly, s.chatRetry).Stays(),
 	}
 }

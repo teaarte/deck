@@ -344,7 +344,7 @@ func (s *Service) checkCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("provider_check", "Check provider",
 			"Runs the self-check of a provider's adapter again; its health shows the outcome.",
-			registry.OwnerOnly, s.providerCheck),
+			registry.OwnerOnly, s.providerCheck).Stays(),
 	}
 }
 

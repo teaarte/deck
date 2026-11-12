@@ -37,6 +37,8 @@ const (
 	// WaitAnswer waits for the owner to answer an ask; WaitSignIn for the owner to log its provider in again.
 	WaitAnswer = "answer"
 	WaitSignIn = "sign_in"
+	// WaitRight waits, before a turn starts, for the owner's answer to a right it needs, a login or a network.
+	WaitRight = "right"
 	// WaitLimit is a pause on a provider's usage limit until it resets; WaitProvider waits for a red provider.
 	WaitLimit    = "limit"
 	WaitProvider = "provider"

@@ -13,6 +13,7 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/fault"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -73,7 +74,7 @@ func (s *Service) tell(ctx context.Context, p db.Process) {
 		}
 		last := slices.MaxFunc(asks, func(a, b db.Ask) int { return cmp.Compare(a.ID, b.ID) })
 		text, key = "", fmt.Sprintf("deck:%d:ask:%d", p.ID, last.ID)
-		if last.Kind == ask.KindQuestion || last.Kind == ask.KindConfirm {
+		if last.Kind == ask.KindQuestion || last.Kind == ask.KindCall && gateway.Holds(last.Payload) {
 			text = untrusted.Cut(last.Text, 500)
 		} else if why, _ := ask.Decode[struct{ Reason string }](last.Payload); why.Reason != "" {
 			// A request says why its caller asks.

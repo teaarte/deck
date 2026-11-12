@@ -32,6 +32,8 @@ type rightView struct {
 	Declared bool `json:"declared"`
 	// Exit says the right is a way out of a turn: the network, money, sending in the owner's name, other modules.
 	Exit bool `json:"exit"`
+	// AtUse says the owner answers it when it is first used, not in advance when enabling the module.
+	AtUse bool `json:"at_use"`
 }
 
 // rows are the rights m declares, a row a subject, with the owner's answers rows gives; then the answers to rights no
@@ -55,7 +57,7 @@ func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(stri
 			}
 			seen[key] = true
 			v := rightView{Project: p.Name, Right: d.Right, Who: d.Whom(), Subject: subject, Why: d.Why, Declared: true, Exit: r.Exit || d.Whom() == manifest.Agents,
-				Says: manifest.Says(tr, d.Right, d.Who, []string{subject})}
+				Says: manifest.Says(tr, d.Right, d.Who, []string{subject}), AtUse: manifest.AtUse(registry.Need{Right: d.Right, Who: d.Whom(), Subject: subject})}
 			if g, ok := answer(d.Right, d.Whom(), subject); ok {
 				v.Answer, v.At = g.Answer, g.CreatedAt
 			}
@@ -68,7 +70,7 @@ func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(stri
 		}
 		r, _ := manifest.RightOf(g.Name)
 		out = append(out, rightView{Project: p.Name, Right: g.Name, Who: g.Who, Subject: g.Subject, Answer: g.Answer, At: g.CreatedAt, Exit: r.Exit,
-			Says: manifest.Says(tr, g.Name, g.Who, []string{g.Subject})})
+			Says: manifest.Says(tr, g.Name, g.Who, []string{g.Subject}), AtUse: manifest.AtUse(registry.Need{Right: g.Name, Who: g.Who, Subject: g.Subject})})
 	}
 	return out
 }
@@ -168,31 +170,35 @@ func (s *Service) printOf(ctx context.Context, p db.Project, n registry.Need) st
 		return ""
 	}
 	c, err := s.Registry.Lookup(ctx, p.WorkspaceID, p.Name+"."+n.Subject)
-	if err != nil || c.ProjectID != p.ID || c.Gate.Needs == nil || c.Gate.Fingerprint == nil {
+	if err != nil || c.ProjectID != p.ID || c.Gate.Needs == nil || c.Gate.Subject == nil {
 		return ""
 	}
-	got := s.Gateway.Need(ctx, registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID}, c,
-		c.Gate.Fingerprint(ctx, p.WorkspaceID, p.ID, nil), nil)
-	if got.Right != n.Right || got.Subject != n.Subject {
-		return ""
+	sub := c.Gate.Subject(ctx, registry.At{Workspace: p.WorkspaceID, Project: p.ID}, nil)
+	needs, err := c.Gate.Needs(ctx, registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID}, sub, nil)
+	for _, got := range needs {
+		if err == nil && got.Right == n.Right && got.Subject == n.Subject {
+			return got.Print
+		}
 	}
-	return got.Print
+	return ""
 }
 
-// grantDeclared answers always to every right m declares but send, which asks the owner when first used, and but
-// those the owner answered already: what enabling a module gives it.
+// grantDeclared answers always to every right m declares that is not answered at use, but those the owner answered
+// already: what enabling a module gives it; the rest the owner answers when first used.
 func (s *Service) grantDeclared(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest) error {
+	return s.grant(ctx, q, act, p, m, func(n registry.Need) bool { return !manifest.AtUse(n) })
+}
+
+// grant answers always to the rights m declares that give says, but those the owner answered already.
+func (s *Service) grant(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest, give func(registry.Need) bool) error {
 	gs, err := q.ListGrants(ctx, p.ID)
 	if err != nil {
 		return err
 	}
 	for _, d := range m.Rights {
-		if d.Right == manifest.Send {
-			continue
-		}
 		for _, subject := range d.What {
 			n := registry.Need{Right: d.Right, Who: d.Whom(), Subject: subject}
-			if slices.ContainsFunc(gs, func(g db.RightGrant) bool { return g.Name == n.Right && g.Who == n.Who && g.Subject == n.Subject }) {
+			if !give(n) || slices.ContainsFunc(gs, func(g db.RightGrant) bool { return g.Name == n.Right && g.Who == n.Who && g.Subject == n.Subject }) {
 				continue
 			}
 			n.Print = m.PrintOf(n)
@@ -309,6 +315,6 @@ func (s *Service) rightsCommands() []*registry.Command {
 			registry.OwnerSide, s.rightsList).On(events.Projects, events.Documents),
 		registry.Def("right_set", "Answer a right",
 			"Keeps the owner's answer to a right of a module on one subject: always, so it uses it without asking; no, so it does not and does not ask; or revoke, so it asks again when it next needs it.",
-			registry.OwnerOnly, s.rightSet),
+			registry.OwnerOnly, s.rightSet).Stays(),
 	}
 }

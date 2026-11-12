@@ -289,9 +289,9 @@ func (s *Service) cockpitCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("process_retry", "Run a failed process again",
 			"Starts the command of a failed process again with the same input, as the owner calls it.",
-			registry.OwnerOnly, s.processRetry),
+			registry.OwnerOnly, s.processRetry).Stays(),
 		registry.Def("process_dismiss", "Close a failed process",
 			"Takes a failed process, or with all every one, off the cockpit; each stays in the history.",
-			registry.OwnerOnly, s.processDismiss),
+			registry.OwnerOnly, s.processDismiss).Stays(),
 	}
 }

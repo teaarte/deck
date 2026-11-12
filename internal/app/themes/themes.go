@@ -382,16 +382,16 @@ func (s *Service) themeCommands() []*registry.Command {
 			registry.Everyone, func(context.Context, registry.Actor, struct{}) (json.RawMessage, error) { return Format(), nil }).On(registry.Static),
 		registry.Def("theme_check", "Check theme",
 			"Checks a theme without saving it: its schema, its CSS and the contrast of its text in both schemes with every accent; for a saved theme also the addresses of deck in it, light and dark.",
-			registry.OwnerSide, s.check),
+			registry.OwnerSide, s.check).Stays(),
 		registry.Def("theme_save", "Save theme",
 			"Creates or changes a theme; one a check refuses is not saved. The name of a shipped theme puts this one over it.",
-			registry.OwnerSide, s.save),
+			registry.OwnerSide, s.save).Stays(),
 		registry.Def("theme_delete", "Delete theme",
 			"Deletes the owner's theme; over a shipped one, the shipped one comes back.",
-			registry.OwnerSide, s.remove),
+			registry.OwnerSide, s.remove).Stays(),
 		registry.Def("theme_use", "Use theme",
 			"Puts a theme on the whole deck.",
-			registry.OwnerOnly, s.use),
+			registry.OwnerOnly, s.use).Stays(),
 	}
 }
 

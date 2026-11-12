@@ -91,9 +91,9 @@ export interface Action {
   screen?: string;
   record?: number;
   /**
-   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   * The command of a custom block's button needs no right of deck's catalog; the host asks the owner before one that may.
    */
-  class?: string;
+  stays?: boolean;
   /**
    * The fields a custom block's call fills beside params; the host refuses any other.
    */
@@ -173,9 +173,9 @@ export interface Action1 {
   screen?: string;
   record?: number;
   /**
-   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   * The command of a custom block's button needs no right of deck's catalog; the host asks the owner before one that may.
    */
-  class?: string;
+  stays?: boolean;
   /**
    * The fields a custom block's call fills beside params; the host refuses any other.
    */
@@ -585,9 +585,9 @@ export interface Action2 {
   screen?: string;
   record?: number;
   /**
-   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   * The command of a custom block's button needs no right of deck's catalog; the host asks the owner before one that may.
    */
-  class?: string;
+  stays?: boolean;
   /**
    * The fields a custom block's call fills beside params; the host refuses any other.
    */
@@ -667,9 +667,9 @@ export interface Action3 {
   screen?: string;
   record?: number;
   /**
-   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   * The command of a custom block's button needs no right of deck's catalog; the host asks the owner before one that may.
    */
-  class?: string;
+  stays?: boolean;
   /**
    * The fields a custom block's call fills beside params; the host refuses any other.
    */
@@ -829,9 +829,9 @@ export interface Action4 {
   screen?: string;
   record?: number;
   /**
-   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   * The command of a custom block's button needs no right of deck's catalog; the host asks the owner before one that may.
    */
-  class?: string;
+  stays?: boolean;
   /**
    * The fields a custom block's call fills beside params; the host refuses any other.
    */
@@ -940,9 +940,9 @@ export interface Action5 {
   screen?: string;
   record?: number;
   /**
-   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   * The command of a custom block's button needs no right of deck's catalog; the host asks the owner before one that may.
    */
-  class?: string;
+  stays?: boolean;
   /**
    * The fields a custom block's call fills beside params; the host refuses any other.
    */
@@ -1022,9 +1022,9 @@ export interface Action6 {
   screen?: string;
   record?: number;
   /**
-   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   * The command of a custom block's button needs no right of deck's catalog; the host asks the owner before one that may.
    */
-  class?: string;
+  stays?: boolean;
   /**
    * The fields a custom block's call fills beside params; the host refuses any other.
    */
@@ -1386,9 +1386,9 @@ export interface Action7 {
   screen?: string;
   record?: number;
   /**
-   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   * The command of a custom block's button needs no right of deck's catalog; the host asks the owner before one that may.
    */
-  class?: string;
+  stays?: boolean;
   /**
    * The fields a custom block's call fills beside params; the host refuses any other.
    */
@@ -1468,9 +1468,9 @@ export interface Action8 {
   screen?: string;
   record?: number;
   /**
-   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   * The command of a custom block's button needs no right of deck's catalog; the host asks the owner before one that may.
    */
-  class?: string;
+  stays?: boolean;
   /**
    * The fields a custom block's call fills beside params; the host refuses any other.
    */
@@ -1550,9 +1550,9 @@ export interface Action9 {
   screen?: string;
   record?: number;
   /**
-   * Class of the command of a custom block's button; the host asks the owner before one that is not internal.
+   * The command of a custom block's button needs no right of deck's catalog; the host asks the owner before one that may.
    */
-  class?: string;
+  stays?: boolean;
   /**
    * The fields a custom block's call fills beside params; the host refuses any other.
    */

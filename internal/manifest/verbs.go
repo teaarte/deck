@@ -12,8 +12,8 @@ type button struct{ Label, Icon string }
 var verbs = map[string]button{
 	"close": {"Close", "x"}, "edit": {"Edit", "pencil"}, "replace": {"Replace", "replace"}, "models": {"Models", "cpu"},
 	"model": {"Change the model", "switch-horizontal"}, "fallbacks": {"Fallbacks", "list-numbers"}, "try": {"Try", "flask"}, "set": {"Set", "key"},
-	"answer": {"Answer", "message"}, "allow": {"Allow", "check"}, "allow_always": {"Always allow here", "checks"},
-	"deny": {"Deny", "x"}, "deny_because": {"Deny because…", "message-x"}, "retry": {"Retry", "refresh"},
+	"answer": {"Answer", "message"}, "allow": {"Allow", "check"}, "allow_always": {"Always allow here", "checks"}, "allow_work": {"For this work", "player-play"},
+	"deny": {"Deny", "x"}, "deny_kept": {"No, and do not ask again", "ban"}, "deny_because": {"Deny because…", "message-x"}, "retry": {"Retry", "refresh"},
 	"mark_done": {"Count as done", "check"}, "mark_read": {"Mark read", "check"}, "read_all": {"Read all", "checks"},
 	"mark": {"Mark", "bookmark"}, "new_session": {"New session", "message-plus"}, "continue": {"Continue", "player-play"},
 	"sign_in": {"Sign in", "login"}, "signed_in": {"Signed in", "check"}, "undo": {"Undo", "arrow-back-up"},

@@ -6,7 +6,6 @@ import (
 	"deck2/internal/events"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"slices"
 	"strings"
 	"unicode"
@@ -38,12 +37,19 @@ type askView struct {
 	// Command is the command a call waits to make and By the process that asks, for the details of a decision.
 	Command string `json:"command,omitempty"`
 	By      string `json:"by,omitempty"`
-	// Change is what a yes changes, a line a place, in the owner's words.
+	// Change is what a yes allows in deck's words: what the right lets the module do, then what the call changes or
+	// its fields, a line each, those that say whom it reaches first.
 	Change string `json:"change,omitempty"`
 	// Why is why the caller asks, in its own words: the why of its call, else the last thing its agent said.
 	Why string `json:"why,omitempty"`
 	// Always says what a yes for always would allow from now on; empty where a call is allowed only once.
 	Always string `json:"always,omitempty"`
+	// Work says what a yes for the work of the process would allow; empty where it is not offered.
+	Work string `json:"work,omitempty"`
+	// Kept says a no is kept: the module does not ask for this right again.
+	Kept bool `json:"kept,omitempty"`
+	// Turn marks a call of a tool of the agent's provider, which its turn makes itself once allowed.
+	Turn bool `json:"turn,omitempty"`
 	// Allow is the label of the yes with what it lets happen, for a call, a confirmation or a grant.
 	Allow     string          `json:"allow,omitempty"`
 	Where     string          `json:"where"`
@@ -103,15 +109,15 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 		switch {
 		case q.Kind == ask.KindQuestion:
 			r.What = tr(r.What)
-		case q.Kind == ask.KindLogin:
+		case ask.Provider(q):
 			r.What, r.Text = tr(r.What), tr(r.Text)
 		case registry.IsBuiltin(r.Command):
 			// A call of several, as assignments, says each on its line.
 			r.Where = trLines(tr, r.Where)
 		}
-		r.Change = trLines(tr, r.Change)
-		if slices.Contains([]string{ask.KindCall, ask.KindConfirm}, q.Kind) && r.What != "" {
-			r.Allow = tr(fmt.Sprintf("Allow: %s", r.What))
+		r.Change, r.Work = trLines(tr, r.Change), tr(r.Work)
+		if q.Kind == ask.KindCall && r.What != "" {
+			r.Allow = tr(fmt.Sprintf("Allow once: %s", r.What))
 		}
 		r.Actions = buttons(r)
 		for _, a := range r.Actions {
@@ -124,6 +130,9 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 			}
 		}
 		out = append(out, r)
+	}
+	if len(out) > 0 {
+		s.shown(ctx, act)
 	}
 	return out, nil
 }
@@ -180,31 +189,41 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		}
 		r.Payload = json.RawMessage(cmp.Or(string(f.Call.Input), "null"))
 		r.Why = cmp.Or(f.Reason, r.Why)
-		if c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command); err == nil {
+		var lines []string
+		if n := f.Need; n != nil && q.Kind == ask.KindCall && !(registry.IsBuiltin(f.Call.Command) && n.Subject == f.Call.Command) {
+			lines = append(lines, manifest.Says(func(t string) string { return t }, n.Right, n.Who, []string{n.Subject}))
+		}
+		c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command)
+		r.Turn = f.As == gateway.AsTurn
+		if err == nil && !r.Turn {
 			r.What = c.Tr(words.In(lang), lang, c.Title)
-			if f.Target == "" && c.Gate.Target != nil {
-				r.Where = c.Gate.Target(f.Tool, f.Call.Input)
-			}
-			r.Change = r.Where
-			if r.Change == "" && r.Project != "" {
-				r.Change = fmt.Sprintf("Runs %s of %s", r.What, r.Project)
-			}
-			if c.Gate.Changes != nil {
-				r.Change = strings.Join(c.Gate.Changes(f.Tool, f.Call.Input), "\n")
-			}
-			for _, id := range f.Replaces {
-				r.Where = strings.TrimSpace(r.Where + "\n" + fmt.Sprintf("Replaces request %d", id))
-				r.Change = strings.TrimSpace(r.Change + "\n" + fmt.Sprintf("Replaces request %d", id))
-			}
-			r.Always = s.always(ctx, q, r.Project, f, c, r.What)
-		} else if r.Project != "" && strings.HasPrefix(f.Call.Command, r.Project+".") {
-			r.Always = fmt.Sprintf("Always let %s run %s", r.Project, strings.TrimPrefix(f.Call.Command, r.Project+"."))
 		}
-	case ask.KindConfirm:
-		if pl, err := ask.Decode[ask.Confirm](q.Payload); err == nil && pl.Tool != "" {
-			r.What, r.Change = pl.Tool, confirmFields(pl.Input)
-			r.Where = firstLine(r.Change)
+		var in map[string]any
+		_ = json.Unmarshal(f.Call.Input, &in)
+		switch {
+		case len(f.Changes) > 0:
+			lines = append(lines, f.Changes...)
+		case r.Where != "" && registry.IsBuiltin(f.Call.Command):
+			lines = append(lines, r.Where)
+		case r.Where != "" || len(in) > 0:
+			// Whom a call of a module or of the turn reaches is in its fields, a line each, those that say it first.
+			lines = append(lines, slices.DeleteFunc([]string{r.Where, confirmFields(in)}, func(l string) bool { return l == "" })...)
+		case r.Project != "":
+			lines = append(lines, fmt.Sprintf("Runs %s of %s", r.What, r.Project))
 		}
+		r.Where = cmp.Or(r.Where, firstLine(confirmFields(in)))
+		for _, id := range f.Replaces {
+			r.Where = strings.TrimSpace(r.Where + "\n" + fmt.Sprintf("Replaces request %d", id))
+			lines = append(lines, fmt.Sprintf("Replaces request %d", id))
+		}
+		r.Change = strings.Join(lines, "\n")
+		if slices.Contains(f.Offers, gateway.Work) {
+			r.Work = "For this work"
+		}
+		if slices.Contains(f.Offers, manifest.Always) && f.Need != nil && r.Project != "" {
+			r.Always = fmt.Sprintf("Always let %s: %s", r.Project, manifest.Says(func(t string) string { return t }, f.Need.Right, f.Need.Who, []string{f.Need.Subject}))
+		}
+		r.Kept = slices.Contains(f.Offers, manifest.No)
 	case ask.KindSignIn:
 		pl, _ := ask.Decode[ask.SignIn](q.Payload)
 		r.Where = cmp.Or(pl.Site, pl.Tool)
@@ -259,31 +278,6 @@ func (s *Service) callerWho(ctx context.Context, c gateway.Caller) string {
 		return s.processWho(ctx, c.Process)
 	}
 	return s.callerName(ctx, c)
-}
-
-// always says what a yes for always to frozen call f of c would allow: its own command or tool, the site of a browser
-// action, or what a call of a model spends, in the words of the catalog; empty for a call allowed only once.
-func (s *Service) always(ctx context.Context, q db.Ask, project string, f gateway.Frozen, c *registry.Command, title string) string {
-	if project == "" || c.Class != registry.External {
-		return ""
-	}
-	if strings.HasPrefix(f.Call.Command, registry.Deck("browser_")) {
-		if u, err := url.Parse(f.Tool); err == nil && u.Host != "" {
-			return fmt.Sprintf("Always let %s act on %s", project, u.Host)
-		}
-		return ""
-	}
-	if strings.HasPrefix(f.Call.Command, project+".") {
-		return fmt.Sprintf("Always let %s run %s", project, cmp.Or(title, c.Name))
-	}
-	if c.Gate.Needs == nil {
-		return ""
-	}
-	n := s.Gateway.Need(ctx, registry.Actor{Kind: registry.Agent, Workspace: q.WorkspaceID, ProjectID: q.ProjectID.Int64}, c, f.Tool, f.Call.Input)
-	if n.Subject == "" {
-		return ""
-	}
-	return fmt.Sprintf("Always let %s: %s", project, manifest.Says(func(t string) string { return t }, n.Right, n.Who, []string{n.Subject}))
 }
 
 // callerName says who made a frozen call: a process, a token, a trigger, the master or the owner.
@@ -356,7 +350,7 @@ func confirmFields(in map[string]any) string {
 func (s *Service) listCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("asks_list", "Waiting for you",
-			"Lists what waits for the owner, oldest first: questions, confirmations, requests for rights and sign-ins, with who asks, what and where, and the link of the screen that answers them; a request for rights gives what it widens and why. Confirmations that expired stay until the owner clears them.",
+			"Lists what waits for the owner, oldest first: questions, requests about calls that need a right, unknown outcomes and sign-ins, with who asks, what and where, and the link of the screen that answers them; a request gives in deck's words what a yes allows and, apart, why the caller asks in its own. Requests that expired stay until the owner clears them.",
 			registry.OwnerSide, s.asksList).On(events.Asks),
 	}
 }

@@ -1,6 +1,6 @@
 -- name: LogToolCall :one
-INSERT INTO tool_call (workspace_id, process_id, project_id, actor, caller, tool, class, outcome, params, error, ask_id, created_at)
-VALUES (sqlc.arg(workspace_id), sqlc.arg(process_id), sqlc.arg(project_id), sqlc.arg(actor), sqlc.arg(caller), sqlc.arg(tool), sqlc.arg(class),
+INSERT INTO tool_call (workspace_id, process_id, project_id, actor, caller, tool, need, outcome, params, error, ask_id, created_at)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(process_id), sqlc.arg(project_id), sqlc.arg(actor), sqlc.arg(caller), sqlc.arg(tool), sqlc.arg(need),
     sqlc.arg(outcome), sqlc.arg(params), sqlc.arg(error), sqlc.narg(ask_id), sqlc.arg(created_at)) RETURNING id;
 
 
@@ -20,15 +20,11 @@ SELECT * FROM tool_call WHERE id = ?;
 UPDATE tool_call SET outcome = 'unknown', ask_id = sqlc.narg(ask_id) WHERE id = sqlc.arg(id) AND outcome = 'started';
 
 
--- name: CountUnknownCalls :one
-SELECT count(*) FROM tool_call t JOIN ask a ON a.id = t.ask_id
-WHERE t.outcome = 'unknown' AND a.state = 'open' AND a.id != sqlc.arg(retrying)
-  AND t.project_id IS sqlc.arg(project_id) AND t.tool = sqlc.arg(tool) AND t.params = sqlc.arg(params);
-
-
--- name: CountStartedCalls :one
-SELECT count(*) FROM tool_call
-WHERE outcome = 'started' AND project_id IS sqlc.arg(project_id) AND tool = sqlc.arg(tool) AND params = sqlc.arg(params);
+-- name: ListUnresolvedCalls :many
+SELECT t.* FROM tool_call t LEFT JOIN ask a ON a.id = t.ask_id
+WHERE t.project_id IS sqlc.arg(project_id) AND t.tool = sqlc.arg(tool)
+  AND (t.outcome = 'started' OR t.outcome = 'unknown' AND a.state = 'open' AND a.id != sqlc.arg(retrying))
+ORDER BY t.id;
 
 
 -- name: ListToolCalls :many

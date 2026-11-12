@@ -399,9 +399,9 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, s.foldersList).On(events.Folders),
 		registry.Def("folder_add", "Add a folder",
 			"Gives a project a folder on disk: its agent commands with folder work in it, its scripts and MCP servers read it; only the owner, since it lets agents write there. A folder of a node is on its machine: the turns and scripts that use it run there, and the node allows the folder with deck -join --allow.",
-			registry.OwnerOnly, s.folderAdd),
+			registry.OwnerOnly, s.folderAdd).Stays(),
 		registry.Def("folder_delete", "Remove folder",
 			"Takes a folder from a project; the folder on disk stays as it is.",
-			registry.OwnerOnly, s.folderRemove),
+			registry.OwnerOnly, s.folderRemove).Stays(),
 	}
 }

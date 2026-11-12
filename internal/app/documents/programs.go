@@ -122,6 +122,6 @@ func (s *Service) programsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("program_check", "Check programs",
 			"Looks again for the programs the scripts of a project need, after the owner installed one, and updates the health of its commands.",
-			registry.OwnerSide, s.programsCheck),
+			registry.OwnerSide, s.programsCheck).Stays(),
 	}
 }

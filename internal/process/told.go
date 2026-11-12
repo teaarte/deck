@@ -93,10 +93,10 @@ func (u untold) ids() told {
 }
 
 // except leaves out what a resume already carries, and asks of a kind.
-func (u untold) except(t told, kind string) untold {
+func (u untold) except(t told, skip func(db.Ask) bool) untold {
 	var out untold
 	for _, a := range u.asks {
-		if a.Ask.Kind != kind && !slices.Contains(t.Asks, a.Ask.ID) {
+		if (skip == nil || !skip(a.Ask)) && !slices.Contains(t.Asks, a.Ask.ID) {
 			out.asks = append(out.asks, a)
 		}
 	}
@@ -117,8 +117,17 @@ func (u untold) message() string {
 	for _, row := range u.asks {
 		a := row.Ask
 		what := untrusted.Line(a.Text, 600)
+		turn := a.Kind == ask.KindCall && gateway.TurnMakes(a.Payload)
 		switch {
-		case a.Kind == ask.KindLogin:
+		case ask.Provider(a):
+		case turn && a.State == ask.StateAnswered && a.Answer == gateway.AllowWork:
+			b.WriteString("- Allowed for this work: " + what + ". Make the call again; calls of this tool go through for the rest of this work.\n")
+		case turn && a.State == ask.StateAnswered && a.Answer == "allow":
+			b.WriteString("- Allowed: " + what + ". Make exactly the same call again; it will go through.\n")
+		case turn && a.State == ask.StateAnswered:
+			b.WriteString("- Rejected: " + what + ". " + gateway.RejectMessage(a.Answer) + "\n")
+		case turn:
+			b.WriteString("- Expired: " + what + ". The call was not made.\n")
 		case a.Kind == ask.KindQuestion && a.State == ask.StateAnswered:
 			b.WriteString("- Question: " + untrusted.Line(a.Text, 1000) + "\n" + untrusted.Value("Answer", a.Answer, 500) + "\n")
 		case a.Kind == ask.KindQuestion && a.State == ask.StateExpired:
@@ -136,12 +145,6 @@ func (u untold) message() string {
 			b.WriteString("- The owner signed in: " + what + " Go on with the site.\n")
 		case a.Kind == ask.KindUnknown:
 			b.WriteString("- " + what + " The owner counts it as done; do not make it again.\n")
-		case a.Kind == ask.KindConfirm && a.State == ask.StateAnswered && a.Answer == "allow":
-			b.WriteString("- Allowed: " + what + ". Make exactly the same call again; it will go through.\n")
-		case a.Kind == ask.KindConfirm && a.State == ask.StateAnswered:
-			b.WriteString("- Rejected: " + what + ". " + gateway.RejectMessage(a.Answer) + "\n")
-		case a.Kind == ask.KindConfirm:
-			b.WriteString("- Expired: " + what + ". The call was not made.\n")
 		default:
 			b.WriteString("- Expired without an answer: " + what + "\n")
 		}

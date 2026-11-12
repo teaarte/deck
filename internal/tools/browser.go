@@ -161,28 +161,31 @@ func (b *Browser) build(list []*mcp.Tool) {
 			continue
 		}
 		input, _ := json.Marshal(t.InputSchema)
-		c := registry.Loose(registry.Deck(t.Name), t.Name, t.Description, registry.Internal, []string{registry.Agent}, input,
+		c := registry.Loose(registry.Deck(t.Name), t.Name, t.Description, []string{registry.Agent}, input,
 			b.reader(t.Name)).Foreign()
-		if act {
-			c.Class, c.Gate.Journals, c.Handler, c.Gate.Probes = registry.External, true, b.actor(t.Name), true
-			c.Gate.Needs = func(_ context.Context, _ registry.Actor, page string, _ json.RawMessage) registry.Need {
-				return registry.Need{Right: manifest.Send, Subject: siteOf(page)}
-			}
-			c.Gate.Fingerprint = func(ctx context.Context, _, project int64, _ json.RawMessage) string {
-				_, _, sites, err := b.rights(ctx, project)
+		if !act {
+			c.Stays()
+		} else {
+			c.Handler = b.actor(t.Name)
+			// The page an action acts on is the browser's, which deck looks at only when it may reach out.
+			c.Gate.Subject = func(ctx context.Context, at registry.At, _ json.RawMessage) registry.Subject {
+				if !at.Look {
+					return registry.Subject{Unseen: true}
+				}
+				_, _, sites, err := b.rights(ctx, at.Project)
 				if err != nil {
-					return ""
+					return registry.Subject{Where: "on a page deck could not tell"}
 				}
 				b.mu.Lock()
 				defer b.mu.Unlock()
 				page, _ := b.current(ctx, readsAnySite(sites))
-				return page
-			}
-			c.Gate.Target = func(page string, _ json.RawMessage) string {
 				if page == "" {
-					return "on a page deck could not tell"
+					return registry.Subject{Where: "on a page deck could not tell"}
 				}
-				return "on " + untrusted.Cut(page, 300)
+				return registry.Subject{Print: page, Where: "on " + untrusted.Cut(page, 300)}
+			}
+			c.Gate.Needs = func(_ context.Context, _ registry.Actor, s registry.Subject, _ json.RawMessage) ([]registry.Need, error) {
+				return []registry.Need{{Right: manifest.Send, Subject: siteOf(s.Print)}}, nil
 			}
 		}
 		if registry.Prepare(c) == nil {

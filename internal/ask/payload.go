@@ -19,16 +19,13 @@ type Shown struct {
 	Message int64 `json:"message"`
 }
 
-// Confirm is the payload of a confirmation of a call of an agent: the tool and its input.
-type Confirm struct {
-	Tool  string         `json:"tool"`
-	Input map[string]any `json:"input"`
-}
-
-// SignIn is the payload of a sign-in: the site of deck's browser or the tool whose service the owner signs in to.
+// SignIn is the payload of a sign-in: the site of deck's browser or the tool whose service the owner signs in to, or
+// the provider of an agent that needs its login again, with the answers that go on.
 type SignIn struct {
-	Site string `json:"site,omitempty"`
-	Tool string `json:"tool,omitempty"`
+	Site     string   `json:"site,omitempty"`
+	Tool     string   `json:"tool,omitempty"`
+	Provider bool     `json:"provider,omitempty"`
+	Answers  []string `json:"answers,omitempty"`
 }
 
 // Headers are the short headers of the questions that have one.

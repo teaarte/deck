@@ -292,9 +292,8 @@ func (r *renderer) custom(b manifest.Block) (map[string]any, error) {
 	for _, act := range acts {
 		name, _ := act["command"].(string)
 		if local := strings.TrimPrefix(name, r.req.Project.Name+"."); r.req.Manifest.Command(local) != nil {
-			act["class"] = registry.Internal
-			if _, ok := r.req.Manifest.CommandNeed(local); ok {
-				act["class"] = registry.External
+			if _, ok := r.req.Manifest.CommandNeed(local); !ok {
+				act["stays"] = true
 			}
 		}
 	}

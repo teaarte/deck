@@ -98,7 +98,7 @@ func (s *Service) deviceRevoke(ctx context.Context, act registry.Actor, in devic
 		return nil, registry.NotFound("no device %d that may still sign in", in.Device)
 	}
 	s.Kick(in.Device)
-	s.Journal(ctx, act, 0, registry.Deck("device_revoke"), registry.External, "done", fmt.Sprintf(`{"device": %d}`, in.Device), "")
+	s.Journal(ctx, act, 0, registry.Deck("device_revoke"), "", "done", fmt.Sprintf(`{"device": %d}`, in.Device), "")
 	return map[string]any{"revoked": in.Device}, nil
 }
 
@@ -192,7 +192,7 @@ func (s *Service) passkeyRevoke(ctx context.Context, act registry.Actor, in pass
 	for _, d := range devices {
 		s.Kick(d)
 	}
-	s.Journal(ctx, act, 0, registry.Deck("passkey_revoke"), registry.External, "done", fmt.Sprintf(`{"passkey": %d}`, in.Passkey), "")
+	s.Journal(ctx, act, 0, registry.Deck("passkey_revoke"), "", "done", fmt.Sprintf(`{"passkey": %d}`, in.Passkey), "")
 	return map[string]any{"revoked": in.Passkey, "devices": devices}, nil
 }
 
@@ -240,20 +240,20 @@ func (s *Service) deviceCommands() []*registry.Command {
 		registry.Read("devices_list", "Devices",
 			"Lists the owner's devices: each browser with the passkey it signed in with and each node, the one the call came from marked; revoked ones too.",
 			registry.OwnerOnly, s.devicesList).On(events.Devices),
-		registry.Def("device_rename", "Rename device", "Renames a device of the owner.", registry.OwnerOnly, s.deviceRename),
+		registry.Def("device_rename", "Rename device", "Renames a device of the owner.", registry.OwnerOnly, s.deviceRename).Stays(),
 		registry.Def("device_revoke", "Revoke device",
 			"Signs a device of the owner out for good: its sessions, pushes and open pages end; its passkey signs that browser in again only as a new device.",
-			registry.OwnerOnly, s.deviceRevoke).As(registry.External),
+			registry.OwnerOnly, s.deviceRevoke).Stays(),
 		registry.Read("passkeys_list", "Passkeys",
 			"Lists the owner's passkeys: one synced to many browsers signs each in as a device of its own; revoked ones too.",
 			registry.OwnerOnly, s.passkeysList).On(events.Devices),
-		registry.Def("passkey_rename", "Rename passkey", "Renames a passkey of the owner.", registry.OwnerOnly, s.passkeyRename),
+		registry.Def("passkey_rename", "Rename passkey", "Renames a passkey of the owner.", registry.OwnerOnly, s.passkeyRename).Stays(),
 		registry.Def("passkey_revoke", "Revoke passkey",
 			"Refuses a passkey of the owner from now on and signs out every device it signed in.",
-			registry.OwnerOnly, s.passkeyRevoke).As(registry.External),
+			registry.OwnerOnly, s.passkeyRevoke).Stays(),
 		registry.Answers[pairLinkView](registry.Def("pair_link", "Pair a device",
 			"Makes a link that pairs one more device of the owner within ten minutes, once: open it on the device, or point its camera at the QR code.",
-			registry.OwnerOnly, s.pairLink).As(registry.External)),
+			registry.OwnerOnly, s.pairLink).Stays()),
 	}
 }
 

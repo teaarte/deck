@@ -37,11 +37,16 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 	if Waits(p, WaitLimit) {
 		return nil
 	}
+	if Waits(p, WaitRight) {
+		// A turn that waits to start goes on by its own wake once its request is answered.
+		r.Wake(ctx)
+		return nil
+	}
 	for _, a := range pending.asks {
-		if a.Ask.Kind == ask.KindLogin && a.Ask.State == ask.StateExpired {
+		if ask.Provider(a.Ask) && a.Ask.State == ask.StateExpired {
 			return r.loginPast(ctx, p, a.Ask)
 		}
-		if a.Ask.Kind == ask.KindLogin {
+		if ask.Provider(a.Ask) {
 			return r.relogin(ctx, processID, a.Ask, pending)
 		}
 	}
@@ -91,7 +96,7 @@ func (r *Runner) relogin(ctx context.Context, processID int64, login db.Ask, pen
 	if err != nil || n == 0 {
 		return err
 	}
-	others := pending.except(told{}, ask.KindLogin)
+	others := pending.except(told{}, ask.Provider)
 	var msg string
 	fresh := login.Answer == ask.LoginNewSession
 	if fresh {

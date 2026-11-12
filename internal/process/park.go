@@ -23,7 +23,7 @@ import (
 // needLogin parks the process until the owner logs the provider in again, or gives its connection a new key, and
 // picks how to continue; the self-check of the provider sees when the login is back.
 func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID int64, text string) {
-	payload, _ := json.Marshal(map[string]any{"answers": ask.LoginAnswers})
+	payload, _ := json.Marshal(ask.SignIn{Provider: true, Answers: ask.LoginAnswers})
 	what, fix := "the model API refused the key of its connection", "Give the connection a new key in its form ("+manifest.DeckForm(registry.Deck("connection_set"), map[string]string{"name": pv.Name()})+")"
 	if _, ok := pv.(provider.Subscribed); ok {
 		what, fix = "needs a login", "Log in again in a terminal"
@@ -32,7 +32,7 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 		pv.Name(), what, strings.TrimSpace(text), fix)
 	term := r.now().Add(signInTerm)
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		a, err := ask.New(ctx, q, processID, ask.KindLogin, msg, string(payload), term)
+		a, err := ask.New(ctx, q, processID, ask.KindSignIn, msg, string(payload), term)
 		if err != nil {
 			return err
 		}

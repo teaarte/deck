@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"deck2/internal/docs"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/models"
 	"deck2/internal/process"
@@ -267,57 +268,44 @@ func picked(model string, before []string) []string {
 func (s *Service) assignmentCommands() []*registry.Command {
 	c := registry.Def("assignment_set", "Assign models",
 		"Sets the models that do a kind of work in the workspace, a project or a command: the first, then the fallbacks a new turn or call takes when it is down. A module or the master proposes an assignment this way, of any project, and the owner applies it with one button.",
-		registry.Everyone, s.assignmentSet).As(registry.External)
-	c.Gate.Allowed = func(ctx context.Context, act registry.Actor, input json.RawMessage, _ bool) (bool, error) {
+		registry.Everyone, s.assignmentSet)
+	proposed := gateway.Itself(c.Name, false)
+	c.Gate.Needs = func(ctx context.Context, act registry.Actor, sub registry.Subject, input json.RawMessage) ([]registry.Need, error) {
+		if act.Trial {
+			return nil, registry.Refuse("a trial or a draft does not change the models of deck; propose the assignment once the module is enabled")
+		}
 		list, err := assignmentInput(input)
 		for _, in := range list {
 			if _, _, err = s.planned(ctx, act.Workspace, in); err != nil {
-				break
+				return nil, err
 			}
 		}
-		return false, err
-	}
-	c.Gate.Free = func(context.Context, registry.Actor, json.RawMessage) (bool, error) {
-		return false, registry.Refuse("a trial or a draft does not change the models of deck; propose the assignment once the module is enabled")
-	}
-	// The fingerprint is the models in force at the place before, a list of them for several assignments.
-	c.Gate.Fingerprint = func(ctx context.Context, workspace, _ int64, input json.RawMessage) string {
-		list, err := assignmentInput(input)
 		if err != nil {
-			return ""
+			return nil, err
 		}
-		befores := make([][]string, len(list))
-		for i, in := range list {
-			project, cmd, err := s.place(ctx, workspace, in)
-			if err != nil {
-				return ""
-			}
-			before, err := s.before(ctx, workspace, project, in.Command, in.Role, cmd)
-			if err != nil {
-				return ""
-			}
-			befores[i] = append([]string{}, before...)
-		}
-		var raw []byte
-		if several(input) {
-			raw, _ = json.Marshal(befores)
-		} else {
-			raw, _ = json.Marshal(befores[0])
-		}
-		return string(raw)
+		return proposed(ctx, act, sub, input)
 	}
-	// An assignment holds when its very place has those models, not one it would inherit them from.
-	c.Gate.Holds = func(ctx context.Context, workspace int64, input json.RawMessage) bool {
-		list, err := assignmentInput(input)
-		if err != nil {
-			return false
+	// The subject is the models in force at each place before, a list of them for several assignments; an assignment
+	// is in force when its very place has those models, not one it would inherit them from.
+	c.Gate.Subject = func(ctx context.Context, at registry.At, input json.RawMessage) registry.Subject {
+		print := s.assignedBefore(ctx, at.Workspace, input)
+		var out registry.Subject
+		out.Print, out.InForce = print, s.inForce(ctx, at.Workspace, input)
+		lines := assignmentLines(print, input)
+		out.Changes = []string{}
+		var where []string
+		for _, l := range lines {
+			where = append(where, l.text)
+			if l.changes {
+				out.Changes = append(out.Changes, l.text)
+			}
 		}
+		out.Where = strings.Join(where, "\n")
+		list, _ := assignmentInput(input)
 		for _, in := range list {
-			if !s.holds(ctx, workspace, in) {
-				return false
-			}
+			out.Sets = append(out.Sets, in.Role+" "+in.Project+"."+in.Command)
 		}
-		return true
+		return out
 	}
 	// The undo sets back the models of each very place, or removes the assignment the call made there.
 	c.Gate.Undo = func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool) {
@@ -356,30 +344,6 @@ func (s *Service) assignmentCommands() []*registry.Command {
 			b, _ = json.Marshal(backs[0])
 		}
 		return c.Name, b, true
-	}
-	c.Gate.Sets = func(input json.RawMessage) []string {
-		list, _ := assignmentInput(input)
-		out := make([]string, len(list))
-		for i, in := range list {
-			out[i] = in.Role + " " + in.Project + "." + in.Command
-		}
-		return out
-	}
-	c.Gate.Target = func(print string, input json.RawMessage) string {
-		var lines []string
-		for _, l := range assignmentLines(print, input) {
-			lines = append(lines, l.text)
-		}
-		return strings.Join(lines, "\n")
-	}
-	c.Gate.Changes = func(print string, input json.RawMessage) []string {
-		var lines []string
-		for _, l := range assignmentLines(print, input) {
-			if l.changes {
-				lines = append(lines, l.text)
-			}
-		}
-		return lines
 	}
 	return []*registry.Command{c}
 }
@@ -554,4 +518,45 @@ func (s *Service) agentCommand(ctx context.Context, workspace int64, place strin
 		return p, nil, registry.Invalid("%s is not an agent command; only agent commands call a model", place)
 	}
 	return p, cmd, nil
+}
+
+// assignedBefore is the models in force at the place of an assignment before it, a list of them for several.
+func (s *Service) assignedBefore(ctx context.Context, workspace int64, input json.RawMessage) string {
+	list, err := assignmentInput(input)
+	if err != nil {
+		return ""
+	}
+	befores := make([][]string, len(list))
+	for i, in := range list {
+		project, cmd, err := s.place(ctx, workspace, in)
+		if err != nil {
+			return ""
+		}
+		before, err := s.before(ctx, workspace, project, in.Command, in.Role, cmd)
+		if err != nil {
+			return ""
+		}
+		befores[i] = append([]string{}, before...)
+	}
+	var raw []byte
+	if several(input) {
+		raw, _ = json.Marshal(befores)
+	} else {
+		raw, _ = json.Marshal(befores[0])
+	}
+	return string(raw)
+}
+
+// inForce says each place of an assignment has its models itself, not from a place it would inherit them from.
+func (s *Service) inForce(ctx context.Context, workspace int64, input json.RawMessage) bool {
+	list, err := assignmentInput(input)
+	if err != nil {
+		return false
+	}
+	for _, in := range list {
+		if !s.holds(ctx, workspace, in) {
+			return false
+		}
+	}
+	return true
 }

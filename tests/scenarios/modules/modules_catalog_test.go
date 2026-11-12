@@ -19,6 +19,7 @@ import (
 type rightRow struct {
 	Right, Who, Subject, Says, Why, Answer string
 	Declared                               bool
+	AtUse                                  bool `json:"at_use"`
 }
 
 func rightsOf(e *harness.Env, project string) []rightRow {

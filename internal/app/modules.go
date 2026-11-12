@@ -15,6 +15,7 @@ import (
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
+	"deck2/internal/tools"
 )
 
 // modules collects the commands not written in Go: those of module manifests with their HTTP and MCP tools, and
@@ -91,16 +92,17 @@ func (s *modules) compiled(p db.Project, m *manifest.Manifest, hosts []string) [
 		return cmds
 	}
 	for _, c := range m.Commands {
-		class := registry.Internal
 		need, sends := m.CommandNeed(c.Name)
-		if sends {
-			class = registry.External
-		}
-		cmd := registry.Loose(p.Name+"."+c.Name, c.Title, c.Description, class, c.Callable(), c.InputSchema(),
+		cmd := registry.Loose(p.Name+"."+c.Name, c.Title, c.Description, c.Callable(), c.InputSchema(),
 			s.startHandler(p.ID, m, c.Name)).Retried()
 		cmd.Result, cmd.ProjectID, cmd.Words = c.Result, p.ID, m.I18n
 		if sends {
-			cmd.Gate.Needs = func(context.Context, registry.Actor, string, json.RawMessage) registry.Need { return need }
+			cmd.Gate.Needs = func(context.Context, registry.Actor, registry.Subject, json.RawMessage) ([]registry.Need, error) {
+				return []registry.Need{need}, nil
+			}
+			cmd.Gate.Undo = tools.UndoOf(p.Name, c.Undo)
+		} else {
+			cmd.Stays()
 		}
 		if err := registry.Prepare(cmd); err != nil {
 			slog.Error("project command", "command", cmd.Name, "err", err)

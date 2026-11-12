@@ -11,6 +11,7 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/events"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -46,15 +47,15 @@ func (s *Service) Heard(ctx context.Context) {
 	}
 }
 
-// heardAnswer is what a closed confirmation came to for its module, empty for an ask of another kind.
+// heardAnswer is what a closed request came to for its module, empty for an ask of another kind.
 func heardAnswer(a db.Ask) string {
-	if !slices.Contains(ask.Confirmations, a.Kind) {
+	if a.Kind != ask.KindCall {
 		return ""
 	}
 	switch {
 	case a.State == ask.StateExpired || a.State == ask.StateDismissed || a.Answer == ask.Stale || ask.ReplacedBy(a.Answer) != 0:
 		return manifest.AskExpired
-	case a.Answer == "allow" || a.Answer == "allow_always":
+	case a.Answer == "allow" || a.Answer == gateway.AllowWork || a.Answer == gateway.AllowAlways:
 		return manifest.AskYes
 	}
 	return manifest.AskNo

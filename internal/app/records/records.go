@@ -265,9 +265,16 @@ func (s *Service) recordsCommands() []*registry.Command {
 			Answers(`Answer: {"id", "project", "collection", "key", "title", "data": object, "updated_at"}; data is the fields of the record as a JSON object, not a text.`),
 		registry.Def("record_delete", "Delete record",
 			"Deletes a record with what belongs to it, as record_parts_list lists, for good, and stops its open processes; outside a draft the owner, an agent or script of the record's own project, and the master the records its own processes wrote: what else the master did not make waits for the owner's yes. The owner may undo a deletion that was not theirs.",
-			registry.Everyone, s.recordDelete),
-		registry.Def("collection_delete", "Delete collection records",
-			"Deletes every record of a collection with what belongs to each, as record_parts_list lists, so the collection can be removed from the manifest.",
-			registry.OwnerSide, s.collectionDelete).As(registry.External),
+			registry.Everyone, s.recordDelete).Stays(),
+		collectionDelete(s),
 	}
+}
+
+// collectionDelete is collection_delete, which the master proposes and the owner makes.
+func collectionDelete(s *Service) *registry.Command {
+	c := registry.Def("collection_delete", "Delete collection records",
+		"Deletes every record of a collection with what belongs to each, as record_parts_list lists, so the collection can be removed from the manifest.",
+		registry.OwnerSide, s.collectionDelete)
+	c.Gate.Needs = gateway.Itself(c.Name, false)
+	return c
 }

@@ -34,20 +34,35 @@ var (
 	OwnerOnly = []string{Owner}
 )
 
-// A command is internal when it stays in deck, external when a call of it needs a right of deck's catalog: the
-// gateway lets it through when the right is granted, else the owner answers.
-const (
-	Internal = "internal"
-	External = "external"
-)
-
-// Need is the right of deck's catalog a call needs: its name, whom of a network right, the subject it acts on and the
-// print of that subject as it is now, which an answer of always holds to.
+// Need is a right of deck's catalog a call needs: its name, whom of a network, the subject and its print, which always
+// holds to; Asked is met only by the owner's answer to its own request: not by always, a press or a yes for the work.
 type Need struct {
 	Right   string `json:"right"`
 	Who     string `json:"who,omitempty"`
 	Subject string `json:"subject"`
 	Print   string `json:"print,omitempty"`
+	Asked   bool   `json:"asked,omitempty"`
+}
+
+// Subject is what a call acts on beside its input, as it is now: the print an answer holds to, where it goes or what
+// it changes for the owner, a line a place.
+type Subject struct {
+	Print string `json:"print,omitempty"`
+	Where string `json:"where,omitempty"`
+	// Changes are the places the call changes; nil when deck cannot tell, empty when it changes nothing.
+	Changes []string `json:"changes,omitempty"`
+	// Sets name the places it sets: a later call of the same caller that sets all of them replaces it while it waits.
+	Sets []string `json:"-"`
+	// InForce says what the call would make is so already.
+	InForce bool `json:"-"`
+	// Unseen marks a subject deck did not look at, since that reaches out: its print is unknown.
+	Unseen bool `json:"-"`
+}
+
+// At is where a call's subject is looked at: its workspace and project, and whether deck may reach out to see it.
+type At struct {
+	Workspace, Project int64
+	Look               bool
 }
 
 // Builtin is the name prefix of commands implemented in Go.
@@ -70,7 +85,6 @@ type Command struct {
 	Description string          `json:"description"`
 	Input       json.RawMessage `json:"input"`
 	Result      json.RawMessage `json:"result,omitempty"`
-	Class       string          `json:"class"`
 	Callers     []string        `json:"callers"`
 	ProjectID   int64           `json:"-"`
 	// Words are the translations of the texts of a command of a module by language, from its manifest.
@@ -79,7 +93,7 @@ type Command struct {
 	// the events after which its result may differ.
 	Readable bool     `json:"-"`
 	Topics   []string `json:"-"`
-	// Gate is how the gateway lets a call that is not internal through.
+	// Gate is how the gateway decides a call that may need a right of deck's catalog.
 	Gate Gate `json:"-"`
 	// Answer is what the tool of a builtin tells an agent beyond its description: its answer and an example input.
 	Answer string `json:"-"`
@@ -96,16 +110,28 @@ type Command struct {
 	// foreign marks an input schema from elsewhere, not held to App Intents types; retries one that takes a retry key;
 	// untokened one no automation token calls; page one a page reads that is not a read of its own.
 	foreign, retries, keyed, untokened, page bool
+	// stays marks a command whose calls need no right of the catalog: they stay in deck.
+	stays bool
+	// fields are the properties of its input schema, which the identity of a call keeps; nil keeps every field.
+	fields []string
 	// asked marks a schema the registry gave the field why, owns one with a why of its own.
 	asked, owns bool
 }
 
 // Loose declares a command not written in Go: of a module, an HTTP tool, an MCP server or the browser, its input
 // schema given whole; Prepare checks it.
-func Loose(name, title, desc, class string, callers []string, input json.RawMessage, h Handler) *Command {
-	return &Command{Name: name, Title: title, Description: desc, Class: class, Callers: callers,
-		Input: input, Handler: h}
+func Loose(name, title, desc string, callers []string, input json.RawMessage, h Handler) *Command {
+	return &Command{Name: name, Title: title, Description: desc, Callers: callers, Input: input, Handler: h}
 }
+
+// Stays declares that a call of the command needs no right of deck's catalog: what it does stays in deck.
+func (c *Command) Stays() *Command {
+	c.stays = true
+	return c
+}
+
+// Gated says a call of the command may need a right of the catalog, so the gateway decides it.
+func (c *Command) Gated() bool { return c.Gate.Needs != nil }
 
 // Foreign marks a command whose input schema comes from elsewhere: it is not held to App Intents types.
 func (c *Command) Foreign() *Command {
@@ -144,40 +170,18 @@ func (c *Command) Retried() *Command {
 // returns it.
 const RetryKey = "retry_key"
 
-// Gate is the policy of the gateway for the calls of a command.
+// Gate is what the gateway asks a command about a call before it decides: what the call acts on, the rights it needs,
+// how deck takes it back and how long its question stays open.
 type Gate struct {
-	// Journals marks a command that writes its own line to the gateway journal.
-	Journals bool
-	// Fingerprint is what a call would act on beside its input, a tool's request or what it changes, as it is now, so
-	// an old yes does not make a changed call.
-	Fingerprint func(ctx context.Context, workspace, project int64, input json.RawMessage) string
-	// Target says where a call goes, from its fingerprint, for the owner who decides on it.
-	Target func(print string, input json.RawMessage) string
-	// ConfirmTTL is the tool's own term for its confirmations.
-	ConfirmTTL time.Duration
-	// Needs is the right a call of an external command needs, from its fingerprint and input; send on the command
-	// itself when nil.
-	Needs func(ctx context.Context, a Actor, print string, input json.RawMessage) Need
-	// Allowed decides whether an external call with this input runs without the owner; listed says the project
-	// holds the right it needs.
-	Allowed func(ctx context.Context, a Actor, input json.RawMessage, listed bool) (bool, error)
-	// Free says a call costs nothing and stays on the owner's machine, so it runs in a trial or a draft too; an
-	// error is a call that cannot run at all, so it fails rather than waiting for the owner.
-	Free func(ctx context.Context, a Actor, input json.RawMessage) (bool, error)
-	// Probes marks a Fingerprint that reaches out, such as to the page of a browser: deck checks it only when the
-	// owner answers, not in the background.
-	Probes bool
-	// Holds says what a call would make is so already: a call waiting for the owner is then done without making it.
-	Holds func(ctx context.Context, workspace int64, input json.RawMessage) bool
+	// Subject is what a call acts on beside its input, as it is now, so an old yes does not make a changed call.
+	Subject func(ctx context.Context, at At, input json.RawMessage) Subject
+	// Needs are the rights a call needs, any one of which met lets it run; none when this call stays in deck. An error
+	// refuses the call before anyone is asked.
+	Needs func(ctx context.Context, a Actor, s Subject, input json.RawMessage) ([]Need, error)
 	// Undo is the call that takes a call back, as things stand before it is made; false when deck cannot.
 	Undo func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool)
-	// OwnYes marks a command only the owner's answer to its ask allows, money or a skill's text: a press never does.
-	OwnYes bool
-	// Changes are what a call would change, a line a place as the owner reads it, leaving out the places it leaves
-	// as they are; none when it changes nothing. print is the Fingerprint.
-	Changes func(print string, input json.RawMessage) []string
-	// Sets names the places a call sets: a later call of the same caller that sets all of them replaces it while it waits.
-	Sets func(input json.RawMessage) []string
+	// Term is how long a question about a call stays open; the workspace's term when zero.
+	Term time.Duration
 }
 
 // Modules yields the commands of a workspace not written in Go: those of module manifests, and deck's tools whose
@@ -264,8 +268,8 @@ func Prepare(c *Command) error {
 	if c.Title == "" || c.Description == "" {
 		return fmt.Errorf("command %q: title and description are required", c.Name)
 	}
-	if c.Class != Internal && c.Class != External {
-		return fmt.Errorf("command %q: unknown class %q", c.Name, c.Class)
+	if c.stays == c.Gated() && !c.Readable {
+		return fmt.Errorf("command %q: declare the rights its calls need (Gate.Needs) or that it stays in deck (Stays)", c.Name)
 	}
 	if len(c.Input) == 0 {
 		c.Input = EmptyInput
@@ -283,7 +287,7 @@ func Prepare(c *Command) error {
 	if !c.asked {
 		c.owns = hasField(c.Input, WhyKey)
 	}
-	if c.Class != Internal && !c.asked && !c.owns {
+	if c.Gated() && !c.asked && !c.owns {
 		in, err := withField(c.Input, WhyKey, whyField)
 		if err != nil {
 			return fmt.Errorf("command %q input: %w", c.Name, err)
@@ -296,7 +300,38 @@ func Prepare(c *Command) error {
 	}
 	c.schema = s
 	c.json = jsonFields(c.Input)
+	c.fields = propertiesOf(c.Input)
 	return nil
+}
+
+// propertiesOf are the names of the properties of an input schema that holds no others; nil when it may hold any.
+func propertiesOf(in json.RawMessage) []string {
+	var s struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Additional json.RawMessage            `json:"additionalProperties"`
+	}
+	if json.Unmarshal(in, &s) != nil || len(s.Properties) == 0 || len(s.Additional) > 0 && string(s.Additional) != "false" {
+		return nil
+	}
+	return slices.Sorted(maps.Keys(s.Properties))
+}
+
+// Same is the one identity of a call of the command: the fields of its input its schema names, without the empty and
+// null ones and the why it asks, keys sorted and numbers as they came, so calls that make the same compare equal.
+func (c *Command) Same(input json.RawMessage) string {
+	d := json.NewDecoder(bytes.NewReader(input))
+	d.UseNumber()
+	var v map[string]any
+	if d.Decode(&v) != nil || v == nil {
+		return "{}"
+	}
+	for k, x := range v {
+		if x == nil || x == "" || Reserved(k) || k == WhyKey && !c.owns || c.fields != nil && !slices.Contains(c.fields, k) {
+			delete(v, k)
+		}
+	}
+	b, _ := json.Marshal(v)
+	return string(b)
 }
 
 // WhyKey is the field of the input of a call that may wait for the owner's yes: why the caller asks, in its words.
@@ -535,13 +570,13 @@ func allows(input json.RawMessage) (string, json.RawMessage) {
 // Check does everything Invoke does except running the command.
 func (r *Registry) Check(ctx context.Context, a Actor, name string, input json.RawMessage) (*Command, json.RawMessage, error) {
 	c, input, err := r.Resolve(ctx, a, name, input)
-	if err == nil && a.Kind != Owner && c.Class != Internal && !a.Cleared(c.Name) {
-		err = Refuse("%s is %s; only the gateway calls it for %s", c.Name, c.Class, a.Kind)
+	if err == nil && a.Kind != Owner && c.Gated() && !a.Cleared(c.Name) {
+		err = Refuse("%s may need a right of deck's catalog; only the gateway calls it for %s", c.Name, a.Kind)
 	}
 	return c, input, err
 }
 
-// Resolve checks the caller and the input but not the class rules, which the gateway applies.
+// Resolve checks the caller and the input but not the rights a call needs, which the gateway decides.
 func (r *Registry) Resolve(ctx context.Context, a Actor, name string, input json.RawMessage) (*Command, json.RawMessage, error) {
 	c, err := r.Lookup(ctx, a.Workspace, name)
 	if err != nil {
@@ -615,7 +650,7 @@ func (c *Command) jsonText(input json.RawMessage) json.RawMessage {
 	return out
 }
 
-// reachable reports whether the actor may call the command at all, before the class rules of the gateway.
+// reachable reports whether the actor may call the command at all, before the gateway decides the rights it needs.
 func (r *Registry) reachable(a Actor, c *Command) error {
 	if !slices.Contains(c.Callers, a.As()) {
 		who := a.Kind
@@ -636,8 +671,8 @@ func (r *Registry) reachable(a Actor, c *Command) error {
 	if !a.MayCall(c.Name) {
 		return Refuse("the command of this agent does not list %s in its calls", c.Name)
 	}
-	if a.Trial && c.Class != Internal && c.Gate.Fingerprint == nil {
-		return Refuse("trial run: %s is %s, so it was declined", c.Name, c.Class)
+	if a.Trial && c.Gated() && c.Gate.Subject == nil {
+		return Refuse("trial run: %s may need a right of deck's catalog, so it was declined", c.Name)
 	}
 	return nil
 }

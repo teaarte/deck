@@ -73,7 +73,7 @@ var tables = map[string]table{
 	"document_revision": {events.Documents, ofDocument, nil},
 	"file":              {events.Files, ofProject, nil},
 	"picture":           {events.Files, ofProject, nil},
-	"ask":               {events.Asks, ofProject, nil},
+	"ask":               {events.Asks, ofProject, []string{"shown_at"}},
 	"tool_call":         {events.Calls, ofProject, nil},
 	"llm_call":          {events.Usage, ofProject, nil},
 	"health":            {events.Health, ofProject, nil},

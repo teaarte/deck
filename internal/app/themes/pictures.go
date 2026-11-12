@@ -275,10 +275,10 @@ func (s *Service) pictureCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_cover_set", "Set cover",
 			"Sets the picture of the card of a project for a theme, or for every theme, and the light or the dark scheme, or takes it off; deck keeps a light copy for the cards. A cover for every theme it replaces stays the cover of the theme it was set in; one with no place left goes to the trash.",
-			registry.OwnerSide, s.projectCover),
+			registry.OwnerSide, s.projectCover).Stays(),
 		registry.Def("theme_image_set", "Set theme picture",
 			"Sets a picture of a theme for the light or the dark scheme, or takes it off: cockpit, the scene of the card of Today, backdrop, the page behind, or pattern, a tile repeated behind it. The pictures are not in the theme's text; deck keeps them with a light copy and checks the words of Today over the cockpit.",
-			registry.OwnerSide, s.themeImage),
+			registry.OwnerSide, s.themeImage).Stays(),
 		registry.Read("project_covers_list", "Covers",
 			"Lists the covers of a module's card: the theme each is for, empty for every theme, its scheme and picture, and which ones the card shows in the theme in use.",
 			registry.Everyone, s.covers).On(events.Files, events.Documents, events.Settings),

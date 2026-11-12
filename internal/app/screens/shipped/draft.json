@@ -23,12 +23,12 @@
       "empty": "It declares no rights: it keeps to its own records, documents and files",
       "columns": [
         {"label": "What it may do", "bind": "says", "details": "why"},
-        {"label": "Answer", "bind": "answer == 'always' ? 'always' : answer == 'no' ? 'no' : 'asks first'", "format": "tag",
+        {"label": "Answer", "bind": "answer == 'always' ? 'always' : answer == 'no' ? 'no' : at_use ? 'asks you the first time' : 'given when enabled'", "format": "tag",
           "tone": "answer == 'always' ? 'ok' : answer == 'no' ? 'muted' : 'warn'"}
       ],
       "actions": [
         {"label": "Allow always", "icon": "check", "command": "deck.right_set",
-          "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && answer != 'always'"},
+          "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && !at_use && answer != 'always'"},
         {"label": "Revoke", "icon": "rotate", "command": "deck.right_set",
           "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "answer != ''"}
       ]},

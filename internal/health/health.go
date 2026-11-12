@@ -86,6 +86,8 @@ const (
 	Proxy     = "proxy"
 	// Master is the row of a workspace whose built-in master a project of the owner keeps out.
 	Master = "master"
+	// Consent is the row of a workspace whose requests to the owner come too often or are answered unread.
+	Consent = "consent"
 	// BuiltinTailscale is the row that says the tailnet inside deck goes away, beside the row of its node.
 	BuiltinTailscale = "tailscale:builtin"
 )
@@ -110,7 +112,7 @@ const (
 // Kinds are the kinds of the subjects of health: of many rows, then of the subjects of one row each.
 var Kinds = []string{OfProvider, OfNode, OfAgent, OfModel, OfSite, OfTool, OfMCP, OfCommand, OfTrigger, OfSecret,
 	OfRetention, OfScreen, OfProject, Scripts, Sandbox, Tailscale, HTTPS, Snapshot, Disk, Outbox, Push, Search, Master,
-	Update, Proxy}
+	Update, Proxy, Consent}
 
 // Kind is the kind of a subject: the start before its colon, or the subject of one row itself.
 func Kind(subject string) string {

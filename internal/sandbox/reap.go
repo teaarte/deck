@@ -29,11 +29,19 @@ func holds(pgid int, marker string) bool {
 	return ok
 }
 
-// reapMarked kills every process group one of whose members has marker in its command line.
+// reapMarked kills every process group one of whose members has marker in its command line; it looks again after
+// each round, for a box being set up forks a process with the mark into a group of its own while the first is killed.
 func reapMarked(marker string) {
-	for pgid := range groups(marker) {
-		if pgid > 1 && pgid != syscall.Getpgrp() {
-			Reap(pgid, marker)
+	for range 5 {
+		left := false
+		for pgid := range groups(marker) {
+			if pgid > 1 && pgid != syscall.Getpgrp() {
+				left = true
+				Reap(pgid, marker)
+			}
+		}
+		if !left {
+			return
 		}
 	}
 }

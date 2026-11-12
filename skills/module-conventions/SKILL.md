@@ -42,8 +42,8 @@ Style:
   of a pinned version, output to stderr.
 - A `main(inp)` that returns the result, small functions under it, constants at the top; no state in globals
   between functions, no `print` in helpers.
-- Every network call has a timeout and goes through the proxy deck sets (`HTTP(S)_PROXY`); its hosts are in
-  `domains.read`. A failed page of a service is `network` with the status and the start of the body in `details`.
+- Every network call has a timeout and goes through the proxy deck sets (`HTTP(S)_PROXY`); its hosts are under
+  `network` in `rights`. A failed page of a service is `network` with the status and the start of the body in `details`.
 - Calls of deck: `$DECK_URL/commands/<command>` with `Authorization: Bearer $DECK_TOKEN`; a refusal's body says
   what is missing — keep it in `details`. Models only through `$DECK_MODELS` or `deck.model_call`, never a key.
 - Idempotent: records by a key that identifies an item for good (`record_upsert`), a cursor of the source kept
@@ -93,12 +93,12 @@ each with the file, the line and the case that fails:
 
 - the contract of a script: stdout holds only the result, a failure has the one form and a fitting type, nothing
   to do is not a failure;
-- a call without a timeout, a host outside `domains.read`, a key or path in code, a model called around deck;
+- a call without a timeout, a host outside its `network`, a key or path in code, a model called around deck;
 - a second run writes twice: no key, no cursor, a temporary file shared by runs, a read-modify-write without lock;
 - two runs at once break each other: `"runs": "many"` on a command that writes something shared, a lock of the
   module's own where one at a time would do;
 - the manifest: an expression that breaks on a record without a field, a text without `i18n`, a right wider
-  than the work needs (`external` tools that only read, `"*"` domains);
+  than the work needs (`send` on a tool that only reads, `"*"` hosts);
 - a prompt that leaves the result shape or the tools to guess, or asks a small model to check what a script can;
 - a prompt that does not say what each of its `calls` answers or how to fill an input its schema leaves open, a
   called command of the module without `result`;

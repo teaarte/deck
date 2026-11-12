@@ -27,8 +27,9 @@ the same commands through the registry. Rights, confirmations, the journal and t
 one place.
 
 - **Commands.** Every action is a command: `deck.<name>` is built into deck, and `<module>.<name>` comes from a
-  manifest. A command has a class. A call that leaves the machine, spends money or widens rights waits for the
-  owner's yes. A button you press is your yes to the calls its row lists (`allows`). Changes made without the
+  manifest. A module declares the rights of deck's catalog it may ask for (network, login, data, files, money, send,
+  modules); a call that needs one the owner has not answered always waits for the owner's yes, and the answers
+  live apart from the manifest. A button you press is your yes to the calls its row lists (`allows`). Changes made without the
   owner go to the feed as one "done without you" line per run, with an undo. A pending ask closes by itself once
   it is no longer needed or what it acts on has changed.
 - **Store and events.** One writer transaction at a time, with readers apart. Every committed write publishes the
@@ -107,13 +108,13 @@ A module is a manifest, documents (prompts, skills), scripts and screens. It con
 
 ```json
 {
-  "version": 16,
+  "version": 17,
   "title": "Reading list",
   "collections": [{"name": "items", "key": "title", "description": "An article.",
     "schema": {"type": "object", "properties": {"title": {"type": "string"},
       "status": {"type": "string", "enum": ["inbox", "reading", "done"]}}}}],
   "commands": [{
-    "name": "collect", "title": "Collect", "class": "internal",
+    "name": "collect", "title": "Collect",
     "description": "Reads the feeds and adds new articles.",
     "input": {"type": "object"},
     "executor": {"type": "agent", "prompt": "Read my feeds and add today's articles to items."}
@@ -127,8 +128,9 @@ A module is a manifest, documents (prompts, skills), scripts and screens. It con
 ```
 
 The schema is `schemas/manifest.json`. A command can run an agent, a script, an HTTP or MCP tool, or a model
-call. A trigger runs a command on a cron schedule or after another command. `domains`, `writes`, secrets and
-folders are rights the owner grants. A new restriction warns when a manifest is read and fails only when it is
+call. A trigger runs a command on a cron schedule or after another command. `rights` lists what the module may ask
+the owner for, each with why; a declaration grants nothing, enabling a module grants all but sending in the owner's
+name, which asks the first time. A new restriction warns when a manifest is read and fails only when it is
 saved. A new format comes with a migration that rewrites the stored manifests.
 
 Deki builds modules from an interview with the `module-builder` skill

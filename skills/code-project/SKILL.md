@@ -54,9 +54,9 @@ The folder is the root of the repo (where `.git` is), not a folder inside it and
   words into each task and sets it to `review`; before it leaves its branch a WIP commit (`--no-verify`) takes
   what it did not commit; then it returns to the branch the owner was on. What the owner edits in the same
   checkout while a run works lands in the run's branch: the run holds the checkout.
-- `git push` only when the owner asks for it (a `push` button or a remark). That rule is text only: the
-  agent's shell could push, and the owner accepted that. The shell reaches the remote only by `domains.read`
-  (`github.com` in the example), over https.
+- `git push` only when the owner asks for it (a `push` button or a remark). The shell of an agent on a
+  subscription login reaches no remote; a script of the module pushes and pulls through the hosts it holds
+  `network` on (`github.com` in the example), over https.
 - Merge: the run's branch is rebased on the base first (a conflict stops it there), then squashed into the
   base as one commit listing the tasks, and the branch is deleted after that commit. Revert reverts that
   commit. Merge, revert, push and diff are the same command with `do`, from the buttons of the Tasks screen,
@@ -79,7 +79,7 @@ brings tasks from a tracker:
 - a secret for the tracker's token (the owner sets it in the form of `secret_set`, its `form` in `commands_list`; say its name and the scope it
   needs, read-only when it only reads);
 - an HTTP tool from the tracker's API docs that lists open issues created since a time, oldest first, signed
-  in with that secret, class `internal` (it only reads);
+  in with that secret, a GET deck reads as `data` on the tool (it only reads), declared in `rights`;
 - a script on a `cron` trigger that keeps a cursor in a record: the creation time of the newest issue taken and
   the ids taken at that very time (a "since" filter usually includes that time); each page is asked again from
   the moved cursor, so an issue closed meanwhile shifts nothing past a page; one task in `backlog` per new issue

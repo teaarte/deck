@@ -28,7 +28,7 @@ API key of …), never a `curl`. The fields of a form are the input of its comma
 When the module needs something only the owner gives — an API key or token, an account or sign-in, a right of
 the manifest, a program installed on the machine, a paid call in a trial — stop and ask the owner in the chat:
 what, why, and where to put it. Do not work around it: no other service or free key in its place without the
-owner's word, no `internal` class or wider right just to get past a refusal, no key written into a document,
+owner's word, no right declared just to get past a refusal, no key written into a document,
 a script or the environment, no copy by hand of what deck or its sandbox refuses. Build the rest, then go on
 with that part once the owner has done it.
 
@@ -74,8 +74,8 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   `record_update` replaces the whole record: work
   over hundreds of records (filtering, batching, merging new fields into old ones) belongs in a script, and an
   agent gets only the slice it judges, from the script's result or its input.
-- **Commands** are the verbs. Each has a class: `internal` (records, documents), `reversible`,
-  `external` (leaves deck). Choose the executor:
+- **Commands** are the verbs; one that acts in the owner's name outside deck declares `send` on itself (section 10)
+  and may name the command that takes it back in `undo`. Choose the executor:
   - `script` for mechanics that repeat the same way (fetch, parse, poll, convert, index) — cheap and exact;
   - `agent` for judgement (rate, summarise, write) — give it a prompt file, skills and a result schema; an
     agent that reads what strangers wrote (mail, pages, feeds) gets `"calls"`, the list of commands it may
@@ -105,9 +105,10 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
 - **HTTP tools** (`tools.http`) are how the module reaches a service's API: method, `url` with `{field}` from the
   input (path or query, never the host), `headers` with `$secret.<name>` (a secret of this module: the owner stores
   it with `secret_set` for the module, no other module reads it; deck cuts it out of what the service answers), `body`
-  template, `input` and `result` schemas. A tool without `class` is `external`. An external call outside
-  `allowed_external` waits for the owner; after yes deck makes that exact call and hands the result back. Give
-  a paid or risky tool `confirm_ttl_minutes`. A service that gives a private link whose token is the URL itself (a
+  template, `input` and `result` schemas. deck reads the right a tool needs (section 10): GET or HEAD without a key
+  is `network` on its host, with a key `data` on the tool, any other method `send` on the tool; `"right"` names
+  another (`data` for a POST that only searches). A call whose right the owner has not answered always waits for
+  them; after yes deck makes that exact call and hands the result back. Give a paid or risky tool `confirm_ttl_minutes`. A service that gives a private link whose token is the URL itself (a
   published calendar, a webhook, a private feed) is a tool with `"url": "$secret.<name>"` (or
   `"$secret.<name>?from={from}"` to add a query of the input) and `"hosts"`, the exact names of the hosts the link
   may point to: deck calls the link the owner stored only when it is https on one of them. A binary answer (video, audio, picture) becomes a file in the
@@ -128,29 +129,29 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   logic and calls them through deck, never with a key: a command of type `model`, `deck.model_call` from a script or
   agent, or an API path through `$DECK_MODELS` (below). Every call names a model of deck's settings or an
   `@<kind>`; another model is refused. A tool or MCP server of the manifest never gets the key of a connection:
-  deck keeps those apart, and `$secret.<name>` names only the module's own secrets. The manifest names what it calls in `models`: a connection, a model by name or
-  `@text`/`@image`/`@tts`/`@stt`/`@music`/`@video` for the assigned ones (a script that calls
-  `$DECK_MODELS/<connection>/…` needs that connection itself in `models`, a model's name is not enough); deck keeps each call with its cost in its journal,
+  deck keeps those apart, and `$secret.<name>` names only the module's own secrets. The module declares what it calls
+  under `money`: a connection, a model by name or `@text`/`@image`/`@tts`/`@stt`/`@music`/`@video` for the assigned
+  ones, its commands of type model too (a script that calls `$DECK_MODELS/<connection>/…` needs that connection
+  itself, a model's name is not enough); deck keeps each call with its cost in its journal,
   and the settings of the module list the models it called. A model the module needs and deck lacks: propose it
   with `deck.model_set` (connection, model, kind; the price comes from the catalog of the connection) — the call
   waits for the owner's button. A free model the module added that no assignment names any more it removes with
-  `deck.model_delete`, listed in `allowed_external`, without the owner, who sees it with an undo. deck has no limits of money: the owner sets them at the provider, so a module never
+  `deck.model_delete`, declared under `send`; once the owner answers always it goes without them, with an undo. deck has no limits of money: the owner sets them at the provider, so a module never
   loops on paid calls.
 - **MCP servers** (`tools.mcp.servers`, the usual `mcp.servers` shape): `command`/`args`/`env` (values may use
-  `$secret.<name>`) or `url`; a `command` server reaches the web only through deck's proxy, to the hosts of
-  `domains.read` and `domains.act`, never the owner's machine or network unless a domain names it; `toolFilter` lists the tools the module uses, `classes` their classes — every
-  other tool is `external`. Tools are `<server>.<tool>` in `executor.tool` and `allowed_external`. deck starts
-  servers itself, only in an enabled project; a new or changed server waits for the owner's button, and a tool
-  whose description or input changes loses its rights until the owner allows it again — so pin the server's
+  `$secret.<name>`) or `url`; a `command` server reaches the web only through deck's proxy, to the hosts the module
+  holds `network` on; `toolFilter` lists the tools the module uses, `"right"` the right of each by name (`network` for
+  one that only reads what is public, `data`), `send` for the rest. Tools are `<server>.<tool>` in `executor.tool`
+  and in `rights`. deck starts servers itself, only in an enabled project; a tool whose description or input changes
+  asks the owner again even when they answered always — so pin the server's
   version in `args` (`"pkg@1.2.3"`, not `@latest`). Once a project runs, `health_list` shows whether each server
   started and why not.
 - **Browser**: agents get deck's browser (`browser_navigate`, `browser_snapshot`, `browser_click`, …) with its own
-  profile. `domains.read` are the sites it reads, `domains.act` the ones where it clicks, types and submits
-  without asking; an action anywhere else waits for the owner, and their "allow always" adds that site to
-  `domains.act`. `"*"` in read reads any site (research; it is also the network of scripts), but in a browser
-  without the owner's sign-ins: a module that needs a signed-in site lists its sites instead. Reading needs no
-  clicks: open the next page by its URL (`?page=2`, `&start=25`) rather than clicking "next", which on a site
-  only in `read` waits for the owner each time. The owner signs in to a site once (`browser_login`); a page
+  profile. It reads the sites the module holds `network` on and clicks, types and submits without asking on those it
+  holds `send` on (a site by its host); an action anywhere else waits for the owner, and their "allow always" keeps
+  that site. `"*"` reads any site, but in a browser without the owner's sign-ins: a module that needs a signed-in
+  site lists its sites instead. Reading needs no clicks: open the next page by its URL (`?page=2`, `&start=25`)
+  rather than clicking "next", which waits for the owner each time. The owner signs in to a site once (`browser_login`); a page
   that asks for a sign-in again means the agent calls `browser_login_request` and stops — deck resumes it after
   the owner signs in.
 - **Command input** is a flat object; a choice is `{"type": "string", "enum": [...]}` — an `enum` without
@@ -166,15 +167,14 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   reads with `document_get` into its work folder, runs `typst compile` and puts the PDF into `$DECK_RESULTS`.
   To compare two revisions of a document, read both (`document_get` with `revision`) and say what changed;
   screens have no diff block.
-- **Reads**: `reads: [{"project": "other", "collections": [...], "documents": [...]}]` lets agents and scripts
-  read those (`records_list`, `document_get` with `project`), and a screen shows them with `"source": {"from":
-  "deck.records_list", "input": {"project": "other", "collection": "items"}}`, its fields under `data.`.
-  `{"project": "*", "models": true}` (or a project's name) lets them read which models do the work of every project:
+- **Data of other modules**: `data` on `other` (all of it), `other.items` (a collection) or `other/notes/a.md` (a
+  document) lets agents and scripts read those (`records_list`, `document_get` with `project`), and a screen shows
+  them with `"source": {"from": "deck.records_list", "input": {"project": "other", "collection": "items"}}`, its
+  fields under `data.`. `*:models` (or `other:models`) lets them read which models do the work of every module:
   `models_list` with `project` gives its assignments, the work of its commands and scripts with their prices, and
-  once for each kind of work the models that could do it (`choices`). To
-  change one, propose it with `assignment_set`. `"runs": true` on the same entry lets them read its runs in brief:
-  `processes_list` with `project` gives the command, state, type and first line of a failure, the models that
-  answered and the times, never input, result or log. Nothing ever writes to another project.
+  once for each kind of work the models that could do it (`choices`); propose a change with `assignment_set`.
+  `*:runs` reads the runs in brief: `processes_list` with `project` gives the command, state, type and first line of
+  a failure, the models that answered and the times, never input, result or log. Nothing ever writes to another module.
 - **Results** are JSON by schema. Decisions use typed shapes: a choice with probabilities and confidence,
   a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do", and an agent
   may give it only where the result schema takes it: `"type": ["object", "null"]`; with `"type": "object"` a null
@@ -189,7 +189,7 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
   true` drops the missed run instead (a morning digest that is stale by noon).
   `{"on": "ask", "command": X}` (one a module) starts X once when a confirmation a process of the module asked the
   owner for closes, with `ask` (id), `answer` (`yes`, `no` or `expired`) and `process` (the one that asked) — the way
-  to act on the owner's answer instead of polling for it; X is not external.
+  to act on the owner's answer instead of polling for it; X declares no `send`.
 - **Stages** the owner acts on are a `status` field of the record (an `enum`), shown as a board (`"board":
   "status"` on a `list`), where the owner drags an item to its next stage; the other fields of a record the owner
   edits on its page (a `form` of `deck.record_update`), and a command takes the records of its status with
@@ -227,8 +227,8 @@ Read `manifest_format_get` first: it is the JSON Schema deck checks every manife
 - **Documents** agents and scripts write are artifacts, each of one record, and the memory of the project. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
   `prompts/*.md` and other module documents are written by you, not by the module at run time — unless a command's
   work is to change them (its own code, a style it refines): then `"writes"` of the manifest names them, a
-  document (`"personas/style.md"`) or a folder with `/` at the end (`"remotion/"`), never the manifest. It is a
-  right the owner grants, so name only what that work changes; the agent is told what it may write before it
+  document (`"personas/style.md"`) or a folder with `/` at the end (`"remotion/"`), never the manifest. It narrows
+  the module's own agents, no right, so name only what that work changes; the agent is told what it may write before it
   starts, and each change shows to the owner with an undo. A command that changes documents without `writes` is
   refused at its first save. `document_save` of a document that exists needs no `kind`.
 - **Widgets** are the views of the card of the module on the tiles: `"widgets": [{"min": "2x1", "blocks": [...]}]`,
@@ -438,19 +438,17 @@ everything its shell starts — runs in a box of its own that sees and reaches o
   data are not there. A file of the owner elsewhere is opened by the owner adding its folder to the project (its
   settings, Access → "Add a folder"): ask for that, never copy the file around the box. A program names the path it
   was refused in its stderr (`No such file or directory`, `Operation not permitted`);
-- network: only through deck's door, to `domains.read` (`"*"` opens every public host, a right the owner gives). The
-  door sees the host, not the method: `domains.read` is network — a program may send to such a host, not only GET
-  from it — so ask for it as network and say so in the hand-over; acting on a site without the owner is only
-  `domains.act` in the browser, where a click or a form outside it waits for their consent. A domain is a host
-  (`hf.co` takes its subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name reaches
-  only public addresses, so a service on the owner's machine or network is named by its IP:port, never by a name
-  (a model on the owner's machine for Codex or a script too: `base_url` by IP:port). The shell of an agent reaches its provider and deck, and with any `domains.read` also the package
-  registries (PyPI, npm, the go proxy), GitHub and Hugging Face; without `domains` an agent reaches only its
-  provider and deck. The CLIs' own web search and fetch are off: an agent searches with deck's `web_search` and
-  reads pages of `domains.read` with `web_fetch`;
+- network: only through deck's door, to the hosts the module holds `network` on (section 10). The door sees the
+  host, not the method: a program may send to such a host, not only GET from it. A host is `example.com` (its
+  subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name reaches only public
+  addresses, so a service on the owner's machine or network is named by its IP:port (a model on the owner's machine
+  for Codex or a script too: `base_url` by IP:port). The shell of an agent reaches its provider and deck, and the
+  hosts of `network` with `"who": "agent"` — never on a subscription login (Claude Code, Codex) nor in a module that
+  reads the data of others: there it installs nothing and clones nothing itself, a script of the module does. The
+  CLIs' own web search and fetch are off: an agent searches with deck's `web_search` and reads pages with `web_fetch`;
 - inside its box a program binds local ports, starts a headless browser (Chrome, a Remotion render) and keeps its
-  caches (uv, npm, Hugging Face in `$DECK_DATA/.cache`); `"gpu": true` adds the graphics card (`/dev/dri` on Linux)
-  for rendering and local models, a right too;
+  caches (uv, npm, Hugging Face in `$DECK_DATA/.cache`); `files` on `gpu` adds the graphics card (`/dev/dri` on
+  Linux) for rendering and local models;
 - no secrets and no keys of the owner in its environment: a secret reaches a module only through what its
   manifest names (an HTTP tool, an MCP server).
 
@@ -511,10 +509,10 @@ runs in its box (section 4):
   status of its own for "asked" and no button "confirm in the cockpit": a record that already waits answers
   `{"waiting": <ask>}` as the result of the next press, and the press shows that same ask again;
 - files go into `$DECK_RESULTS`; the result field `files: [{"path": "...", "record": <id>}]` attaches them;
-- a script installs its own packages when it runs; there is no `packages` field. The registries go into
-  `domains.read` (Python: `pypi.org`, `files.pythonhosted.org`; Node: `registry.npmjs.org`), the package
-  manager goes through the proxy, its cache lives in `$DECK_DATA/.cache` (uv, npm, Hugging Face) and stays between
-  runs, the install counts in `timeout_minutes`; a project without the registries in `domains.read` has no packages.
+- a script installs its own packages when it runs; there is no `packages` field. The registries are hosts of its
+  `network` (Python: `pypi.org`, `files.pythonhosted.org`; Node: `registry.npmjs.org`), the package manager goes
+  through the proxy, its cache lives in `$DECK_DATA/.cache` (uv, npm, Hugging Face) and stays between runs, the
+  install counts in `timeout_minutes`; without the registries a module has no packages.
   Programs it needs from the machine go into `scripts[].programs`: a name (`"uv"`) or a name with how the owner
   installs it on a Mac (`{"name": "typst", "install": "brew install typst"}`). deck's image carries the programs
   `python3`, `node`, `uv`, `bash`, `git`, `curl`, `ffmpeg`, `unzip` and `chromium`; a script names them all the same,
@@ -570,7 +568,7 @@ A long job of a service with its own API (minutes) is two commands, never a scri
 through `$DECK_MODELS`, keeps the job id in the record with status `waiting` and ends; `fetch`, on a schedule
 (`every 5m`), reads the waiting records, asks the status path of the API through `$DECK_MODELS`, and when the
 job is done downloads the file into `$DECK_RESULTS` and sets the record `done`. A file the service gives as a URL
-on its own storage host is fetched through the proxy, so that host goes into `domains.read`. Ask the owner for the
+on its own storage host is fetched through the proxy, so that host is one of its `network`. Ask the owner for the
 price per call of such a model: a service that reports no `usage.cost` is counted by it, else without a cost.
 
 A tool of the manifest called from a script (`POST $DECK_URL/commands/<project>.<tool>`) that answers with a
@@ -586,13 +584,11 @@ environment, files or logs and not to call deck's HTTP API around its tools. Whe
 many records at once), give the module a script or command for it; scripts reach deck's API with `$DECK_URL`. A provider with a shell (Claude Code, Codex, an ACP agent) runs it in its auto mode: the agent works in its own
 folder and in the project's data folder (the prompt names it; indexes, caches and state live there between
 runs), runs shell commands in its box (section 4) without asking; the provider itself refuses what looks risky and asks
-the owner only about that. A deck tool of class `external` outside `allowed_external` still waits for the owner.
-A project with personal data (finance, health, mail) names no `domains`: its agents reach only their provider and
-deck, and its scripts nothing. An agent
+the owner only about that. A call that needs a right the owner has not answered always still waits for them. An agent
 that must work in a folder of the owner (a code repo, notes) gets `"folder": true` in `executor` (or the folder's
-name when the project has several): it works there instead of its own folder, with the repo's CLAUDE.md or
-AGENTS.md, and a second agent in the same folder waits. Only the owner adds folders (the Settings of the
-project, Access → "Add a folder"); a code repo is the code-project skill. List the
+name when the project has several, declared under `files`): it works there instead of its own folder, with the
+repo's CLAUDE.md or AGENTS.md, and a second agent in the same folder waits. Only the owner adds folders (the Settings
+of the project, Access → "Add a folder"); a code repo is the code-project skill. List the
 skills it needs in `executor.skills`; a skill may not grant tools (`allowed-tools`, `hooks`) — rights come
 from deck.
 
@@ -602,11 +598,11 @@ routine work, and the rest after them). Every provider has deck's tools, a shell
 mode and a project folder; `requires` lists only what some lack: `no_cloud` for personal data (finance,
 health) that must stay on the owner's hardware, and `images` for a model that reads pictures. A local model in an
 ACP agent has a shell and stays on the owner's hardware. Every agent searches with deck's `web_search` (the search
-service of deck's settings, SearXNG) and reads pages with `web_fetch` (pages of `domains.read` as text, any with
-`"*"`). When the agent's result is wrong without its own research (changelogs or news it cannot know in
+service of deck's settings, SearXNG) and reads pages with `web_fetch` (pages of the hosts it holds `network` on,
+any with `"*"`). When the agent's result is wrong without its own research (changelogs or news it cannot know in
 advance), the prompt of the command names `web_search` and `web_fetch`, so the agent knows to use them,
 and `calls` lists them if the command lists its calls. Leave the web out when a script brings the pages the agent
-judges, which is cheaper. Fetching known pages belongs in a script with `domains.read`. Repeatable mechanics still belong in a script: it is cheaper,
+judges, which is cheaper. Fetching known pages belongs in a script with their hosts under `network`. Repeatable mechanics still belong in a script: it is cheaper,
 runs the same way every time and works with any provider. A requirement a local model lacks keeps routine work off
 it. `command_describe` gives an agent command the
 models that fit it (`choices`; `commands_list` only when `fields` asks for them). `provider` suggests a provider by
@@ -631,20 +627,9 @@ try the command on the model it will run on before the hand-over.
 
 ## 7. Confirmations
 
-Each "yes" the owner gives by habit is a failure of the module. What an agent does in its own folders, in its
-shell and on the web does not wait for the owner: the provider's auto mode passes it and asks only about what
-it finds risky, which should be rare in a normal run. What waits is deck tools of class `external` outside
-`allowed_external` and questions the agent asks. Before hand-over,
-count what will wait for the owner in a normal week and remove what they would always allow:
-
-- a tool that only reads (search, fetch, status) gets `"class": "internal"`; `external` is for what changes
-  something outside or costs money;
-- something the owner will look at before it takes effect anyway (a draft, an unpublished post, a job started
-  in a paid service they asked for) goes into `allowed_external`, and the hand-over says so;
-- sites where the agent must click, type or submit on its own go into `domains.act`; everywhere else it reads;
-- a paid or risky call that should still be asked every time keeps `external` and gets `confirm_ttl_minutes`.
-
-Name each of these rights in the hand-over: the owner grants them with "enable".
+Each "yes" the owner gives by habit is a failure of the module. What waits is a call whose right the owner has not
+answered always, and questions the agent asks. Count what will wait in a normal week: a tool that only reads names
+`"right": "data"` or `"network"`; a draft or an unpublished post is still `send`, and the hand-over asks for always.
 
 ## 8. Build, import, try
 
@@ -661,20 +646,20 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
    found exactly once) and `new` (what replaces each); the whole text only for a new one or a rewrite. The answer of `manifest_save`
    lists in `screens` each block that fails on the records there are now (a column that breaks on a record
    without a field, a missing custom document): fix them before the owner opens the screen. `manifest_check`
-   runs the same checks and saves nothing: what a save refuses, its warnings, what it widens and whether that
-   waits for the owner, `screens`, `untranslated`; of a project with the whole text or `old`/`new`, or of a
+   runs the same checks and saves nothing: what a save refuses, its warnings, the rights it declares the owner
+   has not granted (`ungranted`), `screens`, `untranslated`; of a project with the whole text or `old`/`new`, or of a
    manifest alone (an old `.zip`). Check before you save, and fix a module from a `.zip` before its import.
    To see a screen as the owner does, `screen_capture` draws it (`#/p/<module>/<screen>?tab=…`, a phone or a
    computer, light or dark) and answers the picture's `path` to read and `ms` it took to draw.
-   `project_readiness_get` is what the module needs to work, which deck counts from the manifest: rights that enabling
-   grants, secrets and whether they are set, programs its scripts miss, roles without a model and work no model
+   `project_readiness_get` is what the module needs to work, which deck counts from the manifest: the rights it
+   declares and whether the owner granted them, secrets and whether they are set, programs its scripts miss, roles without a model and work no model
    takes; a connection it names that deck lacks is `optional`. Build on it, not on your own list: tell the owner
    what is not `done`, and hand over a module whose needs are only rights.
-3. `command_try` runs a command as a trial: everything that is not internal is declined, and a call of an HTTP
+3. `command_try` runs a command as a trial: every call that needs a right is declined, and a call of an HTTP
    or MCP tool waits for the owner's yes on that one call; the commands that run `after` it are tried too,
-   unless `only` asks for this command alone. Try in a draft. Until the owner enables a draft it
-   has none of the rights its manifest asks for: its tools ask the owner on every call, its scripts reach only
-   package registries, its `domains` do nothing, and it reads no other project: its `reads` come with "enable". To try a change of an enabled module (a new command, one that waits for the owner's
+   unless `only` asks for this command alone. Try in a draft. Until the owner enables a draft it holds none of
+   the rights it declares: its tools ask the owner, its scripts reach no host, the package registries neither,
+   and it reads no other module. Ask the owner to grant a right a trial needs on the draft's card. To try a change of an enabled module (a new command, one that waits for the owner's
    button), import its folder as a draft copy under another name, try there, then save the change to the
    module and tell the owner the copy can be deleted: a trial in the enabled module itself writes real
    records beside its own runs, so it takes `live` and is refused while a real run of the command
@@ -716,21 +701,31 @@ Name each of these rights in the hand-over: the owner grants them with "enable".
 
 ## 10. Rights
 
-Ask only for what the module needs. A module asks for roles (`@text`, `@image`, `@tts`, `@stt`) for its own work,
-not for the owner's connections or model names: another owner has their own, and a module that moves works on their
-assignments. A connection it names (a source whose models it tries) is optional; a model named in `provider` is a
-suggestion. What widens its rights `manifest_check` names in `widens`: in a draft that is part of what the owner enables; in an
-enabled project a change that widens them waits for the owner's button, with only what it widens; check
-`projects_list` first, since a project you were told is a draft may be enabled. Go on with other changes
-meanwhile: an edit that widens nothing saves at once, and the owner's yes merges the waiting change into the
-manifest as it is then. An edit of the same lines, or one after which it would widen more, closes the request
-with a note, so ask again after it. Every
-other change you make to an enabled project is listed as "done without you" with an undo.
+A module declares in `rights` what it may ask the owner for, with why in a short sentence of its own; what it does
+not declare it can never ask for, and a declaration grants nothing. Its own records, documents and files need no
+right. deck's catalog:
+
+| `right` | `what` |
+|---|---|
+| `network` | hosts, `*` every public one; with `"who": "agent"` the shells of its agents |
+| `login` | `claude-code`, `codex`: its agents work on the owner's subscription |
+| `data` | `other`, `other.items`, `other/a.md`, `other:models`, `*:runs`; its own tool or `server.tool` that reads with a key |
+| `files` | `gpu`, a folder of the project by name, `*` |
+| `money` | a connection, a model, an `@role` |
+| `send` | its command or tool, `server.tool`, a command of deck, a site the browser acts on |
+| `modules` | another module, `module.command` |
+
+Ask for roles (`@text`, `@image`, `@tts`, `@stt`), not the owner's connections or model names: another owner has
+their own. Enabling grants every declared right but `send`, which asks the first time; a right declared later the
+owner grants in the module's settings (Access → Rights) or when it is first used. A save that declares something new
+saves at once and lists it in `ungranted`: tell the owner what to grant and why. The owner's answers live apart from
+the manifest, so an edit never widens what is granted, and always holds to the tool or command as it was: a changed
+one asks again.
 
 ## 11. Hand over
 
 Tell the owner in a few plain sentences: what the module does and when, what the trial showed, and the
-rights "enable" will grant. Do not enable it yourself.
+rights it declares and why. Do not enable it yourself.
 
 ## 12. Improve this skill
 

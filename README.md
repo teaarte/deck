@@ -34,9 +34,9 @@ deck in the morning, see what was done, and answer the one or two things that ne
   Groq, a local server or Ollama, each command on its own model with fallbacks. **Spend** shows what every module
   costs.
 - **Yours.** One program, one folder, no account, no cloud. Keys stay in deck: each module reads only its own secrets,
-  and no module reads the API keys of model connections. A subscription login (Claude Code, Codex) is the exception
-  for now: an agent of a module that runs on that CLI can read and rewrite its login file; give such modules only
-  data you trust, until the login becomes a right of its own.
+  and no module reads the API keys of model connections. A subscription login (Claude Code, Codex) is a right of its
+  own a module declares and you grant; an agent that runs on that CLI can still read and rewrite its login file, so
+  grant it only to modules you trust.
 
 ## A look inside
 

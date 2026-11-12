@@ -27,7 +27,7 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
   `security_opt` lines of `compose.yaml`, needs docker):
   `DECK_LINUX=1 go test ./tests/linux -v`
 - deck's image from `compose.yaml` on a bare docker (docker in docker, Codex on a model of the test), and its update
-  from every release (the images v0.1.1–v0.2.2 and the binary of v0.2.2 over the air): `DECK_SERVER=1 go test ./tests/scenarios/real -run TestServer -v`; `compose.yaml` needs
+  from every release (the images v0.1.1–v0.3.1 and the binary of v0.3.1 over the air): `DECK_SERVER=1 go test ./tests/scenarios/real -run TestServer -v`; `compose.yaml` needs
   `seccomp.json` beside it and the AppArmor profile `deck-box.apparmor` loaded on a host with AppArmor
 - Regenerate SQL code after editing `internal/store/queries/*.sql` (one file per area) or migrations: `sqlc generate`
 - Regenerate the Codex protocol types from the installed CLI: `go generate ./internal/provider/codex`

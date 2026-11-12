@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"maps"
 	"math/big"
 	"os"
 	"os/exec"
@@ -26,6 +27,7 @@ import (
 	"time"
 
 	"deck2/internal/home"
+	"deck2/internal/manifest"
 	"deck2/internal/release"
 	"deck2/tests/harness"
 )
@@ -54,16 +56,27 @@ volumes:
 `
 
 // releases are the released versions of deck, oldest first; an owner updates from any of them.
-var releases = []string{"v0.1.1", "v0.2.0", "v0.2.1", "v0.2.2"}
+var releases = []string{"v0.1.1", "v0.2.0", "v0.2.1", "v0.2.2", "v0.3.0", "v0.3.1"}
 
 // candidateVersion is the version the binary of this tree is released as in the test, newer than every release.
-const candidateVersion = "v0.3.0"
+const candidateVersion = "v0.4.0"
 
-// keptManifest is a module with records and an HTTP tool that names a secret.
-var keptManifest = harness.Manifest(`{"collections": [{"name": "items", "description": "An item.", "key": "name",
+// keptManifest is a module of the manifest format of a release with records, its domain, an internal HTTP tool that
+// names a secret and an external one the owner never allowed: v0.1 read format 13, v0.2 and v0.3 format 16.
+func keptManifest(v string) string {
+	format := "16"
+	if v == releases[0] {
+		format = "13"
+	}
+	tool := func(name, method, class string) string {
+		return fmt.Sprintf(`{"name": %q, "description": "Item.", "method": %q, "url": "https://example.com/item", "class": %q,
+      "headers": {"X-Key": "$secret.key"}}`, name, method, class)
+	}
+	return fmt.Sprintf(`{"version": %s, "domains": {"read": ["example.com"]},
+  "collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "integer"}}, "required": ["name"]}}],
-  "tools": {"http": [{"name": "get", "description": "Gets an item.", "method": "GET", "url": "https://example.com/item",
-    "headers": {"X-Key": "$secret.key"}}]}}`)
+  "tools": {"http": [%s, %s]}}`, format, tool("get", "GET", "internal"), tool("put", "POST", "external"))
+}
 
 // What an owner keeps in deck across an update.
 const (
@@ -141,6 +154,7 @@ chown -R agent:agent /home/agent /var/lib/deck/work/left`)
 		}
 	}
 	b.kept(cookie)
+	b.rights(cookie)
 
 	b.files("compose.yaml", "seccomp.json", "deck-box.apparmor")
 	b.compose("up", "-d")
@@ -207,6 +221,7 @@ func (b *bare) fromImage(v string) {
 	b.compose("up", "-d")
 	b.updated(cookie, v)
 	b.kept(cookie)
+	b.rights(cookie)
 	b.health(cookie, "sandbox", "ok")
 	b.call(cookie, "deck.provider_check", map[string]any{"provider": "codex"})
 	b.health(cookie, "provider:codex", "ok")
@@ -326,6 +341,7 @@ func (b *bare) fromBinary(v string) {
 		return b.deck("deck", "sh", "-c", "test ! -e /srv/bin/deck.old && test ! -e "+home.Layout(b.home).Update()).Run() == nil
 	})
 	b.kept(cookie)
+	b.rights(cookie)
 	b.devices(cookie)
 	b.calm()
 }
@@ -354,10 +370,10 @@ func (b *bare) token() string {
 // keep puts in a deck of version v what its owner keeps: a module with records, a secret it names and a document.
 func (b *bare) keep(cookie, v string) {
 	b.t.Helper()
-	m, upsert, secret := keptManifest, "deck.record_upsert", map[string]any{"project": "kept", "name": "key", "value": keptSecret}
+	m, upsert, secret := keptManifest(v), "deck.record_upsert", map[string]any{"project": "kept", "name": "key", "value": keptSecret}
 	if v == releases[0] {
-		// v0.1 read the manifests of format 13, wrote records by records_upsert and kept a secret by workspace.
-		m, upsert = harness.ManifestVersion(m, "13"), "deck.records_upsert"
+		// v0.1 wrote records by records_upsert and kept a secret by workspace.
+		upsert = "deck.records_upsert"
 		delete(secret, "project")
 	}
 	b.must(cookie, "deck.project_create", map[string]any{"name": "kept", "manifest": m})
@@ -421,6 +437,29 @@ func (b *bare) kept(cookie string) {
 	if logins := b.sh("deck", "cat "+filepath.Join(l.Login("claude"), ".credentials.json")+" "+filepath.Join(l.Login("codex"), "auth.json")); !strings.Contains(logins, "sk-ant-ort01-old") ||
 		!strings.Contains(logins, "sk-old") {
 		t.Fatalf("the logins of the CLIs are kept:\n%s", logins)
+	}
+}
+
+// rights checks that the manifest of the module is of the current format, the rights its old fields stood for
+// declared: what the owner had granted is always, the external tool never allowed asks on its first use.
+func (b *bare) rights(cookie string) {
+	t := b.t
+	t.Helper()
+	var doc struct{ Text string }
+	_ = json.Unmarshal(b.must(cookie, "deck.document_get", map[string]any{"project": "kept", "name": "manifest.json"}), &doc)
+	if !strings.Contains(doc.Text, fmt.Sprintf(`"version": %d`, manifest.FormatVersion)) || strings.Contains(doc.Text, `"domains"`) ||
+		strings.Contains(doc.Text, `"class"`) {
+		t.Fatalf("the manifest of the module is of format %d: %s", manifest.FormatVersion, doc.Text)
+	}
+	var rows []struct{ Right, Who, Subject, Answer string }
+	_ = json.Unmarshal(b.must(cookie, "deck.rights_list", map[string]any{"project": "kept"}), &rows)
+	got := map[string]string{}
+	for _, r := range rows {
+		got[r.Right+" "+r.Subject] = r.Answer
+	}
+	want := map[string]string{"network example.com": "always", "data get": "always", "send put": ""}
+	if !maps.Equal(got, want) {
+		t.Fatalf("the module holds the rights its old manifest stood for, %v: %+v", want, rows)
 	}
 }
 

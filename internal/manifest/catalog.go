@@ -83,7 +83,7 @@ type Declared struct {
 	What   []string `json:"what"`
 	Why    string   `json:"why"`
 	Who    string   `json:"who,omitempty"`
-	PerRun float64  `json:"per_run,omitempty"`
+	RunUSD float64  `json:"run_usd,omitempty"`
 }
 
 // Whom is whom a declared right opens to: programs or agents for a network, nobody else's for the rest.

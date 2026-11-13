@@ -24,7 +24,7 @@ func (g *Gateway) Permit(ctx context.Context, act registry.Actor, command string
 		err = v.refusal(c, g.projectName(ctx, act.ProjectID))
 	case v.Name == "over":
 		// The owner's always is in force: past the cap the run of a program stops, nothing to ask.
-		err = registry.Refuse("this run has spent the most its module declares per run of money (per_run in its rights); the owner's always covers no more, so this call was not made")
+		err = registry.Refuse("this run has spent the most its module declares per run of money (run_usd in its rights); the owner's always covers no more, so this call was not made")
 	case v.Does == DoAsk && v.Need != nil && !v.Facts.Draft:
 		// A program cannot wait for the owner: its call is refused, and its module asks the owner for the right once.
 		module := act

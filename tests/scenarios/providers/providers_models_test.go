@@ -837,7 +837,7 @@ print(json.dumps({"statuses": out}))
 `
 
 // TestAlwaysOfMoneyHoldsToTheMostARunSpends: the owner's always lets a script's calls through until its run spent the
-// per_run its module declares, then refuses them; a new run starts from nothing.
+// run_usd its module declares, then refuses them; a new run starts from nothing.
 func TestAlwaysOfMoneyHoldsToTheMostARunSpends(t *testing.T) {
 	t.Parallel()
 	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
@@ -849,7 +849,7 @@ func TestAlwaysOfMoneyHoldsToTheMostARunSpends(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or-real"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image", "name": "painter", "call_usd": 0.04}, nil)
 	e.Must("deck.project_create", map[string]any{"name": "films", "manifest": harness.ScriptManifest("media", "",
-		`, "rights": [{"right": "money", "what": ["openrouter"], "per_run": 0.05, "why": "calls models"}]`)}, nil)
+		`, "rights": [{"right": "money", "what": ["openrouter"], "run_usd": 0.05, "why": "calls models"}]`)}, nil)
 	e.Grant("films", "money", "openrouter")
 	e.SaveScript("films", "scripts/main.py", manyCalls)
 	var last int64
@@ -881,13 +881,13 @@ func TestAlwaysOfMoneyHoldsToTheMostARunSpends(t *testing.T) {
 		t.Fatalf("a new run starts from nothing spent: %v", got)
 	}
 	code, raw := e.Call("deck.manifest_save", map[string]any{"project": "films", "manifest": harness.ScriptManifest("media", "",
-		`, "rights": [{"right": "network", "what": ["example.com"], "per_run": 0.05, "why": "reads a page"}, {"right": "money", "what": ["openrouter"], "why": "calls models"}]`)})
-	if code == 200 || !strings.Contains(string(raw), "per_run is of money alone") {
-		t.Fatalf("per_run on another right is refused on save: %d %s", code, raw)
+		`, "rights": [{"right": "network", "what": ["example.com"], "run_usd": 0.05, "why": "reads a page"}, {"right": "money", "what": ["openrouter"], "why": "calls models"}]`)})
+	if code == 200 || !strings.Contains(string(raw), "run_usd is of money alone") {
+		t.Fatalf("run_usd on another right is refused on save: %d %s", code, raw)
 	}
 }
 
-// TestAnAgentPastTheMostARunSpendsWaitsForTheOwnersOnce: past the per_run of its module an agent's call of a model
+// TestAnAgentPastTheMostARunSpendsWaitsForTheOwnersOnce: past the run_usd of its module an agent's call of a model
 // waits for the owner's yes to that very call, which offers no always.
 func TestAnAgentPastTheMostARunSpendsWaitsForTheOwnersOnce(t *testing.T) {
 	t.Parallel()
@@ -915,7 +915,7 @@ func TestAnAgentPastTheMostARunSpendsWaitsForTheOwnersOnce(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.03}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"openrouter/qwen"}}, nil)
-	e.Project("writer", harness.Manifest(`{"rights": [{"right": "money", "what": ["@text"], "per_run": 0.05, "why": "writes with a model"}],
+	e.Project("writer", harness.Manifest(`{"rights": [{"right": "money", "what": ["@text"], "run_usd": 0.05, "why": "writes with a model"}],
 	  "commands": [{"name": "write", "title": "Write", "description": "Writes.", "executor": {"type": "agent", "prompt": "Write."}}]}`))
 	e.Grant("writer", "money", "@text")
 	e.Start("writer", "write", map[string]any{})

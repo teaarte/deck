@@ -270,13 +270,13 @@ func (m *Manifest) Keyed(n registry.Need) bool {
 	return !(m != nil && m.service(n.Subject)) && rest != "models" && rest != "runs"
 }
 
-// PerRun is the most a run spends on need of money by the owner's always: the least cap of the declarations that cover
+// RunUSD is the most a run spends on need of money by the owner's always: the least cap of the declarations that cover
 // it, zero when none of them has one.
-func (m *Manifest) PerRun(n registry.Need) float64 {
+func (m *Manifest) RunUSD(n registry.Need) float64 {
 	var cap float64
 	for _, d := range m.Rights {
-		if d.Right == Money && d.PerRun > 0 && (cap == 0 || d.PerRun < cap) && slices.ContainsFunc(d.What, func(s string) bool { return Covers(Money, s, n.Subject) }) {
-			cap = d.PerRun
+		if d.Right == Money && d.RunUSD > 0 && (cap == 0 || d.RunUSD < cap) && slices.ContainsFunc(d.What, func(s string) bool { return Covers(Money, s, n.Subject) }) {
+			cap = d.RunUSD
 		}
 	}
 	return cap
@@ -300,8 +300,8 @@ func (m *Manifest) checkRights() {
 		if d.Who != "" && d.Right != Network {
 			warn("rights[%d]: who is only of network", i)
 		}
-		if d.PerRun != 0 && (d.Right != Money || d.PerRun < 0) {
-			warn("rights[%d]: per_run is of money alone, a sum in US dollars above zero", i)
+		if d.RunUSD != 0 && (d.Right != Money || d.RunUSD < 0) {
+			warn("rights[%d]: run_usd is of money alone, a sum in US dollars above zero", i)
 		}
 		agentNet = agentNet || d.Whom() == Agents
 		for _, s := range d.What {

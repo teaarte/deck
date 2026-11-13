@@ -13,515 +13,284 @@ and presses "enable". Its scripts, prompts and their review follow the module-co
 You talk to deck through its MCP server (`deck`). The tools are deck commands: `manifest_format_get`,
 `project_import`, `documents_list`, `manifest_get`, `manifest_save`, `document_get`, `document_save`,
 `command_try`, `process_get`, `process_log_get`, `records_list`, `record_upsert`, `files_list`,
-`projects_list`, `triggers_list`, `models_list`, `health_list`, `asks_list`, `command_describe`. Ask a read for only
-the fields you need (`fields`; of `records_list` they are the fields of the data of each record). Some commands only the owner runs:
-`secret_set`, `oauth_start`, `browser_login`, `project_enable`; say which one and why when the module needs it.
-`model_set` and `assignment_set` a module or the master calls itself as a proposal: the call waits for the owner's
-button and applies exactly what it sent; deck closes it by itself as done when it is in force already, and as out of
-date when the assignment changed meanwhile (the caller hears so and asks again if it still needs it). Several
-assignments go in one call, `assignments` — a JSON list of `{role, project, command, models or model}` — so the owner
-answers them with one button; give the owner the `link` of the answer, which opens that very request. Send the owner
-to the form of a command only they call: `commands_list` marks it `owner_only` with `form`, the address of its form,
-and `form_params`, the parameters after `?` that fill it; give that link with the values (the secret `mail-key`, the
-API key of …), never a `curl`. The fields of a form are the input of its command, which `command_describe` gives.
+`projects_list`, `triggers_list`, `models_list`, `health_list`, `asks_list`, `command_describe`. Ask a read for
+the fields you need (`fields`; of `records_list` the fields of the data of each record). Some commands the owner
+alone runs: `secret_set`, `oauth_start`, `browser_login`, `project_enable`; say which one and why. `commands_list`
+marks such a command `owner_only` with `form`, the address of its form, and `form_params` that fill it: give the
+owner that link with the values (the secret `mail-key`, …), never a `curl`. `model_set` and `assignment_set` a
+module or the master calls as a proposal: the call waits for the owner's button and applies exactly what it sent;
+several assignments go in one call (`assignments`, a JSON list of `{role, project, command, models or model}`);
+give the owner the `link` of the answer, which opens that request.
 
-When the module needs something only the owner gives — an API key or token, an account or sign-in, a right of
-the manifest, a program installed on the machine, a paid call in a trial — stop and ask the owner in the chat:
-what, why, and where to put it. Do not work around it: no other service or free key in its place without the
-owner's word, no right declared just to get past a refusal, no key written into a document,
-a script or the environment, no copy by hand of what deck or its sandbox refuses. Build the rest, then go on
-with that part once the owner has done it.
+When the module needs something the owner gives — an API key, an account or sign-in, a right, a program
+installed on the machine, a paid call in a trial — stop and ask the owner in the chat: what, why, and where to put
+it. Do not work around it: no other service or free key without the owner's word, no right declared just to get
+past a refusal, no key in a document, script or the environment, no copy by hand of what deck or its sandbox
+refuses. Build the rest, then go on with that part once the owner has done it.
 
 ## 1. Interview
 
 A draft sends nothing out until the owner enables it, so build first and ask only what a sensible default
-cannot settle: what leaves deck, what costs money, and choices that change the shape of the module. Everything
-else takes a sensible default, and the hand-over lists every choice you made yourself. Ask one question at a
-time with your question tool; offer 2–4 options, the first one your recommendation. What to settle:
+cannot settle: what leaves deck, what costs money, and choices that change the shape of the module. Ask one
+question at a time with your question tool, 2–4 options, the first your recommendation. Settle:
 
 - the outcome: what the owner wants to see each day or week, and what "done" means for one item;
 - the inputs: where items come from, how often they change, whether a login is needed;
-- judgement vs mechanics: which steps need taste (an agent) and which are repeatable (a script);
-- stages: whether items move through stages the owner acts on (a `status` field of the record), and which;
-- anything that leaves deck (posting, sending, paying, submitting): what exactly and how often;
+- judgement vs mechanics: which steps need taste (an agent) and which repeat (a script);
+- stages the owner acts on (a `status` field of the record), and anything that leaves deck (posting, sending,
+  paying): what exactly and how often;
 - criteria and voice: facts, rules and examples that belong in md documents, not in the manifest.
 
-When the owner gave written answers instead, work from them and list every choice you made yourself in the
-hand-over.
+With written answers instead, work from them. The hand-over lists every choice you made yourself.
 
 ## 2. Design
 
-Read `manifest_format_get` first: it is the JSON Schema deck checks every manifest against.
+Read `manifest_format_get` first: it is the JSON Schema deck checks every manifest against, and the
+`description` of each field and block says its rules. This section says what the schema does not: which piece
+to pick and how they fit.
 
-- **Collections** hold the data. Pick a key that identifies an item for good (a URL, an external id); records
-  with the same key are updated, not duplicated. Give `display` so people and voice can name a record. Put
-  fields that must never change into `immutable`. A later change of the schema or the key that old records do
-  not fit needs a `migration` script in the same revision (JSONL of records in, JSONL out); deck runs it on a
-  copy and refuses the change with the first problem records otherwise. `retention_days` deletes records (with
-  what belongs to them, as below) that many days after they were created. What belongs to a record goes with it: `"folder": "'videos/' +
-  slug"` is its folder in the data folder, and a collection whose records are of a record of another names it,
-  `"parent": {"collection": "videos", "key": "video"}` (the expression of the parent's key). Deleting the record
-  takes those records, their files, the files of the processes whose input field `record` is its id, and their
-  folders, and stops those processes still open, all listed to the owner first, for good. A folder another record
-  also gives, or one inside or around another's, stays; an empty segment, `.` or `..` in the path is no folder
-  (so a record without its `slug` takes none), and a path deck cannot work out stops the deletion. So give each
-  record a folder of its own by its key, and lay out the data folder by record:
-  `<collection>/<key>/` for what a record has, `cache/` for what can be made again, scripts as documents of the
-  module, nothing loose at its root. `key`, `display`, `where` and `bind` are expr-lang
-  expressions: a field named like one of its functions (`date`, `now`, `count`, `len`, `sum`, `max`, …) reads as
-  the function there, so name such fields `day`, `ops` and so on.
-  `records_list` returns every record of a collection (the newest `limit` when given; an agent passes one), and
-  `record_update` replaces the whole record: work
-  over hundreds of records (filtering, batching, merging new fields into old ones) belongs in a script, and an
-  agent gets only the slice it judges, from the script's result or its input.
-- **Commands** are the verbs; one that acts in the owner's name outside deck declares `send` on itself (section 10)
-  and may name the command that takes it back in `undo`. Choose the executor:
-  - `script` for mechanics that repeat the same way (fetch, parse, poll, convert, index) — cheap and exact;
-  - `agent` for judgement (rate, summarise, write) — give it a prompt file, skills and a result schema; an
-    agent that reads what strangers wrote (mail, pages, feeds) gets `"calls"`, the list of commands it may
-    call (`["deck.records_list", "<project>.score"]`, or every command of a project as `"<project>.*"`), so a
-    page cannot steer it into the rest;
-  - `tool` for exactly one call of a tool: `{"type": "tool", "tool": "<http tool>"}`; the tool gets the
-    command input as it is (declare the same input), and the process result is what the tool answered;
-  - `model` for one call of a model without an agent: `{"type": "model", "kind": "text", "prompt_file": …}` —
-    `text` answers the prompt with the input by the result schema, `image` draws the prompt with the input (or edits the picture of its one input field of format file), `tts`
-    speaks the input field `text` (the prompt says how), `stt` writes down the one input field of format file,
-    `music` makes a track of the prompt, `video` a clip of it from the input file fields `first_frame` and
-    `last_frame` when given (both optional; a clip takes minutes, and the command waits for it as an agent works);
-    a picture, a track, speech or a clip is a file of the result. The model is the one the owner assigned to the kind (with
-    fallbacks); `"model"` names another, `"options"` adds fields to the request (`voice`, `image_config`). Speech is
-    mp3 in the voice of the options of its model in deck's settings (deck sends no voice of its own; the owner sets one
-    per model when its service needs one), unless the options of the command name another.
-  A script that cannot do something reliably becomes an agent, not a bigger script. `timeout_minutes` raises
-  the ceiling of a slow command (agents 60, scripts 10 by default). A command runs one at a time by default
-  (`"runs": "one"`): a call while a run goes on is a run of its own that waits ("waits for the run before it") and
-  starts once the runs before it have ended, so runs that write the same records, files of `$DECK_DATA`, a clone,
-  an install, an engine or a browser never break each other; the module writes no lock of its own for that.
-  `"runs": "many"` lets runs go side by side — only for a command whose runs write nothing in common (each its own
-  record and files), that must answer at once while another of its runs goes on, or that calls itself (a command
-  of one at a time that calls itself waits for the run that waits for it). Scripts of a module whose folders are on
-  a node work on a copy of `$DECK_DATA` there, so their runs of one command take turns even with `"many"`, and a file
-  deck changed meanwhile stays deck's: keep what two commands write apart.
-- **HTTP tools** (`tools.http`) are how the module reaches a service's API: method, `url` with `{field}` from the
-  input (path or query, never the host), `headers` with `$secret.<name>` (a secret of this module: the owner stores
-  it with `secret_set` for the module, no other module reads it; deck cuts it out of what the service answers), `body`
-  template, `input` and `result` schemas. deck reads the right a tool needs (section 10): GET or HEAD without a key
-  is `network` on its host, with a key `data` on the tool, any other method `send` on the tool; `"right"` names
-  another (`data` for a POST that only searches). A call whose right the owner has not answered always waits for
-  them; after yes deck makes that exact call and hands the result back. Give a paid or risky tool `confirm_ttl_minutes`. A service that gives a private link whose token is the URL itself (a
-  published calendar, a webhook, a private feed) is a tool with `"url": "$secret.<name>"` (or
-  `"$secret.<name>?from={from}"` to add a query of the input) and `"hosts"`, the exact names of the hosts the link
-  may point to: deck calls the link the owner stored only when it is https on one of them. A binary answer (video, audio, picture) becomes a file in the
-  caller's results folder: `{"file", "type", "size"}`. Everything deck calls outside is journaled; a call whose
-  answer was lost is never repeated by deck — the owner retries it or counts it done.
-  A tool may sign in with `"auth": {"type": "secret", "secret": "<name>"}` (an `Authorization: Bearer` header;
-  `header` and `prefix` change it, e.g. `"header": "X-Api-Key", "prefix": ""`) or oauth2 (`auth_url`, `token_url`,
-  secret names `client_id`, `client_secret`, `token`, `scopes`): the owner signs in once with
-  `oauth_start`, deck refreshes the token and asks the owner again when the access is revoked. A body of
-  `{"file": "{field}"}` sends a file as it is, `{"multipart": {"<part>": "{field}" or "text {field}"}}` a form;
-  such a field has `"format": "file"` and takes a file id or `results/<name>` from the caller's own results
-  folder, so a script can hand a file it just made to a tool at once. A service that uploads in parts gets
-  one HTTP tool per step from its API docs.
-  An input field of `"format": "json"` is text with JSON for the caller; `"{field}"` alone in a JSON body puts
-  the value it holds (a list, an object), so one tool serves every shape of body.
-- **Models** are deck's, declared once in its settings (connections such as OpenRouter or Ollama, their models with
-  prices, and which models do text, image, tts, stt, music, video, with fallbacks); the module holds only its business
-  logic and calls them through deck, never with a key: a command of type `model`, `deck.model_call` from a script or
-  agent, or an API path through `$DECK_MODELS` (below). Every call names a model of deck's settings or an
-  `@<kind>`; another model is refused. A tool or MCP server of the manifest never gets the key of a connection:
-  deck keeps those apart, and `$secret.<name>` names only the module's own secrets. The module declares what it calls
-  under `money`: a connection, a model by name or `@text`/`@image`/`@tts`/`@stt`/`@music`/`@video` for the assigned
-  ones, its commands of type model too (a script that calls `$DECK_MODELS/<connection>/…` needs that connection
-  itself, a model's name is not enough); deck keeps each call with its cost in its journal,
-  and the settings of the module list the models it called. A model the module needs and deck lacks: propose it
-  with `deck.model_set` (connection, model, kind; the price comes from the catalog of the connection) — the call
-  waits for the owner's button. A free model the module added that no assignment names any more it removes with
-  `deck.model_delete`, declared under `send`; once the owner answers always it goes without them, with an undo. deck has no limits of money: the owner sets them at the provider, so a module never
-  loops on paid calls.
+- **Collections** hold the data. Pick a key that identifies an item for good (a URL, an external id): a record
+  with the same key is updated, not duplicated. Give `display`; put fields that never change into `immutable`.
+  A later change of the schema or key that old records do not fit needs a `migration` script in the same
+  revision (JSONL in, JSONL out). What belongs to a record goes with it when it is deleted: its `folder` in the
+  data folder (`"'videos/' + slug"`, or one file), and the records of a collection that names it as `parent`.
+  Lay out the data folder by record: `<collection>/<key>/` for what a record has, `cache/` for what can be made
+  again, nothing loose at its root. `key`, `display`, `where` and `bind` are bare expr-lang expressions (`"key":
+  "url"`, no `=`; the `=` begins a value of `params`, `values` or `input`): a field named
+  like one of its functions (`date`, `now`, `count`, `len`, `sum`, `max`, …) reads as the function, so name such
+  fields `day`, `ops`. `records_list` returns all records (the newest `limit` when given; an agent passes one)
+  and `record_update` replaces the whole record: work over hundreds of records belongs in a script, and an agent
+  gets the slice it judges.
+- **Commands** are the verbs. One that acts in the owner's name outside deck declares `send` on itself
+  (section 10) and may name the command that takes it back in `undo`. The executor:
+  - `script` for mechanics that repeat (fetch, parse, poll, convert, index) — cheap and exact;
+  - `agent` for judgement (rate, summarise, write) — a prompt file, skills and a result schema; an agent that
+    reads what strangers wrote (mail, pages, feeds) gets `"calls"`, the commands it may call
+    (`["deck.records_list", "<project>.score"]` or `"<project>.*"`), so a page cannot steer it into the rest;
+  - `tool` for one call of a tool (`{"type": "tool", "tool": "<http tool>"}`, the same input as the tool);
+  - `model` for one call of a model without an agent (`{"type": "model", "kind": "text", "prompt_file": …}`):
+    `text` answers by the result schema, `image` draws (or edits the picture of its one file field), `tts`
+    speaks the field `text`, `stt` writes down its one file field, `music` makes a track, `video` a clip from the
+    file fields `first_frame` and `last_frame` when given. A picture, track, speech or clip is a file of the
+    result. The model is the one the owner assigned to the kind; `"model"` names another, `"options"` adds fields
+    of the request (`voice`, `image_config`).
+  A script that cannot do something reliably becomes an agent, not a bigger script. `timeout_minutes` raises the
+  ceiling of a slow command (agents 60, scripts 10 by default). A command runs one at a time
+  (`"runs": "one"`): a call while a run goes on waits for it, so runs that write the same records, files, clone or
+  browser never break each other, and the module writes no lock of its own. `"runs": "many"` only for a command
+  whose runs write nothing in common, or that calls itself. Scripts of a module whose folders are on a node work on
+  a copy of `$DECK_DATA` there, and a file deck changed meanwhile stays deck's: keep what two commands write apart.
+- **HTTP tools** (`tools.http`) reach a service's API: `url` with `{field}` from the input (never the host),
+  `headers` with `$secret.<name>` (a secret of this module the owner stores with `secret_set`; deck cuts it out of
+  answers), `body` template, `input` and `result` schemas, `auth` by a secret or oauth2 (the owner signs in once
+  with `oauth_start`). deck reads the right a tool needs (section 10): GET or HEAD without a key is `network` on its
+  host, with a key `data` on the tool, any other method `send` on the tool; `"right"` names another (`data` for a
+  POST that only searches). A private link whose token is the URL (a published calendar, a webhook) is a tool with
+  `"url": "$secret.<name>"` and `"hosts"`, the hosts it may point to. A binary answer becomes a file in the caller's
+  results: `{"file", "type", "size"}`; a body `{"file": "{field}"}` or `{"multipart": {…}}` sends a file of a
+  `"format": "file"` field. A field of `"format": "json"` alone in a JSON body puts the value it holds. deck journals
+  every call outside; a call whose answer was lost is not repeated by deck — the owner retries it or counts it done.
+- **Models** are deck's, declared once in its settings (connections such as OpenRouter or Ollama, their models
+  with prices, and the models assigned to text, image, tts, stt, music, video, with fallbacks). The module calls
+  them through deck, never with a key: a command of type `model`, `deck.model_call` from a script or agent, or an
+  API path through `$DECK_MODELS` (section 5). Every call names a model of deck's settings or an `@<kind>`. The
+  module declares what it calls under `money` (section 10). A model the module needs and deck lacks it proposes
+  with `deck.model_set` (connection, model, kind); the call waits for the owner's button. A free model it added
+  that no assignment names any more it removes with `deck.model_delete`, declared under `send`.
 - **MCP servers** (`tools.mcp.servers`, the usual `mcp.servers` shape): `command`/`args`/`env` (values may use
-  `$secret.<name>`) or `url`; a `command` server reaches the web only through deck's proxy, to the hosts the module
-  holds `network` on; `toolFilter` lists the tools the module uses, `"right"` the right of each by name (`network` for
-  one that only reads what is public, `data`), `send` for the rest. Tools are `<server>.<tool>` in `executor.tool`
-  and in `rights`. deck starts servers itself, only in an enabled project; a tool whose description or input changes
-  asks the owner again even when they answered always — so pin the server's
-  version in `args` (`"pkg@1.2.3"`, not `@latest`). Once a project runs, `health_list` shows whether each server
-  started and why not.
-- **Browser**: agents get deck's browser (`browser_navigate`, `browser_snapshot`, `browser_click`, …) with its own
-  profile. It reads the sites the module holds `network` on and clicks, types and submits without asking on those it
-  holds `send` on (a site by its host); an action anywhere else waits for the owner, and their "allow always" keeps
-  that site. `"*"` reads any site, but in a browser without the owner's sign-ins: a module that needs a signed-in
-  site lists its sites instead. Reading needs no clicks: open the next page by its URL (`?page=2`, `&start=25`)
-  rather than clicking "next", which waits for the owner each time. The owner signs in to a site once (`browser_login`); a page
-  that asks for a sign-in again means the agent calls `browser_login_request` and stops — deck resumes it after
-  the owner signs in.
-- **Command input** is a flat object; a choice is `{"type": "string", "enum": [...]}` — an `enum` without
-  `"type": "string"` is refused.
-- **A bounded number** (a price, a term, a count) has `minimum` and `maximum`: the form draws it as a slider with
-  its exact value beside it; `multipleOf` is the step, a few `examples` are marks the thumb is pulled to.
-- **Files of the input**: a command field with `"format": "file"` takes a file id (from a form upload, Share, or
-  `files_list` of a record); scripts and agents get the path of a read-only copy, named `<file id>-<original name>`
-  (cut the id to show the owner the name). For a trial, upload
-  a sample with `file_upload` (the file in base64) and pass the id it returns. A result may give such
-  a file to a record: `files: [{"file": <id>, "record": <id>}]`.
-- **Documents to PDF** (a CV in Typst, say): a script with `programs: ["typst"]` writes the `.typ` documents it
-  reads with `document_get` into its work folder, runs `typst compile` and puts the PDF into `$DECK_RESULTS`.
-  To compare two revisions of a document, read both (`document_get` with `revision`) and say what changed;
-  screens have no diff block.
-- **Data of other modules**: `data` on `other` (all of it), `other.items` (a collection) or `other/notes/a.md` (a
-  document) lets agents and scripts read those (`records_list`, `document_get` with `project`), and a screen shows
-  them with `"source": {"from": "deck.records_list", "input": {"project": "other", "collection": "items"}}`, its
-  fields under `data.`. `*:models` (or `other:models`) lets them read which models do the work of every module:
-  `models_list` with `project` gives its assignments, the work of its commands and scripts with their prices, and
-  once for each kind of work the models that could do it (`choices`); propose a change with `assignment_set`.
-  `*:runs` reads the runs in brief: `processes_list` with `project` gives the command, state, type and first line of
-  a failure, the models that answered and the times, never input, result or log. Nothing ever writes to another module.
-- **Results** are JSON by schema. Decisions use typed shapes: a choice with probabilities and confidence,
-  a score 2–10 with confidence, yes/no with a probability. A result of `null` means "nothing to do", and an agent
-  may give it only where the result schema takes it: `"type": ["object", "null"]`; with `"type": "object"` a null
-  is not by the schema.
-- **Triggers**: `cron` for schedules, `after` when another command of the project finishes with a result that
-  is not `null` (a poll with nothing new returns `null` and the chain stops). The command a trigger starts gets
-  the trigger's fixed `params` plus `{"process": <id>}` of the finished one for `after`, so its input declares
-  that field as `integer`; a step whose input declares `record` also gets the record of the finished one (its
-  input `record`, else the one record it made), so the steps of a record show on its page and stop with it. A later
-  step that needs an earlier result
-  reads it with `process_get`, so keep what the chain needs in records rather than passing it along. Cycles are refused. A chain runs at most five steps deep, counted from the call that started it (a button, a schedule or a trial): a sixth `after` step does not start, and a note of the feed says so. Keep chains short — two `after` triggers on the same step run side by side, so a step that only prepares something can run beside the next one instead of before it. After the Mac slept, each missed schedule runs once; `"skip_missed":
-  true` drops the missed run instead (a morning digest that is stale by noon).
-  `{"on": "ask", "command": X}` (one a module) starts X once when a confirmation a process of the module asked the
-  owner for closes, with `ask` (id), `answer` (`yes`, `no` or `expired`) and `process` (the one that asked) — the way
-  to act on the owner's answer instead of polling for it; X declares no `send`.
-- **Stages** the owner acts on are a `status` field of the record (an `enum`), shown as a board (`"board":
-  "status"` on a `list`), where the owner drags an item to its next stage; the other fields of a record the owner
-  edits on its page (a `form` of `deck.record_update`), and a command takes the records of its status with
-  `records_list` and `where`.
-- **Work in progress** on a record is a value of its `status` (`applying`) the command sets first and its script
-  clears at the end: the row shows it by `tone` or a `tag` cell, and the button hides by `"when": "status !=
-  'applying'"`. A button whose second press must not start the work twice passes `"retry_key": "='apply:' +
-  string(_id)"` in `params`: a call with the key of a running process of that command returns that process.
-- **One record, one run of a command**: a call with a `record` while a process of the same command works on that
-  record returns that process. An agent gets the call as a message in its run (a second edit of the owner, a step
-  after another finished step) and gives one result for both; once it handed in its result with `result_submit`,
-  the call starts a run of its own, and the steps after it start at once. A script, tool or model command runs once
-  more after it ends, with the input of the last such call. An agent started for a record is told the last processes of
-  that record, so it reads what was done before it rather than being told in the input.
-- **A last lane that keeps growing** (`done` of a board) is cut by the source of the board, `"where": "status !=
-  'done' || date(_updated) > now() - duration('168h')"`, and the whole history is a separate table of that
-  status; `limit` cuts every lane at once.
-- **Expressions are JSON text**: a line break is the escape `\n` inside the quotes of the expression, written
-  `\\n` in the manifest and in its `old` and `new` parts (`"text": "=title + '\\n' + note"`); a JSON `\n` alone puts a raw
-  line break into the quotes, and the expression is refused. `text[:80]` and `len(text)` count characters.
-- **`folder` may be one file** a record has (`"folder": "'tracks/' + slug + '.mp3'"`): deleting the record
-  deletes that file.
-- **Derived state** beside the records (an index, a `tasks.json`, totals) hears nothing when the owner deletes a
-  record with `deck.record_delete`: rebuild it from the records each time it is made, so a deleted record drops
-  out at the next run, or delete through a command of the module (a status `deleted` its scripts honour) and
-  give its screens that button instead.
-- **Deleting records**: an agent or script of the module deletes records of its own project with
-  `deck.record_delete` (with their files and folders, for good; the owner sees a line with an undo of the data).
-  Do not build a module on deleting: a record that is done or dropped keeps a `status` (`archived`, `deleted`) its
-  screens and scripts leave out, and only what must go for good (a mistake, a duplicate) is deleted;
-  `retention_days` clears old records by itself.
-- **Deleting files**: a wrong file of a record or of the data folder the owner sees (a picture, a render) goes with
-  `deck.file_delete` (`file`, or `path` from the root of the data folder) rather than `rm`: the owner sees a line
-  with an undo for a day. Files of another project are refused; a folder goes file by file.
-- **Documents** agents and scripts write are artifacts, each of one record, and the memory of the project. A daily digest or report is an artifact of a record made for it (one record a day); `prompt.md`,
-  `prompts/*.md` and other module documents are written by you, not by the module at run time — unless a command's
-  work is to change them (its own code, a style it refines): then `"writes"` of the manifest names them, a
-  document (`"personas/style.md"`) or a folder with `/` at the end (`"remotion/"`), never the manifest. It narrows
-  the module's own agents, no right, so name only what that work changes; the agent is told what it may write before it
-  starts, and each change shows to the owner with an undo. A command that changes documents without `writes` is
-  refused at its first save. `document_save` of a document that exists needs no `kind`.
-- **Widgets** are the views of the card of the module on the tiles: `"widgets": [{"min": "2x1", "blocks": [...]}]`,
-  each a small screen of one to four `stat`, `list` and `chart` blocks from the least size it fits, columns by rows
-  of cells; the card shows the largest view it fits, its blocks from the top while the card has room, a list as
-  many lines as are left. Give a `1x1` or `2x1` view with what needs the owner; without one the card is the cover.
-  The master's skill `widgets` says what to show on what size.
-- **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format_get` each block type
-  has its exact fields and its rules in words in `description`, and a refusal names the JSON path and the
-  schema rule, such as `missing property 'item'` or `additional properties 'source' not allowed`):
-  `table`, `list`, `card` (the record of a record page), `stat`, `chart`, `media`, `actions`, `form`, `custom`,
-  `dialog` (a button that opens blocks in a window) and `columns`/`tabs` to lay them out. A screen that grows
-  long — more than a screenful of blocks the owner scrolls through — is split into `tabs` by meaning (what the owner
-  looks at together: the work, its models, its access, its health), never one long sheet; dialogs stay on the screen,
-  their buttons beside its title. A table:
-  `{"type": "table", "title": "Best", "source": {"collection": "items", "where": "score >= 7", "sort": "-score",
-  "limit": 20}, "columns": [{"label": "Title", "bind": "title"}], "filter": ["status"], "actions": [{"label": "Rate", "command":
-  "rate", "params": {"id": "=_id"}}]}` — `where` and `bind` are expressions over record fields (`_id` is the id
-  of the record, `record.<field>` the record of a record page),
-  `sort` is a field with `-` for descending, `limit` is a page (the owner asks for the next one), `filter` lists
-  fields the owner narrows by, `search` the fields the words the owner types are looked for in (`"search": ["title",
-  "author"]`, each word in one of them); the blocks of a dialog are read only once it opens, so a long history goes there. Put the columns in the order
-  that matters: a line shows the first four (two on a phone) and the rest open in the row under it; a status is a
-  `tag` column whose `details` (why it failed) is the hint of its badge, not a column of its own. A column, a `card`
-  field and a `stat` take `format`, and the client shows the raw value in the owner's locale and time zone:
-  `number`, `percent` (0.42 is 42 %), `money` with `currency` (`{"label": "Price", "bind": "price", "format":
-  "money", "currency": "USD"}`), `date`, `datetime`, `relative` (5 min ago), `duration` (seconds), `bytes`,
-  `link`, `tag` — so a bind is never `string(round(change * 100)) + '%'`. A column, a card field, a `list` line
-  (`item.tone`) and a `stat` (over `rows`) take `tone`, an expression giving `ok`, `warn`, `error` or `muted`:
-  `"tone": "change < 0 ? 'error' : 'ok'"`; any other value is no tone. A block with a source takes `empty`, plain
-  text it shows when there are no items (`"empty": "No items yet"`); a `stat` with `empty` shows it instead
-  of its value, so the last price is `{"type": "stat", "source": {"collection": "prices", "sort": "-at",
-  "limit": 1}, "value": "rows[0].price", "format": "money", "currency": "USD", "empty": "No prices yet"}` with no
-  `len(rows) > 0 ? … : '—'`. Any block takes `when`, an expression over the fields of the page's record and
-  `rows` of its own source; where it does not hold the block is not on the screen (`"when": "len(rows) > 0"`
-  for a list of misses, `"when": "status == 'open'"` on a record page). A row of a `table` or `list` whose
-  `"primary": true` button opens a screen opens it on a click anywhere in the row. A history is a `chart`, one point
-  per item in the order of `sort`: `{"type": "chart", "title": "Price", "kind": "line", "source": {"collection":
-  "prices", "sort": "at"}, "x": "at", "series": [{"label": "Value", "y": "price"}, {"label": "Expected", "y":
-  "planned"}], "format": "money", "currency": "USD", "empty": "No prices yet"}` — `kind` is `line` or
-  `bar`, a missing y is a gap, an ISO time x makes a time axis, and only the last 500 points by the sort are
-  drawn — `limit` keeps the first items, so do not cut a history with it. Blocks draw items as they are and do
-  not group them: a total over all items is a `stat` (`"value": "sum(rows, .amount)"`), and a sum by day or by
-  category is a collection of totals a script writes after the records change (an `after` trigger), which a chart
-  or table then shows. `currency` is one code for a column or block: amounts in several currencies are a total per
-  currency (a field `currency` in that collection, a row each), or a `custom` block; never one sum of them all.
-  Files are a `media` block: `{"type":
-  "media", "source": {"collection": "scans"}, "item": {"file": "file", "title": "name"}}`, where `file` is the
-  id of a stored file of the project (a result file of its run, an attachment of its record; a result names the
-  files it kept by that id, in `files[].file` and in place of a `file` field), its digits, or a path in its data
-  folder (`"charts/today.png"`); a name is not a file; `item.meta` is a short line under its title, and `item.cover`
-  a picture on a folder tile or a `list` card (a file as `file` names it), shown by its light copy; a picture is a thumbnail, a PDF shows in place, a video or a sound plays in
-  the browser's own player, anything else is a name with a download. A player with marks is a `custom` block
-  (MCP Apps) reading the file via `resources/read` of `deck://data/<path>`; its buttons send the second and a note
-  to a command of the module.
-  A value in the manifest — action `params`, `screen`, `record`, form `values`, a source's `input` — is fixed
-  text or `=<expression>` over the item it is on (a form and an input: the record of the page) and `param`:
-  `=title` passes the field's value with its type (`=_id` is a number, so that input field is an `integer`), and
-  a fixed value becomes the type of its input field (`"days": "7"` to an `integer` is 7). An action passes
-  every required parameter of its command; deck asks for nothing that is missing, so a choice the owner
-  makes in a row is one action per option. A button whose call the owner may want back names the call that takes
-  it back, `"undo": {"command": "unrate", "params": {"id": "=_id"}}`, offered for a moment after it went
-  through. A button whose run makes an external call the row shows, such as Apply of a proposal of models, names that
-  call: `"allows": [{"command": "deck.assignment_set", "params": {"role": "=role", "project": "=project", "models":
-  "=split(models, ',')"}}]` — the press is the owner's yes to exactly that call with those params, made by the run the
-  press starts (not its children, not the schedule); deck makes it at once and lists it as done without the owner with
-  its undo, so there is no second yes. Not for calls that spend money or change a skill; secrets and rights stay the
-  owner's alone.
-  A row of the module's own collection or its record page may carry the one deck command a button calls,
-  `{"label": "Delete", "command": "deck.record_delete"}`, with no other params and no undo: the owner deletes that
-  record with what belongs to it, always seeing the list first (not on a `custom` block). No button only opens the
-  chat: the button of Deki is on every screen and opens the chat with that screen and record in its context, so
-  `{"chat": true}` alone is refused on save; `chat` with a command opens the topic its result names. A list of stages is a board:
-  `"board": "status"` on a `list` of the module's collection lays its items in a lane for each value of that enum
-  field, and dragging a card to a lane presses its button whose `input` is `status` — a command of the module that
-  takes the record id and `status` (a small script setting the field), `{"label": "Move", "command": "move",
-  "params": {"id": "=_id"}, "input": "status"}`, its `options` the lanes when not every value is one (on a phone that
-  button picks the lane), so the board needs no custom block. The same button in a `table` is a picker in its
-  cell: `"pick": "Move"` on the column of `status` shows the value as a dropdown of the button's `options`, and a
-  pick presses it; `"groups"` beside `options` gives the heading of each option, a list in their order. Items of a
-  `list` of lines or cards stand under headings with `item.group` (`"group": "provider"`), each group together (not
-  in a board or a focus list). A queue the owner goes through, such as drafts to approve, is a `list` with `"focus": true`: one
-  item at a time with `item.kind` saying what it is and Later to put it last; a decision there may hold,
-  `"hold": true`, so its call goes a few seconds after the press while the owner may take it back. Buttons over the
-  whole list go in its `head`, their `when` and `label` reading `rows` (`"when": "len(rows) > 0"`); a `table` and a
-  `custom` block take a `head` the same way, so one button over a table, such as Collect now, is not an `actions`
-  block of its own.
-  A command the owner fills in by hand is a `form`:
-  `{"type": "form", "command": "score"}` asks for the command's input by its schema and shows the result by the
-  result schema; a command that keeps its result writes the records itself; a field picked from a source takes
-  `"choices": {"note": {"source": {"collection": "notes"}, "value": "_id", "label": "title"}}`, and a field with
-  `"format": "project"` offers the projects by itself; on a record page
-  `{"type": "form", "command": "deck.record_update"}` edits the record, `immutable` fields read only. An id the owner
-  need not see goes in `fixed`: `"values": {"slug": "=slug"}, "fixed": ["slug"]` sends it unshown and unchanged.
-  `{"type": "document", "document": "prompts/criteria.md"}` shows a
-  document of the project, on a record page one of the record (an artifact): markdown drawn, an md document
-  edited by the owner as a new revision, its revisions and going back to one; every project also gets a
-  Documents screen from deck. Long text is markdown in a `card` field with `"markdown": true`; everywhere else
-  text stays plain. What the catalog cannot show is a `custom` block: an MCP App — one HTML
-  file under `custom/` (`document_save` with kind `custom`), `{"type": "custom", "document": "custom/chart.html",
-  "source": …, "actions": […]}`. It runs without network, in a frame of an origin of its own (no storage, no
-  cookies, no reach into deck's page) and without frames: HTML that names `iframe`, `frame`, `object` or `embed`
-  anywhere, even in a string, shows only a refusal, and making one at run time throws. `import { App } from "/ext-apps.js"`, the items of its
-  source, the page's record and the block's `params` arrive in `app.ontoolresult` (`structuredContent.items`,
-  `.record`, `.params`); `"source": {…, "fields": ["title", "price"]}` gives each item only those fields and `_id`
-  (`where` and `sort` still read the whole record), so long texts the block does not show stay out of it; `"params": {"mode": "voice", "title": "=title"}` takes fixed text or `=<expression>` like
-  `values` of a form, so one HTML serves two screens with their own settings instead of two near copies; and
-  `app.callServerTool({name: "<project>.<command>", arguments})` calls only the commands of its `actions` (the
-  button whose fixed `params` the arguments do not contradict; any but an internal command waits for the owner's yes,
-  one at a time). The arguments are only the button's `params` and the fields its `"from_block": ["at", "note"]`
-  names, which the block fills itself (a required one too; a field of a record only with the `_id` of one of its
-  items or of the page's record): any other is refused. A window opens on the host, not inside the frame: `app.openLink({url: "#/p/<project>/<screen>?dialog=<name>"})`
-  opens a dialog or page of deck (a page outside deck is refused), and `app.requestDisplayMode({mode: "fullscreen"})`
-  gives the frame the whole screen before its own `<dialog>`.
-  A picture, video or audio of the module comes by `app.readServerResource({uri})`: `deck://data/<path>` a file of
-  its data folder (each part URL-escaped), `deck://file/<id>` a stored file of the module; `contents[0]` holds the
-  file whole in base64 `blob` with its `mimeType`, up to 200 MB. Show it by a `blob:` URL
-  (`URL.createObjectURL(new Blob([Uint8Array.from(atob(c.blob), (x) => x.charCodeAt(0))], {type: c.mimeType}))`);
-  an `src` of `/api/files/…` or of the web never loads, and a file of another module is refused.
-  Its colors, fonts and corners are the host's: `app.getHostContext()` and `app.onhostcontextchanged` give
-  `theme` (`light`/`dark`) and `styles.variables` by the standard MCP Apps names, no others (`--color-background-*`,
-  `--color-text-*`, `--color-border-*` and `--color-ring-*` by role — `primary`, `secondary`, `info`, `danger`,
-  `success`, `warning`…, `--color-ring-primary` the accent —, `--font-sans`, `--font-mono`, `--font-text-sm-size`,
-  `--font-heading-md-size` and their line heights, `--font-weight-bold`, `--border-radius-md`, `--shadow-sm`); apply them with `applyDocumentTheme` and
-  `applyHostStyleVariables` from `/ext-apps.js`, again on each change, and write CSS only with `var(--…)` of
-  them — a fixed color breaks in the owner's dark scheme. List screens in `menu`. A record page is a screen with
-  `"record": "<collection>"`; a row's button `{"label", "screen": "<that page>"}` opens it with the row's record;
-  it takes no `record` or `project`. `"screen": "deck/settings"` opens a screen of deck instead, with only its params,
-  `tab` and `dialog`, values `=<expression>` of the row: `{"label": "Add to deck", "screen": "deck/settings", "params":
-  {"tab": "Models", "dialog": "model", "connection": "openrouter", "model": "=id"}, "when": "!in_deck"}` opens the form
-  filled, and the owner saves it. How the pipeline of a record goes is a table on its page over
-  `{"from": "deck.processes_list", "input": {"record": "=_id"}}` — the processes whose input field `record` is its
-  id (columns `command`, `state`, `question` when one waits for the owner; `after` triggers start the next).
-- **Look of a module**: `title` is the name the owner sees on its tile (the project name is for code), `icon` of
-  the project, a screen, a block or a button is a Tabler icon name; blocks flow in a grid, `span` (1, 2 or "full")
-  widens one, `description` says under a title what a block is for. Write the texts in English and add `i18n`
-  with a translation into the owner's language (`{"ru": {"Notes": "Заметки"}}`) for every title, label,
-  description and empty text, and for the name of each field of a schema without its own `title` (a form shows the
-  field by it), also when you change them later; a value of an enum field is translated wherever it shows, also as
-  the result of an expression that reads that field (`subtitles ?? 'off'`) and in the options of a button's input or
-  a picked cell; a value of a field without an enum that a block filters by is translated in the filter and in that
-  block by the module's `i18n` (`{"ru": {"en": "английский"}}`). `manifest_save` answers `untranslated`, the texts a
-  language of `i18n` lacks (data, tickers, numbers and texts already in another script want none), and `unused_i18n`,
-  the keys of no text (a text an expression writes, an option of a filter and a value of a filtered field count as
-  used): add the first, drop the second. `manifest_check` with only `project` checks the current manifest. A button to a screen takes `params`; the screen
-  declares them with their types (`"params": {"title": "string", "n": "integer"}`) and reads them in expressions
-  as `param.<name>`: `"values": {"title": "=param.title"}` fills a form, `"input": {"days": "=param.n ?? 7"}` a
-  source, `"when": "param.n > 1"` a block. An input that gives nothing or fails is an error on its block, not a read
-  without it, so give an optional param a default with `??`.
-- **The side panel** of a screen is `side`, beside its blocks on a computer and in a sheet on a phone: `filter`
-  blocks, each setting a param of the screen (`{"type": "filter", "title": "Coin", "param": "coin", "source":
-  {"collection": "trades"}, "field": "coin"}` offers the values the field has; `"options": ["long", "short"]` fixed
-  ones, said by `i18n`), `actions` with buttons to screens and records, small `stat` and `list` blocks. A pick goes
-  into the address, so it stays on reload and in a link, and every block that reads it narrows at once: `"where":
-  "param.coin == nil || coin == param.coin"`. A filter starts on all; to start on a pick, give its param a default:
-  `"params": {"score": {"type": "integer", "default": 8}}` — the owner then picks «all» on purpose. Give a screen a panel only when a pick serves all its blocks or its
-  tabs (a coin, a source, a status); one table's own narrowing stays its `filter`. A filter stands only in `side`.
-- **Changing a manifest**: send `manifest_save` `old` (parts of the text `manifest_get` gives, each found exactly
-  once, a run of spaces and line breaks counted as one; take enough around a part to make it unique) and `new`
-  (what replaces each). deck stores every manifest in one form, indented by two spaces with each array item on its
-  own line, so take `old` from the text it gives now. `document_save` takes `old` and `new` the same way; in md
-  documents spaces and line breaks count as one too, in scripts and custom blocks `old` is exact, indentation too.
-  A large manifest is read in parts: `fields` such as `manifest.writes`, `manifest.commands.<name>` or
-  `manifest.screens.<name>` give only that part, as text in the same form, and `old` may come from it.
+  `$secret.<name>`) or `url`; a `command` server reaches the web through deck's proxy, to the hosts of `network`.
+  `toolFilter` lists the tools the module uses, `"right"` the right of each (`network` for one that reads what is
+  public, `data`), `send` for the rest. Tools are `<server>.<tool>` in `executor.tool` and in `rights`. A tool whose
+  description or input changes asks the owner again, so pin the version in `args` (`"pkg@1.2.3"`). `health_list`
+  shows whether each server started and why not.
+- **Browser**: agents get deck's browser (`browser_navigate`, `browser_snapshot`, `browser_click`, …). It reads the
+  sites of `network` and acts on those of `send` (a site by its host); an action elsewhere waits for the owner.
+  `"*"` reads any site, without the owner's sign-ins. Open the next page by its URL (`?page=2`) rather than
+  clicking "next", which waits each time. The owner signs in to a site once (`browser_login`); a page that asks for
+  a sign-in again means the agent calls `browser_login_request` and stops — deck resumes it after.
+- **Command input** is a flat object; a choice is `{"type": "string", "enum": [...]}`. A bounded number has
+  `minimum` and `maximum` (a slider). A field with `"format": "file"` takes a file id (an upload, Share, or
+  `files_list` of a record); scripts and agents get the path of a read-only copy named `<file id>-<original name>`.
+  For a trial, upload a sample with `file_upload` and pass the id. A result gives such a file to a record with
+  `files: [{"file": <id>, "record": <id>}]`.
+- **Data of other modules**: `data` on `other` (all of it), `other.items` (a collection) or `other/notes/a.md` lets
+  agents and scripts read those (`records_list`, `document_get` with `project`), and a screen shows them with
+  `"source": {"from": "deck.records_list", "input": {"project": "other", "collection": "items"}}`. `*:models` lets
+  them read which models do the work of all modules (`models_list` with `project`; propose a change with
+  `assignment_set`); `*:runs` reads runs in brief (`processes_list` with `project`). Nothing writes to another module.
+- **Results** are JSON by schema. Decisions use typed shapes: a choice with probabilities, a score 2–10 with
+  confidence, yes/no with a probability. A result of `null` means "nothing to do", allowed where the schema takes it
+  (`"type": ["object", "null"]`).
+- **Triggers**: `cron` for schedules, `after` when another command of the project finishes with a result that is
+  not `null` (a poll with nothing new returns `null` and the chain stops). The started command gets the trigger's
+  `params` plus `{"process": <id>}` of the finished one (declare it as `integer`), and a step whose input declares
+  `record` gets the record of the finished one, so the steps of a record show on its page. A later step reads an
+  earlier result with `process_get`: keep what the chain needs in records. A chain runs at most five steps deep;
+  two `after` triggers on one step run side by side, so a step that prepares something can run beside the next.
+  After the Mac slept, each missed schedule runs once (`"skip_missed": true` drops it). `{"on": "ask", "command": X}`
+  starts X when a confirmation the module asked for closes, with `ask`, `answer` (`yes`, `no`, `expired`) and
+  `process` — instead of polling for the answer.
+- **Stages and work in progress**: stages are a `status` enum of the record, shown as a board (`"board": "status"`
+  on a `list`). Work in progress is a status (`applying`) the command sets first and its script clears: the row
+  shows it by `tone`, the button hides by `"when": "status != 'applying'"`, and a button whose second press must not
+  start the work twice passes `"retry_key": "='apply:' + string(_id)"`. A call with a `record` while a process of
+  the same command works on that record returns that process; an agent gets it as a message in its run.
+- **Expressions are JSON text**: a line break is `\\n` in the manifest (`"text": "=title + '\\n' + note"`); a JSON
+  `\n` alone puts a raw line break into the quotes, and the expression is refused.
+- **Deleting**: derived state (an index, totals) hears nothing when the owner deletes a record: rebuild it from the
+  records each run. Do not build a module on deleting: a record that is done keeps a `status` (`archived`) its
+  screens leave out; `deck.record_delete` and `deck.file_delete` delete for good what must go, with an undo line
+  for the owner; `retention_days` clears old records, so a collection of what the owner has seen gets none.
+- **Documents** agents and scripts write are artifacts, each of one record, and the memory of the project; a daily
+  report is an artifact of a record made for it. `prompt.md`, `prompts/*.md` and other module documents are yours —
+  unless a command's work is to change them: then `"writes"` names them (`"personas/style.md"`, a folder `"remotion/"`),
+  never the manifest; each change shows to the owner with an undo, and a command that changes documents without
+  `writes` is refused at its first save.
+- **Widgets** are the views of the module's card on the tiles: `"widgets": [{"min": "2x1", "blocks": [...]}]`, one
+  to four `stat`, `list` and `chart` blocks. Give a `1x1` or `2x1` view with what needs the owner. The master's
+  skill `widgets` says what to show on what size.
+- **Screens** are lists of blocks from the catalog (`schemas/catalog.json`; in `manifest_format_get` each block
+  type has its fields and its rules in `description`, and a refusal names the JSON path and the
+  schema rule, such as `missing property 'item'` or `additional properties 'source' not allowed`): `table`, `list`, `card` (the
+  record of a record page), `stat`, `chart`, `media`, `actions`, `form`, `custom`, `dialog` (a button that opens
+  blocks in a window) and `columns`/`tabs` to lay them out. A screen longer than a screenful is split into `tabs`
+  by meaning (the work, its models, its access, its health). A table:
+  `{"type": "table", "source": {"collection": "items", "where": "score >= 7", "sort": "-score", "limit": 20},
+  "columns": [{"label": "Title", "bind": "title"}], "actions": [{"label": "Rate", "command": "rate", "params":
+  {"id": "=_id"}}]}` — `_id` is the id of the record, `record.<field>` the record of a record page, `limit` a page.
+  Put the columns in the order that matters: a line shows the first four. Values take `format` (`money` with
+  `currency`, `percent`, `date`, `relative`, `duration`, `bytes`, `link`, `tag`), so a bind never formats by hand,
+  and `tone` (`ok`, `warn`, `error`, `muted`). Any block takes `when`; a block with a source takes `empty`. A
+  history is a `chart`, one point per item in the order of `sort`; `kind` is `line` or `bar`, a missing y is a gap,
+  an ISO time x makes a time axis, and only the last 500 points are drawn. Blocks do not group: a total over all
+  items is a `stat` (`"value": "sum(rows, .amount)"`), a sum by day is a collection of totals a script writes
+  (an `after` trigger); amounts in several currencies are a total per currency. Files are a `media` block.
+  A value in the manifest — action `params`, form `values`, a source's `input` — is fixed text or `=<expression>`
+  over the item it is on: `=_id` is a number, so that input field is an `integer`. An action passes every required
+  parameter of its command; a choice in a row is one action per option. A button whose call the owner may want back
+  names `undo`; one whose run makes an external call the row shows names it in `allows` (the press is the owner's
+  yes to exactly that call) — not for calls that spend money or change a skill. A row of the module's own collection
+  may carry `{"label": "Delete", "command": "deck.record_delete"}`. No button only opens the chat: Deki's button is
+  on every screen. A board drag presses the button whose `input` is `status`; a focus list (`"focus": true`) is a
+  queue the owner goes through; buttons over a whole list go in its `head`.
+  A command the owner fills in by hand is a `form` (`{"type": "form", "command": "score"}`); on a record page
+  `{"type": "form", "command": "deck.record_update"}` edits the record. `{"type": "document", "document": "…"}`
+  shows a document. Long text is markdown in a `card` field with `"markdown": true`.
+  What the catalog cannot show is a `custom` block: an MCP App, one HTML file under `custom/` (`document_save`
+  with kind `custom`), `{"type": "custom", "document": "custom/chart.html", "source": …, "actions": […]}`. It runs
+  without network and without frames (HTML that names `iframe`, `frame`, `object` or `embed` shows a refusal), in
+  an origin of its own. `import { App } from "/ext-apps.js"`; its items, the page's record and the block's `params`
+  arrive in `app.ontoolresult` (`structuredContent.items`, `.record`, `.params`); `"fields"` of the source cut what
+  each item carries. `app.callServerTool({name: "<project>.<command>", arguments})` calls the commands of its
+  `actions` with the button's `params` and the fields `from_block` names. `app.openLink({url: "#/p/<project>/<screen>"})`
+  opens a page of deck; `app.readServerResource({uri})` reads `deck://data/<path>` or `deck://file/<id>` (base64
+  `blob`, shown by a `blob:` URL; an `src` of the web never loads); `app.requestDisplayMode({mode: "fullscreen"})`
+  gives the frame the whole screen before a dialog of its own. Its colors and fonts are the host's:
+  `applyDocumentTheme` and `applyHostStyleVariables` from `/ext-apps.js`, CSS only with `var(--…)` of the standard
+  MCP Apps names — a fixed color breaks in the dark scheme.
+  List screens in `menu`. A record page is a screen with `"record": "<collection>"`; a row's button `{"label",
+  "screen": "<that page>"}` opens it. `"screen": "deck/settings"` with `params` `tab` and `dialog` opens a form of
+  deck filled. The pipeline of a record is a table over `{"from": "deck.processes_list", "input": {"record": "=_id"}}`.
+  A screen declares the `params` it takes (`{"n": "integer"}`) and reads them as `param.<name>`; give an optional
+  one a default with `??`. The side panel `side` holds `filter` blocks that set a param of the screen, read by
+  every block of it (`"where": "param.coin == nil || coin == param.coin"`).
+- **Look and words**: `title` is the name the owner sees on its tile, `icon` a Tabler icon name. Write texts in
+  English and add `i18n` with a translation into the owner's language (`{"ru": {"Notes": "Заметки"}}`) for every
+  title, label, description, empty text and field name, also enum values wherever they show. `manifest_save`
+  answers `untranslated` (add them) and `unused_i18n` (drop them).
+- **Changing a manifest**: send `manifest_save` `old` (parts of the text `manifest_get` gives, each found once; a
+  run of spaces and line breaks counts as one) and `new` (what replaces each). `document_save` takes `old` and `new`
+  the same way; in scripts and custom blocks `old` is exact. Read a large manifest in parts: `fields` such as
+  `manifest.commands.<name>` or `manifest.screens.<name>`.
 - **Telling the owner**: a script or agent that finds something worth a look calls `owner_notify` with `text`, and
-  optionally the `screen` (and `record`) it opens and `actions` (`[{label, command, params}]`); it becomes a line
-  in the cockpit feed. The caller decides it is worth it; a run with nothing new says nothing. A note about
-  something outside the module, such as a model or a connection, names it in `cause` as the subject of its row
-  of health (`model:groq/llama-70b`, `provider:claude-code`): the unread notes of one cause of a day, of any
-  module, are one note with each module's part.
-- **Remembering what was seen**: `record_upsert` replaces a whole record by its key, so write every
-  required field. `record_get` reads one record by its id ; `records_list` gives the newest. `retention_days` deletes records with their documents: a collection that remembers what the
-  owner has already seen, or holds what they asked for, gets none.
-- **Starting records** (the first sources, say) are written after the import with `record_upsert`, or by the
-  first run of the script that needs them.
+  optionally `screen`, `record` and `actions`; a run with nothing new says nothing. A note about something outside
+  the module names it in `cause` (`model:groq/llama-70b`).
+- **Starting records** (the first sources) are written after the import with `record_upsert` (a whole record by
+  its key), or by the first run of the script that needs them.
 
 ## 3. Typical techniques
 
 These live here, not in deck: deck stays small and you combine them.
 
-- **Incoming events** (new mail, new postings, new files): a script on a schedule polls the source from a
-  cursor kept in a record, writes only new items, and an agent command runs only on what is new
-  (`after` trigger, or the script's result lists the new ids). After the machine slept, the next poll takes
-  everything since the cursor — never "the last N hours". The first run has no cursor: take a window the owner
-  agrees to (the last two weeks, the current thread) and name it in the hand-over.
-- **Search over big data**: a script builds an index (SQLite, a vector file, anything) in `$DECK_DATA`, the
-  project's own data folder that survives runs and goes into snapshots; a `search` command reads it.
-- **Files of `$DECK_DATA` written by more than one run**: runs of different commands go side by side, and those of a
-  command with `"runs": "many"`.
-  A file rewritten whole goes through a temporary name of its own run (`f"{path}.{os.getpid()}.tmp"`, then
-  `os.replace`), and a read-modify-write of one file holds a lock for the whole of it (`fcntl.flock` on a
-  `.lock` file beside it); a shared `.tmp` name is two runs replacing each other's file.
-- **Reacting faster than a minute, or being always up**: deck sleeps with the owner's Mac. Such work belongs
-  to an external service; deck starts it, polls it by a script, and keeps its state in records.
-- **External jobs** (generation in a paid service): one command starts the job and stores its id in a
-  record with status `waiting`; a script on a schedule checks the waiting records and downloads the files.
-- **Process marker**: anything created outside deck (a draft, a job, a post) carries the id of the deck
-  process that created it, so after "outcome unknown" a search finds it instead of creating a duplicate.
+- **Incoming events** (new mail, postings, files): a script on a schedule polls from a cursor kept in a record,
+  writes new items alone, and an agent command runs on what is new (`after` trigger). After sleep the next poll
+  takes everything since the cursor — never "the last N hours". The first run takes a window the owner agrees to.
+- **Search over big data**: a script builds an index (SQLite, a vector file) in `$DECK_DATA`, the project's own
+  data folder that survives runs; a `search` command reads it.
+- **Files of `$DECK_DATA` written by more than one run**: a file rewritten whole goes through a temporary name of
+  its own run (`f"{path}.{os.getpid()}.tmp"`, then `os.replace`), and a read-modify-write holds a lock
+  (`fcntl.flock` on a `.lock` file beside it).
+- **Faster than a minute, or always up**: deck sleeps with the owner's Mac. Such work belongs to an external
+  service; deck starts it, polls it by a script, and keeps its state in records.
+- **External jobs** (generation in a paid service): one command starts the job and stores its id in a record with
+  status `waiting`; a script on a schedule checks the waiting records and downloads the files.
+- **Documents to PDF** (a CV in Typst): a script with `programs: ["typst"]` writes the `.typ` documents it reads
+  with `document_get` into its work folder, runs `typst compile` and puts the PDF into `$DECK_RESULTS`.
+- **Process marker**: anything created outside deck carries the id of the deck process that created it, so after
+  "outcome unknown" a search finds it instead of creating a duplicate.
 
 ## 4. The box
 
-Every program of a module — a script, an MCP server, the CLI of an agent (Claude Code, Codex, an ACP agent) and
-everything its shell starts — runs in a box of its own that sees and reaches only what the rights of the module list:
+Every program of a module — a script, an MCP server, the CLI of an agent and what its shell starts — runs in a
+box of its own that sees and reaches what the rights of the module list:
 
-- files: the system and the runtimes deck finds on `PATH` (an nvm node, a pyenv python), its own folder and
-  `$DECK_DATA` to write, the project's folders to read. The owner's home, deck's state, secrets and other projects'
-  data are not there. A file of the owner elsewhere is opened by the owner adding its folder to the project (its
-  settings, Access → "Add a folder"): ask for that, never copy the file around the box. A program names the path it
-  was refused in its stderr (`No such file or directory`, `Operation not permitted`);
-- network: only through deck's door, to the hosts the module holds `network` on (section 10). The door sees the
-  host, not the method: a program may send to such a host, not only GET from it. A host is `example.com` (its
-  subdomains too) or `host:port`, never a URL or a public suffix such as `co.uk`; a name reaches only public
-  addresses, so a service on the owner's machine or network is named by its IP:port (a model on the owner's machine
-  for Codex or a script too: `base_url` by IP:port). The shell of an agent reaches its provider and deck, and the
-  hosts of `network` with `"who": "agent"` — never on a subscription login (Claude Code, Codex) nor in a module that
-  reads the data of others: there it installs nothing and clones nothing itself, a script of the module does. The
-  CLIs' own web search and fetch are off: an agent searches with deck's `web_search` and reads pages with `web_fetch`;
-- inside its box a program binds local ports, starts a headless browser (Chrome, a Remotion render) and keeps its
-  caches (uv, npm, Hugging Face in `$DECK_DATA/.cache`); `files` on `gpu` adds the graphics card (`/dev/dri` on
-  Linux) for rendering and local models;
-- no secrets and no keys of the owner in its environment: a secret reaches a module only through what its
-  manifest names (an HTTP tool, an MCP server).
+- files: the system and the runtimes deck finds on `PATH`, its own folder and `$DECK_DATA` to write, the project's
+  folders to read. The owner's home, deck's state, secrets and other projects' data are not there. A file of the
+  owner elsewhere comes by the owner adding its folder to the project (Access → "Add a folder"): ask for that.
+  A program names the path it was refused in its stderr;
+- network: through deck's door, to the hosts the module holds `network` on (section 10). The door sees the host,
+  not the method: a program may send to such a host. A host is `example.com` (its subdomains too) or `host:port`;
+  a name reaches public addresses, so a service on the owner's machine or network is named by its IP:port. The
+  shell of an agent reaches its provider and deck, and the hosts of `network` with `"who": "agent"` — not on a
+  subscription login (Claude Code, Codex) nor in a module that reads the data of others: there it installs and
+  clones nothing itself, a script of the module does. An agent searches with deck's `web_search` and reads pages
+  with `web_fetch`;
+- inside its box a program binds local ports, starts a headless browser and keeps its caches (`$DECK_DATA/.cache`);
+  `files` on `gpu` adds the graphics card;
+- no secrets and no keys of the owner in its environment: a secret reaches a module through what its manifest
+  names (an HTTP tool, an MCP server).
 
 On a node on a Mac (and deck without Docker there) scripts, MCP servers and ACP agents run in `sandbox-exec`
-without local ports or the GPU, and the CLIs of Claude Code and Codex run outside the box, in the owner's home and
-network, deck's state closed only by their own rules.
+without local ports or the GPU, and the CLIs of Claude Code and Codex run outside the box.
 
 ## 5. Scripts
 
-Write scripts by the module-conventions skill: their layout, the contract of stdin and stdout, the one form of a
-failure and its types, and their style. What deck adds to a failure: `details` gets the end of stderr after it, and
-the master's `on_error` reads `type` to choose what to tell the owner; any other type is `script.failed`. A failure
-with no type or `script.failed` right after deck answered the
-last call of the script with an error takes the type of that answer — 400, 404, 413 or 422 `input.invalid`, 403
-`rights.denied`, 429 of a model (or its 413 past a limit per minute) `model.limit`, 5xx of a model `model.unavailable`, 429 or a 5xx past 500 of another
-command `network` — and deck adds its error answers to the failure, so a script need not catch them only to type them.
-Without a non-zero exit stdout stays the result, so a result schema may have a field `error` of its own. A script
-runs in its box (section 4):
+Write scripts by the module-conventions skill: layout, the contract of stdin and stdout, the one form of a failure
+and its types. deck adds the end of stderr to `details`; a failure with no type right after deck answered the
+script's last call with an error takes the type of that answer (`input.invalid`, `rights.denied`, `model.limit`,
+`model.unavailable`, `network`). A script runs in its box (section 4):
 
-- deck does not tell a script where a project folder is (no variable, and `deck.projects_list` and
-  `folders_list` are closed to scripts), so a script that walks the folder reads its path from a record of the
-  module (a `settings` collection) that you write once the owner has added the folder; a command input works too.
-  The error of a failed script ends with where the owner opens a folder;
-- its network goes through the proxy deck sets in `HTTP(S)_PROXY` (Node's `fetch` takes it too; `$DECK_URL`
-  answers through the proxy or without it);
+- deck does not tell a script where a project folder is: it reads the path from a record of the module (a
+  `settings` collection) you write once the owner added the folder, or from its input;
+- its network goes through the proxy deck sets in `HTTP(S)_PROXY`;
 - models through `$DECK_MODELS/<connection>/<API path>` with `Authorization: Bearer $DECK_TOKEN` (an OpenAI SDK
-  takes it as its base URL with the token as its key): deck puts in the key and keeps the call; `deck.models_list`
-  gives the connections and models of deck's settings and what is assigned to the workspace and this project. The request names
-  one model of deck's settings as the API knows it — `model` of a JSON body or a form, the path of Google's API,
-  or, for a `raw` service whose API has no such field, the header `X-Deck-Model` — and anything else is refused:
-  another model, OpenRouter's `models` or `route`, and on an `openai`, `google` or `anthropic` connection any path
-  that is not a call of a model (files, batches, the account); a poll `GET videos/<id>` of a job names no model,
-  but on a `raw` connection every request, the poll too, sends `X-Deck-Model`. A
-  body with `"model": "@tts"` and the connection `@` takes the model the owner assigned, a fallback when it
-  refuses. A draft or a trial reaches only free models and those of the owner's machine: a paid one answers 403
-  and is not made; stop and say so, do not retry in a loop;
-- deck's API at `$DECK_URL` answers a refusal with its status and a text that says what is missing (`deck.X cannot
-  be called by agent (script); only owner, master call it`, a right of the manifest): print the body of an error
-  response, not the status alone; deck also adds the calls it refused to the error of a failed script;
-- no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead. Never ask the owner to
-  `export` a key for a module: on macOS a confined program reads the environment of the owner's processes, so
-  keys live only in deck secrets;
-- `runtime` is `python`, `node`, `bash` or `exec` (a program that runs by itself); `timeout_minutes` is the
-  ceiling of a run, 10 by default, up to 240;
-- a script runs alone: its folder holds only its own file, so a helper shared by scripts is repeated in each
-  (or read with `document_get` into the work folder); the helpers of this skill, `helpers/deck_helper.py` and
-  `helpers/deck_helper.mjs`, are the ones module-conventions names;
+  takes it as its base URL with the token as its key): deck puts in the key and keeps the call. The request names
+  one model of deck's settings as the API knows it — `model` of a JSON body or form, the path of Google's API, or
+  the header `X-Deck-Model` for a `raw` service — anything else is refused. A body with `"model": "@tts"` and the
+  connection `@` takes the model the owner assigned. A draft or a trial reaches free models and those of the
+  owner's machine; a paid one answers 403: stop and say so, do not retry in a loop;
+- deck's API at `$DECK_URL` answers a refusal with its status and a text that says what is missing: print the body
+  of an error response, not the status alone;
+- no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead, and never ask the owner to
+  `export` a key for a module;
+- `runtime` is `python`, `node`, `bash` or `exec`; `timeout_minutes` is the ceiling of a run, 10 by default;
+- a script runs alone: a helper shared by scripts is repeated in each; the helpers of this skill,
+  `helpers/deck_helper.py` and `helpers/deck_helper.mjs`, are the ones module-conventions names;
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.record_upsert"`
-  (`command_describe` gives the input and `result` schemas while you write the script; works through the proxy or without it).
-  A 200 body is the command's result itself, with no wrapper; an error is plain text with a 4xx/5xx status, 410
-  when the process has finished; `record_upsert` takes JSONL
-  and returns `{"written", "ids", "errors"}`; `records_list` returns `[{"id", "key", "title", "data": {…}}]`,
-  newest last, `process_get` `{"id", "command", "state", "result", "error", …}`, `documents_list`
-  `[{"id", "name", "kind", "owner_kind", "owner_id"}]` (an artifact of a record has `owner_kind` `record`); a script may call commands and tools of its own project that
-  allow `agent` callers; a call that waits for the owner answers HTTP 202 `{"waiting": <ask>}` — deck makes
-  it later, the script goes on. A script a button of the owner started gets that yes at the button: deck shows
-  the call, what it was and what it becomes, right after the press, and yes there makes it. So a module keeps no
-  status of its own for "asked" and no button "confirm in the cockpit": a record that already waits answers
-  `{"waiting": <ask>}` as the result of the next press, and the press shows that same ask again;
+  (`command_describe` gives the input and `result` schemas). A 200 body is the result itself; an error is plain
+  text with a 4xx/5xx status. `record_upsert` takes JSONL and returns `{"written", "ids", "errors"}`;
+  `records_list` returns `[{"id", "key", "title", "data": {…}}]`, newest last. A call that waits for the owner
+  answers 202 `{"waiting": <ask>}` — deck makes it later, the script goes on. A script a button of the owner
+  started gets that yes at the button, so the module keeps no status of its own for "asked" and no button
+  "confirm in the cockpit";
 - files go into `$DECK_RESULTS`; the result field `files: [{"path": "...", "record": <id>}]` attaches them;
-- a script installs its own packages when it runs; there is no `packages` field. The registries are hosts of its
-  `network` (Python: `pypi.org`, `files.pythonhosted.org`; Node: `registry.npmjs.org`), the package manager goes
-  through the proxy, its cache lives in `$DECK_DATA/.cache` (uv, npm, Hugging Face) and stays between runs, the
-  install counts in `timeout_minutes`; without the registries a module has no packages.
-  Programs it needs from the machine go into `scripts[].programs`: a name (`"uv"`) or a name with how the owner
-  installs it on a Mac (`{"name": "typst", "install": "brew install typst"}`). deck's image carries the programs
-  `python3`, `node`, `uv`, `bash`, `git`, `curl`, `ffmpeg`, `unzip` and `chromium`; a script names them all the same,
-  for a deck or a node outside the image. A missing program refuses the run at once and is a red health row of the
-  command with how to get it on that machine (a newer image of deck, else its package manager); ask the owner for it,
-  never work around it — the check button of the row, or the next run, finds it.
-  Every script runs on the one python3 of 3.10 or newer deck picks at start, first on its `PATH` (health names it and
-  the node of scripts); a script that needs a newer one says so in `requires-python` of its PEP 723 block, and uv
-  finds or fetches it. Node installs into `$DECK_DATA` and loads the package with `createRequire`:
+- a script installs its own packages when it runs: the registries are hosts of its `network` (Python: `pypi.org`,
+  `files.pythonhosted.org`; Node: `registry.npmjs.org`), the cache lives in `$DECK_DATA/.cache`. Programs it needs
+  from the machine go into `scripts[].programs` (`"uv"`, or `{"name": "typst", "install": "brew install typst"}`).
+  deck's image carries the programs `python3`, `node`, `uv`, `bash`, `git`, `curl`, `ffmpeg`, `unzip` and
+  `chromium`; a script names them all the same, for a deck or a node outside the image. A missing program refuses
+  the run and is a red health row with how to get it: ask the owner, never work around it. A script that needs a
+  newer python says so in `requires-python` of its PEP 723 block. Node installs into `$DECK_DATA`:
   ```js
   const dir = process.env.DECK_DATA + "/node";
   require("node:child_process").execFileSync("npm", ["install", "--prefix", dir, "--no-audit", "--no-fund", "left-pad@1.3.0"], { stdio: ["ignore", 2, 2] });
@@ -530,26 +299,15 @@ runs in its box (section 4):
 
 ### Kinds of models, and APIs a kind does not cover
 
-`model` commands and `deck.model_call` know text, image, tts, stt, music and video, asked in the OpenAI-compatible
-protocol: a picture of `images/generations`, an edit of the picture in `file` of `images/edits` (a form: `image`,
-`prompt`, `model`, the options as fields; chat completions get it as an `image_url`), music of `audio/music` (`input`, `seconds`, like speech), each of chat
-completions with image or audio out when the API has no such path; a video is a job of `videos` (OpenRouter's
-shape: `first_frame`/`last_frame` go as `frame_images`, `options` such as `duration`, `resolution`, `aspect_ratio`,
-`generate_audio`) that deck polls until the clip is ready, at most 30 minutes, and a job a service took goes to no
-other model; an agent that calls it hears progress meanwhile. A picture, a track or a clip comes back as a file with
-`model` (the model of deck's settings that made it, a fallback too) and `cost_usd`, for the module's own accounting
-and credits. Other results are as the API gave them; `deck.process_get` of the process names its `models` and their
-`cost_usd` (none while a model has no price), speech priced per character and recognition per second too. The models of a kind and their fallbacks are the owner's assignment; one that does not answer turns red in health while
-the next takes the work. A model on the owner's machine (a local server, as whisper.cpp) is a connection like any
-other. A model of edits is called by its name or its role; a model of edits answers 400 to a picture asked
-without one. A connection of another API, such as Google's own, is reached only from a script.
+`model` commands and `deck.model_call` know text, image, tts, stt, music and video in the OpenAI-compatible
+protocol; a video is a job deck polls until the clip is ready. A picture, track or clip comes back as a file with
+`model` and `cost_usd`; `deck.process_get` names the `models` of a process and their `cost_usd`. A model on the
+owner's machine (a local server) is a connection like any other.
 
-Anything else — editing a picture by a sample (`images/edits`, a form), a service with its own API (fal,
-Replicate, ElevenLabs, Google Veo's own API) — is a script that calls the API through `$DECK_MODELS`, so the key stays with
-deck and the call is in its journal. The owner adds the service as a connection (Settings → Models → Connections: `raw` for a
-service with its own paths, such as Veo's long jobs, fal or Replicate; `google` only for `models/<m>:generateContent`)
-and a model with its price per call; the manifest
-names the connection in `models`, and the request names the model. One call, the answer a file:
+Anything else — a service with its own API (fal, Replicate, ElevenLabs, Google Veo's own API) — is a script that
+calls it through `$DECK_MODELS`, so the key stays with deck and the call is in its journal. The owner adds the
+service as a connection (`raw` for its own paths) and a model with its price per call; the manifest names the
+connection under `money`, and the request names the model:
 
 ```python
 import json, os, sys, urllib.request
@@ -564,187 +322,125 @@ with urllib.request.urlopen(req, timeout=600) as r:
 print(json.dumps({"files": [{"path": "track.mp3", "record": inp.get("record")}]}))
 ```
 
-A long job of a service with its own API (minutes) is two commands, never a script that waits for an hour: `start` posts the job
-through `$DECK_MODELS`, keeps the job id in the record with status `waiting` and ends; `fetch`, on a schedule
-(`every 5m`), reads the waiting records, asks the status path of the API through `$DECK_MODELS`, and when the
-job is done downloads the file into `$DECK_RESULTS` and sets the record `done`. A file the service gives as a URL
-on its own storage host is fetched through the proxy, so that host is one of its `network`. Ask the owner for the
-price per call of such a model: a service that reports no `usage.cost` is counted by it, else without a cost.
-
-A tool of the manifest called from a script (`POST $DECK_URL/commands/<project>.<tool>`) that answers with a
-file returns `{"file": "<name>", "type", "size"}`: the file is `$DECK_RESULTS/<name>`, and `<name>` as it is
-(or `results/<name>`) hands it to another tool or a `file` field.
+A long job of such a service is two commands, never a script that waits for an hour: `start` posts the job and
+keeps its id in the record with status `waiting`; `fetch`, on a schedule, asks the status, downloads the file into
+`$DECK_RESULTS` when done and sets the record `done`. A file the service gives on its own storage host is
+fetched through the proxy, so that host is one of its `network`.
 
 ## 6. Agent commands
 
-The prompt says what to do with the input and what the result means; facts and criteria live in md
-documents it reads, and a skill carries a reusable way of working. The agent reaches deck only through the
-deck MCP server and the commands of projects: deck tells every agent not to look for tokens or keys in the
-environment, files or logs and not to call deck's HTTP API around its tools. Where a tool is missing (a change of
-many records at once), give the module a script or command for it; scripts reach deck's API with `$DECK_URL`. A provider with a shell (Claude Code, Codex, an ACP agent) runs it in its auto mode: the agent works in its own
-folder and in the project's data folder (the prompt names it; indexes, caches and state live there between
-runs), runs shell commands in its box (section 4) without asking; the provider itself refuses what looks risky and asks
-the owner only about that. A call that needs a right the owner has not answered always still waits for them. An agent
-that must work in a folder of the owner (a code repo, notes) gets `"folder": true` in `executor` (or the folder's
-name when the project has several, declared under `files`): it works there instead of its own folder, with the
-repo's CLAUDE.md or AGENTS.md, and a second agent in the same folder waits. Only the owner adds folders (the Settings
-of the project, Access → "Add a folder"); a code repo is the code-project skill. List the
-skills it needs in `executor.skills`; a skill may not grant tools (`allowed-tools`, `hooks`) — rights come
-from deck.
+The prompt says what to do with the input and what the result means; facts and criteria live in md documents it
+reads, and a skill carries a reusable way of working. The agent reaches deck through the deck MCP server and the
+commands of projects, not deck's HTTP API. Where a tool is missing (a change of many records at once), give the
+module a script or command for it. A provider with a shell (Claude Code, Codex, an ACP agent) works in its own
+folder and the project's data folder, runs shell commands in its box without asking; a call that needs a right
+the owner has not answered waits for them. An agent that works in a folder of the owner (a code repo) gets
+`"folder": true` in `executor` (or the folder's name, declared under `files`); a second agent there waits. List
+the skills it needs in `executor.skills`; a skill may not grant tools — rights come from deck.
 
-The owner picks the models of each agent command in settings (`assignment_set`); the manifest only says
-what the command needs and suggests one (`provider`; `"free"` puts the models the owner marked free first, for
-routine work, and the rest after them). Every provider has deck's tools, a shell and file writes in its auto
-mode and a project folder; `requires` lists only what some lack: `no_cloud` for personal data (finance,
-health) that must stay on the owner's hardware, and `images` for a model that reads pictures. A local model in an
-ACP agent has a shell and stays on the owner's hardware. Every agent searches with deck's `web_search` (the search
-service of deck's settings, SearXNG) and reads pages with `web_fetch` (pages of the hosts it holds `network` on,
-any with `"*"`). When the agent's result is wrong without its own research (changelogs or news it cannot know in
-advance), the prompt of the command names `web_search` and `web_fetch`, so the agent knows to use them,
-and `calls` lists them if the command lists its calls. Leave the web out when a script brings the pages the agent
-judges, which is cheaper. Fetching known pages belongs in a script with their hosts under `network`. Repeatable mechanics still belong in a script: it is cheaper,
-runs the same way every time and works with any provider. A requirement a local model lacks keeps routine work off
-it. `command_describe` gives an agent command the
-models that fit it (`choices`; `commands_list` only when `fields` asks for them). `provider` suggests a provider by
-name — routine judgement suits a local model in an ACP agent (the name the owner gave it, from
-`models_list`), heavy reasoning Claude Code or Codex. Write the
-prompt so it works on a small model too: say which deck tool to call for what, and that the result is handed in
-at the end; a provider without output by schema gets the `result_submit` tool for it. A small model errs in deck's
-calls mostly by not knowing what a call answers and how to fill its input: the prompt says what each call of
-`calls` answers, its exact shape (a record's `data` is an object, not a JSON text), and gives one to three inputs
-where the schema does not say all (`record_update` takes the whole data, key fields as they are). The tool of a
-command of the module shows the agent its `result` schema and an input of the `examples` of its parameters, so a
-command an agent calls has both; `manifest_check` warns of a called one without `result`. An agent command that changes
-records, documents or files gives in its result `changes`, an array of strings, one short line each: what changed,
-where and why (the module-conventions skill). A small model copies
-examples from the prompt word for word and misses checks that are plain in the text: give it the shape of the
-result without sample values, let the script do every check a pattern can do and pass the findings in the
-input, and let the script, not the model's verdict, decide what reaches the owner. An agent that judges many
-items hands in all its verdicts in its result and an `after` script writes them into the records: a small
-model that reads and rewrites records one by one drops fields and runs out of time. Text in a language other
-than English is where a small model slips most (mixed languages, stray alphabets): let the script check it and
-try the command on the model it will run on before the hand-over.
+The owner picks the models of each agent command (`assignment_set`); the manifest says what the command needs and
+suggests one (`provider`; `"free"` puts the free models first, for routine work). `requires` lists `no_cloud` for
+personal data that must stay on the owner's hardware and `images` for a model that reads pictures. When the
+result is wrong without research (news, changelogs), the prompt names `web_search` and `web_fetch`, and `calls`
+lists them; leave the web out when a script brings the pages. Repeatable mechanics belong in a script.
+
+Write the prompt so it works on a small model too: say which deck tool to call for what, what each call of
+`calls` answers and its exact shape (a record's `data` is an object, not a JSON text), one to three example inputs
+where the schema does not say all, and that the result is handed in at the end (`result_submit` when the provider
+has no output by schema). The tool of a command shows the agent its `result` schema and an input of the `examples`
+of its parameters, so a command an agent calls has both. An agent command that changes records, documents or
+files gives in its result `changes`, one short line each (the module-conventions skill). A small model copies
+examples word for word and misses checks plain in the text: give it the shape of the result without sample
+values, let the script do every check a pattern can do, and let the script decide what reaches the owner. An
+agent that judges many items hands in all verdicts in its result and an `after` script writes them. Try the
+command on the model it will run on before the hand-over.
 
 ## 7. Confirmations
 
-Each "yes" the owner gives by habit is a failure of the module. What waits is a call whose right the owner has not
-answered always, and questions the agent asks. Count what will wait in a normal week: a tool that only reads names
-`"right": "data"` or `"network"`; a draft or an unpublished post is still `send`, and the hand-over asks for always.
+Each "yes" the owner gives by habit is a failure of the module. Count what will wait in a normal week: a tool
+that reads names `"right": "data"` or `"network"`; a draft or unpublished post is still `send`, and the hand-over
+asks for always.
 
-An agent turn that read text from outside deck — a page, an answer of a tool or an MCP server, the browser, data of a
-module that holds such text — and holds something of value (the module's data, a subscription login) acts outside
-only with the owner's yes to each call: `send`, `money`, `modules` and `network` on `*` wait for a once, whatever
-the owner answered always; a host the module names stays as answered. So keep reading apart from acting: a script
-fetches the pages, or a reader — an agent command whose `calls` are only `deck.web_search` and `deck.web_fetch` —
-reads them and holds nothing of value; the agent that acts reads only its records.
+An agent turn that read text from outside deck — a page, an answer of a tool or MCP server, the browser, data of a
+module that holds such text — and holds something of value acts outside by the owner's yes to each call: `send`,
+`money`, `modules` and `network` on `*` wait for a once, whatever the owner answered always. So keep reading apart
+from acting: a script fetches the pages, or a reader — an agent command whose `calls` are `deck.web_search` and
+`deck.web_fetch` alone — reads them and holds nothing of value; the agent that acts reads its records.
 
 ## 8. Build, import, try
 
-1. Write the module as a folder: `manifest.json`, `prompt.md` (its first line is the one-line description
-   deck and the master choose the project by), `prompts/*.md`, `scripts/*`, `skills/<name>/SKILL.md`,
-   other md documents by their names. Only `prompt.md` has kind `prompt`; `prompts/*.md` and the other md
-   come in as `doc`, so later `document_save` them with kind `doc`. Keep test data outside the module folder.
-2. `project_import` with the absolute folder path creates a **draft**; the folder is in your data (the master's)
-   or in a folder the owner gave a project (its settings, Access); any other folder only the owner imports, in
-   Settings → Modules. A refused import comes back with the
-   reason and leaves nothing behind; fix the folder and import again. Once imported, change the draft with
-   `manifest_save` and `document_save` (a second import of the same name is refused), and keep the folder
-   in step. Send only what changes: for the manifest and for a document `old` (parts of the current text, each
-   found exactly once) and `new` (what replaces each); the whole text only for a new one or a rewrite. The answer of `manifest_save`
-   lists in `screens` each block that fails on the records there are now (a column that breaks on a record
-   without a field, a missing custom document): fix them before the owner opens the screen. `manifest_check`
-   runs the same checks and saves nothing: what a save refuses, its warnings, the rights it declares the owner
-   has not granted (`ungranted`), `screens`, `untranslated`; of a project with the whole text or `old`/`new`, or of a
-   manifest alone (an old `.zip`). Check before you save, and fix a module from a `.zip` before its import.
-   To see a screen as the owner does, `screen_capture` draws it (`#/p/<module>/<screen>?tab=…`, a phone or a
-   computer, light or dark) and answers the picture's `path` to read and `ms` it took to draw.
-   `project_readiness_get` is what the module needs to work, which deck counts from the manifest: the rights it
-   declares and whether the owner granted them, secrets and whether they are set, programs its scripts miss, roles without a model and work no model
-   takes; a connection it names that deck lacks is `optional`. Build on it, not on your own list: tell the owner
-   what is not `done`, and hand over a module whose needs are only rights.
-3. `command_try` runs a command as a trial: every call that needs a right is declined, and a call of an HTTP
-   or MCP tool waits for the owner's yes on that one call; the commands that run `after` it are tried too,
-   unless `only` asks for this command alone. Try in a draft. Until the owner enables a draft it holds none of
-   the rights it declares: its tools ask the owner, its scripts reach no host, the package registries neither,
-   and it reads no other module. Ask the owner to grant a right a trial needs on the draft's card. To try a change of an enabled module (a new command, one that waits for the owner's
-   button), import its folder as a draft copy under another name, try there, then save the change to the
-   module and tell the owner the copy can be deleted: a trial in the enabled module itself writes real
-   records beside its own runs, so it takes `live` and is refused while a real run of the command
-   is going on. It runs as you, the master: leave `callers` out (everyone) unless a command must be closed to
-   someone, and keep `master` in a list you give. The `after` triggers it sets off run as trials too, so a whole chain can be tried from
-   its first command. A trial is not a sandbox: internal writes (records, documents) are real and stay
-   in the draft, and so is what scripts write to `$DECK_DATA`, which you cannot reach: keep what a module
-   remembers (seen items, cursors) in records when trials must be undone. `process_get` of a trial lists in `left`
-   the records, files of deck and changes of documents it and its chain left, which the owner undoes on the page of
-   the process; what went to `$DECK_DATA` is not listed. Before the hand-over, delete what
-   the trials left that the owner should not start with: `record_delete` (you, in a draft; in an enabled project what your own runs wrote, with an undo of its data for the owner in
-   the feed, and when it takes a file, folder or process you did not make it waits for the owner's yes; the rest only the owner, by a button);
-   say in the hand-over what you kept; lines a trial sent with `owner_notify` stay in the feed. `process_get` gives
-   the state and result; `process_log_get` shows the events of a process, also after it ended, a page at a time
-   (`before` the first `n` read for the page before it, `only` `errors` for what failed),
-   and a local model may think for many minutes before its first one: wait with
-   `process_get` and `wait` in the foreground (up to 30 minutes on Claude Code and Codex). `processes_list`
-   with `command` and `brief` and `records_list` with `where` (an expression, as in a source) and `fields` keep long lists short. Time the trial on the provider the command will run on and set
-   `timeout_minutes`, batch sizes and the schedule by it. A trial that ends `done` is not yet a proof: check
-   that the chain gave what the owner will see (records, documents). Check `records_list` and `health_list` after a save that adds programs or
-   MCP servers: a missing program or a failed server shows there with its error.
-4. A draft never runs on its schedule. Only the owner enables it.
+1. Write the module as a folder: `manifest.json`, `prompt.md` (its first line is the one-line description deck
+   and the master choose the project by), `prompts/*.md`, `scripts/*`, `skills/<name>/SKILL.md`, other md
+   documents. `prompt.md` has kind `prompt`; the other md come in as `doc`. Keep test data outside the folder.
+2. `project_import` with the absolute folder path creates a **draft** (the folder is in your data or in a folder
+   the owner gave a project; any other the owner imports). A refused import leaves nothing behind; fix and import
+   again. Then change the draft with `manifest_save` and `document_save`, sending only what changes. The answer of
+   `manifest_save` lists in `screens` each block that fails on the records there are now: fix them.
+   `manifest_check` runs the same checks and saves nothing (`ungranted`, `screens`, `untranslated`).
+   `screen_capture` draws a screen as the owner sees it (`#/p/<module>/<screen>`). `project_readiness_get` is what
+   the module needs to work: rights and whether granted, secrets, missing programs, roles without a model. Tell
+   the owner what is not `done`.
+3. `command_try` runs a command as a trial: a call that needs a right is declined, a call of an HTTP or MCP tool
+   waits for the owner's yes; the `after` commands are tried too, unless `only`. Until the owner enables a draft it
+   holds none of the rights it declares; ask the owner to grant one a trial needs on the draft's card. To try a
+   change of an enabled module, import a draft copy under another name, try there, then save the change and tell
+   the owner the copy can be deleted: a trial in the enabled module takes `live` and is refused while a real run of
+   the command goes on. A trial runs as you, the master: leave `callers` out unless a command must be closed to
+   someone, and keep `master` in a list you give. A trial is not a sandbox: records and documents it writes are real and stay,
+   and so is what scripts write to `$DECK_DATA`. `process_get` of a trial lists in `left` what it and its chain
+   left; before the hand-over delete what the owner should not start with (`record_delete`) and say what you kept.
+   `process_log_get` shows the events of a process (`only` `errors` for what failed); wait with `process_get` and
+   `wait`. Time the trial on the provider the command will run on and set `timeout_minutes`, batches and the
+   schedule by it. A trial that ends `done` is not yet a proof: check what the owner will see (records,
+   documents), and `health_list` after a save that adds programs or MCP servers.
+4. A draft does not run on its schedule. The owner enables it.
 
 ## 9. Moving modules and skills
 
-- **Export a module** into a new or empty folder: `documents_list` of the project, then `document_get` of every
-  document of kind manifest, prompt, script, skill, custom and doc that has no `owner_kind`, written to the
-  folder under its name. Artifacts and documents of records are data, not the module; leave them
-  out. `project_import` of that folder gives the module back as a draft; kinds come from the path — scripts
-  listed in `scripts[].file`, `skills/…`, `custom/…`, `manifest.json`, `prompt.md` — and anything else comes
-  back as `doc`, so keep scripts listed and custom blocks under `custom/`.
-- **Import the owner's Claude Code skills**: for each folder `~/.claude/skills/<name>/`, save `SKILL.md` first
-  with `document_save`, kind `skill`, name `skills/<name>/SKILL.md`, no project — a skill of the whole
-  workspace (with `project`, of one project); only if deck took it, save the other text files as
-  `skills/<name>/<path in the folder>`. Skip a file whose text equals what `document_get` already returns, so
-  history does not grow. Leave out hidden files, binaries and files over 1 MB. `SKILL.md` needs
-  `name: <name>` and a `description`; deck refuses skills that grant tools (`allowed-tools`, `hooks`) and path
-  parts that do not start with a letter or digit (`__init__.py`) — tell the owner what did not come in and why.
+- **Export a module** into a new or empty folder: `documents_list` of the project, then `document_get` of each
+  document of kind manifest, prompt, script, skill, custom and doc that has no `owner_kind`, written under its
+  name. Artifacts are data, not the module. `project_import` of that folder gives the module back as a draft; kinds
+  come from the path, so keep scripts listed in `scripts[].file` and custom blocks under `custom/`.
+- **Import the owner's Claude Code skills**: for each folder `~/.claude/skills/<name>/`, save `SKILL.md` first with
+  `document_save`, kind `skill`, name `skills/<name>/SKILL.md`, no project (a skill of the workspace); if deck took
+  it, save the other text files as `skills/<name>/<path>`. Skip a file whose text equals what `document_get`
+  returns, hidden files, binaries and files over 1 MB. deck refuses skills that grant tools (`allowed-tools`,
+  `hooks`) and path parts that do not start with a letter or digit — tell the owner what did not come in and why.
 
 ## 10. Rights
 
 A module declares in `rights` what it may ask the owner for, with why in a short sentence of its own; what it does
-not declare it can never ask for, and a declaration grants nothing. Its own records, documents and files need no
+not declare it cannot ask for, and a declaration grants nothing. Its own records, documents and files need no
 right. deck's catalog:
 
 | `right` | `what` |
 |---|---|
-| `network` | hosts, `*` every public one; with `"who": "agent"` the shells of its agents |
+| `network` | hosts, `*` all public ones; with `"who": "agent"` the shells of its agents |
 | `login` | `claude-code`, `codex`: its agents work on the owner's subscription |
 | `data` | `other`, `other.items`, `other/a.md`, `other:models`, `*:runs`; its own tool or `server.tool` that reads with a key |
 | `files` | `gpu`, a folder of the project by name, `*` |
-| `money` | a connection, a model, an `@role` |
+| `money` | a connection, a model, an `@role`; `run_usd`, the most a run spends by the owner's always, in US dollars |
 | `send` | its command or tool, `server.tool`, a command of deck, a site the browser acts on |
 | `modules` | another module, `module.command` |
 
-Ask for roles (`@text`, `@image`, `@tts`, `@stt`), not the owner's connections or model names: another owner has
-their own. Enabling grants what takes no passkey: `network` of programs on named hosts, `files`, `data` of its own
-services and `:models`/`:runs`. An always to the rest takes the owner's passkey: `network` on `*` and the data of other
-modules the owner grants in Access → Rights; `login`, `money`, `send`, `modules` and the network of agents the owner
-answers the first time they are used: once, for this work, always or no (a no is kept).
-A turn that needs a login or its agents' network waits for that answer before it starts; a script's call through
-`$DECK_MODELS` is refused and asks the owner once. A right declared later the owner grants in the module's settings
-(Access → Rights) or when it is first used. A save that declares something new
-saves at once and lists it in `ungranted`: tell the owner what to grant and why. The owner's answers live apart from
-the manifest, so an edit never widens what is granted, and always holds to the tool or command as it was: a changed
-one asks again.
+Ask for roles (`@text`, `@image`, `@tts`, `@stt`), not the owner's connections or model names. Give `money` a
+`run_usd` the work needs: past it an agent's call waits for the owner's once and a script's call is refused.
+Enabling grants what takes no passkey: `network` of programs on named hosts, `files`, `data` of its own services
+and `:models`/`:runs`. `network` on `*` and the data of other modules the owner grants in Access → Rights; `login`,
+`money`, `send`, `modules` and the network of agents the owner answers when first used: once, for this work, always
+or no (a no is kept). A turn that needs a login or its agents' network waits for that answer before it starts. A
+save that declares something new lists it in `ungranted`: tell the owner what to grant and why. An edit never
+widens what is granted, and always holds to the tool or command as it was: a changed one asks again.
 
 ## 11. Hand over
 
-Tell the owner in a few plain sentences: what the module does and when, what the trial showed, and the
-rights it declares and why. Do not enable it yourself.
+Tell the owner in a few plain sentences: what the module does and when, what the trial showed, and the rights it
+declares and why. Do not enable it yourself.
 
 ## 12. Improve this skill
 
-When the owner fixes by hand a module you built, or you had to guess because this skill was silent or wrong,
-propose a fix of the section that led you there: `document_propose`, name `skills/module-builder/SKILL.md`, no
-project, the whole text with its `if_revision` from `document_get` and `reason` what went wrong; the owner decides
-with one button. Change the rule itself, in the words of the section, and keep the skill general; no dated notes,
-examples of one module or history — deck keeps the revisions. Say in the hand-over what you proposed. A new deck
-merges an edit into the text it ships; where both changed the same lines its text stands, and you get a note
-with the diff to bring back what still holds.
+When the owner fixes by hand a module you built, or this skill was silent or wrong, propose a fix of the section
+that led you there: `document_propose`, name `skills/module-builder/SKILL.md`, no project, the whole text with its
+`if_revision` from `document_get` and `reason`. Change the rule itself and keep the skill general; no dated notes,
+examples of one module or history. The skill keeps to 8000 words: what you add, take the same out. Say in the
+hand-over what you proposed.

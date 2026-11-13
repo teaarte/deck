@@ -156,7 +156,7 @@ func (g *Gateway) exit(ctx context.Context, act registry.Actor, m *manifest.Mani
 func (g *Gateway) over(ctx context.Context, act registry.Actor, m *manifest.Manifest, needs []registry.Need) (bool, error) {
 	var cap float64
 	for _, n := range needs {
-		if c := m.PerRun(n); c > 0 && (cap == 0 || c < cap) {
+		if c := m.RunUSD(n); c > 0 && (cap == 0 || c < cap) {
 			cap = c
 		}
 	}

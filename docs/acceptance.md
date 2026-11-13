@@ -44,8 +44,6 @@ journals of steps and plans are in the git history.
 | "Rework" of an agent command continues the same session and gives a new revision of the artifact — a scenario test. | TestReworkContinuesTheSessionAndRevisesTheArtifact; the button with a remark on the process page — TestProcessPageSendsAFinishedAgentBackForReworkWithARemark, in the browser — TestRealBrowserRework |
 | A project with "reads" sees the collections of another project and cannot write to them; without "reads" — a refusal — a scenario test. | TestReadsLetAProjectReadAnotherButNeverWriteIt, TestAnAgentCannotTouchARowOfAnotherProjectByItsID |
 | An automation token calls only the allowed commands; a revoked one — a refusal — a scenario test. | TestAutomationTokenCallsOnlyAllowedCommands; creating and revoking on the Tokens tab — TestSettingsSecretsAndTokensShowOnlyNames, in the browser — TestRealBrowserSettings |
-| An automation token reaches only the modules its rights name: data reads one, modules changes one or calls one command; a token of old commands keeps what it named — a scenario test. | TestATokenWithARightOnOneModuleDoesNotReadAnother, TestATokenOfCommandsReachesTheModulesItNamedAfterTheMigration |
-| An answer that trusts for long takes the owner's passkey touched within five minutes; once, no and a revoke take none — a scenario test, in the browser. | TestADecisionThatTrustsForLongTakesAPasskeyTouchedWithinFiveMinutes, TestRealBrowserTouchesThePasskeyForWhatTrustsForLong |
 | A command with the "no cloud" ability does not let a cloud provider be chosen — a scenario test. | TestNoCloudCommandDoesNotTakeACloudProvider |
 | A command's agent writes a file in its own folder and searches the web without confirmation, a tool that sends in the owner's name waits for "yes"; an agent without the network of its module's agents goes only to its provider and to deck, and reads neither `state/` nor the data of another project — a scenario test and the real CLI. | TestCommandAgentRunsInAutoModeInItsFolders, TestTheCLIOfAnAgentReadsNeitherDecksStateNorTheDataOfAnotherProject, TestExternalCallWaitsForYesThenDeckMakesItFrozen, TestRealClaudeCodeAutonomy |
 | The master's edit of a manifest is seen in "Done without you" and is undone by a button — a scenario test. | TestMasterManifestEditIsUndoneFromTheFeed |
@@ -67,6 +65,15 @@ journals of steps and plans are in the git history.
 | The API of entities and the names/descriptions of commands are enough for App Intents: a contract test that every command of the registry has a description and parameter types from the allowed subset. | TestEveryCommandFitsAppIntents |
 | CI fails on a comment block of 3 lines and on "FR-12" — a test of the CI check. | TestChecksCatchViolations |
 | After the Mac sleeps, each scheduled command is caught up by exactly one run — a scenario test with a substituted clock. | TestMissedRunsAreSpreadAfterSleep |
+
+## Checks beyond the spec's items
+
+What the trust model added that has no item of its own in the spec; not one of the rows above.
+
+| Check | Since | Tests |
+|---|---|---|
+| An automation token reaches only the modules its rights name: data reads one, modules changes one or calls one command; a token of old commands keeps what it named. | T7 | TestATokenWithARightOnOneModuleDoesNotReadAnother, TestATokenOfCommandsReachesTheModulesItNamedAfterTheMigration |
+| An answer that trusts for long takes the owner's passkey touched within five minutes; once, no and a revoke take none. | T7 | TestADecisionThatTrustsForLongTakesAPasskeyTouchedWithinFiveMinutes, TestRealBrowserTouchesThePasskeyForWhatTrustsForLong |
 
 ## Goals of screens
 

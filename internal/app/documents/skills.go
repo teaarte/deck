@@ -8,25 +8,26 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/skills"
 )
 
-// Skills returns the files of the named skills by path under the skill folder; a project skill hides a
-// workspace skill of the same name.
-func (s *Service) Skills(ctx context.Context, projectID int64, names []string) (map[string]string, error) {
+// Skills returns the files of the named skills by path under the skill folder, and project master, which holds the
+// mark of the workspace, when one is the workspace's; a project skill hides a workspace skill of the same name.
+func (s *Service) Skills(ctx context.Context, projectID int64, names []string) (map[string]string, []process.Source, error) {
 	if len(names) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 	p, err := s.St.Q.GetProject(ctx, projectID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rows, err := s.St.Q.ListSkillFiles(ctx, db.ListSkillFilesParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID)})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	has := map[string]bool{}
 	for _, r := range rows {
@@ -35,12 +36,14 @@ func (s *Service) Skills(ctx context.Context, projectID int64, names []string) (
 		}
 	}
 	out := map[string]string{}
+	workspace := false
 	for _, n := range names {
 		from := p.ID
 		if !has[fmt.Sprint(p.ID, "/", n)] {
 			if from = 0; !has[fmt.Sprint(0, "/", n)] {
-				return nil, registry.Invalid("skill %q is missing: no skills/%s/SKILL.md in the project or the workspace", n, n)
+				return nil, nil, registry.Invalid("skill %q is missing: no skills/%s/SKILL.md in the project or the workspace", n, n)
 			}
+			workspace = true
 		}
 		for _, r := range rows {
 			if r.ProjectID == from && docs.SkillOf(r.Name) == n {
@@ -48,7 +51,14 @@ func (s *Service) Skills(ctx context.Context, projectID int64, names []string) (
 			}
 		}
 	}
-	return out, nil
+	if !workspace {
+		return out, nil, nil
+	}
+	mp, err := access.Master(ctx, s.St.Q, p.WorkspaceID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return out, []process.Source{{As: "the skills of the workspace in", Project: mp.ID}}, nil
 }
 
 // SeedSkills ships the skills built into deck as skills of every workspace with docs.Ship; the master gets a note of

@@ -66,6 +66,8 @@ type Origin struct {
 	// Read is the untrusted text the first prompt of the process carries, as where it came from: the words of a
 	// marked process a topic retells.
 	Read string
+	// Carries are the pieces of its first prompt deck took from a process or a module.
+	Carries []Source
 	// again is the one run after Follows with the last call that came for its record while it ran.
 	again bool
 }
@@ -161,7 +163,7 @@ func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Man
 		if _, err := r.commandBody(ctx, projectID, cmd); err != nil {
 			return at, err
 		}
-		if _, err := r.deps.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
+		if _, _, err := r.deps.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
 			return at, err
 		}
 		if o.Session != "" {
@@ -408,13 +410,12 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 }
 
 // inherit marks a process with the untrusted text what it was given carries: the input of a marked process that
-// started it, the session of a marked process it goes on, files given with a message, a first prompt that retells one.
+// started it, what its first prompt carries, the session of a marked process it goes on,
+// files given with a message.
 func inherit(ctx context.Context, q *db.Queries, id int64, o Origin) error {
 	from := o.Read
-	if from == "" && o.Parent != 0 {
-		if p, err := q.GetProcess(ctx, o.Parent); err == nil && p.ReadUntrusted != "" {
-			from = fmt.Sprintf("the input of process %d, which read %s", p.ID, p.ReadUntrusted)
-		}
+	if from == "" {
+		from = carried(ctx, q, append([]Source{{As: "the input of", Process: o.Parent}}, o.Carries...)...)
 	}
 	if from == "" && o.Resume && o.Session != "" {
 		read, err := q.SessionRead(ctx, db.SessionReadParams{Session: o.Session, ID: id})

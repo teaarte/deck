@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -37,4 +38,49 @@ func (r *Runner) Read(ctx context.Context, id int64, from string) {
 	if err != nil {
 		slog.Error("mark a process", "process", id, "err", err)
 	}
+}
+
+// Source is a piece of what deck puts into a turn's prompt or input, by where it came from: the words of a process or
+// the data of a module.
+type Source struct {
+	// As is what of it the turn gets: "the input of", "the memory of".
+	As      string
+	Process int64
+	Project int64
+}
+
+// carried is where the untrusted text of the first of sources that holds some came from, empty for none.
+func carried(ctx context.Context, q *db.Queries, sources ...Source) string {
+	for _, s := range sources {
+		if s.Process != 0 {
+			if p, err := q.GetProcess(ctx, s.Process); err == nil && p.ReadUntrusted != "" {
+				return fmt.Sprintf("%s process %d, which read %s", s.As, p.ID, p.ReadUntrusted)
+			}
+		}
+		if s.Project != 0 {
+			if p, err := q.GetProject(ctx, s.Project); err == nil && p.Untrusted != "" {
+				return fmt.Sprintf("%s %s, where %s wrote", s.As, p.Name, p.Untrusted)
+			}
+		}
+	}
+	return ""
+}
+
+// Carries marks a process with the untrusted text the first of sources it is given holds.
+func (r *Runner) Carries(ctx context.Context, id int64, sources ...Source) {
+	err := r.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		return carries(ctx, q, id, sources...)
+	})
+	if err != nil {
+		slog.Error("mark a process", "process", id, "err", err)
+	}
+}
+
+// carries marks a process within a transaction by what sources hold.
+func carries(ctx context.Context, q *db.Queries, id int64, sources ...Source) error {
+	from := carried(ctx, q, sources...)
+	if from == "" {
+		return nil
+	}
+	return q.MarkProcessRead(ctx, db.MarkProcessReadParams{ReadUntrusted: untrusted.Cut(from, 500), ID: id})
 }

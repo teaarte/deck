@@ -488,3 +488,8 @@ and bring the modules in line.
   the owner's key: enabling the module no longer gives it, the owner's always to it takes the passkey, `rights_list`
   says it sends the body by its author's word (`exit: true`), and a marked turn calls it only by the owner's once.
   A tool that only reads by GET stays as it was.
+- 2026-11-13: what deck puts into a turn carries the mark of where it came from: a turn whose memory, lessons or
+  skills of the workspace come from a module marked as holding text from outside starts marked, and so does a
+  continuation of a marked process, a process sent back by a marked turn's remark and the master's turn told a note
+  that quotes a marked process. A write that names no module — the owner's memory, a skill or document of the
+  workspace — marks project master, which `project_trust` clears.

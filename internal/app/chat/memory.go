@@ -13,44 +13,57 @@ import (
 	"deck2/master"
 
 	"deck2/internal/docs"
+	"deck2/internal/process"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
 )
 
 // Memory is what a fresh session of a process gets of the memory, as data within docs.MemoryBudget: the owner's index
-// for an agent of the master, the index of its project (or of a topic's), then the lessons of its command.
-func (s *Service) Memory(ctx context.Context, p db.Process, again bool) (memory, lessons string, err error) {
+// for an agent of the master, the index of its project (or of a topic's), then the lessons of its command; and the
+// modules whose memory it is.
+func (s *Service) Memory(ctx context.Context, p db.Process, again bool) (memory, lessons string, from []process.Source, err error) {
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 	less, err := s.lessons(ctx, proj, p.Command)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 	if proj.Builtin == 1 {
 		topic, _ := topicOf(p)
-		memory, lessons, _, err = s.masterMemory(ctx, proj, topic, less, !again)
-		return memory, lessons, err
+		memory, lessons, _, from, err = s.masterMemory(ctx, proj, topic, less, !again)
+		return memory, lessons, from, err
 	}
 	own, _, err := s.memoryIndex(ctx, proj, "Memory index of project "+proj.Name)
 	if err != nil {
-		return "", "", err
+		return "", "", nil, err
 	}
 	out := s.fit(ctx, !again, own, less)
 	if out[0] != "" {
 		memory = master.Text("project_memory", struct{ Project, Index string }{proj.Name, out[0]})
 	}
-	return memory, out[1], nil
+	return memory, out[1], sources(out, own, less), nil
 }
 
-// masterMemory is the memory an agent of the master gets with the lessons of its command, and a sign that changes
-// when the memory does.
-func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64, less *part, count bool) (memory, lessons, sign string, err error) {
+// sources are the modules of the parts of the memory a turn gets, those fit gave something of.
+func sources(out []string, parts ...*part) []process.Source {
+	var from []process.Source
+	for i, p := range parts {
+		if p != nil && out[i] != "" {
+			from = append(from, process.Source{As: "the memory of", Project: p.project})
+		}
+	}
+	return from
+}
+
+// masterMemory is the memory an agent of the master gets with the lessons of its command, a sign that changes when the
+// memory does, and the modules whose memory it is.
+func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64, less *part, count bool) (memory, lessons, sign string, from []process.Source, err error) {
 	own, rev, err := s.memoryIndex(ctx, mp, "Memory index of the owner")
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", nil, err
 	}
 	var v struct{ Own, Project string }
 	sign = fmt.Sprint(rev)
@@ -59,13 +72,13 @@ func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64, 
 		var crev int64
 		idx, crev, err = s.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", which this topic is about (document_get with project "+cp.Name+")")
 		if err != nil {
-			return "", "", "", err
+			return "", "", "", nil, err
 		}
 		sign += fmt.Sprintf("/%d:%d", cp.ID, crev)
 	}
 	out := s.fit(ctx, count, own, idx, less)
 	v.Own, v.Project = out[0], out[1]
-	return master.Text("owner_memory", v), out[2], sign, nil
+	return master.Text("owner_memory", v), out[2], sign, sources(out, own, idx, less), nil
 }
 
 // topicProject is the project a topic is about, as the list of topics names it: that of the screen of its first
@@ -89,8 +102,10 @@ func (s *Service) topicProject(ctx context.Context, topic int64) (db.Project, bo
 // part is a piece of the memory a turn loads, as data: an index, or lessons with the documents they are.
 type part struct {
 	label, text, note string
-	lessons           []string
-	ids               []int64
+	// project is the module whose memory it is.
+	project int64
+	lessons []string
+	ids     []int64
 	// left is how many lessons were left out before the budget.
 	left int
 }
@@ -170,7 +185,7 @@ func (s *Service) memoryIndex(ctx context.Context, p db.Project, label string) (
 		return nil, row.N, err
 	}
 	start, cut := docs.CutIndex(row.Text)
-	return &part{label: label, text: start, note: cut}, row.N, nil
+	return &part{label: label, text: start, note: cut, project: p.ID}, row.N, nil
 }
 
 // lessonsMax is how many lessons of a command a turn of it gets at most.
@@ -200,7 +215,7 @@ func (s *Service) lessons(ctx context.Context, proj db.Project, command string) 
 		return nil, nil
 	}
 	slices.SortStableFunc(all, func(a, b lesson) int { return cmp.Or(b.times-a.times, strings.Compare(b.day, a.day)) })
-	p := &part{label: fmt.Sprintf("Lessons of command %s of project %s, the most confirmed first", command, proj.Name), lessons: []string{}}
+	p := &part{label: fmt.Sprintf("Lessons of command %s of project %s, the most confirmed first", command, proj.Name), lessons: []string{}, project: proj.ID}
 	for i, l := range all {
 		if i == lessonsMax {
 			p.left = len(all) - i

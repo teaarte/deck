@@ -59,7 +59,7 @@ func (q *Queries) ClaimDecision(ctx context.Context, arg ClaimDecisionParams) (i
 const closeOpenAsksOfProcess = `-- name: CloseOpenAsksOfProcess :many
 UPDATE ask SET state = 'expired', delivered_at = CAST(?1 AS TEXT)
 WHERE process_id = CAST(?2 AS INTEGER) AND state = 'open' AND kind != 'unknown'
-  AND (CAST(?3 AS INTEGER) = 1 OR kind != 'call')
+  AND (CAST(?3 AS INTEGER) = 1 OR kind != 'call' OR json_extract(payload, '$.as') IN ('turn', 'start'))
 RETURNING id, workspace_id, project_id, process_id, kind, text, payload, answer, state, created_at, answered_at, expires_at, delivered_at, unheard_at, shown_at
 `
 
@@ -69,6 +69,7 @@ type CloseOpenAsksOfProcessParams struct {
 	CallsToo  int64
 }
 
+// A request of the turn or of its start ends with the process; a frozen call outlives it unless calls_too.
 func (q *Queries) CloseOpenAsksOfProcess(ctx context.Context, arg CloseOpenAsksOfProcessParams) ([]Ask, error) {
 	rows, err := q.db.QueryContext(ctx, closeOpenAsksOfProcess, arg.Now, arg.ProcessID, arg.CallsToo)
 	if err != nil {

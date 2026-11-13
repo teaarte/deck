@@ -535,3 +535,40 @@ func TestAConfirmationShowsTheRecipientFirst(t *testing.T) {
 		})
 	}
 }
+
+// TestATurnRequestClosesWithItsProcess: a request of a call the agent's turn makes itself, or of a right its turn
+// needs to start, ends with its process, however the process ends; a later answer gives the dead process nothing.
+func TestATurnRequestClosesWithItsProcess(t *testing.T) {
+	t.Parallel()
+	for _, as := range []string{"turn", "start"} {
+		t.Run(as, func(t *testing.T) {
+			t.Parallel()
+			e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+				c.Approve(ctx, "Bash", map[string]any{"command": "rm -rf /tmp/x"})
+				return provider.Result{Text: "stopped"}
+			}), harness.WithConfig(func(c *app.Config) { c.ConfirmWait = 100 * time.Millisecond }))
+			var p struct{ ID int64 }
+			m := harness.IdeasManifest
+			if as == "start" {
+				m = harness.Declare(m, `{"right": "network", "who": "agent", "what": ["example.com"], "why": "reads the news"}`)
+			}
+			e.Must("deck.project_create", map[string]any{"name": "ideas", "manifest": m}, &p)
+			e.Names[p.ID] = "ideas"
+			id := e.Run(p.ID, "collect")
+			a := e.WaitAsk()
+			if as == "turn" {
+				e.WaitState(id, "waiting:answer")
+			}
+			if err := e.App.Runner.Cancel(context.Background(), id, "gone", false); err != nil {
+				t.Fatal(err)
+			}
+			e.WaitState(id, "stopped")
+			if got, _ := e.App.Store.Q.GetAsk(context.Background(), a.ID); got.State == "open" {
+				t.Fatalf("the request of a %s stays open after its process stopped: %+v", as, got)
+			}
+			if code, out := e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow_work"}); code == 200 {
+				t.Fatalf("an answer to the request of a stopped process is taken: %d %s", code, out)
+			}
+		})
+	}
+}

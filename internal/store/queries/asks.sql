@@ -66,9 +66,10 @@ ORDER BY a.id;
 
 
 -- name: CloseOpenAsksOfProcess :many
+-- A request of the turn or of its start ends with the process; a frozen call outlives it unless calls_too.
 UPDATE ask SET state = 'expired', delivered_at = CAST(sqlc.arg(now) AS TEXT)
 WHERE process_id = CAST(sqlc.arg(process_id) AS INTEGER) AND state = 'open' AND kind != 'unknown'
-  AND (CAST(sqlc.arg(calls_too) AS INTEGER) = 1 OR kind != 'call')
+  AND (CAST(sqlc.arg(calls_too) AS INTEGER) = 1 OR kind != 'call' OR json_extract(payload, '$.as') IN ('turn', 'start'))
 RETURNING *;
 
 

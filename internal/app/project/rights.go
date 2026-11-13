@@ -57,8 +57,9 @@ func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(stri
 				continue
 			}
 			seen[key] = true
-			v := rightView{Project: p.Name, Right: d.Right, Who: d.Whom(), Subject: subject, Why: d.Why, Declared: true, Exit: r.Exit || d.Whom() == manifest.Agents,
-				Says: manifest.Says(tr, d.Right, d.Who, []string{subject}), Key: m.Keyed(registry.Need{Right: d.Right, Who: d.Whom(), Subject: subject})}
+			n := registry.Need{Right: d.Right, Who: d.Whom(), Subject: subject}
+			v := rightView{Project: p.Name, Right: d.Right, Who: d.Whom(), Subject: subject, Why: d.Why, Declared: true, Exit: r.Exit || d.Whom() == manifest.Agents || m.Posts(n),
+				Says: m.SaysOn(tr, d.Right, d.Who, subject), Key: m.Keyed(n)}
 			if g, ok := answer(d.Right, d.Whom(), subject); ok {
 				v.Answer, v.At = g.Answer, g.CreatedAt
 			}
@@ -70,8 +71,9 @@ func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(stri
 			continue
 		}
 		r, _ := manifest.RightOf(g.Name)
-		out = append(out, rightView{Project: p.Name, Right: g.Name, Who: g.Who, Subject: g.Subject, Answer: g.Answer, At: g.CreatedAt, Exit: r.Exit,
-			Says: manifest.Says(tr, g.Name, g.Who, []string{g.Subject}), Key: m.Keyed(registry.Need{Right: g.Name, Who: g.Who, Subject: g.Subject})})
+		n := registry.Need{Right: g.Name, Who: g.Who, Subject: g.Subject}
+		out = append(out, rightView{Project: p.Name, Right: g.Name, Who: g.Who, Subject: g.Subject, Answer: g.Answer, At: g.CreatedAt, Exit: r.Exit || m.Posts(n),
+			Says: m.SaysOn(tr, g.Name, g.Who, g.Subject), Key: m.Keyed(n)})
 	}
 	return out
 }

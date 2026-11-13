@@ -261,7 +261,7 @@ func (m *Manifest) service(subject string) bool {
 }
 
 // Keyed says the owner's always to need takes a fresh passkey, so enabling the module does not give it: by the key of
-// its row of the catalog, wide on *, an agent's shell and data that is no own service nor deck's record of models and runs.
+// its row of the catalog, wide on *, an agent's shell, data that is no own service, nor runs or models, or that Posts.
 func (m *Manifest) Keyed(n registry.Need) bool {
 	r, ok := RightOf(n.Right)
 	switch {
@@ -272,8 +272,29 @@ func (m *Manifest) Keyed(n registry.Need) bool {
 	case n.Right == Network:
 		return whom(n.Right, n.Who) == Agents || n.Subject == "*"
 	}
+	if m.Posts(n) {
+		return true
+	}
 	_, rest, _ := strings.Cut(n.Subject, ":")
 	return !(m != nil && m.service(n.Subject)) && rest != "models" && rest != "runs"
+}
+
+// Posts says need is data on an HTTP tool of the module of a method other than GET or HEAD whose author names it a
+// read: it sends a request body with the owner's key.
+func (m *Manifest) Posts(n registry.Need) bool {
+	return m != nil && n.Right == Data && slices.ContainsFunc(m.Tools.HTTP, func(t HTTPTool) bool {
+		right, subject := ToolRight(t)
+		return t.Name == n.Subject && subject == n.Subject && right == Data && t.Method != "GET" && t.Method != "HEAD"
+	})
+}
+
+// SaysOn is what a right lets the module do on one subject, in deck's words translated by tr: a tool that posts says
+// it sends.
+func (m *Manifest) SaysOn(tr func(string) string, right, who, subject string) string {
+	if m.Posts(registry.Need{Right: right, Who: who, Subject: subject}) {
+		return fmt.Sprintf(tr(postSays), subject)
+	}
+	return Says(tr, right, who, []string{subject})
 }
 
 // RunUSD is the most a run spends on need of money by the owner's always: the least cap of the declarations that cover

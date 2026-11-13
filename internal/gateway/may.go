@@ -153,11 +153,13 @@ func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.C
 	return v, nil
 }
 
-// exit says a right is a way out whose subject the call chooses: not a network host its module names, nor the network
-// of the master when the owner lets it read the web marked.
+// exit says a right is a way out whose subject the call chooses, or data on a tool that sends a body: not a network host
+// its module names, nor the network of the master when the owner lets it read the web marked.
 func (g *Gateway) exit(ctx context.Context, act registry.Actor, m *manifest.Manifest, n registry.Need) bool {
 	r, _ := manifest.RightOf(n.Right)
 	switch {
+	case m.Posts(n):
+		return true
 	case !r.Exit:
 		return false
 	case n.Right != manifest.Network:

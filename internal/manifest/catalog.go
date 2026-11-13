@@ -61,10 +61,11 @@ var Catalog = []Right{
 }
 
 // agentSays is what a network right of the shells of agents lets a module do; localSays what one on the local network
-// of deck's machine lets its programs do.
+// of deck's machine lets its programs do; postSays what data on a tool of another method its author names a read does.
 const (
 	agentSays = "its agents reach %s on their own, so its data and folders may go there"
 	localSays = "its programs reach %s on your local network and may send its data there"
+	postSays  = "it reads your data: %s; it sends the request body there, only to read by its author's word"
 )
 
 // RightOf is the row of the catalog of a right; false for a name outside it.

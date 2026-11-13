@@ -484,3 +484,7 @@ and bring the modules in line.
 - 2026-11-13: an HTTP tool or MCP server of a module is its own service and never another module: `data` on
   `<tool>` or `<server>.<tool>` reads nothing of a module of that name, and a manifest whose tool or server with
   such a `data` right is named like another module of the workspace is refused on save (rename it).
+- 2026-11-13: an HTTP tool of POST, PUT, PATCH or DELETE whose `"right"` names `data` still sends a request body with
+  the owner's key: enabling the module no longer gives it, the owner's always to it takes the passkey, `rights_list`
+  says it sends the body by its author's word (`exit: true`), and a marked turn calls it only by the owner's once.
+  A tool that only reads by GET stays as it was.

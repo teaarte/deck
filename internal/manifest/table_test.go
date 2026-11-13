@@ -85,7 +85,8 @@ func TestCovers(t *testing.T) {
 }
 
 func TestKeyed(t *testing.T) {
-	m := &Manifest{Tools: Tools{HTTP: []HTTPTool{{Name: "mail", Method: "GET", URL: "https://mail.example/x"}}}}
+	m := &Manifest{Tools: Tools{HTTP: []HTTPTool{{Name: "mail", Method: "GET", URL: "https://mail.example/x"},
+		{Name: "search", Method: "POST", URL: "https://mail.example/s", Right: Data}}}}
 	for _, row := range []struct {
 		right, who, subject string
 		keyed               bool
@@ -102,6 +103,7 @@ func TestKeyed(t *testing.T) {
 		{Network, Agents, "*", true, "the whole internet in the shell of an agent"},
 		{Network, "", "192.168.1.0/24", false, "a named local network"},
 		{Data, "", "mail", false, "the module's own service, read with its key"},
+		{Data, "", "search", true, "a tool of another method its author names a read: it sends a body"},
 		{Data, "", "diary", true, "another module's data"},
 		{Data, "", "diary.entries", true, "a collection of another module"},
 		{Data, "", "diary/notes", true, "a document of another module"},

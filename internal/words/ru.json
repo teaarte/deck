@@ -278,6 +278,7 @@
   "its programs reach %s on your local network and may send its data there": "его программы ходят на %s в твоей локальной сети и могут выгружать туда его данные",
   "its agents work on your subscription login: %s": "его агенты работают на твоём входе по подписке: %s",
   "it reads your data: %s": "читает твои данные: %s",
+  "it reads your data: %s; it sends the request body there, only to read by its author's word": "читает твои данные: %s; отправляет туда тело запроса — по словам автора, только чтобы прочитать",
   "it uses on your machine: %s": "использует на твоей машине: %s",
   "it spends money through %s": "тратит деньги через %s",
   "it acts in your name: %s": "действует от твоего имени: %s",

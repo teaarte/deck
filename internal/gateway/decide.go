@@ -88,6 +88,8 @@ func decide(f Facts) Row {
 		return Row{"marked", DoAsk, "this turn read text from outside deck and holds something of value: a way out goes only with the owner's yes to this very call"}
 	case f.Over && f.Answer == "always" && !f.Pressed:
 		return Row{"over", DoAsk, "this run has spent the most its module declares per run of this money: a call beyond it goes only with the owner's yes to this very call"}
+	case f.Pressed && !f.Asked && (f.Marked && f.Exit || f.Over):
+		return Row{"pressed", made, "the owner's press named this very call"}
 	case f.Answer == "always" && !f.Asked && !f.Over:
 		return Row{"always", made, "the owner allows this right always"}
 	case f.Answer == Work && !f.Asked:

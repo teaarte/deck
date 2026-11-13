@@ -45,6 +45,8 @@ func Test_decide(t *testing.T) {
 		{with(declared, func(f *Facts) { f.Answer = "always"; f.Marked = true }), "always", DoRun, "a marked turn reads what it names"},
 		{with(declared, func(f *Facts) { f.Answer = "always"; f.Exit = true }), "always", DoRun, "a clean turn's way out, always"},
 		{with(declared, func(f *Facts) { f.Pressed = true; f.Marked = true; f.Exit = true }), "pressed", DoRun, "the owner's press past the mark"},
+		{with(declared, func(f *Facts) { f.Answer = "always"; f.Pressed = true; f.Marked = true; f.Exit = true }), "pressed", DoRun, "a press past the mark is taken, even under always"},
+		{with(declared, func(f *Facts) { f.Answer = Work; f.Pressed = true; f.Marked = true; f.Exit = true; f.Shown = true }), "pressed", DoShow, "a press past the mark is taken, even for the work"},
 		{with(declared, func(f *Facts) { f.Answer = "no"; f.Marked = true; f.Exit = true }), "denied", DoRefuse, "no stays no on a marked turn"},
 		{with(declared, func(f *Facts) { f.Marked = true; f.Exit = true }), "ask", DoAsk, "a marked turn, nothing answered: ask"},
 		{Facts{Needs: true, Cleared: true, Marked: true, Exit: true}, "cleared", DoRun, "the owner's once lets a marked call through"},

@@ -410,12 +410,12 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 }
 
 // inherit marks a process with the untrusted text what it was given carries: the input of a marked process that
-// started it, what its first prompt carries, the session of a marked process it goes on,
+// started it, the work of one it continues, what its first prompt carries, the session of a marked process it goes on,
 // files given with a message.
 func inherit(ctx context.Context, q *db.Queries, id int64, o Origin) error {
 	from := o.Read
 	if from == "" {
-		from = carried(ctx, q, append([]Source{{As: "the input of", Process: o.Parent}}, o.Carries...)...)
+		from = carried(ctx, q, append([]Source{{As: "the input of", Process: o.Parent}, {As: "the work it continues of", Process: o.Follows}}, o.Carries...)...)
 	}
 	if from == "" && o.Resume && o.Session != "" {
 		read, err := q.SessionRead(ctx, db.SessionReadParams{Session: o.Session, ID: id})

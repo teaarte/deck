@@ -167,9 +167,10 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	return decision{Behavior: "deny", Message: RejectMessage(answer)}
 }
 
-// turnVerdict decides a call of a tool of the agent's provider: deck's to answer, for the work of the turn or once.
+// turnVerdict decides a call of a tool of the agent's provider: deck's to answer, for the work of the turn or once; a
+// way out whose subject deck does not see.
 func (g *Gateway) turnVerdict(ctx context.Context, act registry.Actor, tool string, input json.RawMessage) Verdict {
-	v := Verdict{Facts: Facts{Needs: true, Declared: true, Draft: act.Trial}}
+	v := Verdict{Facts: Facts{Needs: true, Declared: true, Draft: act.Trial, Exit: true, Marked: g.marked(ctx, act)}}
 	allows, _ := g.allowsOf(ctx, act)
 	same := Canonical(input)
 	for _, a := range allows {
@@ -214,7 +215,11 @@ func (g *Gateway) taken(ctx context.Context, act registry.Actor, tool string, in
 func (g *Gateway) turnRequest(ctx context.Context, act registry.Actor, tool string, input json.RawMessage) (db.Ask, error) {
 	f := Freeze(act, tool, input)
 	f.As = AsTurn
-	if act.ProcessID != 0 && !act.Trial {
+	marked := false
+	if p, ok := g.turn(ctx, act); ok && Marked(p) {
+		marked, f.Read = true, untrusted.Cut(p.ReadUntrusted, 300)
+	}
+	if act.ProcessID != 0 && !act.Trial && !marked {
 		f.Offers = []string{Work}
 	}
 	same := Canonical(input)

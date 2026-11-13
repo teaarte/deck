@@ -1,5 +1,5 @@
 -- name: CreateToken :one
-INSERT INTO automation_token (workspace_id, name, hash, commands) VALUES (?, ?, ?, ?) RETURNING *;
+INSERT INTO automation_token (workspace_id, name, hash, commands, rights) VALUES (?, ?, ?, ?, ?) RETURNING *;
 
 
 -- name: FindTokenByHash :one

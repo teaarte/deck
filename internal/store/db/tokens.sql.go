@@ -10,7 +10,7 @@ import (
 )
 
 const createToken = `-- name: CreateToken :one
-INSERT INTO automation_token (workspace_id, name, hash, commands) VALUES (?, ?, ?, ?) RETURNING id, workspace_id, name, hash, commands, created_at, revoked_at, trusted
+INSERT INTO automation_token (workspace_id, name, hash, commands, rights) VALUES (?, ?, ?, ?, ?) RETURNING id, workspace_id, name, hash, commands, created_at, revoked_at, trusted, rights
 `
 
 type CreateTokenParams struct {
@@ -18,6 +18,7 @@ type CreateTokenParams struct {
 	Name        string
 	Hash        string
 	Commands    string
+	Rights      string
 }
 
 func (q *Queries) CreateToken(ctx context.Context, arg CreateTokenParams) (AutomationToken, error) {
@@ -26,6 +27,7 @@ func (q *Queries) CreateToken(ctx context.Context, arg CreateTokenParams) (Autom
 		arg.Name,
 		arg.Hash,
 		arg.Commands,
+		arg.Rights,
 	)
 	var i AutomationToken
 	err := row.Scan(
@@ -37,12 +39,13 @@ func (q *Queries) CreateToken(ctx context.Context, arg CreateTokenParams) (Autom
 		&i.CreatedAt,
 		&i.RevokedAt,
 		&i.Trusted,
+		&i.Rights,
 	)
 	return i, err
 }
 
 const findTokenByHash = `-- name: FindTokenByHash :one
-SELECT id, workspace_id, name, hash, commands, created_at, revoked_at, trusted FROM automation_token WHERE hash = ? AND revoked_at IS NULL
+SELECT id, workspace_id, name, hash, commands, created_at, revoked_at, trusted, rights FROM automation_token WHERE hash = ? AND revoked_at IS NULL
 `
 
 func (q *Queries) FindTokenByHash(ctx context.Context, hash string) (AutomationToken, error) {
@@ -57,12 +60,13 @@ func (q *Queries) FindTokenByHash(ctx context.Context, hash string) (AutomationT
 		&i.CreatedAt,
 		&i.RevokedAt,
 		&i.Trusted,
+		&i.Rights,
 	)
 	return i, err
 }
 
 const getToken = `-- name: GetToken :one
-SELECT id, workspace_id, name, hash, commands, created_at, revoked_at, trusted FROM automation_token WHERE id = ?
+SELECT id, workspace_id, name, hash, commands, created_at, revoked_at, trusted, rights FROM automation_token WHERE id = ?
 `
 
 func (q *Queries) GetToken(ctx context.Context, id int64) (AutomationToken, error) {
@@ -77,12 +81,13 @@ func (q *Queries) GetToken(ctx context.Context, id int64) (AutomationToken, erro
 		&i.CreatedAt,
 		&i.RevokedAt,
 		&i.Trusted,
+		&i.Rights,
 	)
 	return i, err
 }
 
 const listTokens = `-- name: ListTokens :many
-SELECT id, workspace_id, name, hash, commands, created_at, revoked_at, trusted FROM automation_token WHERE workspace_id = ? ORDER BY id
+SELECT id, workspace_id, name, hash, commands, created_at, revoked_at, trusted, rights FROM automation_token WHERE workspace_id = ? ORDER BY id
 `
 
 func (q *Queries) ListTokens(ctx context.Context, workspaceID int64) ([]AutomationToken, error) {
@@ -103,6 +108,7 @@ func (q *Queries) ListTokens(ctx context.Context, workspaceID int64) ([]Automati
 			&i.CreatedAt,
 			&i.RevokedAt,
 			&i.Trusted,
+			&i.Rights,
 		); err != nil {
 			return nil, err
 		}

@@ -37,8 +37,9 @@ type Session struct {
 	Trial     bool
 	// Run is the executor of a process that is not an agent turn, such as script.
 	Run string
-	// Token is set for an automation token: the caller calls what the master may, limited to Commands.
+	// Token is set for an automation token: the caller calls what the master may, limited to Commands and Scope.
 	Token int64
+	Scope registry.Scope
 	// Commands, when not nil, are all an automation token or an agent may call.
 	Commands []string
 	// Submit is set when the process hands in its result with result_submit.
@@ -58,7 +59,7 @@ type Session struct {
 
 func (s *Session) actor() registry.Actor {
 	if s.Token != 0 {
-		return registry.Actor{Kind: registry.Token, Workspace: s.Workspace, Token: s.Token, Commands: s.Commands}
+		return registry.Actor{Kind: registry.Token, Workspace: s.Workspace, Token: s.Token, Commands: s.Commands, Scope: s.Scope}
 	}
 	if s.Master {
 		return registry.Actor{Kind: registry.Master, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial,

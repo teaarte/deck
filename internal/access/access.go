@@ -74,17 +74,22 @@ func Owned[T any](ctx context.Context, q *db.Queries, act registry.Actor, row T,
 	return row, p, err
 }
 
-// Within refuses a confined actor another project.
+// Within refuses a confined actor another project, a token one its rights do not reach.
 func Within(act registry.Actor, projectID int64) error {
-	if !act.Within(projectID) {
-		return registry.Refuse("this process cannot touch another project")
+	switch {
+	case act.Within(projectID):
+		return nil
+	case act.Kind == registry.Token && act.Changes:
+		return registry.Refuse("this automation token changes only the modules its modules right names whole")
+	case act.Kind == registry.Token:
+		return registry.Refuse("this automation token holds no right on this module: the owner names the modules a token reaches in its data and modules")
 	}
-	return nil
+	return registry.Refuse("this process cannot touch another project")
 }
 
-// DocScope is where a document call works: a project, or the workspace for the owner side and a token.
+// DocScope is where a document call works: a project, or the workspace for the owner side and a token that reads it.
 func DocScope(ctx context.Context, q *db.Queries, act registry.Actor, project string) (docs.Scope, error) {
-	if project == "" && (act.OwnerSide() || act.Kind == registry.Token) {
+	if project == "" && (act.OwnerSide() || act.Kind == registry.Token && !act.Changes) {
 		return docs.Scope{Workspace: act.Workspace}, nil
 	}
 	p, err := Project(ctx, q, act, project)
@@ -106,6 +111,9 @@ func ReadProject(ctx context.Context, q *db.Queries, act registry.Actor, name, c
 
 // MayRead reports whether the actor may read a collection or document of p; both empty asks for the project.
 func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, collection, document string) error {
+	if act.Kind == registry.Token {
+		return unreached(act, p)
+	}
 	if strings.HasPrefix(document, docs.MemoryDir) && !act.Within(p.ID) {
 		return registry.Refuse("the memory of a project and project %s are for its own agents and the master only", master.Name)
 	}
@@ -134,6 +142,9 @@ func Reads(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project,
 	if act.Within(p.ID) || !act.Confined() {
 		return nil
 	}
+	if act.Kind == registry.Token {
+		return unreached(act, p)
+	}
 	if p.Builtin == 1 {
 		return registry.Refuse("project %s keeps the owner's memory and topics: it is for its own agents only", master.Name)
 	}
@@ -149,6 +160,14 @@ func Reads(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project,
 		return registry.Refuse("this module declares the right data on %s, but the owner has not granted it; they grant it in the module's settings, Access → Rights", subject)
 	}
 	return registry.Refuse("this module does not read %s: the right data in its manifest names what it may ask the owner to read, and it never writes to another module", subject)
+}
+
+// unreached refuses a token a project its rights do not reach.
+func unreached(act registry.Actor, p db.Project) error {
+	if act.Within(p.ID) {
+		return nil
+	}
+	return registry.Refuse("this automation token holds no right on module %s: the owner names the modules a token reads in its data and modules", p.Name)
 }
 
 // ReadModels resolves a project whose models' work a call reads, the caller's own when the name is empty: a confined

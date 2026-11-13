@@ -396,7 +396,7 @@
   "Language of the words, such as ru; English without one": "Язык слов, например ru; без него английский",
   "Stores a secret of a module for its tools (a header, or the whole URL of a private link) as a file only deck reads; no other module reads it.": "Хранит секрет модуля для его инструментов (заголовок или весь адрес закрытой ссылки) в файле, который читает только deck; другие модули его не читают.",
   "Writes a snapshot of the base, files and project data folders to backups; the newest seven stay.": "Записывает снимок базы, файлов и папок данных модулей в резервные копии; остаются семь последних.",
-  "Creates a token for a terminal agent, Shortcuts or a script; it acts as the master and may call only the listed commands.": "Создаёт токен для агента в терминале, Быстрых команд или скрипта; он действует как мастер и может вызывать только перечисленные команды.",
+  "Creates a token for a terminal agent, Shortcuts or a script, with the owner's fresh passkey: it calls the commands of deck it lists, reads the data of the modules data names, and calls the commands of the modules modules names, where deck's commands act for it too; no other module.": "Создаёт токен для агента в терминале, Быстрых команд или скрипта — с вашим ключом доступа: он вызывает перечисленные команды deck, читает данные модулей из data и вызывает команды модулей из modules, где за него действуют и команды deck; других модулей он не касается.",
   "Command of the project the assignment is for; the whole project without it": "Команда модуля, для которой назначение; без неё — весь модуль",
   "Names of models or built-in providers in order: the first, then the fallbacks; empty removes the assignment": "Модели по порядку: первая, затем запасные; пусто — убрать назначение",
   "One model to go first instead of models: the ones in force here before stay after it as fallbacks": "Одна модель первой вместо списка: прежние остаются после неё запасными",
@@ -585,7 +585,7 @@
   "Check programs": "Проверить программы",
   "Check provider": "Проверить модель",
   "Close a failed process": "Закрыть упавший процесс",
-  "Command names it may call; project.* or deck.* allow every command under the prefix": "Команды, которые он может вызывать; project.* или deck.* разрешают все команды с этим началом",
+  "Commands of deck it may call, as deck.records_list; deck.* every one": "Команды deck, которые он может вызывать, например deck.records_list; deck.* — все",
   "Delete collection records": "Удалить записи коллекции",
   "Delete document": "Удалить документ",
   "Delete file": "Удалить файл",
@@ -732,7 +732,7 @@
   "program %q that script %s needs is not on this machine; the owner installs it: %s": "программы %q, нужной скрипту %s, нет на этой машине; установите её: %s",
   "program %q of script %s is not on this machine": "программы %q скрипта %s нет на этой машине",
   "Look": "Оформление",
-  "A way in for Shortcuts or your scripts, to the commands it lists.": "Вход для Быстрых команд или ваших скриптов — только к командам, которые в нём перечислены.",
+  "A way in for Shortcuts or your scripts: to the commands of deck it lists, in the modules it names.": "Вход для Быстрых команд или ваших скриптов: к перечисленным командам deck — в названных модулях.",
   "All checks": "Все проверки",
   "Broken now": "Сломано сейчас",
   "Change the model": "Сменить модель",
@@ -1325,5 +1325,8 @@
   "you give it with your passkey": "даёте сами, с ключом доступа",
   "Allow always with your passkey": "Разрешать всегда — с ключом доступа",
   "deck: %s changes what deck trusts for long: confirm it with your passkey, then it goes": "deck: %s надолго меняет, чему доверяет deck: подтвердите ключом доступа, и вызов пройдёт",
-  "deck: %s changes what deck trusts for long, which only the owner does, with a passkey": "deck: %s надолго меняет, чему доверяет deck, — это делает только владелец, с ключом доступа"
+  "deck: %s changes what deck trusts for long, which only the owner does, with a passkey": "deck: %s надолго меняет, чему доверяет deck, — это делает только владелец, с ключом доступа",
+  "Modules whose data it reads through the commands of deck; * every module but the master": "Модули, данные которых он читает командами deck; * — все модули, кроме мастера",
+  "Modules whose commands it calls and where the commands of deck act for it, or one command of a module, as notes.add; * every module but the master": "Модули, команды которых он вызывает и в которых за него действуют команды deck, или одна команда модуля, например notes.add; * — все модули, кроме мастера",
+  "Reads the data of": "Читает данные"
 }

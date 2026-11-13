@@ -43,7 +43,9 @@ func (s *Service) rebind(ctx context.Context, f db.File, fromKind string, fromID
 }
 
 // writes says the actor writes the files of the projects it may touch: the master, or a process of its own project.
-func writes(act registry.Actor) bool { return act.Kind == registry.Master || act.Confined() }
+func writes(act registry.Actor) bool {
+	return act.Kind == registry.Master || act.Kind == registry.Agent || act.Kind == registry.Trigger
+}
 
 // fileDelete puts a stored file, or a file of a data folder, into the files.TrashKind, from where file_restore brings
 // it back for a day; the owner sees each one deleted without them among what was done without them.

@@ -72,7 +72,7 @@ type commandTryIn struct {
 }
 
 // commandTry starts a trial run of a project command: a call that is not internal is declined or, for a tool,
-// waits for the owner; a token that may try runs any project command this way, though not one closed to it.
+// waits for the owner; a token that may try runs this way a command of a module its rights let it change.
 func (s *Service) commandTry(ctx context.Context, act registry.Actor, in commandTryIn) (any, error) {
 	probe := act
 	probe.Kind, probe.Token, probe.Commands = act.As(), 0, nil
@@ -84,6 +84,9 @@ func (s *Service) commandTry(ctx context.Context, act registry.Actor, in command
 		return nil, registry.Invalid("only project commands have trial runs")
 	case c.Gate.Subject != nil:
 		return nil, registry.Invalid("%s is a tool, the call itself; only commands have trial runs", c.Name)
+	}
+	if err := access.Within(act, c.ProjectID); err != nil {
+		return nil, err
 	}
 	if err := s.liveTrial(ctx, c, in.Live); err != nil {
 		return nil, err

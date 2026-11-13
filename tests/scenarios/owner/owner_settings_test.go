@@ -211,15 +211,15 @@ func TestSettingsSecretsAndTokensShowOnlyNames(t *testing.T) {
 		Token      string
 		ClaudeCode string `json:"claude_code"`
 	}
-	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.owner_notify", "web.*"}}, &made)
+	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.owner_notify"}, "modules": []string{"web"}}, &made)
 	harness.WaitEvent(t, stream, events.Event{Topic: "devices"})
 	all, _ := json.Marshal([]any{e.Screen("", "settings", nil), e.Screen("mail", "settings", nil)})
 	if strings.Contains(string(all), "s3cret-value") || strings.Contains(string(all), made.Token) || !strings.Contains(made.ClaudeCode, made.Token) {
 		t.Fatalf("no secret value or token is on the screen after it was made: %s", all)
 	}
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Automation tokens", map[string]any{"topic": "devices"})["rows"])
-	if len(rows) != 1 || rows[0].Cells[0] != "shortcuts" || rows[0].Cells[2] != "deck.owner_notify, web.*" || rows[0].Cells[1] != "live" {
-		t.Fatalf("a token shows its name, commands and state: %+v", rows)
+	if len(rows) != 1 || rows[0].Cells[0] != "shortcuts" || rows[0].Cells[2] != "deck.owner_notify" || rows[0].Cells[3] != "web" || rows[0].Cells[1] != "live" {
+		t.Fatalf("a token shows its name, commands, modules and state: %+v", rows)
 	}
 	revoke := harness.Verb(t, rows[0].Actions, "revoke")
 	if revoke["confirm"] != true {

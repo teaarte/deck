@@ -221,14 +221,19 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	}
 	var pid int64
 	own := ""
-	if act.Confined() {
+	switch {
+	case act.Kind == registry.Token && in.Project == "":
+		// A token reads the models of the workspace, and the assignments of a module only one it names.
+	case act.Confined():
 		p, err := access.ReadModels(ctx, s.St.Q, act, in.Project)
 		if err != nil {
 			return out, err
 		}
 		pid, own = p.ID, p.Name
-	} else if pid, err = access.Filter(ctx, s.St.Q, act, in.Project); err != nil {
-		return out, err
+	default:
+		if pid, err = access.Filter(ctx, s.St.Q, act, in.Project); err != nil {
+			return out, err
+		}
 	}
 	for _, r := range rows {
 		if in.Project != "" && r.Project != in.Project {

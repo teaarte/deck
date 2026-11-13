@@ -12,7 +12,8 @@ const (
 	Master  = "master"
 	Agent   = "agent"
 	Trigger = "trigger"
-	// Token is a caller with an automation token: it calls what the master may, limited to its commands.
+	// Token is a caller with an automation token: it calls what the master may, limited to its commands and to the
+	// modules its rights reach.
 	Token = "token"
 )
 
@@ -28,8 +29,11 @@ type Actor struct {
 	TriggerID int64
 	// Confirmed marks a call of a trigger the owner asked for or said yes to: its schedule checks do not apply.
 	Confirmed bool
-	// Token is the automation token of a caller of kind Token.
+	// Token is the automation token of a caller of kind Token; Scope the modules its rights reach.
 	Token int64
+	Scope Scope
+	// Changes marks a call of a token that changes deck: it acts only in the modules its rights let it change.
+	Changes bool
 	// Commands narrow what a token or an agent whose command lists its calls may call.
 	Commands []string
 	// Trial marks a trial run: every call that is not internal is declined.
@@ -56,6 +60,13 @@ type Actor struct {
 	// cleared is the command the holder of the Clearance, the gateway, let through its class rules; a call the
 	// command makes with this actor is not cleared by it.
 	cleared string
+}
+
+// Scope is what an automation token reaches by its rights of deck's catalog: the projects whose data deck's reads give
+// it, and those where deck's other commands act for it.
+type Scope struct {
+	Reads []int64 `json:"reads,omitempty"`
+	Acts  []int64 `json:"acts,omitempty"`
 }
 
 // FreshKey is how long a touch of the owner's passkey lets the calls that take one through: one touch a batch.
@@ -91,8 +102,8 @@ func (r *Registry) Clearance() Clearance {
 	return Clearance{r: r}
 }
 
-// Confined is an actor that stays inside its own project: an agent or a trigger.
-func (a Actor) Confined() bool { return a.Kind == Agent || a.Kind == Trigger }
+// Confined is an actor that stays inside its own project, an agent or a trigger, or a token inside its modules.
+func (a Actor) Confined() bool { return a.Kind == Agent || a.Kind == Trigger || a.Kind == Token }
 
 // OwnerSide is the owner or the master, who work across the projects of the workspace; a token is not.
 func (a Actor) OwnerSide() bool { return slices.Contains(OwnerSide, a.Kind) }
@@ -110,8 +121,16 @@ func (a Actor) As() string {
 	return a.Kind
 }
 
-// Within reports whether the actor may touch a project.
-func (a Actor) Within(projectID int64) bool { return !a.Confined() || projectID == a.ProjectID }
+// Within reports whether the actor may touch a project: its own, or for a token one its rights reach.
+func (a Actor) Within(projectID int64) bool {
+	switch {
+	case a.Kind == Token && a.Changes:
+		return slices.Contains(a.Scope.Acts, projectID)
+	case a.Kind == Token:
+		return slices.Contains(a.Scope.Reads, projectID)
+	}
+	return !a.Confined() || projectID == a.ProjectID
+}
 
 // Author is the actor as recorded in document revisions.
 func (a Actor) Author() string {

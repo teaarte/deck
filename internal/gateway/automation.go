@@ -27,7 +27,7 @@ type automationEntry struct {
 // ServeAutomation serves the MCP entry of automation tokens to act, whom the token of the request is: it comes on
 // every request, so a revoked token is refused at once; a new session sees the commands of the moment.
 func (g *Gateway) ServeAutomation(w http.ResponseWriter, r *http.Request, act registry.Actor) {
-	s := &Session{Workspace: act.Workspace, Token: act.Token, Commands: act.Commands}
+	s := &Session{Workspace: act.Workspace, Token: act.Token, Commands: act.Commands, Scope: act.Scope}
 	e := g.automationEntry(act.Token)
 	if r.Method == http.MethodPost && r.Header.Get("Mcp-Session-Id") == "" {
 		e.mu.Lock()

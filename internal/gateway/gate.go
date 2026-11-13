@@ -24,18 +24,20 @@ type Waiting struct {
 
 // Caller is the actor of a frozen call, stored so deck can make the call later on its behalf.
 type Caller struct {
-	Kind      string   `json:"kind"`
-	Workspace int64    `json:"workspace"`
-	Project   int64    `json:"project,omitempty"`
-	Process   int64    `json:"process,omitempty"`
-	Trigger   int64    `json:"trigger,omitempty"`
-	Token     int64    `json:"token,omitempty"`
-	Commands  []string `json:"commands,omitempty"`
+	Kind      string         `json:"kind"`
+	Workspace int64          `json:"workspace"`
+	Project   int64          `json:"project,omitempty"`
+	Process   int64          `json:"process,omitempty"`
+	Trigger   int64          `json:"trigger,omitempty"`
+	Token     int64          `json:"token,omitempty"`
+	Commands  []string       `json:"commands,omitempty"`
+	Scope     registry.Scope `json:"scope,omitempty"`
 }
 
 // freeze keeps the actor of a call.
 func freeze(a registry.Actor) Caller {
-	return Caller{Kind: a.Kind, Workspace: a.Workspace, Project: a.ProjectID, Process: a.ProcessID, Trigger: a.TriggerID, Token: a.Token, Commands: a.Commands}
+	return Caller{Kind: a.Kind, Workspace: a.Workspace, Project: a.ProjectID, Process: a.ProcessID, Trigger: a.TriggerID, Token: a.Token,
+		Commands: a.Commands, Scope: a.Scope}
 }
 
 // frozenCaller is the actor of a call as the journal keeps it.
@@ -53,7 +55,7 @@ func (c Caller) actor() registry.Actor {
 		kind = registry.Token
 	}
 	return registry.Actor{Kind: kind, Workspace: c.Workspace, ProjectID: c.Project, ProcessID: c.Process,
-		TriggerID: c.Trigger, Confirmed: c.Trigger != 0, Token: c.Token, Commands: c.Commands}
+		TriggerID: c.Trigger, Confirmed: c.Trigger != 0, Token: c.Token, Commands: c.Commands, Scope: c.Scope}
 }
 
 // Frozen is a call with its parameters as they were when the owner was asked about it.

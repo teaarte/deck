@@ -460,3 +460,9 @@ and bring the modules in line.
   `network` of programs on named hosts, `files`, `data` of its own services and `:models`/`:runs`; `network` on `*`
   and the data of other modules the owner grants in Access → Rights. `rights_list` says `key` (the owner's always to
   the row takes a passkey) instead of `at_use`.
+- 2026-11-13: an automation token reaches modules by rights of the catalog: `token_create` takes `commands` (deck's
+  alone, `deck.*` every one), `data` (modules whose data deck's reads give it) and `modules` (a module whole: its
+  commands and deck's commands acting in it; `module.command`: that command alone); `*` is every module but the
+  master. A token reads nothing without a module named (`project is required`) and changes only modules named whole;
+  `tokens_list` gives `data` and `modules`. Tokens of before keep what they named: the commands of a module move to
+  `modules`, and one that called deck's commands reaches the modules it named whole, or every module when it named none.

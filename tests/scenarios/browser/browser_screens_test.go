@@ -216,7 +216,7 @@ func TestRealBrowserSettings(t *testing.T) {
 		i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return '' })()`)
 	b.eval(`(document.querySelector('[data-form="deck.token_create"] [data-submit]').click(), '')`)
 	b.until("the new token shown once under its form", `document.querySelector('[data-form="deck.token_create"] [data-outcome="done"]')?.innerText.includes('claude mcp add')`)
-	if got := b.eval(`[...document.querySelectorAll('[data-form="deck.token_create"] [data-field]')].map((x) => x.dataset.field).join(' ')`); got != "name commands" {
+	if got := b.eval(`[...document.querySelectorAll('[data-form="deck.token_create"] [data-field]')].map((x) => x.dataset.field).join(' ')`); got != "name commands data modules" {
 		t.Fatalf("a form asks in the order of the command's params: %s", got)
 	}
 	b.eval(`(document.querySelector('[data-dialog="token"] .mantine-Modal-close').click(), '')`)

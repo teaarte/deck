@@ -286,7 +286,9 @@
           ]},
         {"type": "dialog", "name": "token", "title": "Create a token", "icon": "ticket", "blocks": [
           {"type": "form", "command": "deck.token_create", "keep_open": true,
-            "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name"}, "value": "name"}}}]},
+            "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name", "where": "name startsWith 'deck.'"}, "value": "name"},
+              "data": {"source": {"from": "deck.projects_list", "sort": "name"}, "value": "name"},
+              "modules": {"source": {"from": "deck.projects_list", "sort": "name"}, "value": "name"}}}]},
         {"type": "table", "title": "Limits", "icon": "gauge", "source": {"from": "deck.settings_list", "where": "name != 'language' && name != 'push_text' && name != 'master_web'"},
           "description": "How much deck runs at once and how long it waits for you.",
           "columns": [
@@ -309,12 +311,14 @@
             {"verb": "turn_on", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "false"}, "when": "builtin && status == 'off'"}
           ]},
         {"type": "table", "title": "Automation tokens", "icon": "lock-access", "source": {"from": "deck.tokens_list", "sort": "-id"},
-          "description": "A way in for Shortcuts or your scripts, to the commands it lists.",
+          "description": "A way in for Shortcuts or your scripts: to the commands of deck it lists, in the modules it names.",
           "empty": "No tokens yet: make one for a script or a service outside deck that calls its commands",
           "columns": [
             {"label": "Name", "bind": "name"},
             {"label": "State", "bind": "revoked ? 'revoked' : 'live'", "format": "tag", "tone": "revoked ? 'muted' : 'ok'", "details": "'POST /api/commands/<command> with Authorization: Bearer <token>'"},
             {"label": "Commands", "bind": "join(commands, ', ')"},
+            {"label": "Modules", "bind": "join(modules, ', ')"},
+            {"label": "Reads the data of", "bind": "join(data, ', ')"},
             {"label": "What it writes", "bind": "trusted ? 'yours' : 'from outside'", "format": "tag", "tone": "trusted ? 'ok' : 'muted'"},
             {"label": "Created", "bind": "created_at", "format": "relative"}
           ],

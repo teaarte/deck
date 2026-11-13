@@ -18,6 +18,10 @@ import (
 // always, whose data may go to the network and whose agents no longer reach it, the text of a note to the owner.
 const Rights17 = "rights:format17"
 
+// RightsTokens is the mark of a workspace whose automation tokens migration 86 moved to rights of the catalog: the
+// modules each reaches now, the text of a note to the owner.
+const RightsTokens = "rights:tokens"
+
 // format17 raises the stored manifests and those of open asks to format 17, the rights of deck's catalog declared: what
 // worked is granted always, but the network in the shells of agents on a subscription login, which no turn has now.
 var format17 = goose.NewGoMigration(82, &goose.GoFunc{RunTx: toFormat17}, nil)

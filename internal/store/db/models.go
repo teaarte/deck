@@ -48,6 +48,7 @@ type AutomationToken struct {
 	CreatedAt   string
 	RevokedAt   sql.NullString
 	Trusted     int64
+	Rights      string
 }
 
 type ChatMessage struct {

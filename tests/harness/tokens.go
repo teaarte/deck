@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -23,14 +24,43 @@ func (b bearer) RoundTrip(r *http.Request) (*http.Response, error) {
 	return http.DefaultTransport.RoundTrip(r)
 }
 
-// Token creates an automation token as the owner and returns its id and text.
+// Token creates an automation token of names of commands as tokens were before their rights, as migration 86 moves
+// them: module names go to modules, whole with a command of deck, every module when it names none; its id and text.
 func (e *Env) Token(name string, commands ...string) (int64, string) {
+	e.T.Helper()
+	deck, modules := []string{}, []string{}
+	for _, c := range commands {
+		switch {
+		case c == "*":
+			deck = append(deck, "deck.*")
+		case strings.HasPrefix(c, "deck."):
+			deck = append(deck, c)
+		}
+	}
+	for _, c := range commands {
+		module, command, _ := strings.Cut(c, ".")
+		switch {
+		case c == "*" || module == "deck":
+		case len(deck) > 0 || command == "*":
+			modules = append(modules, module)
+		default:
+			modules = append(modules, c)
+		}
+	}
+	if len(deck) > 0 && len(modules) == 0 {
+		modules = []string{"*"}
+	}
+	return e.TokenWith(map[string]any{"name": name, "commands": deck, "modules": slices.Compact(modules)})
+}
+
+// TokenWith creates an automation token of an input of deck.token_create and returns its id and text.
+func (e *Env) TokenWith(in map[string]any) (int64, string) {
 	e.T.Helper()
 	var t struct {
 		ID    int64
 		Token string
 	}
-	e.Must("deck.token_create", map[string]any{"name": name, "commands": commands}, &t)
+	e.Must("deck.token_create", in, &t)
 	return t.ID, t.Token
 }
 

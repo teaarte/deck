@@ -139,7 +139,9 @@ Docker, that lends deck its local models and folders.
 **Signing in.** There is no password and no owner token. A device pairs once by a link of `deck pair` (or of Settings →
 Devices on a device already signed in, with a QR code for a phone) and makes a passkey; the link works once, within
 ten minutes. Settings → Devices lists every device and passkey: revoking a device signs out that browser alone,
-revoking a passkey every browser that used it.
+revoking a passkey every browser that used it. An answer that trusts for long — always to a serious right, enabling
+a draft, a new token, a link that pairs a device — takes a touch of the passkey within five minutes; once, no and a
+revoke take none. An automation token calls the commands of deck it lists, in the modules its rights name.
 
 **On this machine** deck is <http://deck.localhost:7700>: browsers treat `deck.localhost` as secure, so a passkey works
 there without https (tried in Chromium and Safari). That address opens only on the machine deck runs on.

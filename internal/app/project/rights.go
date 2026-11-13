@@ -302,9 +302,17 @@ func checkData(ctx context.Context, q *db.Queries, at db.Project, m *manifest.Ma
 	return nil
 }
 
-// tellRights writes once in the feed of the master of a workspace what format 17 did to the rights of its modules.
+// tellRights writes once in the feed of the master of a workspace what format 17 did to the rights of its modules and
+// migration 86 to its automation tokens.
 func (s *Service) tellRights(ctx context.Context, workspace int64) {
-	text, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: store.Rights17})
+	for _, mark := range []string{store.Rights17, store.RightsTokens} {
+		s.tell(ctx, workspace, mark)
+	}
+}
+
+// tell writes the text of a mark of a workspace once in the feed of its master.
+func (s *Service) tell(ctx context.Context, workspace int64, mark string) {
+	text, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: workspace, Name: mark})
 	if err != nil {
 		return
 	}
@@ -316,7 +324,7 @@ func (s *Service) tellRights(ctx context.Context, workspace int64) {
 		if err := store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: m.ID, Text: text}); err != nil {
 			return err
 		}
-		return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: workspace, Name: store.Rights17})
+		return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: workspace, Name: mark})
 	})
 	if err != nil {
 		slog.Error("tell the rights of format 17", "err", err)

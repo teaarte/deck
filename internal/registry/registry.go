@@ -575,6 +575,7 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 	if err := r.passkey(ctx, a, c, input); err != nil {
 		return nil, err
 	}
+	a.Changes = a.Kind == Token && !c.Reads()
 	return c.Handler(ctx, a, input)
 }
 

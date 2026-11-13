@@ -455,3 +455,43 @@ func TestTheTunnelOfAStoppedMCPServerCloses(t *testing.T) {
 		t.Fatalf("the tunnel of a stopped server closes: %v", err)
 	}
 }
+
+// TestARevokedNetworkStopsTheRunningServer: the owner's no or revoke to the network of a module stops its running
+// server, whose door still names the host, with no further call of its tools.
+func TestARevokedNetworkStopsTheRunningServer(t *testing.T) {
+	t.Parallel()
+	for _, answer := range []string{"revoke", "no"} {
+		t.Run(answer, func(t *testing.T) {
+			t.Parallel()
+			ln, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = ln.Close() })
+			conns := make(chan net.Conn, 1)
+			go func() {
+				if c, err := ln.Accept(); err == nil {
+					conns <- c
+				}
+			}()
+			addr := ln.Addr().String()
+			m := strings.Replace(harness.McpManifest(fmt.Sprintf(`, "rights": [{"right": "network", "what": [%q], "why": "reads it"}]`, addr)), `"tool": "fake.reach"}}]`,
+				`"tool": "fake.reach"}}, {"name": "hold", "title": "Hold", "description": "Holds a tunnel.",
+     "input": {"type": "object", "properties": {"addr": {"type": "string"}}, "required": ["addr"]},
+     "executor": {"type": "tool", "tool": "fake.hold"}}]`, 1)
+			m = strings.Replace(m, `"peek", "reach"], "right": {`, `"peek", "reach", "hold"], "right": {"hold": "network", `, 1)
+			e := harness.New(t)
+			e.Project("held", m)
+			if got := e.WaitState(e.Start("held", "hold", map[string]any{"addr": addr}), "done", "error"); !strings.Contains(string(got.Result), "held") {
+				t.Fatalf("the server opens a tunnel through deck's proxy: %s", got.Result)
+			}
+			c := harness.Receive(t, "the tunnel to reach the service", conns)
+			defer c.Close()
+			e.Must("deck.right_set", map[string]any{"project": "held", "right": "network", "subject": addr, "answer": answer}, nil)
+			_ = c.SetReadDeadline(time.Now().Add(harness.Within(10 * time.Second)))
+			if _, err := c.Read(make([]byte, 1)); err == nil || errors.Is(err, os.ErrDeadlineExceeded) {
+				t.Fatalf("the tunnel of a server whose network the owner took back closes: %v", err)
+			}
+		})
+	}
+}

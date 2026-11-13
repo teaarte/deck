@@ -15,6 +15,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/tools"
 	"deck2/internal/words"
 )
 
@@ -162,6 +163,12 @@ func (s *Service) rightSet(ctx context.Context, act registry.Actor, in rightSetI
 	})
 	if err != nil {
 		return nil, err
+	}
+	if in.Answer != manifest.Always && (n.Right == manifest.Network || n.Right == manifest.Files) {
+		// A running server keeps the box it started with: the next call starts it in the box of what is held now.
+		for name := range m.Tools.MCP.Servers {
+			s.StopServer(tools.ServerKey(p.ID, name))
+		}
 	}
 	return map[string]any{"ok": true}, nil
 }

@@ -498,3 +498,5 @@ and bring the modules in line.
   script). A model of the owner's machine, a free one and a subscription are not money.
 - 2026-11-14: calls of models of one run under `run_usd` go one at a time, each counted with what the ones before it
   cost: a script's parallel calls wait for each other, and the run spends no more than when it calls in a row.
+- 2026-11-14: the owner's no or revoke to `network` or `files` of a module stops its running MCP servers at once; the
+  next call of their tools starts them in the box of what the module holds then.

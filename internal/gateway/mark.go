@@ -16,6 +16,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
+	"deck2/master"
 )
 
 // turn is the process of an agent's turn or the master's a call is made for, now or later as a button of its note, which
@@ -117,11 +118,7 @@ func (g *Gateway) taint(ctx context.Context, act registry.Actor, c *registry.Com
 	default:
 		return
 	}
-	n := g.named(ctx, act.Workspace, c, input)
-	targets := n.projects
-	if len(targets) == 0 && project != 0 {
-		targets = []int64{project}
-	}
+	targets := g.written(ctx, act.Workspace, c, project, input)
 	err := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		for _, id := range targets {
 			if err := q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{Untrusted: untrusted.Cut(c.Name+" by "+from, 300), ID: id}); err != nil {
@@ -133,6 +130,22 @@ func (g *Gateway) taint(ctx context.Context, act registry.Actor, c *registry.Com
 	if err != nil {
 		slog.Error("mark the data of a module", "command", c.Name, "err", err)
 	}
+}
+
+// written are the modules whose data a call of c writes: those its input names, else its module, else the workspace,
+// whose mark project master holds with the owner's memory.
+func (g *Gateway) written(ctx context.Context, workspace int64, c *registry.Command, project int64, input json.RawMessage) []int64 {
+	if n := g.named(ctx, workspace, c, input); len(n.projects) > 0 {
+		return n.projects
+	}
+	if project != 0 {
+		return []int64{project}
+	}
+	m, err := g.st.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: master.Name})
+	if err != nil || m.Builtin == 0 {
+		return nil
+	}
+	return []int64{m.ID}
 }
 
 // dataFrom is where the untrusted text of the data a call reads came from, empty for none: of what its input names,

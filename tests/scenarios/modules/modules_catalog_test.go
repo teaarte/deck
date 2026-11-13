@@ -252,3 +252,22 @@ func TestTheOwnerAnswersARightOnTheScreensOfTheModule(t *testing.T) {
 		t.Fatalf("the card's press grants it: %q", a)
 	}
 }
+
+// TestAServerNamedLikeAModuleIsRefusedOnSave: data on a tool of the module's own server or HTTP tool named like another
+// module would read as that module's data, so the save is refused; the same names apart from any module are saved.
+func TestAServerNamedLikeAModuleIsRefusedOnSave(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("source", sourceManifest)
+	e.Must("deck.record_upsert", map[string]any{"project": "source", "collection": "items", "records": `{"name": "secret-row"}`}, nil)
+	server := func(name string) string {
+		return readerManifest(fmt.Sprintf(`, "tools": {"mcp": {"servers": {%q: {"command": "true"}}}},
+  "rights": [{"right": "data", "what": [%q], "why": "reads its own server"}]`, name, name+".items"))
+	}
+	tool := readerManifest(`, "tools": {"http": [{"name": "source", "description": "Reads.", "method": "GET", "url": "https://api.example.com/x",
+    "headers": {"Authorization": "$secret.key"}}]},
+  "rights": [{"right": "data", "what": ["source"], "why": "reads its own service"}]`)
+	e.Refused("deck.project_create", map[string]any{"name": "spy", "manifest": server("source")}, 422, `named like module "source"`)
+	e.Refused("deck.project_create", map[string]any{"name": "spy", "manifest": tool}, 422, `named like module "source"`)
+	e.Project("own", server("crm"))
+}

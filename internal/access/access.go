@@ -148,7 +148,10 @@ func mayRead(act registry.Actor, p db.Project, collection, document string, load
 	if err != nil {
 		return err
 	}
-	if p.Builtin == 0 && slices.ContainsFunc(m.Held(g, manifest.Data, ""), func(s string) bool { return s == "*" || manifest.Covers(manifest.Data, p.Name, s) }) {
+	others := m.Others()
+	if p.Builtin == 0 && slices.ContainsFunc(m.Held(g, manifest.Data, ""), func(s string) bool {
+		return slices.Contains(others, s) && (s == "*" || manifest.Covers(manifest.Data, p.Name, s))
+	}) {
 		return nil
 	}
 	return reads(act, p, p.Name, load)
@@ -171,7 +174,7 @@ func reads(act registry.Actor, p db.Project, subject string, load rights) error 
 		return err
 	}
 	switch {
-	case m.Holds(g, n):
+	case m.Reads(g, n):
 		return nil
 	case m.Declares(n):
 		return registry.Refuse("this module declares the right data on %s, but the owner has not granted it; they grant it in the module's settings, Access → Rights", subject)

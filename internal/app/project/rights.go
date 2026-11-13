@@ -260,12 +260,21 @@ func lines(vs []rightView, tr func(string) string) []string {
 }
 
 // checkData verifies what a manifest declares it reads of other modules: modules there are, their collections, never
-// the master's data or memory, every project only for its models and runs.
+// the master's data or memory, every project only for its models and runs; a service of its own named like no module.
 func checkData(ctx context.Context, q *db.Queries, at db.Project, m *manifest.Manifest) error {
 	if at.Builtin == 1 {
 		return nil
 	}
 	workspace, name := at.WorkspaceID, at.Name
+	for _, subject := range m.Services() {
+		tool, _, _ := strings.Cut(subject, ".")
+		if tool == name {
+			continue
+		}
+		if _, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: tool}); err == nil {
+			return registry.Invalid("rights: data on %s: its tool or server is named like module %q, whose data it would read as its own; rename the tool or server", subject, tool)
+		}
+	}
 	for _, subject := range m.Others() {
 		project, rest, _ := strings.Cut(subject, ":")
 		project, document, _ := strings.Cut(project, "/")

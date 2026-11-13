@@ -481,3 +481,6 @@ and bring the modules in line.
   command of a module that holds a way out always (`network` of programs, `send`, `money`, `modules`), or an agent
   command of one holding the network of its agents' shells, only by the owner's yes to that very call: the program
   would carry the turn's words out. A clean turn calls them as before; a press naming the call stays a yes.
+- 2026-11-13: an HTTP tool or MCP server of a module is its own service and never another module: `data` on
+  `<tool>` or `<server>.<tool>` reads nothing of a module of that name, and a manifest whose tool or server with
+  such a `data` right is named like another module of the workspace is refused on save (rename it).

@@ -64,13 +64,19 @@ func (m *Manifest) Names(n registry.Need) bool {
 }
 
 // Holds says the module holds need: a declared subject that covers it the owner answered always, to its print.
-func (m *Manifest) Holds(g Grants, n registry.Need) bool {
+func (m *Manifest) Holds(g Grants, n registry.Need) bool { return m.holds(g, n, func(string) bool { return false }) }
+
+// Reads says the module holds need of data of another module: Holds by a subject that is no service of its own, whose
+// name may be another module's.
+func (m *Manifest) Reads(g Grants, n registry.Need) bool { return m.holds(g, n, m.service) }
+
+func (m *Manifest) holds(g Grants, n registry.Need, skip func(string) bool) bool {
 	for _, d := range m.Rights {
 		if d.Right != n.Right || d.Whom() != whom(n.Right, n.Who) {
 			continue
 		}
 		for _, s := range d.What {
-			if Covers(n.Right, s, n.Subject) && slices.ContainsFunc(g, func(x Grant) bool { return x.gives(n, s) }) {
+			if !skip(s) && Covers(n.Right, s, n.Subject) && slices.ContainsFunc(g, func(x Grant) bool { return x.gives(n, s) }) {
 				return true
 			}
 		}
@@ -285,6 +291,11 @@ func (m *Manifest) RunUSD(n registry.Need) float64 {
 // Others are the data subjects of the module that are not its own services: other modules, memory, everything.
 func (m *Manifest) Others() []string {
 	return slices.DeleteFunc(m.DataOf(), m.service)
+}
+
+// Services are the data subjects of the module that are its own services, by the name of its tool or server.
+func (m *Manifest) Services() []string {
+	return slices.DeleteFunc(m.DataOf(), func(s string) bool { return !m.service(s) })
 }
 
 // checkRights warns of rights outside the catalog, subjects deck cannot read, an agent's network beside a login or

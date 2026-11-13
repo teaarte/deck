@@ -47,6 +47,10 @@ func Test_mayRead(t *testing.T) {
 	always := func(subject string) manifest.Grants {
 		return manifest.Grants{{Right: manifest.Data, Who: "", Subject: subject, Answer: manifest.Always}}
 	}
+	server := declares("diary.items")
+	server.Tools.MCP.Servers = map[string]manifest.MCPServer{"diary": {Command: "true"}}
+	tool := declares("diary")
+	tool.Tools.HTTP = []manifest.HTTPTool{{Name: "diary", Method: "GET", URL: "https://api.example.com/x"}}
 	broken := errors.New("no manifest")
 	for _, row := range []struct {
 		actor                registry.Actor
@@ -78,6 +82,10 @@ func Test_mayRead(t *testing.T) {
 		{agent, diary, "", "", declares("diary"), always("diary"), nil, true, "a module granted whole"},
 		{agent, diary, "", "", declares("diary.items"), always("diary.items"), nil, true, "a module one of whose collections is granted"},
 		{agent, diary, "", "", declares("notes2"), always("notes2"), nil, false, "a module granted another"},
+		{agent, diary, "items", "", server, always("diary.items"), nil, false, "a tool of its own server named like a module, granted"},
+		{agent, diary, "", "", server, always("diary.items"), nil, false, "a module through a tool of its own server named like it"},
+		{agent, diary, "items", "", tool, always("diary"), nil, false, "a collection through its own tool named like a module"},
+		{agent, diary, "", "", tool, always("diary"), nil, false, "a module through its own tool named like it"},
 		{agent, diary, "", "", nil, nil, broken, false, "a manifest that does not load"},
 		{agent, diary, "items", "", nil, nil, broken, false, "a manifest that does not load, a collection"},
 		{registry.Actor{Kind: registry.Token, Scope: registry.Scope{Reads: []int64{8}}}, diary, "items", "", nil, nil, nil, true, "a token reads a module its data names"},

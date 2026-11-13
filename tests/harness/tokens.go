@@ -119,5 +119,5 @@ func (e *Env) TokenRows() []string {
 // Sends makes a command of a test one that needs a right: send on itself, as a command of deck a module proposes.
 func Sends(c *registry.Command) *registry.Command {
 	c.Gate.Needs = gateway.Itself(c.Name, false)
-	return c
+	return c.Brings(registry.FromDeck)
 }

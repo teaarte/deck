@@ -52,11 +52,14 @@ type commandSpecView struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	// NeedsRight says a call may need a right of deck's catalog, so it may wait for the owner's answer.
-	NeedsRight bool            `json:"needs_right"`
-	Callers    []string        `json:"callers"`
-	Input      json.RawMessage `json:"input"`
-	Result     json.RawMessage `json:"result,omitempty"`
-	Executor   string          `json:"executor,omitempty"`
+	NeedsRight bool `json:"needs_right"`
+	// Brings is where the text a call gives a turn comes from: deck, the data it reads, or outside deck, which marks
+	// the turn.
+	Brings   string          `json:"brings,omitempty" enum:"deck|data|outside"`
+	Callers  []string        `json:"callers"`
+	Input    json.RawMessage `json:"input"`
+	Result   json.RawMessage `json:"result,omitempty"`
+	Executor string          `json:"executor,omitempty"`
 	provider.Work
 }
 
@@ -67,7 +70,7 @@ func (s *Service) commandDescribe(ctx context.Context, act registry.Actor, in co
 		return commandSpecView{}, err
 	}
 	out := commandSpecView{Name: c.Name, Title: c.Title, Description: c.Description, NeedsRight: c.Gated(), Callers: c.Callers,
-		Input: c.Input, Result: c.Result}
+		Input: c.Input, Result: c.Result, Brings: string(c.Gate.Brings)}
 	if c.of != nil {
 		out.Executor = c.of.Executor.Type
 		if out.Executor == "agent" || out.Executor == "model" {
@@ -230,7 +233,7 @@ func (s *Service) commandsListCommands() []*registry.Command {
 			registry.OwnerSide, s.commandsList).On(events.Projects, events.Tools, events.Assignments, events.Models, events.Triggers, events.Health, events.Documents).
 			Brief("name", "title", "description", "project", "files", "executor", "tool", "owner_only", "form", "form_params"),
 		registry.Read("command_describe", "Describe command",
-			"Gives the parameters of any command of the workspace, also of one only the owner calls, such as the forms of Settings: its input and result schemas, class and callers; of an agent or a model command also the model of its work, the models it could take (choices, choice_groups) and the price.",
+			"Gives the parameters of any command of the workspace, also of one only the owner calls, such as the forms of Settings: its input and result schemas, callers and where the text it gives a turn comes from (brings); of an agent or a model command also the model of its work, the models it could take (choices, choice_groups) and the price.",
 			registry.OwnerSide, s.commandDescribe).On(events.Projects, events.Documents, events.Assignments, events.Models, events.Health),
 	}
 }

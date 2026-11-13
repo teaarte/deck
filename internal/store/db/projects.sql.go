@@ -9,8 +9,25 @@ import (
 	"context"
 )
 
+const clearProjectUntrusted = `-- name: ClearProjectUntrusted :execrows
+UPDATE project SET untrusted = '' WHERE id = ? AND workspace_id = ? AND untrusted != ''
+`
+
+type ClearProjectUntrustedParams struct {
+	ID          int64
+	WorkspaceID int64
+}
+
+func (q *Queries) ClearProjectUntrusted(ctx context.Context, arg ClearProjectUntrustedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, clearProjectUntrusted, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const createProject = `-- name: CreateProject :one
-INSERT INTO project (workspace_id, name, status) VALUES (?, ?, ?) RETURNING id, workspace_id, name, status, paused, builtin, created_at, imported_from
+INSERT INTO project (workspace_id, name, status) VALUES (?, ?, ?) RETURNING id, workspace_id, name, status, paused, builtin, created_at, imported_from, untrusted
 `
 
 type CreateProjectParams struct {
@@ -31,6 +48,7 @@ func (q *Queries) CreateProject(ctx context.Context, arg CreateProjectParams) (P
 		&i.Builtin,
 		&i.CreatedAt,
 		&i.ImportedFrom,
+		&i.Untrusted,
 	)
 	return i, err
 }
@@ -56,8 +74,26 @@ func (q *Queries) DeleteProjectFiles(ctx context.Context, projectID int64) error
 	return err
 }
 
+const firstUntrustedProject = `-- name: FirstUntrustedProject :one
+SELECT id, name, untrusted FROM project WHERE workspace_id = ? AND untrusted != '' ORDER BY id LIMIT 1
+`
+
+type FirstUntrustedProjectRow struct {
+	ID        int64
+	Name      string
+	Untrusted string
+}
+
+// The first project of a workspace whose data holds untrusted text.
+func (q *Queries) FirstUntrustedProject(ctx context.Context, workspaceID int64) (FirstUntrustedProjectRow, error) {
+	row := q.db.QueryRowContext(ctx, firstUntrustedProject, workspaceID)
+	var i FirstUntrustedProjectRow
+	err := row.Scan(&i.ID, &i.Name, &i.Untrusted)
+	return i, err
+}
+
 const getProject = `-- name: GetProject :one
-SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from FROM project WHERE id = ?
+SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from, untrusted FROM project WHERE id = ?
 `
 
 func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
@@ -72,12 +108,13 @@ func (q *Queries) GetProject(ctx context.Context, id int64) (Project, error) {
 		&i.Builtin,
 		&i.CreatedAt,
 		&i.ImportedFrom,
+		&i.Untrusted,
 	)
 	return i, err
 }
 
 const getProjectByName = `-- name: GetProjectByName :one
-SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from FROM project WHERE workspace_id = ? AND name = ?
+SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from, untrusted FROM project WHERE workspace_id = ? AND name = ?
 `
 
 type GetProjectByNameParams struct {
@@ -97,12 +134,13 @@ func (q *Queries) GetProjectByName(ctx context.Context, arg GetProjectByNamePara
 		&i.Builtin,
 		&i.CreatedAt,
 		&i.ImportedFrom,
+		&i.Untrusted,
 	)
 	return i, err
 }
 
 const listProjects = `-- name: ListProjects :many
-SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from FROM project ORDER BY name
+SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from, untrusted FROM project ORDER BY name
 `
 
 func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
@@ -123,6 +161,7 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 			&i.Builtin,
 			&i.CreatedAt,
 			&i.ImportedFrom,
+			&i.Untrusted,
 		); err != nil {
 			return nil, err
 		}
@@ -138,7 +177,7 @@ func (q *Queries) ListProjects(ctx context.Context) ([]Project, error) {
 }
 
 const listWorkspaceProjects = `-- name: ListWorkspaceProjects :many
-SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from FROM project WHERE workspace_id = ? ORDER BY name
+SELECT id, workspace_id, name, status, paused, builtin, created_at, imported_from, untrusted FROM project WHERE workspace_id = ? ORDER BY name
 `
 
 func (q *Queries) ListWorkspaceProjects(ctx context.Context, workspaceID int64) ([]Project, error) {
@@ -159,6 +198,7 @@ func (q *Queries) ListWorkspaceProjects(ctx context.Context, workspaceID int64) 
 			&i.Builtin,
 			&i.CreatedAt,
 			&i.ImportedFrom,
+			&i.Untrusted,
 		); err != nil {
 			return nil, err
 		}
@@ -198,6 +238,21 @@ func (q *Queries) ListWorkspaces(ctx context.Context) ([]int64, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const markProjectUntrusted = `-- name: MarkProjectUntrusted :exec
+UPDATE project SET untrusted = ? WHERE id = ? AND untrusted = ''
+`
+
+type MarkProjectUntrustedParams struct {
+	Untrusted string
+	ID        int64
+}
+
+// The data of a project holds untrusted text: what wrote it, the first that marked it.
+func (q *Queries) MarkProjectUntrusted(ctx context.Context, arg MarkProjectUntrustedParams) error {
+	_, err := q.db.ExecContext(ctx, markProjectUntrusted, arg.Untrusted, arg.ID)
+	return err
 }
 
 const setImportedFrom = `-- name: SetImportedFrom :exec

@@ -161,7 +161,7 @@ func (s *Service) deletable(ctx context.Context, q *db.Queries, act registry.Act
 func (s *Service) projectDeleteCommands() []*registry.Command {
 	del := registry.Def("project_delete", "Delete project",
 		"Deletes a project after a snapshot of it (the master deletes only drafts): its records, documents, files, triggers, processes and settings; folders on disk stay.",
-		registry.OwnerSide, s.projectDelete)
+		registry.OwnerSide, s.projectDelete).Brings(registry.FromDeck)
 	del.Gate.Needs = s.draftOfMaster
 	return []*registry.Command{del}
 }

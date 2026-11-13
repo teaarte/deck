@@ -475,3 +475,24 @@ UPDATE process SET
   result = CASE WHEN length(result) > 1000 AND result NOT LIKE '{"cut":%' THEN json_object('cut', substr(result, 1, 500)) ELSE result END
 WHERE finished_at IS NOT NULL AND finished_at < CAST(sqlc.arg(before) AS TEXT)
   AND (length(input) > 1000 AND input NOT LIKE '{"cut":%' OR length(result) > 1000 AND result NOT LIKE '{"cut":%');
+
+
+-- name: MarkProcessRead :exec
+-- A process read untrusted text: what and from where, the first that marked it.
+UPDATE process SET read_untrusted = ? WHERE id = ? AND read_untrusted = '';
+
+
+-- name: SetProcessValued :exec
+UPDATE process SET holds_valued = 1 WHERE id = ? AND holds_valued = 0;
+
+
+-- name: SessionRead :one
+-- What untrusted text a process of the same session read, which the session keeps.
+SELECT CAST(coalesce(max(read_untrusted), '') AS TEXT) FROM process
+WHERE session_id = sqlc.arg(session) AND session_id != '' AND read_untrusted != '' AND id != sqlc.arg(id);
+
+
+-- name: TopicRead :one
+-- A process with untrusted text whose words a topic holds, and what it read.
+SELECT p.id, p.read_untrusted FROM chat_message m JOIN process p ON p.id = m.process_id
+WHERE m.topic_id = ? AND m.process_id != 0 AND p.read_untrusted != '' ORDER BY m.id LIMIT 1;

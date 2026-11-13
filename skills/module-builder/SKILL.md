@@ -631,6 +631,13 @@ Each "yes" the owner gives by habit is a failure of the module. What waits is a 
 answered always, and questions the agent asks. Count what will wait in a normal week: a tool that only reads names
 `"right": "data"` or `"network"`; a draft or an unpublished post is still `send`, and the hand-over asks for always.
 
+An agent turn that read text from outside deck — a page, an answer of a tool or an MCP server, the browser, data of a
+module that holds such text — and holds something of value (the module's data, a subscription login) acts outside
+only with the owner's yes to each call: `send`, `money`, `modules` and `network` on `*` wait for a once, whatever
+the owner answered always; a host the module names stays as answered. So keep reading apart from acting: a script
+fetches the pages, or a reader — an agent command whose `calls` are only `deck.web_search` and `deck.web_fetch` —
+reads them and holds nothing of value; the agent that acts reads only its records.
+
 ## 8. Build, import, try
 
 1. Write the module as a folder: `manifest.json`, `prompt.md` (its first line is the one-line description

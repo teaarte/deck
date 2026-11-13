@@ -242,5 +242,5 @@ func result(res *mcp.CallToolResult) string {
 func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{registry.Def("screen_capture", "Screen shot",
 		"Draws a screen of deck's client in deck's own browser under the caller's rights, as a computer or a phone, light or dark, in a theme to try; answers the picture as a file of the calling process (file, and path to read it) and ms, how long the screen took to draw, with error when it failed.",
-		registry.OwnerSide, s.shot).Stays()}
+		registry.OwnerSide, s.shot).Brings(registry.FromData).Stays()}
 }

@@ -478,6 +478,6 @@ func (s *Service) listCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("models_list", "Models",
 			"Lists the connections models are reached through, the models with their kind and price, the models that could do each kind of work, and which models do which work.",
-			registry.Everyone, s.modelsList).On(events.Models, events.Assignments, events.Projects, events.Health, events.Settings),
+			registry.Everyone, s.modelsList).Brings(registry.FromDeck).On(events.Models, events.Assignments, events.Projects, events.Health, events.Settings),
 	}
 }

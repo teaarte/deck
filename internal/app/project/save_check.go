@@ -96,6 +96,6 @@ func (s *Service) saveCheckCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("manifest_check", "Check manifest",
 			"Checks a manifest without saving it, as a save would: what a save refuses, what it warns of, the rights it declares the owner has not granted, the screens that fail on the data there is now and the texts without a translation; of a project, or alone, such as one from an old .zip.",
-			registry.OwnerSide, s.check).On(registry.Static),
+			registry.OwnerSide, s.check).Brings(registry.FromDeck).On(registry.Static),
 	}
 }

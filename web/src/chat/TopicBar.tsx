@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActionIcon, Button, Combobox, Group, Menu, Select, Stack, Text, Tooltip } from '@mantine/core';
-import { IconActivity, IconCheck, IconCpu, IconMessage, IconPlus, IconStack2 } from '@tabler/icons-react';
+import { IconActivity, IconCheck, IconCpu, IconMessage, IconPlus, IconStack2, IconWorldExclamation } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatData } from './chatData';
 import { notifyError } from '../lib/notify';
@@ -99,6 +99,13 @@ export function TopicBar({ value, topics, model, setModel }: {
           : <TopicLine topic={topics.topicOf(option.value)} label={option.label} checked={!!checked} icon={topics.iconOf(topics.topicOf(option.value)?.project)} />}
         searchable nothingFoundMessage={t('No topics')} maxDropdownHeight={420}
         comboboxProps={{ width: 340, position: 'bottom-start', styles: { dropdown: { maxWidth: 'calc(100vw - 16px)' } } }} />
+      {picked?.read && (
+        <Tooltip label={t('Its replies read text from outside: {{from}}', { from: picked.read })} multiline maw={320}>
+          <ActionIcon variant="subtle" color="orange" size={28} aria-label={t('Its replies read text from outside: {{from}}', { from: picked.read })} data-topic-read>
+            <IconWorldExclamation size={15} />
+          </ActionIcon>
+        </Tooltip>
+      )}
       {(value.models?.length ?? 0) > 0 && (
         <Menu position="bottom-end" shadow="md" withinPortal>
           <Tooltip label={`${t('Model of this topic')}: ${shown}`}>

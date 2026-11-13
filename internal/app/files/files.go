@@ -267,6 +267,6 @@ func (s *Service) filesCommands() []*registry.Command {
 			registry.Everyone, s.filesList).On(events.Files),
 		registry.Def("file_upload", "Upload file",
 			"Uploads a file for a project from base64 text and returns its id for a command input.",
-			registry.OwnerSide, s.fileUpload).Stays(),
+			registry.OwnerSide, s.fileUpload).Brings(registry.FromDeck).Stays(),
 	}
 }

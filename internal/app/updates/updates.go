@@ -415,7 +415,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("version_get", "Version of deck",
 			"Gives the version, commit and build of deck, the latest release deck found and whether it is newer.",
-			registry.OwnerSide, s.version).On(events.Health),
+			registry.OwnerSide, s.version).Brings(registry.FromDeck).On(events.Health),
 		registry.Def("update_check", "Look for an update",
 			"Reads the latest release of deck now and tells the owner when it is newer.",
 			registry.OwnerOnly, s.checkNow).Stays(),

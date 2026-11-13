@@ -316,5 +316,27 @@ func (s *Service) rightsCommands() []*registry.Command {
 		registry.Def("right_set", "Answer a right",
 			"Keeps the owner's answer to a right of a module on one subject: always, so it uses it without asking; no, so it does not and does not ask; or revoke, so it asks again when it next needs it.",
 			registry.OwnerOnly, s.rightSet).Stays(),
+		registry.Def("project_trust", "Trust the data of a module",
+			"Takes off a module the mark that its data holds text from outside deck, once the owner checked it: turns that read its data are no longer marked for it. A turn marked already stays marked.",
+			registry.OwnerOnly, s.projectTrust).Stays(),
 	}
+}
+
+type projectTrustIn struct {
+	Project string `type:"project" desc:"The module whose data the owner checked"`
+}
+
+// projectTrust takes off a module the mark of untrusted text in its data, which only the owner does.
+func (s *Service) projectTrust(ctx context.Context, act registry.Actor, in projectTrustIn) (any, error) {
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
+	if err != nil {
+		return nil, err
+	}
+	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		return q.ClearProjectUntrusted(ctx, db.ClearProjectUntrustedParams{ID: p.ID, WorkspaceID: p.WorkspaceID})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"ok": true, "unchanged": n == 0}, nil
 }

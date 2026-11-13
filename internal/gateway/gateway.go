@@ -81,6 +81,8 @@ type Config struct {
 	Progress time.Duration
 	// Go runs work beside the calls unless deck stops.
 	Go func(func(context.Context)) bool
+	// MarkedWeb says the owner lets the master read the web by its right of always on a turn that read untrusted text.
+	MarkedWeb func(ctx context.Context, workspace int64) bool
 }
 
 // Deps are what the gateway works with.

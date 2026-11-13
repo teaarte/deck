@@ -115,8 +115,8 @@ func TestANoOfTheOwnerIsKeptAndANoBecauseIsNot(t *testing.T) {
 	}
 }
 
-// TestTheAnswerForTheWorkHoldsInItsProcessAlone: the owner's yes for the work of a process lets its later calls of the
-// same right through, shown after; another process asks again.
+// TestTheAnswerForTheWorkHoldsInItsProcessAlone: the owner's yes for the work of a process is kept for it alone; the
+// answer of the service its call read marks the turn, so its next call asks once, and another process asks.
 func TestTheAnswerForTheWorkHoldsInItsProcessAlone(t *testing.T) {
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{}`) })
@@ -147,22 +147,24 @@ func TestTheAnswerForTheWorkHoldsInItsProcessAlone(t *testing.T) {
 		t.Fatalf("a call of a process offers the answer for its work: %+v", rows[0].Actions)
 	}
 	e.Answer(a.ID, "allow_work")
-	e.WaitState(id, "done")
-	if n := len(svc.Requests()); n != 2 {
-		t.Fatalf("the allowed call and the later one of the same process go: %d requests", n)
+	e.WaitState(id, "waiting:answer")
+	var again []struct {
+		Process int64
+		Work    string
+		Change  string
 	}
-	mu.Lock()
-	for k, out := range got {
-		if strings.HasPrefix(k, "second") && strings.Contains(out, "waiting") {
-			t.Fatalf("the later call of the process does not wait: %s", out)
-		}
+	e.Until("the marked turn's next call to ask", func() bool {
+		e.Must("deck.asks_list", nil, &again)
+		return len(again) == 1 && again[0].Process == id
+	})
+	if again[0].Work != "" || !strings.Contains(again[0].Change, "It read from outside deck") {
+		t.Fatalf("a turn that read the service's answer is asked once, without the answer for the work: %+v", again)
 	}
-	mu.Unlock()
-	var feed []struct{ Text string }
-	e.Must("deck.feed_list", map[string]any{"kind": "change"}, &feed)
-	if len(feed) == 0 || !strings.Contains(feed[0].Text, "made without you") {
-		t.Fatalf("a call made on the answer for the work is shown after: %+v", feed)
+	if n := len(svc.Requests()); n != 1 {
+		t.Fatalf("only the allowed call went: %d requests", n)
 	}
+	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
+	e.WaitState(id, "stopped")
 	e.Run(p, "work")
 	if a := e.WaitAsk(); a.Process == id {
 		t.Fatalf("another process asks again: %+v", a)

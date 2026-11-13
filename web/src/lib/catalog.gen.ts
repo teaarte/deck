@@ -276,6 +276,10 @@ export interface Topic {
    * of a busy topic: when the first of them began
    */
   since?: string;
+  /**
+   * the text from outside deck its words carry, where from: its replies are marked by it
+   */
+  read?: string;
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema

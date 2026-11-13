@@ -71,6 +71,8 @@ func Read[In, Out any](name, title, desc string, callers []string, h func(ctx co
 	})
 	c.Result, _ = json.Marshal(resultSchema(reflect.TypeFor[Out]()))
 	c.Readable, c.stays = true, true
+	// A read gives the data of deck it reads, unless it declares it gives only deck's words.
+	c.Gate.Brings = FromData
 	if slices.ContainsFunc(c.params, func(p Param) bool { return p.Name == "fields" }) {
 		return c
 	}

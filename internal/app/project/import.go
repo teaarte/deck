@@ -255,7 +255,7 @@ func (s *Service) importCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_import", "Import module",
 			"Creates a draft project from a module folder, from a .zip of one, or from a starter module deck ships: manifest.json, prompt.md and the other files by their document names; the result names what it needs to work.",
-			registry.OwnerSide, s.projectImport).Stays(),
+			registry.OwnerSide, s.projectImport).Brings(registry.FromDeck).Stays(),
 	}
 }
 

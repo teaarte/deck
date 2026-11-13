@@ -61,8 +61,9 @@ func (h *HTTP) Command(p db.Project, t manifest.HTTPTool, domains []string) *reg
 		Needs: func(context.Context, registry.Actor, registry.Subject, json.RawMessage) ([]registry.Need, error) {
 			return []registry.Need{need}, nil
 		},
-		Undo: undoOf(p.Name, t.Undo),
-		Term: time.Duration(t.ConfirmTTLMinutes) * time.Minute}
+		Undo:   undoOf(p.Name, t.Undo),
+		Term:   time.Duration(t.ConfirmTTLMinutes) * time.Minute,
+		Brings: registry.FromOutside}
 	return c
 }
 

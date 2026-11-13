@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -12,6 +13,7 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -41,6 +43,11 @@ func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.C
 	f.Cleared = act.Cleared(c.Name)
 	if !c.Gated() || f.Owner {
 		f.Needs = c.Gated()
+		// A marked turn changes what an enabled module runs only with the owner's yes to the change.
+		if !f.Owner && !f.Cleared && c.Gate.Subject != nil && g.marked(ctx, act) {
+			v.Subject = c.Gate.Subject(ctx, registry.At{Workspace: act.Workspace, Project: project, Look: look}, input)
+			f.Marked, f.Instructs = true, v.Subject.Instructs
+		}
 		v.Row = decide(*f)
 		return v, nil
 	}
@@ -82,10 +89,14 @@ func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.C
 	if err != nil {
 		return v, err
 	}
+	turn, live := g.turn(ctx, act)
+	f.Marked = live && Marked(turn)
 	pick := -1
 	for i, n := range needs {
 		f.Asked = f.Asked || n.Asked
-		declared := !own || m.Declares(n)
+		// The network a command of deck reaches for a module, as a page it reads, is the module's own right.
+		mine := own || registry.IsBuiltin(c.Name) && n.Right == manifest.Network && m != nil
+		declared := !mine || m.Declares(n)
 		if !declared {
 			continue
 		}
@@ -93,7 +104,7 @@ func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.C
 		answer := ""
 		switch {
 		case project == 0:
-		case m.Holds(granted, n) || !own && granted.Gives(n):
+		case m.Holds(granted, n) || !mine && granted.Gives(n):
 			answer = manifest.Always
 		case granted.Denies(n):
 			answer = manifest.No
@@ -112,11 +123,27 @@ func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.C
 	// An answer is kept for a right on a subject, never for deck's own command a module proposes.
 	v.kept = project != 0 && n.Subject != "" && !n.Asked && f.Declared && !(registry.IsBuiltin(c.Name) && n.Subject == c.Name)
 	f.Pressed = slices.ContainsFunc(allows, func(a Allow) bool { return a.names(c, input) })
+	f.Exit = g.exit(ctx, act, m, n)
 	// What a module does outside deck in the owner's name, what deck can take back and what a press made are shown after.
 	outside := (n.Right == manifest.Send || n.Right == manifest.Modules) && !(registry.IsBuiltin(c.Name) && n.Subject == c.Name)
 	f.Shown = outside || c.Gate.Undo != nil || f.Pressed
 	v.Row = decide(*f)
 	return v, nil
+}
+
+// exit says a right is a way out whose subject the call chooses: not a network host its module names, nor the network
+// of the master when the owner lets it read the web marked.
+func (g *Gateway) exit(ctx context.Context, act registry.Actor, m *manifest.Manifest, n registry.Need) bool {
+	r, _ := manifest.RightOf(n.Right)
+	switch {
+	case !r.Exit:
+		return false
+	case n.Right != manifest.Network:
+		return true
+	case m != nil && m.Names(n):
+		return false
+	}
+	return !(act.Kind == registry.Master && g.cfg.MarkedWeb != nil && g.cfg.MarkedWeb(ctx, act.Workspace))
 }
 
 // rank orders the answers to the needs of one call: always over work over nothing over no.
@@ -198,6 +225,12 @@ func (g *Gateway) made(ctx context.Context, act registry.Actor, c *registry.Comm
 	out, err := g.reg.Invoke(context.WithValue(ctx, ownLineKey{}, &own), act, c.Name, input)
 	if err == nil {
 		g.wrote(ctx, act, c)
+		g.taint(ctx, act, c, project, input, v)
+	}
+	// A failure of a call that reached out may carry the words of what answered.
+	var failed *fault.F
+	if err == nil || c.Gate.Brings == registry.FromOutside && errors.As(err, &failed) {
+		g.brought(ctx, act, c, project, input)
 	}
 	if !own {
 		outcome, text := "done", ""
@@ -245,6 +278,12 @@ func (g *Gateway) request(ctx context.Context, act registry.Actor, c *registry.C
 	f := Freeze(act, c.Name, input)
 	f.Tool, f.Target, f.Changes, f.Sets, f.Reason, f.Need = v.Subject.Print, v.Subject.Where, v.Subject.Changes, v.Subject.Sets, why, v.Need
 	f.Offers = offers(act, v)
+	marked := v.Facts.Marked && (v.Facts.Exit || v.Facts.Instructs)
+	if marked {
+		if p, ok := g.turn(ctx, act); ok {
+			f.Read = untrusted.Cut(p.ReadUntrusted, 300)
+		}
+	}
 	process := act.ProcessID
 	if act.Kind == registry.Trigger {
 		process = 0
@@ -289,6 +328,11 @@ func (g *Gateway) request(ctx context.Context, act registry.Actor, c *registry.C
 		}
 	}
 	g.wrote(ctx, act, c)
+	if marked {
+		return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s waits for the owner's yes to this very call (ask %d): this turn read text from outside deck (%s) and holds something of value, "+
+			"so its ways out and its changes of what an enabled module runs go only with the owner's yes to each, whatever the owner allowed always. It was not made yet. Go on with other work, and do not ask the owner about it: "+
+			"once they answer, deck makes exactly this call if allowed and tells you the result.", c.Name, a.ID, f.Read), Link: ask.Link(a.ID)}, nil
+	}
 	return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s needs a right the owner has not given this module, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
 		"Go on with other work, and do not ask the owner about it: once they answer, deck makes exactly this call if allowed and tells you the result.", c.Name, a.ID), Link: ask.Link(a.ID)}, nil
 }
@@ -297,11 +341,15 @@ func (g *Gateway) request(ctx context.Context, act registry.Actor, c *registry.C
 // is kept.
 func offers(act registry.Actor, v Verdict) []string {
 	var out []string
-	if act.ProcessID != 0 && !v.Facts.Draft && v.Need != nil && !v.Need.Asked {
+	marked := v.Facts.Marked && v.Facts.Exit
+	if act.ProcessID != 0 && !v.Facts.Draft && v.Need != nil && !v.Need.Asked && !marked {
 		out = append(out, Work)
 	}
+	if v.kept && !v.Facts.Draft && !marked {
+		out = append(out, manifest.Always)
+	}
 	if v.kept && !v.Facts.Draft {
-		out = append(out, manifest.Always, manifest.No)
+		out = append(out, manifest.No)
 	}
 	return out
 }

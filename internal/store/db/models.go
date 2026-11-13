@@ -47,6 +47,7 @@ type AutomationToken struct {
 	Commands    string
 	CreatedAt   string
 	RevokedAt   sql.NullString
+	Trusted     int64
 }
 
 type ChatMessage struct {
@@ -353,6 +354,8 @@ type Process struct {
 	WaitReason       string
 	WaitOn           string
 	WaitSilence      string
+	ReadUntrusted    string
+	HoldsValued      int64
 }
 
 type ProcessRead struct {
@@ -379,6 +382,7 @@ type Project struct {
 	Builtin      int64
 	CreatedAt    string
 	ImportedFrom string
+	Untrusted    string
 }
 
 type ProjectFolder struct {

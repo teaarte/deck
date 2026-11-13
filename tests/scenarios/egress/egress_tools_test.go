@@ -503,18 +503,18 @@ func TestSecretEchoedByAServiceNeverReachesTheAgent(t *testing.T) {
 	var mu sync.Mutex
 	var outs []string
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		for range 2 {
-			out, _ := c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
-			mu.Lock()
-			outs = append(outs, out)
-			mu.Unlock()
-		}
+		out, _ := c.Tool(ctx, "notes__post", map[string]any{"id": "a", "text": "hi"})
+		mu.Lock()
+		outs = append(outs, out)
+		mu.Unlock()
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}))
 
 	p := e.Project("notes", harness.Declared(harness.PostManifest(svc.URL, "")))
 	e.Grant("notes", "send", "post")
 	e.Secret("notes", "svc", key)
+	// A turn that read the service's answer posts again only by the owner's once: each post is a run of its own.
+	e.WaitState(e.Run(p, "work"), "done")
 	id := e.Run(p, "work")
 	e.WaitState(id, "done")
 	mu.Lock()

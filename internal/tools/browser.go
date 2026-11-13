@@ -162,7 +162,7 @@ func (b *Browser) build(list []*mcp.Tool) {
 		}
 		input, _ := json.Marshal(t.InputSchema)
 		c := registry.Loose(registry.Deck(t.Name), t.Name, t.Description, []string{registry.Agent}, input,
-			b.reader(t.Name)).Foreign()
+			b.reader(t.Name)).Foreign().Brings(registry.FromOutside)
 		if !act {
 			c.Stays()
 		} else {

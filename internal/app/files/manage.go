@@ -211,7 +211,7 @@ func (s *Service) manageCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("file_delete", "Delete file",
 			"Deletes a stored file, or with project and path a file of the data folder of a project; file_restore brings it back for a day. Besides the owner, the master and a process of the project delete the files of its records and of its data folder, and a process the files its own run made, such as a draft it made again; the owner sees each with an undo. A folder is deleted file by file.",
-			registry.Everyone, s.fileDelete).Stays(),
+			registry.Everyone, s.fileDelete).Brings(registry.FromDeck).Stays(),
 		registry.Def("file_restore", "Bring file back",
 			"Brings a deleted file back to what it belonged to, or to its place in the data folder.",
 			registry.OwnerOnly, s.fileRestore).Stays(),

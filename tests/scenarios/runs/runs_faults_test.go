@@ -341,7 +341,7 @@ func TestABaseWithTheTriggersOfTheFeedJoinsItsNotesInDeck(t *testing.T) {
 	// A base an older deck left, before the notes joined in deck.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 75`)
 	// Nor had its topics a language.
-	e.SQL(`ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence; DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''; ALTER TABLE tool_call RENAME COLUMN need TO class; ALTER TABLE ask DROP COLUMN shown_at`)
+	e.SQL(`ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence; DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''; ALTER TABLE tool_call RENAME COLUMN need TO class; ALTER TABLE ask DROP COLUMN shown_at; ALTER TABLE process DROP COLUMN read_untrusted; ALTER TABLE process DROP COLUMN holds_valued; ALTER TABLE project DROP COLUMN untrusted; ALTER TABLE automation_token DROP COLUMN trusted`)
 	// Its trigger joined deck's same unread note.
 	e.SQL(`CREATE TRIGGER feed_repeat BEFORE INSERT ON feed
 WHEN NEW.author = 'deck' AND NEW.kind = 'note' AND NEW.for_master = 0 AND EXISTS (SELECT 1 FROM feed f

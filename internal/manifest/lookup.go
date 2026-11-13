@@ -60,6 +60,20 @@ func (c *Command) Callable() []string {
 	return c.Callers
 }
 
+// WebOnly says the command is a reader of the web: an agent whose calls are only deck's search and page reads, in no
+// folder, which holds nothing of its module.
+func (c *Command) WebOnly() bool {
+	if c.Executor.Type != "agent" || len(c.Executor.Calls) == 0 || !c.Executor.Folder.IsZero() {
+		return false
+	}
+	for _, n := range c.Executor.Calls {
+		if n != registry.Deck("web_search") && n != registry.Deck("web_fetch") {
+			return false
+		}
+	}
+	return true
+}
+
 // writing are deck's commands an agent changes records, documents or files with.
 var writing = []string{"record_upsert", "record_update", "record_delete", "document_save", "document_delete",
 	"file_upload", "file_delete"}

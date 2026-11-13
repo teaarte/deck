@@ -49,6 +49,8 @@ var settingDefs = []settingDef{
 		def: func(*Service) any { return "auto" }},
 	{name: "push_text", title: "What a push shows on a locked screen", options: []string{"full", "hidden"},
 		def: func(*Service) any { return "full" }},
+	{name: "master_web", title: "Pages the master reads after it read text from outside: it asks you for each, or reads them by its right", options: []string{"ask", "always"},
+		def: func(*Service) any { return "ask" }},
 }
 
 // setting is the value of a setting of a workspace, its default when the owner set none.
@@ -80,6 +82,11 @@ func (s *Service) PushHidden(ctx context.Context, workspace int64) bool {
 // AgentSlots is how many agent turns the workspace runs at once.
 func (s *Service) AgentSlots(ctx context.Context, workspace int64) int {
 	return int(s.setting(ctx, workspace, "agent_limit").(int64))
+}
+
+// MarkedWeb says the owner lets the master read pages by its right of always on a turn that read text from outside.
+func (s *Service) MarkedWeb(ctx context.Context, workspace int64) bool {
+	return s.setting(ctx, workspace, "master_web") == "always"
 }
 
 // ConfirmTTL is how long a confirmation of the workspace waits for the owner unless its tool sets its own.
@@ -195,7 +202,7 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("settings_list", "Settings",
 			"Lists the settings of the workspace with their values and defaults.",
-			registry.OwnerSide, s.settingsList).On(events.Settings),
+			registry.OwnerSide, s.settingsList).Brings(registry.FromDeck).On(events.Settings),
 		registry.Def("setting_set", "Change setting",
 			"Sets one setting of the workspace to a value.",
 			registry.OwnerOnly, s.settingsSet).Stays().

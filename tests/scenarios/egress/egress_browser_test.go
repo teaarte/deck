@@ -24,10 +24,18 @@ func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
 	e.Project("web", harness.Many(harness.BrowserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`)))
 	e.Grant("web", "send", "shop.example")
 
-	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/cart"), harness.Click("e2"))), "done")
+	// A turn that read a page acts by the owner's once: the click comes in a turn of its own, on the page it is on.
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/cart"))), "done")
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Click("e2"))), "done")
 	if got := ag.Last(2); got[0].IsErr || got[1].IsErr || !slices.Contains(harness.FakeLog(e.Browser), "click:https://shop.example/cart") {
 		t.Fatalf("a click on a site the owner lets it act on runs at once: %+v %v", got, harness.FakeLog(e.Browser))
 	}
+	id := e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/cart"), harness.Click("e7")))
+	e.WaitState(id, "waiting:answer")
+	if got := ag.Last(1)[0]; !strings.Contains(got.Out, "read text from outside deck") {
+		t.Fatalf("a click after the turn read the page waits for the owner's once: %+v", got)
+	}
+	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 	if slices.Contains(ag.Tools, "mcp__deck__browser_run_code_unsafe") || !slices.Contains(ag.Tools, "mcp__deck__browser_click") {
 		t.Fatalf("the agent gets the browser tools but never the one that runs code: %v", ag.Tools)
 	}
@@ -47,7 +55,7 @@ func TestBrowserReadsAnywhereListedAndActsOnlyOnActDomains(t *testing.T) {
 		t.Fatalf("a page off the domains is not opened: %+v", got)
 	}
 
-	id := e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/a"), harness.Click("e2")))
+	id = e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/a"), harness.Click("e2")))
 	e.WaitState(id, "waiting:answer")
 	if got := ag.Last(1)[0]; !strings.Contains(got.Out, `"waiting"`) || slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/a") {
 		t.Fatalf("a click on a read domain waits for the owner: %+v", got)
@@ -76,7 +84,9 @@ func TestBrowserReadsAnySiteWithAStarAndSendsOnlyOwnFiles(t *testing.T) {
 	e.Grant("web", "send", "jobs.example")
 	// A documentation address stands for a site on the internet.
 	egress.AsPublic("198.51.100.7:443")
-	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://198.51.100.7/x"), harness.Nav("https://jobs.example/apply"),
+	// A turn that read a page acts by the owner's once: the uploads come in a turn of their own.
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://198.51.100.7/x"), harness.Nav("https://jobs.example/apply"))), "done")
+	e.WaitState(e.Start("web", "browse", harness.Steps(
 		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"/etc/passwd"}}},
 		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/cv.pdf"}}})), "done")
 	got := ag.Last(4)
@@ -96,7 +106,9 @@ func TestBrowserSendsNoFileALinkPointsOutOfTheFolder(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(ag.Script))
 	e.Project("web", harness.BrowserManifest(`{"read": ["jobs.example"], "act": ["jobs.example"]}`))
 	e.Grant("web", "send", "jobs.example")
-	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://jobs.example/apply"),
+	// A turn that read a page acts by the owner's once: the uploads come in a turn of their own.
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://jobs.example/apply"))), "done")
+	e.WaitState(e.Start("web", "browse", harness.Steps(
 		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/cv-link.pdf"}}},
 		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/out/secret.pdf"}}},
 		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/cv.pdf"}}})), "done")
@@ -180,7 +192,9 @@ func TestBrowserWithholdsPagesOffTheDomainsAndSurvivesALostAction(t *testing.T) 
 	e.Project("web", harness.Many(harness.BrowserManifest(`{"read": ["news.example"], "act": ["shop.example"]}`)))
 	e.Grant("web", "send", "shop.example")
 	_ = os.WriteFile(filepath.Join(e.Browser, "goto"), []byte("https://bank.example/account"), 0o600)
-	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/"), harness.Click("e1"), harness.Step{Tool: "browser_snapshot", Args: map[string]any{}})), "done")
+	// A turn that read a page acts by the owner's once: the click comes in a turn of its own.
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/"))), "done")
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Click("e1"), harness.Step{Tool: "browser_snapshot", Args: map[string]any{}})), "done")
 	got := ag.Last(2)
 	if got[0].IsErr || !strings.Contains(got[0].Out, "withheld") || strings.Contains(got[0].Out, "Page URL") {
 		t.Fatalf("an action that lands off the domains does not show the page: %+v", got[0])
@@ -190,7 +204,8 @@ func TestBrowserWithholdsPagesOffTheDomainsAndSurvivesALostAction(t *testing.T) 
 	}
 
 	_ = os.WriteFile(filepath.Join(e.Browser, "goto"), []byte("crash"), 0o600)
-	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/"), harness.Click("e1"))), "done", "waiting:answer")
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://shop.example/"))), "done")
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Click("e1"))), "done", "waiting:answer")
 	if c := ag.Last(1)[0]; !c.IsErr || !strings.Contains(c.Out, "outcome is unknown") {
 		t.Fatalf("an action the browser died in has an unknown outcome: %+v", c)
 	}
@@ -263,7 +278,9 @@ func TestAllowingABrowserActionAlwaysAllowsItsSite(t *testing.T) {
 	ag := &harness.SeqAgent{}
 	e := harness.New(t, harness.WithAgent(ag.Script))
 	e.Project("web", harness.BrowserManifest(`{"read": ["news.example", "other.example"], "act": ["shop.example"]}`))
-	id := e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/a"), harness.Click("e2")))
+	// A turn that read a page acts by the owner's once: the click comes in a turn of its own, on the page it is on.
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/a"))), "done")
+	id := e.Start("web", "browse", harness.Steps(harness.Click("e2")))
 	e.Answer(e.WaitAsk().ID, "allow_always")
 	e.WaitState(id, "done")
 	var rows []struct{ Right, Subject, Answer string }
@@ -272,7 +289,8 @@ func TestAllowingABrowserActionAlwaysAllowsItsSite(t *testing.T) {
 		!slices.Contains(rows, struct{ Right, Subject, Answer string }{"send", "news.example", "always"}) {
 		t.Fatalf("allow always on a browser action clicks and keeps acting on the site as the owner's answer: %v\n%+v", harness.FakeLog(e.Browser), rows)
 	}
-	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/b"), harness.Click("e3"))), "done")
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://news.example/b"))), "done")
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Click("e3"))), "done")
 	if !slices.Contains(harness.FakeLog(e.Browser), "click:https://news.example/b") {
 		t.Fatalf("from then on the site takes actions without asking: %v", harness.FakeLog(e.Browser))
 	}

@@ -152,6 +152,10 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		r.mu.Unlock()
 	}
 	a := &agentTurn{proj: proj, dir: r.runDir(t.process), data: r.cfg.Home.Data(t.project)}
+	if t.cmd.WebOnly() {
+		// A reader of the web holds nothing of its module: it works in the folder of its results.
+		a.data = r.cfg.Home.Results(t.process)
+	}
 	work, repo := r.cfg.Home.RunWork(t.process), false
 	if t.folder != "" {
 		work = t.folder
@@ -192,10 +196,11 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	a.cleanup = func() { u.close(r) }
 	read := r.deps.Folders(ctx, t.project, node)
 	var box sandbox.Box
+	_, login := pv.(provider.Subscribed)
 	if now, granted, err := docs.Rights(ctx, r.st.Q, t.project); err == nil {
-		_, login := pv.(provider.Subscribed)
 		box = boxes.For(sandbox.KindAgent, now, append(granted, t.work...), login, read)
 	}
+	r.know(ctx, t.process, box.Hosts, login || len(box.Hosts) == 0 && !t.cmd.WebOnly())
 	processID := t.process
 	a.req = provider.Request{
 		Project: t.project, Cwd: work, Repo: repo, Folder: t.folder != "", Prompt: t.message, ResultSchema: t.cmd.Result,

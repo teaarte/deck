@@ -5,8 +5,8 @@ var exceptions = map[string][]string{
 	"now": {
 		"internal/app/asks/process_asks.go:80", "internal/app/asks/process_asks.go:84",
 		"internal/app/asks/process_asks.go:86", "internal/app/config.go:61", "internal/app/files/thumbs.go:31",
-		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:325",
-		"internal/app/processes/processes.go:329", "internal/app/processes/processes.go:322",
+		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:330",
+		"internal/app/processes/processes.go:334", "internal/app/processes/processes.go:327",
 		"internal/models/hops.go:200", "internal/models/hops.go:210",
 		"internal/models/meter.go:23", "internal/models/meter.go:32",
 		"internal/provider/acp/acp.go:189",
@@ -53,9 +53,9 @@ var exceptions = map[string][]string{
 		"internal/files/light.go:43", "internal/files/light.go:57", "internal/home/home.go:134",
 		"internal/models/hops.go:357", "internal/node/hub.go:262", "internal/tools/body.go:99",
 		"internal/tools/browser.go:291", "internal/tools/content.go:35", "internal/tools/content.go:37",
-		"internal/tools/content.go:92", "internal/tools/http.go:184", "internal/tools/http.go:189",
-		"internal/tools/http.go:199", "internal/tools/http.go:192", "internal/tools/http.go:207",
-		"internal/tools/http.go:104", "internal/tools/oauth.go:167", "internal/tools/oauth.go:171",
+		"internal/tools/content.go:92", "internal/tools/http.go:185", "internal/tools/http.go:190",
+		"internal/tools/http.go:200", "internal/tools/http.go:193", "internal/tools/http.go:208",
+		"internal/tools/http.go:105", "internal/tools/oauth.go:167", "internal/tools/oauth.go:171",
 		"internal/tools/oauth.go:97",
 	},
 	"layers": {

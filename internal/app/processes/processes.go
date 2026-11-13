@@ -104,6 +104,10 @@ type processView struct {
 	HeldUntil string `json:"held_until,omitempty"`
 	// Topic is the chat topic an open reply of the master answers.
 	Topic string `json:"topic,omitempty"`
+	// Read is the text from outside deck the process read, where from, and Valued that it holds something of value: a
+	// turn with both has its ways out only by the owner's once.
+	Read   string `json:"read,omitempty"`
+	Valued bool   `json:"valued,omitempty"`
 	// Models are the models of deck's settings the process called, and CostUSD what they cost, nil when one has no
 	// price; SubscriptionUSD is what the calls on a subscription would cost, an estimate out of the money spent.
 	Models []string `json:"models,omitempty"`
@@ -154,6 +158,7 @@ func procView(p db.Process, project string) processView {
 	v := processView{ID: p.ID, Project: project, Command: p.Command, Kind: p.Kind, State: p.State, NotBySchema: p.NotBySchema == 1, Trial: p.Trial == 1,
 		Error: p.Error, ErrorType: p.ErrorType, Whose: fault.Whose(p.ErrorType), Follows: p.FollowsID.Int64, StartedAt: p.StartedAt, FinishedAt: p.FinishedAt.String, SubmittedAt: p.SubmittedAt.String, Parent: p.ParentID.Int64, Depth: p.Depth,
 		Trigger: p.TriggerID.Int64, RetryKey: p.RetryKey, Empty: p.State == process.StateDone && p.Result == process.Empty && p.NotBySchema == 0,
+		Read: p.ReadUntrusted, Valued: p.HoldsValued == 1,
 		SilentSince: msTime(p.SilentSinceMs), SessionID: p.SessionID, Silent: p.SilentSinceMs.Valid, Folder: p.Folder, Deadline: msTime(p.DeadlineMs), Provider: p.Provider}
 	if p.State == process.StateWaiting {
 		v.Wait = &waitView{Reason: p.WaitReason, On: p.WaitOn, Until: msTime(p.WaitUntilMs), Silence: p.WaitSilence}
@@ -559,10 +564,10 @@ func (s *Service) processCommands() []*registry.Command {
 			registry.Everyone, s.processLeft).On(events.Collection, events.Files, events.Feed, events.Processes),
 		registry.Def("process_stop", "Stop process",
 			"Stops a process; a running agent is killed and what it did so far stays; one that handed in its result ends done with it.",
-			registry.OwnerSide, s.processStop).Stays(),
+			registry.OwnerSide, s.processStop).Brings(registry.FromDeck).Stays(),
 		registry.Def("process_rework", "Send back for rework",
 			"Sends a finished agent process back to the same session with a remark, or one that failed or was stopped on where it stopped; changed artifacts get new revisions.",
-			registry.OwnerSide, s.processRework).Stays(),
+			registry.OwnerSide, s.processRework).Brings(registry.FromDeck).Stays(),
 		registry.Read("process_log_get", "Process log",
 			"Gives a page of the events of a process, oldest first, each with its number n: the last ones, or those before or after a number; only errors, tool calls or messages; a text longer than 1000 bytes is cut, and a page of one event gives it whole. While it runs and for a week after it ended.",
 			registry.Everyone, s.processLog).On(events.Log),

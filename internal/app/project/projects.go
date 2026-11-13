@@ -48,6 +48,8 @@ type projectView struct {
 	Cover *files.Cover `json:"cover,omitempty"`
 	// Meta is one line of its state, folders and what enabling a draft grants, in the language asked for.
 	Meta string `json:"meta"`
+	// Untrusted is what wrote text from outside deck into its data, which marks the turns that read it; empty when none.
+	Untrusted string `json:"untrusted"`
 }
 
 type projectsListIn struct {
@@ -78,7 +80,7 @@ func (s *Service) projectsList(ctx context.Context, act registry.Actor, in proje
 // viewProject is a project as the owner sees it, with its manifest when that loads.
 func (s *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Manifest, err error, lang string) projectView {
 	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []manifest.ScreenLink{},
-		Rights: []string{}, Asks: []string{}, Models: []string{}}
+		Rights: []string{}, Asks: []string{}, Models: []string{}, Untrusted: p.Untrusted}
 	fs, _ := s.St.Q.ListProjectFolders(ctx, p.ID)
 	v.Folders = make([]folderView, 0, len(fs))
 	for _, f := range fs {
@@ -137,6 +139,9 @@ func (s *Service) meta(ws map[string]string, v projectView) string {
 	if v.Status == store.ProjectDraft && len(v.Asks) > 0 {
 		parts = append(parts, say("asks you the first time: %s", strings.Join(v.Asks, ", ")))
 	}
+	if v.Untrusted != "" {
+		parts = append(parts, manifest.Tr(ws, "its data holds text from outside"))
+	}
 	return strings.Join(parts, " · ")
 }
 
@@ -167,7 +172,7 @@ func (s *Service) projectsCommands() []*registry.Command {
 			registry.OwnerSide, s.projectsList).On(events.Projects, events.Folders, events.Documents, events.Files, events.Settings),
 		registry.Def("project_create", "Create module",
 			"Creates a project from its name, an md prompt and a manifest; without a manifest it is empty.",
-			registry.OwnerSide, s.projectCreate).Stays(),
+			registry.OwnerSide, s.projectCreate).Brings(registry.FromDeck).Stays(),
 	}
 }
 

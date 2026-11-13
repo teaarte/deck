@@ -611,12 +611,12 @@ func (s *Service) documentsCommands() []*registry.Command {
 			Answers(`Answer: {"id", "project", "kind", "name", "revision", "text"}.`),
 		registry.Def("document_save", "Save document",
 			"Writes a new revision of a document, creating it on first save.",
-			registry.Everyone, s.documentSave).Stays().
+			registry.Everyone, s.documentSave).Brings(registry.FromDeck).Stays().About(s.saveSubject).
 			Enum("kind", docs.Kinds...).
 			Answers(`Answer: {"id", "project", "kind", "name", "revision", "warning"}; the text is not in it. Example input: {"name": "notes/plan.md", "old": ["- [ ] call"], "new": ["- [x] call"], "reason": "called"}.`),
 		registry.Def("document_delete", "Delete document",
 			"Deletes a document; its revisions stay and the owner can bring it back. Agents delete only the memory of their project.",
-			registry.Everyone, s.documentDelete).Stays(),
+			registry.Everyone, s.documentDelete).Brings(registry.FromDeck).Stays().About(s.deleteSubject),
 		registry.Def("document_restore", "Bring document back",
 			"Brings a deleted document back as it was.",
 			registry.OwnerOnly, s.documentRestore).Stays(),

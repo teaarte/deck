@@ -434,3 +434,20 @@ and bring the modules in line.
   needs no right. A button a module's agent writes on a note whose command needs a right calls `deck.feed_press`:
   the call of the module, which asks the owner with what it sends. In deck's box Claude Code runs without its auto
   mode, its tools bounded by the box, and Codex asks no approvals; outside a box both run as before.
+- 2026-11-13: deck marks what a turn read. An agent's or the master's turn that read text from outside deck — a page
+  (`deck.web_fetch`, `deck.web_search`), an answer of an HTTP tool, an MCP server or the browser, data of a module
+  that holds such text, a work's result that did, files given with a message, what an automation token wrote — and
+  holds something of value (a subscription login, or its module's data) goes out only by the owner's once: `send`,
+  `money`, `modules` and `network` on a host it does not name ask each call, whatever the owner answered always (no
+  "always" or "for this work" is offered); a host the module names stays as answered. Such a turn also changes the
+  prompt, script, skill, custom block or manifest of an enabled module, or a skill of the workspace, only by the owner's
+  yes to the diff; a draft it writes freely. A write of such a turn or of a token marks the data of the module it
+  writes. The mark lives as long as the session (a new topic, a new run is clean) and a restart keeps it. A child of a
+  marked turn starts marked. `deck.web_fetch` needs the right `network` on its host, the master's by its `*` like any
+  module's (the owner side's any host is gone). `command_describe` says `brings` (`deck`, `data`, `outside`),
+  `process_get` gives `read` and `valued`, `projects_list` gives `untrusted`, `tokens_list` gives `trusted`; the owner
+  clears a module with `deck.project_trust` and vouches for a token with `deck.token_trust`. A reader — an agent
+  command whose `calls` are only `deck.web_search` and `deck.web_fetch`, in no folder — holds nothing of its module
+  (its data folder is its results), so it reads page after page by its right; a call of it is `network` on the hosts
+  its module's programs hold. The master's reader is `master.research`; the setting `master_web` (`ask`, `always`)
+  lets the master read pages marked by its right of always.

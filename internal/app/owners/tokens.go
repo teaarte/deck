@@ -107,6 +107,8 @@ type tokenView struct {
 	Commands  []string `json:"commands"`
 	CreatedAt string   `json:"created_at"`
 	Revoked   bool     `json:"revoked"`
+	// Trusted says the owner vouches for what it writes; else it is text from outside.
+	Trusted bool `json:"trusted"`
 }
 
 type tokensListIn struct {
@@ -120,7 +122,7 @@ func (s *Service) tokensList(ctx context.Context, act registry.Actor, in tokensL
 	}
 	out := make([]tokenView, 0, len(ts))
 	for _, t := range ts {
-		r := tokenView{ID: t.ID, Name: t.Name, Commands: []string{}, CreatedAt: t.CreatedAt, Revoked: t.RevokedAt.Valid}
+		r := tokenView{ID: t.ID, Name: t.Name, Commands: []string{}, CreatedAt: t.CreatedAt, Revoked: t.RevokedAt.Valid, Trusted: t.Trusted == 1}
 		_ = json.Unmarshal([]byte(t.Commands), &r.Commands)
 		if in.Project != "" && !slices.ContainsFunc(r.Commands, func(c string) bool { return c == "*" || strings.HasPrefix(c, in.Project+".") }) {
 			continue
@@ -160,9 +162,32 @@ func (s *Service) tokenCommands() []*registry.Command {
 			registry.OwnerOnly, s.tokenCreate).Stays(),
 		registry.Read("tokens_list", "Automation tokens",
 			"Lists automation tokens by name with their commands, never the tokens themselves; revoked ones too.",
-			registry.OwnerSide, s.tokensList).On(events.Devices).NoTokens(),
+			registry.OwnerSide, s.tokensList).Brings(registry.FromDeck).On(events.Devices).NoTokens(),
 		registry.Def("token_revoke", "Revoke token",
 			"Revokes an automation token; calls with it are refused from then on.",
 			registry.OwnerOnly, s.tokenRevoke).Stays(),
+		registry.Def("token_trust", "Trust what a token writes",
+			"Says whether the owner vouches for what an automation token writes into deck: by default it is text from outside, which marks the turns that read it; a trusted token's words are the owner's.",
+			registry.OwnerOnly, s.tokenTrust).Stays(),
 	}
+}
+
+type tokenTrustIn struct {
+	Token   int64 `desc:"Token id"`
+	Trusted bool  `desc:"Whether the owner vouches for what it writes"`
+}
+
+// tokenTrust keeps whether the owner vouches for what a token writes, which only the owner says.
+func (s *Service) tokenTrust(ctx context.Context, act registry.Actor, in tokenTrustIn) (any, error) {
+	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+		return q.SetTokenTrusted(ctx, db.SetTokenTrustedParams{Trusted: store.Bool(in.Trusted), ID: in.Token, WorkspaceID: act.Workspace})
+	})
+	if err != nil {
+		return nil, err
+	}
+	if n == 0 {
+		return nil, registry.NotFound("no active token %d", in.Token)
+	}
+	s.Journal(ctx, act, 0, registry.Deck("token_trust"), "", "done", fmt.Sprintf(`{"token": %d, "trusted": %t}`, in.Token, in.Trusted), "")
+	return map[string]any{"token": in.Token, "trusted": in.Trusted}, nil
 }

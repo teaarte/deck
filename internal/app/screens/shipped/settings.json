@@ -260,6 +260,16 @@
             {"label": "Hide the text", "icon": "eye-off", "command": "deck.setting_set", "params": {"name": "push_text", "value": "hidden"}, "when": "value != 'hidden'"},
             {"label": "Show the text", "icon": "eye", "command": "deck.setting_set", "params": {"name": "push_text", "value": "full"}, "when": "value == 'hidden'"}
           ]},
+        {"type": "table", "title": "Pages the master reads after text from outside", "icon": "world-exclamation", "collapsed": true, "source": {"from": "deck.settings_list", "where": "name == 'master_web'"},
+          "description": "After text from outside, the master asks you for each page, or reads by its right: then a page may carry out what it knows.",
+          "columns": [
+            {"label": "Setting", "bind": "title"},
+            {"label": "Value", "bind": "value == 'always' ? 'reads by its right' : 'asks you for each page'"}
+          ],
+          "actions": [
+            {"label": "Read by its right", "icon": "world", "confirm": true, "command": "deck.setting_set", "params": {"name": "master_web", "value": "always"}, "when": "value != 'always'"},
+            {"label": "Ask me for each page", "icon": "hand-stop", "command": "deck.setting_set", "params": {"name": "master_web", "value": "ask"}, "when": "value == 'always'"}
+          ]},
         {"type": "actions", "title": "Push key", "icon": "key", "collapsed": true, "description": "A new key stops the pushes of every device until each turns them on again.",
           "actions": [{"verb": "reset_push", "confirm": true, "command": "deck.push_key_reset"}]}
       ]},
@@ -277,7 +287,7 @@
         {"type": "dialog", "name": "token", "title": "Create a token", "icon": "ticket", "blocks": [
           {"type": "form", "command": "deck.token_create", "keep_open": true,
             "choices": {"commands": {"source": {"from": "deck.commands_list", "sort": "name"}, "value": "name"}}}]},
-        {"type": "table", "title": "Limits", "icon": "gauge", "source": {"from": "deck.settings_list", "where": "name != 'language' && name != 'push_text'"},
+        {"type": "table", "title": "Limits", "icon": "gauge", "source": {"from": "deck.settings_list", "where": "name != 'language' && name != 'push_text' && name != 'master_web'"},
           "description": "How much deck runs at once and how long it waits for you.",
           "columns": [
             {"label": "Setting", "bind": "title"},
@@ -305,9 +315,12 @@
             {"label": "Name", "bind": "name"},
             {"label": "State", "bind": "revoked ? 'revoked' : 'live'", "format": "tag", "tone": "revoked ? 'muted' : 'ok'", "details": "'POST /api/commands/<command> with Authorization: Bearer <token>'"},
             {"label": "Commands", "bind": "join(commands, ', ')"},
+            {"label": "What it writes", "bind": "trusted ? 'yours' : 'from outside'", "format": "tag", "tone": "trusted ? 'ok' : 'muted'"},
             {"label": "Created", "bind": "created_at", "format": "relative"}
           ],
           "actions": [
+            {"verb": "trust", "confirm": true, "command": "deck.token_trust", "params": {"token": "=id", "trusted": "true"}, "when": "!revoked && !trusted"},
+            {"verb": "distrust", "command": "deck.token_trust", "params": {"token": "=id", "trusted": "false"}, "when": "!revoked && trusted"},
             {"verb": "revoke", "confirm": true, "command": "deck.token_revoke", "params": {"token": "=id"}, "when": "!revoked"}
           ]}
       ]}

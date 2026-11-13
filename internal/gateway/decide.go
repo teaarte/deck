@@ -28,6 +28,13 @@ type Facts struct {
 	// Shown marks a call that, made without the owner, is shown after: it acts in the owner's name, or deck can take
 	// it back.
 	Shown bool `json:"shown"`
+	// Marked says the turn that calls read text from outside deck and holds something of value.
+	Marked bool `json:"marked"`
+	// Exit says the right is a way out whose subject the call chooses: a network host it does not name, money, an act
+	// in the owner's name, another module.
+	Exit bool `json:"exit"`
+	// Instructs says the call rewrites what deck runs: an instruction of an enabled module or of the workspace.
+	Instructs bool `json:"instructs"`
 }
 
 // The answers of the owner a decision reads beside always and no: for the work of one process.
@@ -59,6 +66,8 @@ func decide(f Facts) Row {
 	switch {
 	case f.Owner:
 		return Row{"owner", DoRun, "the owner's own call"}
+	case f.Marked && f.Instructs && !f.Cleared:
+		return Row{"instructs", DoAsk, "this turn read text from outside deck and holds something of value: it changes what an enabled module runs only with the owner's yes to this very change"}
 	case !f.Needs:
 		return Row{"in_deck", DoRun, "it needs no right of deck's catalog: it stays in deck"}
 	case f.Cleared:
@@ -73,6 +82,8 @@ func decide(f Facts) Row {
 		return Row{"undeclared", DoRefuse, "the module did not declare this right, so it cannot even ask for it"}
 	case f.Answer == "no":
 		return Row{"denied", DoRefuse, "the owner said no to this right, so it was not made and is not asked again"}
+	case f.Marked && f.Exit && !f.Pressed && (f.Answer == "always" || f.Answer == Work):
+		return Row{"marked", DoAsk, "this turn read text from outside deck and holds something of value: a way out goes only with the owner's yes to this very call"}
 	case f.Answer == "always" && !f.Asked:
 		return Row{"always", made, "the owner allows this right always"}
 	case f.Answer == Work && !f.Asked:

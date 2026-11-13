@@ -109,8 +109,12 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 	first, last := pending[0].ID, pending[len(pending)-1].ID
 	files := attached(pending)
 	notes, told := s.masterNotes(ctx, t.WorkspaceID)
+	read := s.topicRead(ctx, t)
 	open, err := s.St.Q.OpenTopicProcess(ctx, topicID)
 	if err == nil {
+		if read != "" {
+			s.Runner.Read(ctx, open.ID, read)
+		}
 		given := ""
 		if len(files) > 0 {
 			if given, err = s.Runner.Give(ctx, open.ID, files); err != nil {
@@ -184,7 +188,7 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	o := process.Origin{Session: uuid.NewString(), Files: files, Owners: true, Provider: next.provider, Follows: next.follows}
+	o := process.Origin{Session: uuid.NewString(), Files: files, Owners: true, Provider: next.provider, Follows: next.follows, Read: read}
 	sign := ""
 	sess, err := s.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
 	switch {
@@ -377,6 +381,25 @@ func (s *Service) retelling(ctx context.Context, t db.ChatTopic, before int64) (
 	return master.Text("retelling", v), nil
 }
 
+// topicRead is the untrusted text the words of a topic carry, as where it came from: a work whose result or wait it
+// tells, or a process its replies started, that read some; empty when none did.
+func (s *Service) topicRead(ctx context.Context, t db.ChatTopic) string {
+	if r, err := s.St.Q.TopicRead(ctx, t.ID); err == nil {
+		return fmt.Sprintf("topic %d: process %d, which read %s", t.ID, r.ID, r.ReadUntrusted)
+	}
+	m, err := access.Master(ctx, s.St.Q, t.WorkspaceID)
+	if err != nil {
+		return ""
+	}
+	rows, _ := s.St.Q.ListTopicProcesses(ctx, db.ListTopicProcessesParams{MasterID: m.ID, Topic: t.ID, Lim: topicLinks})
+	for _, r := range rows {
+		if r.Process.ReadUntrusted != "" {
+			return fmt.Sprintf("topic %d: process %d, which read %s", t.ID, r.Process.ID, r.Process.ReadUntrusted)
+		}
+	}
+	return ""
+}
+
 // topicLinks is how many processes the replies of a topic started a session that did not see them is told of.
 const topicLinks = 10
 
@@ -407,7 +430,7 @@ func toldNothing(state string) string {
 }
 
 // transcript retells messages a line each; only the owner's text stands as written, what deck and the master said is
-// one quoted line, so no line of a work's result reads as the owner's (until turn marks of the trust project, T4).
+// one quoted line, so no line of a work's result reads as the owner's; a turn that reads one is marked by topicRead.
 func transcript(ms []db.ChatMessage) string {
 	var b strings.Builder
 	for _, m := range ms {

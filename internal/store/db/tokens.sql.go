@@ -10,7 +10,7 @@ import (
 )
 
 const createToken = `-- name: CreateToken :one
-INSERT INTO automation_token (workspace_id, name, hash, commands) VALUES (?, ?, ?, ?) RETURNING id, workspace_id, name, hash, commands, created_at, revoked_at
+INSERT INTO automation_token (workspace_id, name, hash, commands) VALUES (?, ?, ?, ?) RETURNING id, workspace_id, name, hash, commands, created_at, revoked_at, trusted
 `
 
 type CreateTokenParams struct {
@@ -36,12 +36,13 @@ func (q *Queries) CreateToken(ctx context.Context, arg CreateTokenParams) (Autom
 		&i.Commands,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.Trusted,
 	)
 	return i, err
 }
 
 const findTokenByHash = `-- name: FindTokenByHash :one
-SELECT id, workspace_id, name, hash, commands, created_at, revoked_at FROM automation_token WHERE hash = ? AND revoked_at IS NULL
+SELECT id, workspace_id, name, hash, commands, created_at, revoked_at, trusted FROM automation_token WHERE hash = ? AND revoked_at IS NULL
 `
 
 func (q *Queries) FindTokenByHash(ctx context.Context, hash string) (AutomationToken, error) {
@@ -55,12 +56,33 @@ func (q *Queries) FindTokenByHash(ctx context.Context, hash string) (AutomationT
 		&i.Commands,
 		&i.CreatedAt,
 		&i.RevokedAt,
+		&i.Trusted,
+	)
+	return i, err
+}
+
+const getToken = `-- name: GetToken :one
+SELECT id, workspace_id, name, hash, commands, created_at, revoked_at, trusted FROM automation_token WHERE id = ?
+`
+
+func (q *Queries) GetToken(ctx context.Context, id int64) (AutomationToken, error) {
+	row := q.db.QueryRowContext(ctx, getToken, id)
+	var i AutomationToken
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Hash,
+		&i.Commands,
+		&i.CreatedAt,
+		&i.RevokedAt,
+		&i.Trusted,
 	)
 	return i, err
 }
 
 const listTokens = `-- name: ListTokens :many
-SELECT id, workspace_id, name, hash, commands, created_at, revoked_at FROM automation_token WHERE workspace_id = ? ORDER BY id
+SELECT id, workspace_id, name, hash, commands, created_at, revoked_at, trusted FROM automation_token WHERE workspace_id = ? ORDER BY id
 `
 
 func (q *Queries) ListTokens(ctx context.Context, workspaceID int64) ([]AutomationToken, error) {
@@ -80,6 +102,7 @@ func (q *Queries) ListTokens(ctx context.Context, workspaceID int64) ([]Automati
 			&i.Commands,
 			&i.CreatedAt,
 			&i.RevokedAt,
+			&i.Trusted,
 		); err != nil {
 			return nil, err
 		}
@@ -107,6 +130,26 @@ type RevokeTokenParams struct {
 
 func (q *Queries) RevokeToken(ctx context.Context, arg RevokeTokenParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, revokeToken, arg.Now, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setTokenTrusted = `-- name: SetTokenTrusted :execrows
+UPDATE automation_token SET trusted = ?1
+WHERE id = ?2 AND workspace_id = ?3 AND revoked_at IS NULL
+`
+
+type SetTokenTrustedParams struct {
+	Trusted     int64
+	ID          int64
+	WorkspaceID int64
+}
+
+// The owner vouches for what an automation token writes, or takes it back.
+func (q *Queries) SetTokenTrusted(ctx context.Context, arg SetTokenTrustedParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setTokenTrusted, arg.Trusted, arg.ID, arg.WorkspaceID)
 	if err != nil {
 		return 0, err
 	}

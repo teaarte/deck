@@ -53,6 +53,16 @@ func (m *Manifest) Declares(n registry.Need) bool {
 	return false
 }
 
+// Names says the module declared the subject of need by name, not as any: an injection does not choose where it goes.
+func (m *Manifest) Names(n registry.Need) bool {
+	for _, d := range m.Rights {
+		if d.Right == n.Right && d.Whom() == whom(n.Right, n.Who) && slices.ContainsFunc(d.What, func(s string) bool { return s != "*" && Covers(n.Right, s, n.Subject) }) {
+			return true
+		}
+	}
+	return false
+}
+
 // Holds says the module holds need: a declared subject that covers it the owner answered always, to its print.
 func (m *Manifest) Holds(g Grants, n registry.Need) bool {
 	for _, d := range m.Rights {

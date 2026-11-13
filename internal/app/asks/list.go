@@ -190,6 +190,9 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		r.Payload = json.RawMessage(cmp.Or(string(f.Call.Input), "null"))
 		r.Why = cmp.Or(f.Reason, r.Why)
 		var lines []string
+		if f.Read != "" {
+			lines = append(lines, fmt.Sprintf("It read from outside deck: %s, so this goes out only with your yes", f.Read))
+		}
 		if n := f.Need; n != nil && q.Kind == ask.KindCall && !(registry.IsBuiltin(f.Call.Command) && n.Subject == f.Call.Command) {
 			lines = append(lines, manifest.Says(func(t string) string { return t }, n.Right, n.Who, []string{n.Subject}))
 		}

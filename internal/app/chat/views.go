@@ -55,6 +55,8 @@ type topicView struct {
 	Busy  bool   `json:"busy,omitempty"`
 	Waits bool   `json:"waits,omitempty"`
 	Since string `json:"since,omitempty"`
+	// Read is the text from outside deck the words of the topic carry, where from: its replies are marked by it.
+	Read string `json:"read,omitempty"`
 }
 
 // replyView is the process that answers a message, with its state and a button that opens it.
@@ -376,6 +378,7 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 		for i := range ts {
 			_, ts[i].Logo, _ = facts(cmp.Or(ts[i].RepliedOn, ts[i].Model, v.Model))
 			ts[i].Tokens, _ = s.St.Q.TopicTokens(ctx, ts[i].ID)
+			ts[i].Read = untrusted.Cut(s.topicRead(ctx, db.ChatTopic{ID: ts[i].ID, WorkspaceID: act.Workspace}), 300)
 			if b, ok := busy[ts[i].ID]; ok {
 				ts[i].Busy, ts[i].Waits, ts[i].Since = true, b.Waits == 1, b.Since
 			}

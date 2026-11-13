@@ -2,6 +2,7 @@ package project
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -99,6 +100,19 @@ func (s *Service) manifestSave(ctx context.Context, act registry.Actor, in manif
 	return saved, err
 }
 
+// manifestSubject is what a save of a manifest changes of what deck runs: the module's instructions while it is enabled.
+func (s *Service) manifestSubject(ctx context.Context, at registry.At, input json.RawMessage) registry.Subject {
+	var in manifestSaveIn
+	if json.Unmarshal(input, &in) != nil {
+		return registry.Subject{}
+	}
+	p, err := s.St.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: at.Workspace, Name: in.Project})
+	if err != nil || s.edited(ctx, p, &in) != nil {
+		return registry.Subject{}
+	}
+	return docs.Rewrites(ctx, s.St.Q, docs.ProjectScope(p), docs.KindManifest, docs.ManifestName, in.Manifest, false)
+}
+
 // edited puts the whole manifest a save gives in in.Manifest: as it came, or the current one with its old parts
 // replaced by the new, pinned to the revision it was read at.
 func (s *Service) edited(ctx context.Context, p db.Project, in *manifestSaveIn) error {
@@ -136,7 +150,7 @@ func (s *Service) manifestCommands() []*registry.Command {
 			registry.Everyone, s.manifestGet).On(events.Projects),
 		registry.Def("manifest_save", "Save manifest",
 			"Validates a manifest and stores it as a new revision: the whole manifest, or old parts of the current one replaced with new ones.",
-			registry.OwnerSide, s.manifestSave).Stays(),
+			registry.OwnerSide, s.manifestSave).Brings(registry.FromDeck).Stays().About(s.manifestSubject),
 	}
 }
 

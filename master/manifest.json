@@ -31,7 +31,10 @@
       "Mends what deck noticed went wrong around a process of a project, such as a result handed in that no step after took, by the incident-recovery skill, and tells the owner in the feed.": "Чинит то, что deck заметил вокруг процесса модуля, например сданный результат, который не прошёл дальше, по навыку incident-recovery, и пишет владельцу в ленту.",
       "The process of the incident": "Процесс инцидента",
       "What deck noticed: result_running, result_not_done or after_not_started": "Что заметил deck: result_running, result_not_done или after_not_started",
-      "What deck saw, in its words": "Что видел deck, его словами"
+      "What deck saw, in its words": "Что видел deck, его словами",
+      "Read the web": "Прочитать веб",
+      "Searches the web and reads pages for a question of the master and answers with what it found and where; it holds nothing of the owner's, no memory, modules or data, so a page it reads has nothing to carry out.": "Ищет в вебе и читает страницы по вопросу мастера и отвечает тем, что нашёл, и где; у него нет ничего владельца — ни памяти, ни модулей, ни данных, поэтому прочитанной странице нечего унести.",
+      "What to find out on the web, with what it needs to know and nothing of the owner's it does not need": "Что узнать в вебе, со всем, что для этого нужно, и без того из твоего, что не нужно"
     }
   },
   "commands": [
@@ -104,6 +107,36 @@
           "module-builder",
           "module-conventions",
           "code-project"
+        ]
+      }
+    },
+    {
+      "name": "research",
+      "title": "Read the web",
+      "description": "Searches the web and reads pages for a question of the master and answers with what it found and where; it holds nothing of the owner's, no memory, modules or data, so a page it reads has nothing to carry out.",
+      "callers": [
+        "master"
+      ],
+      "provider": "free",
+      "input": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "description": "What to find out on the web, with what it needs to know and nothing of the owner's it does not need"
+          }
+        },
+        "required": [
+          "question"
+        ]
+      },
+      "runs": "many",
+      "executor": {
+        "type": "agent",
+        "prompt_file": "prompts/research.md",
+        "calls": [
+          "deck.web_search",
+          "deck.web_fetch"
         ]
       }
     },

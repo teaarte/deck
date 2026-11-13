@@ -20,6 +20,7 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/trigger"
+	"deck2/internal/untrusted"
 )
 
 // Started is what a call that starts a process gives back; Running is a process of the same call that was going
@@ -62,6 +63,9 @@ type Origin struct {
 	Same bool
 	// Allows are the calls the owner's press named, as gateway.Allows keeps them: the run makes them without asking.
 	Allows string
+	// Read is the untrusted text the first prompt of the process carries, as where it came from: the words of a
+	// marked process a topic retells.
+	Read string
 	// again is the one run after Follows with the last call that came for its record while it ran.
 	again bool
 }
@@ -307,7 +311,10 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 			if old.FinishedAt.Valid {
 				a.remark = 0
 			}
-			return err
+			if err != nil {
+				return err
+			}
+			return inherit(ctx, q, old.ID, o)
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
@@ -339,7 +346,10 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 				}
 				a.joined = topicText(cmd, a.in, o)
 				a.remark, err = q.CreateDeckRemark(ctx, db.CreateDeckRemarkParams{ProcessID: old.ID, Text: a.joined, CreatedAt: r.stamp().String})
-				return err
+				if err != nil {
+					return err
+				}
+				return inherit(ctx, q, old.ID, o)
 			}
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err
@@ -376,6 +386,9 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 	if err != nil {
 		return err
 	}
+	if err := inherit(ctx, q, a.p.ID, o); err != nil {
+		return err
+	}
 	if t.ID != 0 {
 		if err := q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: a.p.ID, Valid: true}, ID: t.ID}); err != nil {
 			return err
@@ -392,6 +405,31 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 		}
 	}
 	return bindInput(ctx, q, cmd, projectID, a.p.ID, a.input)
+}
+
+// inherit marks a process with the untrusted text what it was given carries: the input of a marked process that
+// started it, the session of a marked process it goes on, files given with a message, a first prompt that retells one.
+func inherit(ctx context.Context, q *db.Queries, id int64, o Origin) error {
+	from := o.Read
+	if from == "" && o.Parent != 0 {
+		if p, err := q.GetProcess(ctx, o.Parent); err == nil && p.ReadUntrusted != "" {
+			from = fmt.Sprintf("the input of process %d, which read %s", p.ID, p.ReadUntrusted)
+		}
+	}
+	if from == "" && o.Resume && o.Session != "" {
+		read, err := q.SessionRead(ctx, db.SessionReadParams{Session: o.Session, ID: id})
+		if err != nil {
+			return err
+		}
+		from = read
+	}
+	if from == "" && len(o.Files) > 0 {
+		from = "files given with the message"
+	}
+	if from == "" {
+		return nil
+	}
+	return q.MarkProcessRead(ctx, db.MarkProcessReadParams{ReadUntrusted: untrusted.Cut(from, 500), ID: id})
 }
 
 // launch hands the process admitted to its turn, after a joined agent hears its remark and the files of the call

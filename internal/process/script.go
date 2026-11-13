@@ -66,6 +66,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		OnLine:  func(line string) { r.event(bg, id, u.stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}
+	r.know(bg, id, job.Box.Hosts, false)
 	var out []byte
 	if place.On != nil {
 		// The token of the script stays on deck: its side puts it in the calls the node brings by the node's key.

@@ -12,6 +12,7 @@
       {"label": "Waits until", "bind": "wait?.until ?? nil", "format": "relative"},
       {"label": "Folder held until", "bind": "held_until ?? nil", "format": "relative"},
       {"label": "Speed, tokens a second", "bind": "(speed ?? 0) == 0 ? nil : speed", "format": "number"},
+      {"label": "Read from outside", "bind": "(read ?? '') == '' ? nil : read", "format": "tag", "tone": "valued ?? false ? 'warn' : 'muted'"},
       {"label": "Error", "bind": "error"},
       {"label": "Failure type", "bind": "(error_type ?? '') == '' ? nil : error_type + ' · ' + whose", "format": "tag", "tone": "'error'"},
       {"label": "Continues", "bind": "(follows ?? 0) == 0 ? nil : '#' + string(follows)"},

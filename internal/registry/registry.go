@@ -57,6 +57,8 @@ type Subject struct {
 	InForce bool `json:"-"`
 	// Unseen marks a subject deck did not look at, since that reaches out: its print is unknown.
 	Unseen bool `json:"-"`
+	// Instructs says the call rewrites what deck runs: an instruction of an enabled module or of the workspace.
+	Instructs bool `json:"-"`
 }
 
 // At is where a call's subject is looked at: its workspace and project, and whether deck may reach out to see it.
@@ -182,6 +184,37 @@ type Gate struct {
 	Undo func(ctx context.Context, workspace int64, input json.RawMessage) (string, json.RawMessage, bool)
 	// Term is how long a question about a call stays open; the workspace's term when zero.
 	Term time.Duration
+	// Brings is where the text a call gives back comes from, which marks the turn that reads it.
+	Brings From
+}
+
+// From is where the text a call gives back to a turn comes from.
+type From string
+
+const (
+	// FromDeck is text deck or the owner wrote, or the caller's own: it marks no turn.
+	FromDeck From = "deck"
+	// FromData is the data of the module, process or topic the call reads: untrusted when theirs holds untrusted text.
+	FromData From = "data"
+	// FromOutside is an answer from outside deck: a page, a tool's, an MCP server's, a browser's.
+	FromOutside From = "outside"
+)
+
+// Brings declares where the text a call of the command gives back comes from.
+func (c *Command) Brings(f From) *Command {
+	c.Gate.Brings = f
+	return c
+}
+
+// About gives the command what a call of it acts on, as the gateway asks it before it decides.
+func (c *Command) About(subject func(ctx context.Context, at At, input json.RawMessage) Subject) *Command {
+	c.Gate.Subject = subject
+	return c
+}
+
+// Turns says an agent's turn or the master may call the command, so it declares what it brings into a turn.
+func (c *Command) Turns() bool {
+	return slices.Contains(c.Callers, Master) || slices.Contains(c.Callers, Agent)
 }
 
 // Modules yields the commands of a workspace not written in Go: those of module manifests, and deck's tools whose
@@ -270,6 +303,9 @@ func Prepare(c *Command) error {
 	}
 	if c.stays == c.Gated() && !c.Readable {
 		return fmt.Errorf("command %q: declare the rights its calls need (Gate.Needs) or that it stays in deck (Stays)", c.Name)
+	}
+	if c.Turns() && c.Gate.Brings == "" {
+		return fmt.Errorf("command %q: declare where the text its calls give a turn comes from (Brings)", c.Name)
 	}
 	if len(c.Input) == 0 {
 		c.Input = EmptyInput

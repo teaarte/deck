@@ -267,6 +267,6 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerOnly, s.secretDelete).Stays(),
 		registry.Read("secrets_list", "Secrets",
 			"Lists the secrets of a module, or of every module: those its manifest names and whether each is set, and those set it does not name; never their values.",
-			registry.OwnerSide, s.secretsList).On(events.Secrets).NoTokens(),
+			registry.OwnerSide, s.secretsList).Brings(registry.FromDeck).On(events.Secrets).NoTokens(),
 	}
 }

@@ -77,6 +77,6 @@ func (s *Service) explainCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("call_explain", "Explain a call",
 			"Says how deck would decide a call of a command now, without making it: the row of its one table of decisions (in_deck, owner, cleared, refused, draft, draft_tool, undeclared, denied, always, for_work, pressed, in_force, ask), what that row does (run, show, refuse, unchanged, ask), why, the facts deck read, the right of its catalog an answer goes to and what the call acts on.",
-			registry.OwnerSide, s.callExplain).On(events.Projects, events.Processes),
+			registry.OwnerSide, s.callExplain).Brings(registry.FromDeck).On(events.Projects, events.Processes),
 	}
 }

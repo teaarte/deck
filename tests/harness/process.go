@@ -243,3 +243,22 @@ func (e *Env) CountOf(command string) int {
 	}
 	return n
 }
+
+// AllowEach answers allow, once, to each request of the process until it reaches one of states: a turn that read text
+// from outside deck goes out only by the owner's once.
+func (e *Env) AllowEach(id int64, states ...string) Proc {
+	e.T.Helper()
+	var p Proc
+	e.Until(fmt.Sprintf("process %d to reach %v, its requests allowed once", id, states), func() bool {
+		if p = e.Proc(id); slices.Contains(states, p.State) {
+			return true
+		}
+		for _, a := range e.Asks() {
+			if a.Process == id && a.Kind == "call" {
+				_, _ = e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"})
+			}
+		}
+		return false
+	})
+	return p
+}

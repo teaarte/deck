@@ -80,6 +80,6 @@ func (s *Service) revisionsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("document_revert", "Revert document",
 			"Makes an earlier revision current again as a new revision.",
-			registry.OwnerSide, s.documentRevert).Stays(),
+			registry.OwnerSide, s.documentRevert).Brings(registry.FromDeck).Stays().About(s.revertSubject),
 	}
 }

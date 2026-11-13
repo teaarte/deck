@@ -94,14 +94,20 @@ func (s *modules) compiled(p db.Project, m *manifest.Manifest, hosts []string) [
 	for _, c := range m.Commands {
 		need, sends := m.CommandNeed(c.Name)
 		cmd := registry.Loose(p.Name+"."+c.Name, c.Title, c.Description, c.Callable(), c.InputSchema(),
-			s.startHandler(p.ID, m, c.Name)).Retried()
+			s.startHandler(p.ID, m, c.Name)).Retried().Brings(registry.FromData)
 		cmd.Result, cmd.ProjectID, cmd.Words = c.Result, p.ID, m.I18n
-		if sends {
+		switch reads := readerNeeds(&c, hosts); {
+		case sends:
 			cmd.Gate.Needs = func(context.Context, registry.Actor, registry.Subject, json.RawMessage) ([]registry.Need, error) {
 				return []registry.Need{need}, nil
 			}
 			cmd.Gate.Undo = tools.UndoOf(p.Name, c.Undo)
-		} else {
+		case len(reads) > 0:
+			// The input of a call of a reader of the web goes out with its searches and pages.
+			cmd.Gate.Needs = func(context.Context, registry.Actor, registry.Subject, json.RawMessage) ([]registry.Need, error) {
+				return reads, nil
+			}
+		default:
 			cmd.Stays()
 		}
 		if err := registry.Prepare(cmd); err != nil {
@@ -125,6 +131,19 @@ func (s *modules) compiled(p db.Project, m *manifest.Manifest, hosts []string) [
 	s.prepared[key] = cmds
 	s.mu.Unlock()
 	return cmds
+}
+
+// readerNeeds are the rights a call of a reader of the web needs, any one of them: the network of the hosts its module's
+// programs hold, where its input may go.
+func readerNeeds(c *manifest.Command, hosts []string) []registry.Need {
+	if !c.WebOnly() {
+		return nil
+	}
+	out := make([]registry.Need, 0, len(hosts))
+	for _, h := range hosts {
+		out = append(out, registry.Need{Right: manifest.Network, Who: manifest.Programs, Subject: h})
+	}
+	return out
 }
 
 type preparedKey struct {

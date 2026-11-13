@@ -61,9 +61,11 @@ func TestRealBrowser(t *testing.T) {
 	if pick == nil {
 		t.Fatalf("the upload page reads: %+v", ag.Last(1))
 	}
-	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Click(pick[1]), harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/cv.txt"}}},
+	// A turn that read a page acts by the owner's once: the upload comes in a turn of its own.
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Click(pick[1]))), "done")
+	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/cv.txt"}}},
 		harness.Step{Tool: "browser_tabs", Args: map[string]any{"action": "list"}})), "done")
-	if got := ag.Last(3); got[1].IsErr || !strings.Contains(got[2].Out, "Got cv.txt") {
+	if got := ag.Last(2); got[0].IsErr || !strings.Contains(got[1].Out, "Got cv.txt") {
 		t.Fatalf("the real browser uploads a file of the process: %+v", got)
 	}
 	id := e.Start("web", "browse", harness.Steps(harness.Nav(other), harness.Step{Tool: "browser_snapshot", Args: map[string]any{}}, harness.Click("e2")))

@@ -182,7 +182,7 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		print := r.Spec + "/" + r.Fingerprint
 		need := registry.Need{Right: right, Subject: r.Server + "." + r.Name, Print: print}
 		c := registry.Loose(p.Name+"."+r.Server+"."+r.Name, cmp.Or(r.Title, r.Name), cmp.Or(r.Description, r.Name), registry.Everyone, json.RawMessage(r.Input),
-			x.handler(p, r.Server, s, m, r.Name, right == manifest.Send, r.Fingerprint)).Foreign()
+			x.handler(p, r.Server, s, m, r.Name, right == manifest.Send, r.Fingerprint)).Foreign().Brings(registry.FromOutside)
 		c.ProjectID = p.ID
 		if right == manifest.Network {
 			// A tool that only reaches the hosts the box of the server holds stays in deck's sight.
@@ -194,7 +194,8 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 				},
 				Needs: func(context.Context, registry.Actor, registry.Subject, json.RawMessage) ([]registry.Need, error) {
 					return []registry.Need{need}, nil
-				}}
+				},
+				Brings: registry.FromOutside}
 		}
 		out = append(out, c)
 	}

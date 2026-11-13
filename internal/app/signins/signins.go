@@ -157,7 +157,7 @@ func (s *Service) siteCommands() []*registry.Command {
 			registry.OwnerOnly, s.browserLoginFinish).Stays(),
 		registry.Def("browser_login_request", "Site needs a sign-in",
 			"Tells the owner that the session of a site ran out; the process waits until the owner signs in again.",
-			[]string{registry.Agent}, s.browserLoginRequest).Stays(),
+			[]string{registry.Agent}, s.browserLoginRequest).Brings(registry.FromDeck).Stays(),
 		registry.Def("oauth_start", "Sign in to a service",
 			"Starts the owner's oauth2 sign-in for a tool in a window of deck's browser; it must finish within ten minutes.",
 			registry.OwnerOnly, s.oauthStart).Stays(),

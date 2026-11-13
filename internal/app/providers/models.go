@@ -51,7 +51,7 @@ type modelSetIn struct {
 func (s *Service) modelCommands() []*registry.Command {
 	c := registry.Def("model_set", "Set model",
 		"Adds or changes a model of a connection with its kind and price; what is left out comes from the catalog of the connection. A module or the master proposes a model it needs this way, and the owner adds it with one button.",
-		registry.Everyone, s.modelSet).Enum("agent", s.agentNames()...)
+		registry.Everyone, s.modelSet).Brings(registry.FromDeck).Enum("agent", s.agentNames()...)
 	// A model sets prices and what is free: money, which only the owner's answer to its request changes.
 	c.Gate.Needs = gateway.Itself(c.Name, true)
 	c.Gate.Subject = func(_ context.Context, _ registry.At, input json.RawMessage) registry.Subject {
@@ -59,7 +59,7 @@ func (s *Service) modelCommands() []*registry.Command {
 	}
 	d := registry.Def("model_delete", "Remove model",
 		"Removes a model and takes it out of the assignments that name it. A module the owner lets send it always removes without the owner a free model its own call added that no assignment names, and the owner sees it with an undo; any other removal waits for the owner.",
-		registry.Everyone, s.modelDelete)
+		registry.Everyone, s.modelDelete).Brings(registry.FromDeck)
 	// A removal takes the model out of its assignments, which no undo brings back: only the owner's answer to its
 	// request allows it, or their always to a module that removes a spare model its own call added.
 	d.Gate.Needs = func(ctx context.Context, a registry.Actor, _ registry.Subject, input json.RawMessage) ([]registry.Need, error) {

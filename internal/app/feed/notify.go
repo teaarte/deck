@@ -132,7 +132,7 @@ func (s *Service) notifyCommands() []*registry.Command {
 			registry.OwnerOnly, s.feedPress).Stays(),
 		registry.Def("owner_notify", "Notify the owner",
 			"Writes a line to the feed of the cockpit, with a screen of the project to open and buttons; the caller decides it is worth it.",
-			registry.Everyone, s.notify).Stays(),
+			registry.Everyone, s.notify).Brings(registry.FromDeck).Stays(),
 	}
 }
 

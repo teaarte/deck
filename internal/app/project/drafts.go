@@ -121,6 +121,6 @@ func (s *Service) draftsCommands() []*registry.Command {
 			registry.OwnerOnly, s.projectEnable).Stays(),
 		registry.Def("command_try", "Try a command",
 			"Runs a command of a project once as a trial to check it before a button or a schedule runs it: calls of commands that are not internal are declined; a call of a tool, or of a model that is neither free nor local, waits for the owner's yes on that call, internal or not.",
-			registry.OwnerSide, s.commandTry).Stays(),
+			registry.OwnerSide, s.commandTry).Brings(registry.FromData).Stays(),
 	}
 }

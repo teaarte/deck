@@ -143,6 +143,9 @@ func (r *Runner) thread(ctx context.Context, p db.Process) string {
 	for i := len(ps) - 1; i >= 0 && len(links) < threadLinks; i-- {
 		if q := ps[i]; q.ID != p.ID {
 			links = append(links, r.link(ctx, q))
+			if q.ReadUntrusted != "" {
+				r.Read(ctx, p.ID, fmt.Sprintf("the result of process %d of its record, which read %s", q.ID, q.ReadUntrusted))
+			}
 		}
 	}
 	if len(links) == 0 {

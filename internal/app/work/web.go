@@ -37,17 +37,45 @@ const (
 	maxPageText = 100 << 10
 )
 
-// webDomains are the sites the caller reads pages of: any public one for the owner side, the hosts its project's
-// programs hold the network of for the rest.
+// webDomains are the sites the caller reads pages of: any public one for the owner, the hosts its module holds the
+// network of for the rest, the master by its own right as any module.
 func (s *Service) webDomains(ctx context.Context, act registry.Actor) ([]string, error) {
-	if act.OwnerSide() || act.ProjectID == 0 {
+	if act.Kind == registry.Owner {
 		return []string{"*"}, nil
+	}
+	if act.ProjectID == 0 {
+		return nil, registry.Refuse("only a module reads pages through deck by its right network; an automation token reads the web itself")
 	}
 	m, g, err := docs.Rights(ctx, s.St.Q, act.ProjectID)
 	if err != nil {
 		return nil, err
 	}
 	return m.Held(g, manifest.Network, manifest.Programs), nil
+}
+
+// pageNeeds is the right a read of a page needs: the network of its programs on the host of its address, which its
+// module declares.
+func (s *Service) pageNeeds(ctx context.Context, act registry.Actor, _ registry.Subject, input json.RawMessage) ([]registry.Need, error) {
+	var in webFetchIn
+	if err := json.Unmarshal(input, &in); err != nil {
+		return nil, registry.Invalid("%v", err)
+	}
+	u, err := url.Parse(in.URL)
+	if err != nil || u.Hostname() == "" || u.Scheme != "http" && u.Scheme != "https" {
+		return nil, registry.Invalid("%q is no address of a page: give an http or https URL", in.URL)
+	}
+	if act.ProjectID == 0 {
+		return nil, registry.Refuse("only a module reads pages through deck by its right network; an automation token reads the web itself")
+	}
+	n := registry.Need{Right: manifest.Network, Who: manifest.Programs, Subject: strings.ToLower(u.Hostname())}
+	m, _, err := docs.Rights(ctx, s.St.Q, act.ProjectID)
+	if err != nil {
+		return nil, err
+	}
+	if !m.Declares(n) {
+		return nil, registry.Refuse("%s is not of the hosts its module holds the network of; an agent reads the pages of the hosts its module holds the network of, which it declares in rights", n.Subject)
+	}
+	return []registry.Need{n}, nil
 }
 
 type webSearchIn struct {
@@ -68,9 +96,6 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 	defer func() { s.journalRead(ctx, act, "web_search", read, err) }()
 	if strings.TrimSpace(in.Query) == "" {
 		return nil, registry.Invalid("a search needs a query")
-	}
-	if _, err := s.webDomains(ctx, act); err != nil {
-		return nil, err
 	}
 	hops, err := s.Route(ctx, act, models.Ask{Connection: "@", Model: "@" + RoleSearch})
 	if err != nil {
@@ -236,12 +261,14 @@ func pageText(r io.Reader) (string, string) {
 // webCommands are the web of deck's agents, whose boxes reach only their rights; each writes its line of the journal
 // with the addresses it read.
 func (s *Service) webCommands() []*registry.Command {
+	fetch := registry.Def("web_fetch", "Read a page",
+		"Reads a web page as text: the words of an HTML page, a text or JSON one as it is; an agent of a module reads only the hosts its module holds the network of (\"*\" for any).",
+		registry.Everyone, s.webFetch).Brings(registry.FromOutside)
+	fetch.Gate.Needs = s.pageNeeds
 	return []*registry.Command{
 		registry.Def("web_search", "Search the web",
 			"Searches the web through the search service of deck's settings and gives titles, addresses and snippets.",
-			registry.Everyone, s.webSearch).Stays(),
-		registry.Def("web_fetch", "Read a page",
-			"Reads a web page as text: the words of an HTML page, a text or JSON one as it is; an agent of a module reads only the hosts its module holds the network of (\"*\" for any).",
-			registry.Everyone, s.webFetch).Stays(),
+			registry.Everyone, s.webSearch).Brings(registry.FromOutside).Stays(),
+		fetch,
 	}
 }

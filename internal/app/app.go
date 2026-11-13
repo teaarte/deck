@@ -137,7 +137,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		return nil, err
 	}
 	a.Registry = registry.New(a.mods.commands, key, cfg.Now)
-	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL,
+	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL, MarkedWeb: a.Settings.MarkedWeb,
 		Models: func(act registry.Actor) http.Handler { return a.Work.Proxy(act, a.Gateway.Permit) }, Progress: cfg.Progress, Go: a.bg.Go},
 		gateway.Deps{Store: st, Asks: a.Asks, Bus: a.Bus, Registry: a.Registry})
 	oauth := &tools.OAuth{Secrets: a.Secrets.Read, Swap: a.Secrets.Swap}

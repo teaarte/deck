@@ -268,7 +268,7 @@ func picked(model string, before []string) []string {
 func (s *Service) assignmentCommands() []*registry.Command {
 	c := registry.Def("assignment_set", "Assign models",
 		"Sets the models that do a kind of work in the workspace, a project or a command: the first, then the fallbacks a new turn or call takes when it is down. A module or the master proposes an assignment this way, of any project, and the owner applies it with one button.",
-		registry.Everyone, s.assignmentSet)
+		registry.Everyone, s.assignmentSet).Brings(registry.FromDeck)
 	proposed := gateway.Itself(c.Name, false)
 	c.Gate.Needs = func(ctx context.Context, act registry.Actor, sub registry.Subject, input json.RawMessage) ([]registry.Need, error) {
 		if act.Trial {

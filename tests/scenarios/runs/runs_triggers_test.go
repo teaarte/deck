@@ -622,7 +622,7 @@ func TestRunNowKeepsTheRightsOfItsCaller(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithClock())
 	e.Project("alpha", harness.TestManifest([]string{harness.AgentCommand("c1", "")}, []string{`{"command": "c1", "cron": "0 9 * * *"}`}))
 	job := e.Triggers()[0].ID
-	_, narrow := e.Token("narrow", "deck.trigger_run")
+	_, narrow := e.TokenWith(map[string]any{"name": "narrow", "commands": []string{"deck.trigger_run"}})
 	if code, out := e.As(narrow).Call("deck.trigger_run", map[string]any{"trigger": job}); code != 403 || e.CountOf("c1") != 0 {
 		t.Fatalf("a token that may not call the command does not run it now: %d %s, %d runs", code, out, e.CountOf("c1"))
 	}

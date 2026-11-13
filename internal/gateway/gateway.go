@@ -108,6 +108,7 @@ type Gateway struct {
 	owed    map[int64]int
 	tokens  map[int64]*automationEntry
 	handler http.Handler
+	spend   spend
 }
 
 type entry struct {
@@ -431,9 +432,14 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 		}
 	}
 	var v Verdict
+	give := func() {}
 	if err == nil {
 		v, err = g.verdict(ctx, act, c, project, input, true)
 	}
+	if err == nil {
+		v, give, err = g.held(ctx, act, v, func() (Verdict, error) { return g.verdict(ctx, act, c, project, input, true) })
+	}
+	defer give()
 	right := ""
 	if v.Need != nil {
 		right = v.Need.Right
@@ -450,6 +456,8 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 		g.journal(ctx, act, project, name, right, "unchanged", params, "")
 		return Unchanged{Unchanged: true, Text: fmt.Sprintf("deck: %s changes nothing, it is so already; no request went to the owner.", c.Name)}, nil
 	case DoAsk:
+		// A call that waits for the owner does not hold its run meanwhile.
+		give()
 		return g.request(ctx, act, c, project, input, v)
 	}
 	return g.made(ctx, act, c, project, input, v, params)

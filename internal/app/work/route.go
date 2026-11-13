@@ -293,7 +293,7 @@ func (s *Service) TurnModel(workspace int64, m db.Model, c db.Connection) func(p
 
 // Proxy is deck's proxy of models for a script of act: the rules of the command of a call of a model decide
 // whether a call goes, by permit; one that would wait for the owner is refused.
-func (s *Service) Proxy(act registry.Actor, permit func(ctx context.Context, act registry.Actor, command string, input json.RawMessage, wait string) error) http.Handler {
+func (s *Service) Proxy(act registry.Actor, permit func(ctx context.Context, act registry.Actor, command string, input json.RawMessage, wait string) (func(), error)) http.Handler {
 	return models.Handler(models.Policy{
 		Route: func(ctx context.Context, ask models.Ask) ([]models.Hop, error) { return s.Route(ctx, act, ask) },
 		Started: func(hops []models.Hop, job string) {
@@ -301,7 +301,7 @@ func (s *Service) Proxy(act registry.Actor, permit func(ctx context.Context, act
 				s.jobs.Store(jobKey(act.Workspace, h.Connection, job), act.ProjectID)
 			}
 		},
-		Allow: func(ctx context.Context, ask models.Ask, body []byte) error {
+		Allow: func(ctx context.Context, ask models.Ask, body []byte) (func(), error) {
 			in := map[string]string{"connection": ask.Connection, "path": ask.Path}
 			if ask.ByHeader || ask.InForm {
 				in["model"] = ask.Model

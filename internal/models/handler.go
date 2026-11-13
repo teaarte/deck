@@ -20,9 +20,9 @@ type Policy struct {
 	// Connection is the connection of every call; empty, the first part of the path names it.
 	Connection string
 	// Route finds the hops of what a call asks; Allow, when set, lets the call go or says why not, its ctx holding
-	// the route.
+	// the route; the handler calls done once the call is made.
 	Route func(ctx context.Context, ask Ask) ([]Hop, error)
-	Allow func(ctx context.Context, ask Ask, body []byte) error
+	Allow func(ctx context.Context, ask Ask, body []byte) (done func(), err error)
 	// Named puts the model of each hop in every JSON body, not only in one that names a model.
 	Named bool
 	// Answer hears each answer of a call of an agent's turn, one with tools, at its head and a refusal again at its end.
@@ -67,7 +67,9 @@ func Handler(p Policy) http.Handler {
 		}
 		ctx := WithRoute(r.Context(), ask, hops)
 		if p.Allow != nil {
-			if err := p.Allow(ctx, ask, body); err != nil {
+			done, err := p.Allow(ctx, ask, body)
+			defer done()
+			if err != nil {
 				refuse(err)
 				return
 			}

@@ -887,6 +887,53 @@ func TestAlwaysOfMoneyHoldsToTheMostARunSpends(t *testing.T) {
 	}
 }
 
+// parallelCalls is a script that makes its calls of a model at once.
+const parallelCalls = `import json, os, sys, urllib.request, urllib.error
+from concurrent.futures import ThreadPoolExecutor
+inp = json.load(sys.stdin)
+def call(_):
+    req = urllib.request.Request(os.environ["DECK_MODELS"] + "/" + inp["key"], data=inp["other"].encode(), method="POST",
+        headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        return e.code
+with ThreadPoolExecutor(inp["times"]) as ex:
+    out = list(ex.map(call, range(inp["times"])))
+print(json.dumps({"statuses": out}))
+`
+
+// TestAlwaysOfMoneyHoldsToTheMostARunSpendsInParallel: calls of one run made at once are counted against its
+// run_usd as they go, so the run spends no more than when it calls one after another.
+func TestAlwaysOfMoneyHoldsToTheMostARunSpendsInParallel(t *testing.T) {
+	t.Parallel()
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			time.Sleep(500 * time.Millisecond)
+			return 200, "application/json", harness.PictureAnswer(0.03)
+		},
+	})
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or-real"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image", "name": "painter", "call_usd": 0.04}, nil)
+	e.Must("deck.project_create", map[string]any{"name": "films", "manifest": harness.ScriptManifest("media", "",
+		`, "rights": [{"right": "money", "what": ["openrouter"], "run_usd": 0.05, "why": "calls models"}]`)}, nil)
+	e.Grant("films", "money", "openrouter")
+	e.SaveScript("films", "scripts/main.py", parallelCalls)
+	asked := func() int { return len(slices.DeleteFunc(api.Calls(), func(c harness.ModelCall) bool { return c.Path != "/api/v1/chat/completions" })) }
+	before := asked()
+	id := e.Start("films", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture, "times": 10})
+	got := e.WaitState(id, "done", "error")
+	var out struct{ Statuses []int }
+	if json.Unmarshal(got.Result, &out) != nil || len(out.Statuses) != 10 {
+		t.Fatalf("the script ran: %+v", got)
+	}
+	if n := asked() - before; n > 2 {
+		t.Fatalf("ten calls at once under run_usd 0.05 at 0.03 a call reach the model %d times, want at most 2: %v", n, out.Statuses)
+	}
+}
+
 // TestRunCapCountsUnpricedCalls: under run_usd a paid call deck cannot price counts as past the cap, so the owner's
 // always does not cover spending deck does not count.
 func TestRunCapCountsUnpricedCalls(t *testing.T) {
@@ -903,15 +950,16 @@ func TestRunCapCountsUnpricedCalls(t *testing.T) {
 		`, "rights": [{"right": "money", "what": ["paid"], "run_usd": 0.05, "why": "calls models"}]`)}, nil)
 	e.Grant("films", "money", "paid")
 	e.SaveScript("films", "scripts/main.py", manyCalls)
-	before := len(api.Calls())
+	asked := func() int { return len(slices.DeleteFunc(api.Calls(), func(c harness.ModelCall) bool { return c.Path != "/v1/chat/completions" })) }
+	before := asked()
 	id := e.Start("films", "media", map[string]any{"key": "paid/chat/completions", "other": `{"model": "fact-model", "messages": [{"role": "user", "content": "hi"}]}`, "times": 3})
 	got := e.WaitState(id, "done", "error")
 	var out struct{ Statuses []any }
 	if json.Unmarshal(got.Result, &out) != nil {
 		t.Fatalf("the script ran: %+v", got)
 	}
-	if fmt.Sprint(out.Statuses) != "[200 403 403]" || len(api.Calls())-before != 1 {
-		t.Fatalf("after a call deck could not price the run is past its cap: %v, %d calls", out.Statuses, len(api.Calls())-before)
+	if fmt.Sprint(out.Statuses) != "[200 403 403]" || asked()-before != 1 {
+		t.Fatalf("after a call deck could not price the run is past its cap: %v, %d calls", out.Statuses, asked()-before)
 	}
 }
 

@@ -32,6 +32,8 @@ type Verdict struct {
 	err error
 	// kept says an answer of always or no to the need is kept for the module.
 	kept bool
+	// capped says the owner's always holds the call to the run_usd of its run.
+	capped bool
 }
 
 // verdict gathers the facts of a call of c with input by act in project and decides it; look lets deck reach out to
@@ -142,7 +144,7 @@ func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.C
 	f.Pressed = slices.ContainsFunc(allows, func(a Allow) bool { return a.names(c, input) })
 	f.Exit = g.exit(ctx, act, m, n)
 	if f.Answer == manifest.Always && n.Right == manifest.Money && m != nil {
-		if f.Over, err = g.over(ctx, act, m, needs); err != nil {
+		if f.Over, v.capped, err = g.over(ctx, act, m, needs); err != nil {
 			return v, err
 		}
 	}
@@ -172,7 +174,7 @@ func (g *Gateway) exit(ctx context.Context, act registry.Actor, m *manifest.Mani
 
 // over says the run of act has spent the least cap per run its module declares on the money needs spend: the cost
 // of its calls through deck, a subscription's or local one's not counted, an unpriced paid one past any cap.
-func (g *Gateway) over(ctx context.Context, act registry.Actor, m *manifest.Manifest, needs []registry.Need) (bool, error) {
+func (g *Gateway) over(ctx context.Context, act registry.Actor, m *manifest.Manifest, needs []registry.Need) (over, capped bool, err error) {
 	var cap float64
 	for _, n := range needs {
 		if c := m.RunUSD(n); c > 0 && (cap == 0 || c < cap) {
@@ -180,11 +182,11 @@ func (g *Gateway) over(ctx context.Context, act registry.Actor, m *manifest.Mani
 		}
 	}
 	if cap == 0 || act.ProcessID == 0 {
-		return false, nil
+		return false, false, nil
 	}
 	calls, err := g.st.Q.ListProcessModelCalls(ctx, store.ID(act.ProcessID))
 	if err != nil {
-		return false, err
+		return false, true, err
 	}
 	var spent float64
 	for _, c := range calls {
@@ -192,12 +194,12 @@ func (g *Gateway) over(ctx context.Context, act registry.Actor, m *manifest.Mani
 		case c.Subscription != 0 || c.Local != 0:
 		case !c.CostUsd.Valid:
 			// A paid call deck could not price may have spent any sum.
-			return true, nil
+			return true, true, nil
 		default:
 			spent += c.CostUsd.Float64
 		}
 	}
-	return spent >= cap, nil
+	return spent >= cap, true, nil
 }
 
 // rank orders the answers to the needs of one call: always over work over nothing over no.

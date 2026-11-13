@@ -10,14 +10,19 @@ import (
 // ModelCommand is the command whose rules a call of a model through the proxy goes by.
 var ModelCommand = registry.Deck("model_call")
 
-// Permit decides by the table whether act's call of command with input goes now: one that would wait for the owner
-// is refused with wait, and a refusal goes to the journal.
-func (g *Gateway) Permit(ctx context.Context, act registry.Actor, command string, input json.RawMessage, wait string) error {
+// Permit decides by the table whether act's call of command with input goes now, one that would wait for the owner
+// refused with wait; done, called once the call is made, lets the next call of a run held to run_usd go.
+func (g *Gateway) Permit(ctx context.Context, act registry.Actor, command string, input json.RawMessage, wait string) (done func(), err error) {
+	done = func() {}
 	c, err := g.reg.Lookup(ctx, act.Workspace, command)
 	if err != nil {
-		return err
+		return done, err
 	}
-	v, err := g.verdict(context.WithValue(ctx, modelsKey{}, true), act, c, act.ProjectID, input, true)
+	mctx := context.WithValue(ctx, modelsKey{}, true)
+	v, err := g.verdict(mctx, act, c, act.ProjectID, input, true)
+	if err == nil {
+		v, done, err = g.held(ctx, act, v, func() (Verdict, error) { return g.verdict(mctx, act, c, act.ProjectID, input, true) })
+	}
 	switch {
 	case err != nil:
 	case v.Does == DoRefuse:
@@ -44,5 +49,5 @@ func (g *Gateway) Permit(ctx context.Context, act registry.Actor, command string
 		}
 		g.journal(ctx, act, act.ProjectID, command, right, "rejected", Canonical(input), err.Error())
 	}
-	return err
+	return done, err
 }

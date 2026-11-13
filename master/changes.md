@@ -496,3 +496,5 @@ and bring the modules in line.
 - 2026-11-14: under `run_usd` a paid call of a model deck cannot price (the API sent no cost, the model has no price in
   deck's settings) counts as past the cap: the next call of that run waits for the owner (an agent) or is refused (a
   script). A model of the owner's machine, a free one and a subscription are not money.
+- 2026-11-14: calls of models of one run under `run_usd` go one at a time, each counted with what the ones before it
+  cost: a script's parallel calls wait for each other, and the run spends no more than when it calls in a row.

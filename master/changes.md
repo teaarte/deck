@@ -477,3 +477,7 @@ and bring the modules in line.
 - 2026-11-13: the mark of a turn is of its process, not only of a call it makes now: a button of a note a marked turn
   wrote (`feed_press`) waits for the owner's yes to that very call when it reaches outside, whatever the module holds
   always; the turn's own calls of models through deck are no way out.
+- 2026-11-13: a marked turn (it read text from outside deck and holds something of value) calls a script or tool
+  command of a module that holds a way out always (`network` of programs, `send`, `money`, `modules`), or an agent
+  command of one holding the network of its agents' shells, only by the owner's yes to that very call: the program
+  would carry the turn's words out. A clean turn calls them as before; a press naming the call stays a yes.

@@ -7,8 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
+	"strings"
 
+	"deck2/internal/docs"
+	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -26,6 +30,35 @@ func (g *Gateway) turn(ctx context.Context, act registry.Actor) (db.Process, boo
 
 // modelsKey marks a call of a model through deck's proxy, which is no way out of the turn that thinks with it.
 type modelsKey struct{}
+
+// conduit is a way out the module of c holds always, which a call of c hands its input to: any of a script or a tool
+// of the module, the network of its agents' shells of an agent, whose other ways out deck marks by that input.
+func (g *Gateway) conduit(ctx context.Context, c *registry.Command) (registry.Need, bool, error) {
+	if c.ProjectID == 0 {
+		return registry.Need{}, false, nil
+	}
+	p, err := g.st.Q.GetProject(ctx, c.ProjectID)
+	if err != nil {
+		return registry.Need{}, false, err
+	}
+	m, granted, err := docs.Rights(ctx, g.st.Q, c.ProjectID)
+	if err != nil {
+		return registry.Need{}, false, err
+	}
+	cmd := m.Command(strings.TrimPrefix(c.Name, p.Name+"."))
+	if cmd == nil || !slices.Contains([]string{"script", "agent", "tool"}, cmd.Executor.Type) {
+		return registry.Need{}, false, nil
+	}
+	for _, d := range m.Rights {
+		if r, _ := manifest.RightOf(d.Right); !r.Exit || cmd.Executor.Type == "agent" && d.Whom() != manifest.Agents {
+			continue
+		}
+		if held := m.Held(granted, d.Right, d.Who); len(held) > 0 {
+			return registry.Need{Right: d.Right, Who: d.Whom(), Subject: held[0]}, true, nil
+		}
+	}
+	return registry.Need{}, false, nil
+}
 
 // marked says the turn that makes a call now read untrusted text and holds something of value.
 func (g *Gateway) marked(ctx context.Context, act registry.Actor) bool {

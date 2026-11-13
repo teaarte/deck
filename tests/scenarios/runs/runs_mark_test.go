@@ -357,3 +357,53 @@ func TestTheMastersReaderReadsTheWebFreelyAndAMarkedMasterAsksOnceForIt(t *testi
 		t.Fatalf("the reader the marked master started is marked by its input, holds nothing of value and reads page after page: %q %d %q", read, valued, reader)
 	}
 }
+
+// relayScript posts its text to the url of its input: a script whose module holds the network of programs.
+const relayScript = `import json, sys, urllib.request
+inp = json.load(sys.stdin)
+req = urllib.request.Request(inp["url"], data=json.dumps({"text": inp["text"]}).encode(), headers={"Content-Type": "application/json"})
+urllib.request.urlopen(req, timeout=60)
+print("{}")
+`
+
+// TestAMarkedTurnHandsItsWordsToAScriptThatReachesOutOnlyByTheOwnersOnce: a script command of the module, whose
+// program holds the network always, takes a clean turn's input at once and a marked turn's only by the owner's once.
+func TestAMarkedTurnHandsItsWordsToAScriptThatReachesOutOnlyByTheOwnersOnce(t *testing.T) {
+	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
+	var mu sync.Mutex
+	var got []string
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		before, _ := c.Tool(ctx, "notes__relay", map[string]any{"url": svc.URL + "/relay", "text": "before"})
+		c.Tool(ctx, "web_fetch", map[string]any{"url": svc.URL + "/page"})
+		after, _ := c.Tool(ctx, "notes__relay", map[string]any{"url": svc.URL + "/relay", "text": "the-owners-memory"})
+		mu.Lock()
+		got = []string{before, after}
+		mu.Unlock()
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}))
+	m := harness.Manifest(`{
+  "rights": [{"right": "network", "what": ["127.0.0.1"], "why": "keeps its notes on its service"}],
+  "scripts": [{"name": "relay", "file": "scripts/relay.py", "runtime": "python"}],
+  "commands": [{"name": "relay", "title": "Relay", "description": "Relays a note to its service.", "result": {"type": "object"},
+    "input": {"type": "object", "properties": {"url": {"type": "string"}, "text": {"type": "string"}}, "required": ["url", "text"]},
+    "executor": {"type": "script", "script": "relay"}}, ` + harness.AgentCommand("work", "") + `]}`)
+	e.Project("notes", m)
+	e.SaveScript("notes", "scripts/relay.py", relayScript)
+	e.WaitState(e.Start("notes", "work", nil), "done", "waiting:answer")
+	mu.Lock()
+	seen := slices.Clone(got)
+	mu.Unlock()
+	if len(seen) != 2 || strings.Contains(seen[0], "waiting") || !strings.Contains(seen[1], `"waiting"`) {
+		t.Fatalf("a clean turn's relay goes, a marked one's waits: %v", seen)
+	}
+	if n := len(svc.To("/relay")); n != 1 {
+		t.Fatalf("only the clean turn's words went out: %d", n)
+	}
+	as := asksOf(e)
+	if len(as) != 1 || as[0]["always"] != nil || as[0]["work"] != nil || !strings.Contains(fmt.Sprint(as[0]["change"]), "It read from outside deck") {
+		t.Fatalf("one question of once, which says why: %+v", as)
+	}
+	e.Answer(int64(as[0]["id"].(float64)), "allow")
+	e.Until("the relay the owner allowed once", func() bool { return len(svc.To("/relay")) == 2 })
+}

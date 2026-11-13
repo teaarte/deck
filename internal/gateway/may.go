@@ -43,10 +43,27 @@ func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.C
 	f.Cleared = act.Cleared(c.Name)
 	if !c.Gated() || f.Owner {
 		f.Needs = c.Gated()
-		// A marked turn changes what an enabled module runs only with the owner's yes to the change.
-		if !f.Owner && !f.Cleared && c.Gate.Subject != nil && g.marked(ctx, act) {
-			v.Subject = c.Gate.Subject(ctx, registry.At{Workspace: act.Workspace, Project: project, Look: look}, input)
-			f.Marked, f.Instructs = true, v.Subject.Instructs
+		if !f.Owner && !f.Cleared && (c.Gate.Subject != nil || c.ProjectID != 0) && g.marked(ctx, act) {
+			// A marked turn changes what an enabled module runs only with the owner's yes to the change.
+			if c.Gate.Subject != nil {
+				v.Subject = c.Gate.Subject(ctx, registry.At{Workspace: act.Workspace, Project: project, Look: look}, input)
+				f.Marked, f.Instructs = true, v.Subject.Instructs
+			}
+			// Its input goes out with a program of the module that holds a way out always.
+			n, ok, err := g.conduit(ctx, c)
+			if err != nil {
+				return v, err
+			}
+			if ok {
+				allows, err := g.allowsOf(ctx, act)
+				if err != nil {
+					return v, err
+				}
+				v.Need = &n
+				f.Needs, f.Declared, f.Answer, f.Marked, f.Exit, f.Draft = true, true, manifest.Always, true, true, act.Trial
+				f.Pressed = slices.ContainsFunc(allows, func(a Allow) bool { return a.names(c, input) })
+				f.Shown = f.Pressed
+			}
 		}
 		v.Row = decide(*f)
 		return v, nil

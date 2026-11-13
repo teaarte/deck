@@ -363,9 +363,9 @@ asks for always.
 
 An agent turn that read text from outside deck — a page, an answer of a tool or MCP server, the browser, data of a
 module that holds such text — and holds something of value acts outside by the owner's yes to each call: `send`,
-`money`, `modules` and `network` on `*` wait for a once, whatever the owner answered always. So keep reading apart
-from acting: a script fetches the pages, or a reader — an agent command whose `calls` are `deck.web_search` and
-`deck.web_fetch` alone — reads them and holds nothing of value; the agent that acts reads its records.
+`money`, `modules`, `network` on `*`, a script or tool of a module holding a way out wait for a once, whatever
+always says. So keep reading apart from acting: a script fetches pages, or a reader (an agent whose `calls` are
+`deck.web_search` and `deck.web_fetch` alone) reads them; the agent that acts reads its records.
 
 ## 8. Build, import, try
 

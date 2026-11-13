@@ -47,6 +47,8 @@ type Source struct {
 	As      string
 	Process int64
 	Project int64
+	// Token is an automation token whose words it is.
+	Token int64
 }
 
 // carried is where the untrusted text of the first of sources that holds some came from, empty for none.
@@ -62,17 +64,19 @@ func carried(ctx context.Context, q *db.Queries, sources ...Source) string {
 				return fmt.Sprintf("%s %s, where %s wrote", s.As, p.Name, p.Untrusted)
 			}
 		}
+		if s.Token != 0 {
+			if t, err := q.GetToken(ctx, s.Token); err == nil && t.Trusted == 0 {
+				return fmt.Sprintf("%s automation token %s", s.As, t.Name)
+			}
+		}
 	}
 	return ""
 }
 
 // Carries marks a process with the untrusted text the first of sources it is given holds.
 func (r *Runner) Carries(ctx context.Context, id int64, sources ...Source) {
-	err := r.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		return carries(ctx, q, id, sources...)
-	})
-	if err != nil {
-		slog.Error("mark a process", "process", id, "err", err)
+	if from := carried(ctx, r.st.Q, sources...); from != "" {
+		r.Read(ctx, id, from)
 	}
 }
 

@@ -409,9 +409,8 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 	return bindInput(ctx, q, cmd, projectID, a.p.ID, a.input)
 }
 
-// inherit marks a process with the untrusted text what it was given carries: the input of a marked process that
-// started it, the work of one it continues, what its first prompt carries, the session of a marked process it goes on,
-// files given with a message.
+// inherit marks a process with the untrusted text what it was given carries: the input or work of a marked process
+// it starts from, what its first prompt carries, the session of a marked process it goes on, files given with it.
 func inherit(ctx context.Context, q *db.Queries, id int64, o Origin) error {
 	from := o.Read
 	if from == "" {

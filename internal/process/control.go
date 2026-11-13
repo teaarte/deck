@@ -97,9 +97,8 @@ func (r *Runner) end(ctx context.Context, processID int64, state string, f *faul
 	return nil
 }
 
-// Rework sends a finished process back to its session with the owner's remark and a full ceiling; by is the process
-// whose turn wrote the remark, 0 for the owner.
-func (r *Runner) Rework(ctx context.Context, processID int64, remark string, by int64) error {
+// Rework sends a finished process back to its session with a remark and a full ceiling; by is who wrote the remark.
+func (r *Runner) Rework(ctx context.Context, processID int64, remark string, by Source) error {
 	r.mu.Lock()
 	lt := r.live[processID]
 	r.mu.Unlock()
@@ -156,7 +155,7 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string, by 
 		if err != nil || n == 0 {
 			return err
 		}
-		return carries(ctx, q, processID, Source{As: "a remark of", Process: by})
+		return carries(ctx, q, processID, by)
 	})
 	if err != nil {
 		return err

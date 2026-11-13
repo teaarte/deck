@@ -19,9 +19,8 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// Memory is what a fresh session of a process gets of the memory, as data within docs.MemoryBudget: the owner's index
-// for an agent of the master, the index of its project (or of a topic's), then the lessons of its command; and the
-// modules whose memory it is.
+// Memory is what a fresh session gets of the memory within docs.MemoryBudget, and the modules it is of: the owner's
+// index for the master, the index of its project (or a topic's), then the lessons of its command.
 func (s *Service) Memory(ctx context.Context, p db.Process, again bool) (memory, lessons string, from []process.Source, err error) {
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil {

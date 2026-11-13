@@ -132,10 +132,16 @@ func (g *Gateway) taint(ctx context.Context, act registry.Actor, c *registry.Com
 	}
 }
 
-// written are the modules whose data a call of c writes: those its input names, else its module, else the workspace,
-// whose mark project master holds with the owner's memory.
+// written are the modules whose data a call of c writes: those its input names or of the processes it names, else its
+// module, else the workspace, whose mark project master holds with the owner's memory.
 func (g *Gateway) written(ctx context.Context, workspace int64, c *registry.Command, project int64, input json.RawMessage) []int64 {
-	if n := g.named(ctx, workspace, c, input); len(n.projects) > 0 {
+	n := g.named(ctx, workspace, c, input)
+	for _, id := range n.processes {
+		if p, err := g.st.Q.GetProcess(ctx, id); err == nil {
+			n.projects = append(n.projects, p.ProjectID)
+		}
+	}
+	if len(n.projects) > 0 {
 		return n.projects
 	}
 	if project != 0 {

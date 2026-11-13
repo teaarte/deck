@@ -231,6 +231,7 @@ DELETE FROM process WHERE state = 'done' AND result = 'null' AND not_by_schema =
     AND (a.state = 'open' OR EXISTS (SELECT 1 FROM tool_call t WHERE t.ask_id = a.id AND t.run = 'running')))
   AND NOT EXISTS (SELECT 1 FROM record r WHERE r.process_id = process.id)
   AND NOT EXISTS (SELECT 1 FROM process c WHERE c.parent_id = process.id)
+  AND NOT EXISTS (SELECT 1 FROM feed f WHERE f.process_id = process.id AND f.for_master = 1)
 RETURNING id;
 
 

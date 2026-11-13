@@ -15,8 +15,8 @@ import (
 	"deck2/skills"
 )
 
-// Skills returns the files of the named skills by path under the skill folder, and project master, which holds the
-// mark of the workspace, when one is the workspace's; a project skill hides a workspace skill of the same name.
+// Skills returns the files of the named skills by path under the skill folder and the modules they are of, master for
+// the workspace's; a project skill hides a workspace skill of the same name.
 func (s *Service) Skills(ctx context.Context, projectID int64, names []string) (map[string]string, []process.Source, error) {
 	if len(names) == 0 {
 		return nil, nil, nil
@@ -36,7 +36,7 @@ func (s *Service) Skills(ctx context.Context, projectID int64, names []string) (
 		}
 	}
 	out := map[string]string{}
-	workspace := false
+	own, workspace := false, false
 	for _, n := range names {
 		from := p.ID
 		if !has[fmt.Sprint(p.ID, "/", n)] {
@@ -45,20 +45,22 @@ func (s *Service) Skills(ctx context.Context, projectID int64, names []string) (
 			}
 			workspace = true
 		}
+		own = own || from != 0
 		for _, r := range rows {
 			if r.ProjectID == from && docs.SkillOf(r.Name) == n {
 				out[strings.TrimPrefix(r.Name, docs.SkillsDir)] = r.Text
 			}
 		}
 	}
-	if !workspace {
-		return out, nil, nil
+	var from []process.Source
+	if own {
+		from = append(from, process.Source{As: "the skills of", Project: p.ID})
 	}
-	mp, err := access.Master(ctx, s.St.Q, p.WorkspaceID)
-	if err != nil {
-		return nil, nil, err
+	// Without the built-in master the workspace holds no mark.
+	if mp, err := access.Master(ctx, s.St.Q, p.WorkspaceID); workspace && err == nil {
+		from = append(from, process.Source{As: "the skills of the workspace in", Project: mp.ID})
 	}
-	return out, []process.Source{{As: "the skills of the workspace in", Project: mp.ID}}, nil
+	return out, from, nil
 }
 
 // SeedSkills ships the skills built into deck as skills of every workspace with docs.Ship; the master gets a note of

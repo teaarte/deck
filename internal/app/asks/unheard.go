@@ -57,7 +57,7 @@ func (s *Service) unheard(ctx context.Context, p db.Process, a db.Ask, why strin
 		if n, err := q.DeliverAsk(ctx, db.DeliverAskParams{ID: a.ID, Now: store.Time(s.Now())}); err != nil || n == 0 && !a.DeliveredAt.Valid {
 			return err
 		}
-		err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.Now()), WorkspaceID: proj.WorkspaceID, ProjectID: mp.ID,
+		err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.Now()), WorkspaceID: proj.WorkspaceID, ProjectID: mp.ID, ProcessID: store.ID(p.ID),
 			Text: fmt.Sprintf("the owner answered a question of %s and %s; question %s, answer %s",
 				who, why, untrusted.Line(a.Text, 500), untrusted.Line(answer, 500))})
 		if err != nil {

@@ -64,7 +64,8 @@ DELETE FROM feed WHERE kind = 'note' AND for_master = 0 AND (read_at IS NOT NULL
   AND created_at < CAST(sqlc.arg(before) AS TEXT);
 
 -- name: AddMasterNote :exec
-INSERT INTO feed (workspace_id, project_id, kind, author, text, for_master, created_at) VALUES (?, ?, 'note', 'deck', ?, 1, ?);
+-- A note of deck for the master, with the process whose words it quotes.
+INSERT INTO feed (workspace_id, project_id, kind, author, text, for_master, created_at, process_id) VALUES (?, ?, 'note', 'deck', ?, 1, ?, ?);
 
 -- name: ListMasterNotes :many
 SELECT * FROM feed WHERE workspace_id = ? AND for_master = 1 ORDER BY id;

@@ -266,6 +266,9 @@ func (s *Service) masterNotes(ctx context.Context, workspace int64) (string, int
 	var from []process.Source
 	for _, r := range rows {
 		lines, last = append(lines, r.Text), r.ID
+		if r.ProcessID.Valid {
+			from = append(from, process.Source{As: "a note of deck that quotes", Process: r.ProcessID.Int64})
+		}
 	}
 	return strings.Join(lines, "\n"), last, from
 }

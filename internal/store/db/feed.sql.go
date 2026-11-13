@@ -89,7 +89,7 @@ func (q *Queries) AddFeed(ctx context.Context, arg AddFeedParams) (Feed, error) 
 }
 
 const addMasterNote = `-- name: AddMasterNote :exec
-INSERT INTO feed (workspace_id, project_id, kind, author, text, for_master, created_at) VALUES (?, ?, 'note', 'deck', ?, 1, ?)
+INSERT INTO feed (workspace_id, project_id, kind, author, text, for_master, created_at, process_id) VALUES (?, ?, 'note', 'deck', ?, 1, ?, ?)
 `
 
 type AddMasterNoteParams struct {
@@ -97,14 +97,17 @@ type AddMasterNoteParams struct {
 	ProjectID   int64
 	Text        string
 	CreatedAt   string
+	ProcessID   sql.NullInt64
 }
 
+// A note of deck for the master, with the process whose words it quotes.
 func (q *Queries) AddMasterNote(ctx context.Context, arg AddMasterNoteParams) error {
 	_, err := q.db.ExecContext(ctx, addMasterNote,
 		arg.WorkspaceID,
 		arg.ProjectID,
 		arg.Text,
 		arg.CreatedAt,
+		arg.ProcessID,
 	)
 	return err
 }

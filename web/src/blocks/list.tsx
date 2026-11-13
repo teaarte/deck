@@ -146,7 +146,7 @@ function Focus({ items, empty }: { items: Item[]; empty?: string }) {
           <Text size="xs" fw={600} c="dimmed" data-of>{t('{{n}} of {{of}}', { n: 1, of: order.length })}</Text>
         </Group>
         <Holding.Provider value={hold(key(it))}>
-          <Line it={it} big max={3} later={next} />
+          <Line it={it} big max={5} later={next} />
         </Holding.Provider>
       </div>
       {order.length > 1 && <div className={s.edge} data-edge="1" />}

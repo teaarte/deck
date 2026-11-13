@@ -45,7 +45,11 @@ func buttons(r askView) []map[string]any {
 		if r.Allow != "" {
 			yes["label"] = r.Allow
 		}
-		out := []map[string]any{yes}
+		no := held("deny", "deny")
+		if r.Kept {
+			no["verb"] = "deny_kept"
+		}
+		out := []map[string]any{yes, no}
 		if r.Work != "" {
 			work := held("allow_work", "allow_work")
 			work["label"] = r.Work
@@ -56,13 +60,9 @@ func buttons(r askView) []map[string]any {
 			always["label"] = r.Always
 			out = append(out, always)
 		}
-		no := held("deny", "deny")
-		if r.Kept {
-			no["verb"] = "deny_kept"
-		}
 		because := held("deny_because", "deny")
 		because["input"] = "reason"
-		out = append(out, no, because)
+		out = append(out, because)
 		for _, a := range out {
 			if r.ExpiresAt != "" {
 				a["until"] = r.ExpiresAt

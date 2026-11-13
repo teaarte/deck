@@ -56,8 +56,8 @@ func TestRealBrowserWebClient(t *testing.T) {
 	}
 	b.eval(`(document.querySelector('[data-later]').click(), '')`)
 	b.until("Later shows the next one", `document.querySelector('[data-kind]')?.innerText === 'Action' && `+card+`.innerText.includes('POST')`)
-	if got := b.eval(`JSON.stringify(` + buttons + `)`); got != `["Details","Allow: post","Deny","Deny because…","Later"]` {
-		t.Fatalf("a fresh confirmation says what its yes allows first: %s", got)
+	if got := b.eval(`JSON.stringify(` + buttons + `)`); got != `["Details","Allow once: post","No, and do not ask again","For this work","Deny because…","Later"]` {
+		t.Fatalf("a fresh request says what its yes once allows first, then no, for this work and always: %s", got)
 	}
 	if got := b.eval(card + `.innerText`); !strings.Contains(got, "post") || !strings.Contains(got, "POST "+svc.URL+"/items/n2") || !strings.Contains(got, "notes") || strings.Contains(got, "notes.post") {
 		t.Fatalf("a confirmation says what by its title, where and its module, the command under its details: %q", got)
@@ -78,7 +78,7 @@ func TestRealBrowserWebClient(t *testing.T) {
 	}
 
 	full := front.full.Load()
-	b.eval(`(() => { const x = [...` + card + `.querySelectorAll('button')].find(x => x.innerText === 'Allow: post'); x.click(); x.click(); return '' })()`)
+	b.eval(`(() => { const x = [...` + card + `.querySelectorAll('button')].find(x => x.innerText === 'Allow once: post'); x.click(); x.click(); return '' })()`)
 	b.until("the allowed one steps aside at once", `document.querySelector('[data-of]')?.innerText === '1 of 2'`)
 	b.shot("cockpit-hold")
 	e.Until("the answer once its moment passed", func() bool { return front.answers.Load() == 1 })

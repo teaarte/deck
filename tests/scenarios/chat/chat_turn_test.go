@@ -63,10 +63,10 @@ func TestTheTopicShowsWhatItsTurnWaitsToBeAllowed(t *testing.T) {
 	if a.Kind != "call" || len(a.Actions) < 2 {
 		t.Fatalf("the waiting call with its buttons: %+v", a)
 	}
-	yes, no := a.Actions[0], a.Actions[len(a.Actions)-2]
+	yes, no := a.Actions[0], a.Actions[1]
 	if yes.Verb != "allow" || !yes.Primary || !yes.Hold || !strings.HasPrefix(yes.Label, "Allow once: ") || yes.Until == "" || yes.Command != "deck.ask_answer" ||
-		no.Verb != "deny_kept" || no.Primary || !no.Hold || a.Actions[1].Verb != "allow_work" || a.Actions[2].Verb != "allow_always" {
-		t.Fatalf("a yes once that names the call, for this work, always and a kept no, all held: %+v", a.Actions)
+		no.Verb != "deny_kept" || no.Primary || !no.Hold || a.Actions[2].Verb != "allow_work" || a.Actions[3].Verb != "allow_always" {
+		t.Fatalf("a yes once that names the call and a kept no, then for this work and always, all held: %+v", a.Actions)
 	}
 	e.Must(yes.Command, yes.Params, nil)
 	e.Until("the call made", func() bool { return len(svc.Requests()) == 1 })

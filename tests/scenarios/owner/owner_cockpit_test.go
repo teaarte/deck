@@ -556,9 +556,9 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 		strings.Contains(fresh.Details, `"caller"`) {
 		t.Fatalf("the call and only the call is in the details: %s", fresh.Details)
 	}
-	if got := verbs(fresh); !slices.Equal(got, []string{"Allow once: post", "For this work", "Always let notes: it acts in your name: post", "No, and do not ask again", "Deny because…"}) ||
+	if got := verbs(fresh); !slices.Equal(got, []string{"Allow once: post", "No, and do not ask again", "For this work", "Always let notes: it acts in your name: post", "Deny because…"}) ||
 		fresh.Actions[0]["primary"] != true || fresh.Actions[0]["until"] == nil || fresh.Actions[4]["input"] != "reason" {
-		t.Fatalf("a request offers once, for this work and always, each until it expires, then a kept no and a no with a reason: %v", fresh.Actions)
+		t.Fatalf("a request offers once and a kept no, then for this work and always, each until it expires, and a no with a reason: %v", fresh.Actions)
 	}
 	if got := verbs(old); !slices.Equal(got, []string{"Deny"}) || !strings.Contains(old.Details, `"id": "n1"`) {
 		t.Fatalf("an expired confirmation keeps only deny: %+v", old)

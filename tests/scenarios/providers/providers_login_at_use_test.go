@@ -51,7 +51,7 @@ func TestALoginIsAskedWhenAnAgentFirstStartsOnIt(t *testing.T) {
 	for _, b := range rows[0].Actions {
 		verbs = append(verbs, b["verb"].(string))
 	}
-	if a.Kind != "call" || !slices.Equal(verbs, []string{"allow", "allow_work", "allow_always", "deny_kept", "deny_because"}) || c.Calls() != 0 {
+	if a.Kind != "call" || !slices.Equal(verbs, []string{"allow", "deny_kept", "allow_work", "allow_always", "deny_because"}) || c.Calls() != 0 {
 		t.Fatalf("the turn waits for the owner's answer before the CLI starts: %+v %v", a, verbs)
 	}
 	e.Answer(a.ID, "allow")

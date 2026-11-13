@@ -37,14 +37,19 @@ func (g *Gateway) Start(ctx context.Context, act registry.Actor, command string,
 	}
 	var work manifest.Grants
 	for _, n := range needs {
-		if !m.Declares(n) || m.Holds(granted, n) {
-			continue
-		}
-		if slices.ContainsFunc(allows, func(a Allow) bool { return a.meets(n) }) {
-			work = append(work, manifest.Grant{Right: n.Right, Who: manifest.WhomOf(n.Right, n.Who), Subject: n.Subject, Answer: manifest.Always})
-			continue
-		}
 		asked := slices.IndexFunc(open, func(a db.Ask) bool { return startOf(a, n) })
+		held := !m.Declares(n) || m.Holds(granted, n)
+		if !held && slices.ContainsFunc(allows, func(a Allow) bool { return a.meets(n) }) {
+			work = append(work, manifest.Grant{Right: n.Right, Who: manifest.WhomOf(n.Right, n.Who), Subject: n.Subject, Answer: manifest.Always})
+			held = true
+		}
+		if held {
+			// The answer that let this turn start is spent by it: its next resume does not tell it again.
+			if asked >= 0 && open[asked].State != ask.StateOpen && !open[asked].DeliveredAt.Valid {
+				g.delivered(ctx, open[asked].ID)
+			}
+			continue
+		}
 		switch {
 		case granted.Denies(n) || act.Trial || asked >= 0 && open[asked].State != ask.StateOpen:
 			if asked >= 0 {

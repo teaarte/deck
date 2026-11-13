@@ -249,6 +249,9 @@ func (g *Gateway) Record(ctx context.Context, a db.Ask, outcome, why string) {
 // TurnMakes says the payload of a request is a call the agent's turn makes itself, a tool of its provider.
 func TurnMakes(payload string) bool { return made(payload) == AsTurn }
 
+// StartNeeds says the payload of a request is a right a turn needs before it starts: the turn's start spends its answer.
+func StartNeeds(payload string) bool { return made(payload) == AsStart }
+
 // Holds says the payload of a request is one its process cannot go on without: a call its turn makes, or a right
 // its turn needs before it starts.
 func Holds(payload string) bool { return made(payload) == AsTurn || made(payload) == AsStart }

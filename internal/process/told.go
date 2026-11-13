@@ -120,6 +120,7 @@ func (u untold) message() string {
 		turn := a.Kind == ask.KindCall && gateway.TurnMakes(a.Payload)
 		switch {
 		case ask.Provider(a):
+		case a.Kind == ask.KindCall && gateway.StartNeeds(a.Payload):
 		case turn && a.State == ask.StateAnswered && a.Answer == gateway.AllowWork:
 			b.WriteString("- Allowed for this work: " + what + ". Make the call again; calls of this tool go through for the rest of this work.\n")
 		case turn && a.State == ask.StateAnswered && a.Answer == "allow":

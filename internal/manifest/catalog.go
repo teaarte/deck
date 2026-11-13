@@ -28,23 +28,36 @@ const (
 const GPU = "gpu"
 
 // Right is a row of the catalog: its name, what it lets a module do with %s for its subjects, whether it is a way out
-// rather than something of value, and whether an answer of always to it takes a fresh passkey.
+// rather than something of value, and on which subjects an answer of always to it takes a fresh passkey.
 type Right struct {
 	Name string
 	Says string
 	Exit bool
-	Key  bool
+	Key  Key
 }
+
+// Key is on which subjects of a right an answer of always takes the owner's fresh passkey.
+type Key string
+
+const (
+	// KeyNever is no subject: the right stays near the module.
+	KeyNever Key = ""
+	// KeyAlways is every subject.
+	KeyAlways Key = "always"
+	// KeyWide is the whole internet, the shell of an agent, and the data of others: not a module's own services, nor
+	// the records deck keeps of models and runs.
+	KeyWide Key = "wide"
+)
 
 // Catalog is the closed list of rights; an eighth is the owner's decision and a row here, not a field of a manifest.
 var Catalog = []Right{
-	{Network, "its programs reach %s and may send its data there", true, false},
-	{Login, "its agents work on your subscription login: %s", false, true},
-	{Data, "it reads your data: %s", false, false},
-	{Files, "it uses on your machine: %s", false, false},
-	{Money, "it spends money through %s", true, true},
-	{Send, "it acts in your name: %s", true, true},
-	{Modules, "it calls other modules: %s", true, true},
+	{Network, "its programs reach %s and may send its data there", true, KeyWide},
+	{Login, "its agents work on your subscription login: %s", false, KeyAlways},
+	{Data, "it reads your data: %s", false, KeyWide},
+	{Files, "it uses on your machine: %s", false, KeyNever},
+	{Money, "it spends money through %s", true, KeyAlways},
+	{Send, "it acts in your name: %s", true, KeyAlways},
+	{Modules, "it calls other modules: %s", true, KeyAlways},
 }
 
 // agentSays is what a network right of the shells of agents lets a module do; localSays what one on the local network

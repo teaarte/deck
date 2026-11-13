@@ -272,8 +272,8 @@ func TestReadsLetAProjectReadAnotherButNeverWriteIt(t *testing.T) {
 	}
 }
 
-// TestATrialOfADraftReadsWhatItsReadsList: a trial of a draft reads nothing of another project, its reads come with
-// enable; then it reads the documents and collections its reads list, never by writing.
+// TestATrialOfADraftReadsWhatItsReadsList: a trial of a draft reads nothing of another project; enabled, it reads the
+// documents and collections the owner gave it with a passkey, never by writing.
 func TestATrialOfADraftReadsWhatItsReadsList(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
@@ -317,6 +317,7 @@ print(json.dumps(out))
 	var m struct{ Revision int64 }
 	e.Must("deck.manifest_get", map[string]any{"project": "draft"}, &m)
 	e.Must("deck.project_enable", map[string]any{"project": "draft", "revision": m.Revision}, nil)
+	e.GiveAtUse("draft")
 	e.Must("draft.collect", map[string]any{}, &started)
 	ran := result(e.WaitState(started.Process, "done", "error"))
 	if code(ran.Doc) != 200 || code(ran.List) != 200 || code(ran.Vault) != 200 {

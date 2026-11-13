@@ -723,8 +723,10 @@ right. deck's catalog:
 | `modules` | another module, `module.command` |
 
 Ask for roles (`@text`, `@image`, `@tts`, `@stt`), not the owner's connections or model names: another owner has
-their own. Enabling grants `network` of programs, `data` and `files`; `login`, `money`, `send`, `modules` and the
-network of agents the owner answers the first time they are used: once, for this work, always or no (a no is kept).
+their own. Enabling grants what takes no passkey: `network` of programs on named hosts, `files`, `data` of its own
+services and `:models`/`:runs`. An always to the rest takes the owner's passkey: `network` on `*` and the data of other
+modules the owner grants in Access → Rights; `login`, `money`, `send`, `modules` and the network of agents the owner
+answers the first time they are used: once, for this work, always or no (a no is kept).
 A turn that needs a login or its agents' network waits for that answer before it starts; a script's call through
 `$DECK_MODELS` is refused and asks the owner once. A right declared later the owner grants in the module's settings
 (Access → Rights) or when it is first used. A save that declares something new

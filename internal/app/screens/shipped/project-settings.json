@@ -101,7 +101,9 @@
             ],
             "actions": [
               {"label": "Allow always", "icon": "check", "primary": true, "command": "deck.right_set",
-                "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && answer != 'always'"},
+                "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && !key && answer != 'always'"},
+              {"label": "Allow always with your passkey", "icon": "fingerprint", "primary": true, "command": "deck.right_set",
+                "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && key && answer != 'always'"},
               {"label": "Say no", "icon": "ban", "command": "deck.right_set",
                 "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "no"}, "when": "declared && answer != 'no'"},
               {"label": "Revoke", "icon": "rotate", "command": "deck.right_set",

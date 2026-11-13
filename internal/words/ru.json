@@ -1319,5 +1319,11 @@
   "reads by its right": "читает по своему праву",
   "asks you for each page": "спрашивает о каждой странице",
   "Read by its right": "Читать по своему праву",
-  "Ask me for each page": "Спрашивать о каждой странице"
+  "Ask me for each page": "Спрашивать о каждой странице",
+  "Confirm with your passkey": "Подтвердить ключом доступа",
+  "One touch lets such answers through for five minutes.": "Одно касание пропускает такие ответы пять минут.",
+  "you give it with your passkey": "даёте сами, с ключом доступа",
+  "Allow always with your passkey": "Разрешать всегда — с ключом доступа",
+  "deck: %s changes what deck trusts for long: confirm it with your passkey, then it goes": "deck: %s надолго меняет, чему доверяет deck: подтвердите ключом доступа, и вызов пройдёт",
+  "deck: %s changes what deck trusts for long, which only the owner does, with a passkey": "deck: %s надолго меняет, чему доверяет deck, — это делает только владелец, с ключом доступа"
 }

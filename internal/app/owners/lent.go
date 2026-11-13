@@ -25,7 +25,7 @@ type loans struct {
 
 // Lend is a token that acts as act for ttl and only reads, for deck's own browser to open a page with.
 func (s *Service) Lend(act registry.Actor, ttl time.Duration) string {
-	act.Looks, act.ReadOnly = true, true
+	act.Looks, act.ReadOnly, act.Passkey = true, true, time.Time{}
 	return s.lend(lent{act: act, until: s.Now().Add(ttl)})
 }
 

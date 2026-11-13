@@ -46,7 +46,7 @@ var exceptions = map[string][]string{
 		"internal/app/project/module_data.go:285", "internal/app/project/project_delete.go:39",
 		"internal/app/providers/selfcheck.go:336", "internal/app/providers/selfcheck.go:338",
 		"internal/app/providers/sessions.go:51", "internal/app/secrets/move.go:38",
-		"internal/app/signins/agent_login.go:168", "internal/auth/auth.go:81", "internal/auth/browser.go:46",
+		"internal/app/signins/agent_login.go:168", "internal/auth/auth.go:83", "internal/auth/browser.go:46",
 		"internal/auth/codes.go:47", "internal/auth/passkey.go:58", "internal/egress/node.go:50",
 		"internal/egress/node.go:79", "internal/egress/node.go:82", "internal/files/files.go:105",
 		"internal/files/files.go:109", "internal/files/files.go:115", "internal/files/files.go:126",

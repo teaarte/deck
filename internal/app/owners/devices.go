@@ -253,7 +253,7 @@ func (s *Service) deviceCommands() []*registry.Command {
 			registry.OwnerOnly, s.passkeyRevoke).Stays(),
 		registry.Answers[pairLinkView](registry.Def("pair_link", "Pair a device",
 			"Makes a link that pairs one more device of the owner within ten minutes, once: open it on the device, or point its camera at the QR code.",
-			registry.OwnerOnly, s.pairLink).Stays()),
+			registry.OwnerOnly, s.pairLink).Stays().Fresh(nil)),
 	}
 }
 

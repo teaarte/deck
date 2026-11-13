@@ -3,6 +3,7 @@ package project
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"log/slog"
 	"slices"
 	"strings"
@@ -32,8 +33,8 @@ type rightView struct {
 	Declared bool `json:"declared"`
 	// Exit says the right is a way out of a turn: the network, money, sending in the owner's name, other modules.
 	Exit bool `json:"exit"`
-	// AtUse says the owner answers it when it is first used, not in advance when enabling the module.
-	AtUse bool `json:"at_use"`
+	// Key says the owner's always to it takes a fresh passkey, so enabling the module does not give it in advance.
+	Key bool `json:"key"`
 }
 
 // rows are the rights m declares, a row a subject, with the owner's answers rows gives; then the answers to rights no
@@ -57,7 +58,7 @@ func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(stri
 			}
 			seen[key] = true
 			v := rightView{Project: p.Name, Right: d.Right, Who: d.Whom(), Subject: subject, Why: d.Why, Declared: true, Exit: r.Exit || d.Whom() == manifest.Agents,
-				Says: manifest.Says(tr, d.Right, d.Who, []string{subject}), AtUse: manifest.AtUse(registry.Need{Right: d.Right, Who: d.Whom(), Subject: subject})}
+				Says: manifest.Says(tr, d.Right, d.Who, []string{subject}), Key: m.Keyed(registry.Need{Right: d.Right, Who: d.Whom(), Subject: subject})}
 			if g, ok := answer(d.Right, d.Whom(), subject); ok {
 				v.Answer, v.At = g.Answer, g.CreatedAt
 			}
@@ -70,7 +71,7 @@ func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(stri
 		}
 		r, _ := manifest.RightOf(g.Name)
 		out = append(out, rightView{Project: p.Name, Right: g.Name, Who: g.Who, Subject: g.Subject, Answer: g.Answer, At: g.CreatedAt, Exit: r.Exit,
-			Says: manifest.Says(tr, g.Name, g.Who, []string{g.Subject}), AtUse: manifest.AtUse(registry.Need{Right: g.Name, Who: g.Who, Subject: g.Subject})})
+			Says: manifest.Says(tr, g.Name, g.Who, []string{g.Subject}), Key: m.Keyed(registry.Need{Right: g.Name, Who: g.Who, Subject: g.Subject})})
 	}
 	return out
 }
@@ -163,6 +164,20 @@ func (s *Service) rightSet(ctx context.Context, act registry.Actor, in rightSetI
 	return map[string]any{"ok": true}, nil
 }
 
+// always says a call of right_set answers always to a right whose always takes a fresh passkey.
+func (s *Service) always(ctx context.Context, act registry.Actor, input json.RawMessage) (bool, error) {
+	var in rightSetIn
+	if err := json.Unmarshal(input, &in); err != nil || in.Answer != manifest.Always {
+		return false, nil
+	}
+	p, err := access.Project(ctx, s.St.Q, act, in.Project)
+	if err != nil {
+		return false, nil
+	}
+	m, err := docs.Manifest(ctx, s.St.Q, p)
+	return err != nil || m.Keyed(registry.Need{Right: in.Right, Who: manifest.WhomOf(in.Right, in.Who), Subject: strings.TrimSpace(in.Subject)}), nil
+}
+
 // printOf is the print of a tool of an MCP server of p as deck listed it, which only its running command knows; empty
 // for any other subject.
 func (s *Service) printOf(ctx context.Context, p db.Project, n registry.Need) string {
@@ -183,10 +198,10 @@ func (s *Service) printOf(ctx context.Context, p db.Project, n registry.Need) st
 	return ""
 }
 
-// grantDeclared answers always to every right m declares that is not answered at use, but those the owner answered
-// already: what enabling a module gives it; the rest the owner answers when first used.
+// grantDeclared answers always to every right m declares whose always takes no fresh passkey, but those the owner
+// answered already: what enabling a module gives it; the rest the owner answers when first used or in its rights.
 func (s *Service) grantDeclared(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest) error {
-	return s.grant(ctx, q, act, p, m, func(n registry.Need) bool { return !manifest.AtUse(n) })
+	return s.grant(ctx, q, act, p, m, func(n registry.Need) bool { return !m.Keyed(n) })
 }
 
 // grant answers always to the rights m declares that give says, but those the owner answered already.
@@ -315,10 +330,10 @@ func (s *Service) rightsCommands() []*registry.Command {
 			registry.OwnerSide, s.rightsList).On(events.Projects, events.Documents),
 		registry.Def("right_set", "Answer a right",
 			"Keeps the owner's answer to a right of a module on one subject: always, so it uses it without asking; no, so it does not and does not ask; or revoke, so it asks again when it next needs it.",
-			registry.OwnerOnly, s.rightSet).Stays(),
+			registry.OwnerOnly, s.rightSet).Stays().Fresh(s.always),
 		registry.Def("project_trust", "Trust the data of a module",
 			"Takes off a module the mark that its data holds text from outside deck, once the owner checked it: turns that read its data are no longer marked for it. A turn marked already stays marked.",
-			registry.OwnerOnly, s.projectTrust).Stays(),
+			registry.OwnerOnly, s.projectTrust).Stays().Fresh(nil),
 	}
 }
 

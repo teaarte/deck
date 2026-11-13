@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"testing"
+	"time"
 
 	"deck2/tests/harness"
 )
@@ -142,4 +143,36 @@ func TestRealBrowserTwoBrowsersOfOnePasskeyAreTwoDevices(t *testing.T) {
 	a.until("the first browser signed out with its passkey", `document.querySelector('[data-signin="passkey"]')`)
 	b.press(`[data-signin="passkey"]`)
 	b.until("the revoked passkey refused in the second browser", `document.querySelector('[data-signin-error]')`)
+}
+
+// TestRealBrowserTouchesThePasskeyForWhatTrustsForLong: a link that pairs a device, made five minutes after the browser
+// last touched its passkey, waits for a touch; Cancel leaves it unmade, a touch makes it and lets the next one through.
+func TestRealBrowserTouchesThePasskeyForWhatTrustsForLong(t *testing.T) {
+	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
+	e := harness.New(t, harness.WithClock())
+	b := Open(t)
+	b.authenticator()
+	b.signIn(e, e.Https(), "#/deck/settings?tab=Devices&dialog=pair")
+	submit := `(document.querySelector('[data-form="deck.pair_link"] [data-submit]').click(), '')`
+	b.until("the form of a link", `document.querySelector('[data-form="deck.pair_link"] [data-submit]')`)
+	e.Clock.Add(5*time.Minute + time.Second)
+	b.eval(submit)
+	b.until("the ask to touch the passkey", `document.querySelector('[data-touch="passkey"]')`)
+	b.shot("signin-touch-key")
+	b.eval(`([...document.querySelectorAll('[data-touch-key] button')].find((x) => !x.hasAttribute('data-touch')).click(), '')`)
+	b.until("no link without a touch, and deck's word why", `!document.querySelector('[data-touch="passkey"]') && !document.querySelector('[data-outcome="done"]') && document.body.innerText.toLowerCase().includes('passkey')`)
+
+	b.eval(submit)
+	b.until("the ask to touch the passkey again", `document.querySelector('[data-touch="passkey"]')`)
+	b.press(`[data-touch="passkey"]`)
+	b.until("the link made after the touch", `!document.querySelector('[data-touch="passkey"]') && document.querySelector('[data-outcome="done"]')?.innerText.includes('#pair=')`)
+	e.Clock.Add(4 * time.Minute)
+	first := b.eval(`document.querySelector('[data-outcome="done"]').innerText`)
+	b.eval(submit)
+	js, _ := json.Marshal(first)
+	b.until("a second link within five minutes of the touch, asked nothing", `!document.querySelector('[data-touch="passkey"]') && document.querySelector('[data-outcome="done"]')?.innerText.includes('#pair=') && document.querySelector('[data-outcome="done"]').innerText !== `+string(js))
+	if ds := devices(e); len(ds) != 2 {
+		t.Fatalf("a touch signs the same browser in again as its own device: %+v", ds)
+	}
 }

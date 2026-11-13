@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/events"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
@@ -150,6 +151,16 @@ type settingSetIn struct {
 	Value string `desc:"Its new value"`
 }
 
+// widens says a setting lets the master read every page after text from outside without asking, an always to the
+// whole internet, which takes the owner's fresh passkey.
+func widens(_ context.Context, _ registry.Actor, input json.RawMessage) (bool, error) {
+	var in settingSetIn
+	if err := json.Unmarshal(input, &in); err != nil {
+		return true, nil
+	}
+	return in.Name == "master_web" && strings.TrimSpace(in.Value) == "always", nil
+}
+
 func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settingSetIn) (any, error) {
 	i := slices.IndexFunc(settingDefs, func(d settingDef) bool { return d.name == in.Name })
 	if i < 0 {
@@ -205,7 +216,7 @@ func (s *Service) Commands() []*registry.Command {
 			registry.OwnerSide, s.settingsList).Brings(registry.FromDeck).On(events.Settings),
 		registry.Def("setting_set", "Change setting",
 			"Sets one setting of the workspace to a value.",
-			registry.OwnerOnly, s.settingsSet).Stays().
+			registry.OwnerOnly, s.settingsSet).Stays().Fresh(widens).
 			Enum("name", names()...),
 	}
 }

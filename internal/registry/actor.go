@@ -42,6 +42,8 @@ type Actor struct {
 	ReadOnly bool
 	// Device is the owner's device the call came from, by its signed-in session.
 	Device int64
+	// Passkey is when the owner last touched a passkey for the session of the call: when a ceremony signed it in.
+	Passkey time.Time
 	// Allows are the calls the owner's press names for the run its command starts, as the press gave them; only an
 	// owner's call has them.
 	Allows string
@@ -54,6 +56,15 @@ type Actor struct {
 	// cleared is the command the holder of the Clearance, the gateway, let through its class rules; a call the
 	// command makes with this actor is not cleared by it.
 	cleared string
+}
+
+// FreshKey is how long a touch of the owner's passkey lets the calls that take one through: one touch a batch.
+const FreshKey = 5 * time.Minute
+
+// Touched says the owner touched a passkey for the session of the call within FreshKey before now; only the owner's
+// browser has one, so no agent, master, trigger or token ever has.
+func Touched(a Actor, now time.Time) bool {
+	return a.Kind == Owner && !a.Passkey.IsZero() && !now.Before(a.Passkey) && now.Sub(a.Passkey) <= FreshKey
 }
 
 // Cleared says the gateway let a call of the command that is not internal through.

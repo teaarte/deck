@@ -2,21 +2,8 @@ import { useState } from 'react';
 import { Alert, Button, Center, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { startAuthentication, startRegistration } from '@simplewebauthn/browser';
-import i18n from '../lib/i18n';
 import { errorText } from '../lib/notify';
-import { pairCode, signedIn } from '../lib/signin';
-
-interface Begun { ceremony: string; options: { publicKey: never } }
-
-// rite is a step of signing in; deck's refusal throws its word.
-async function rite(step: string, body: object): Promise<Begun> {
-  const r = await fetch('/auth/' + step, {
-    method: 'POST', headers: { 'Content-Type': 'application/json', 'Deck-Lang': i18n.language ?? '' }, body: JSON.stringify(body),
-  });
-  const text = await r.text();
-  if (!r.ok) throw new Error(text.trim() || r.statusText);
-  return JSON.parse(text) as Begun;
-}
+import { login as signInByPasskey, pairCode, rite, signedIn } from '../lib/signin';
 
 // SignIn is the page of a device not signed in: a link pairs it by a new passkey or one it holds, a paired one signs in
 // by its passkey, and the page opens the route after the code; over plain http it says where deck signs in.
@@ -51,11 +38,7 @@ export function SignIn({ why }: { why: string }) {
       await rite('pair/finish', { ceremony: held.ceremony, name: name.trim(), credential });
     }
   });
-  const login = step(async () => {
-    const b = await rite('login/begin', {});
-    const credential = await startAuthentication({ optionsJSON: b.options.publicKey });
-    await rite('login/finish', { ceremony: b.ceremony, credential });
-  });
+  const login = step(signInByPasskey);
   let body;
   if (!secure) {
     body = <Text size="sm" data-signin-where>{why.trim() || t('A browser signs in to deck only over https, or at deck.localhost on the machine deck runs on: open this link there.')}</Text>;

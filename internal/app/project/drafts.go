@@ -20,7 +20,7 @@ type projectEnableIn struct {
 }
 
 // projectEnable turns a draft on at the manifest revision the owner saw: its triggers start from now, and the
-// rights that revision declares are granted always but send, which asks the owner when first used.
+// rights that revision declares are granted always but those whose always takes a fresh passkey.
 func (s *Service) projectEnable(ctx context.Context, act registry.Actor, in projectEnableIn) (any, error) {
 	p, err := access.Project(ctx, s.St.Q, act, in.Project)
 	if err != nil {
@@ -117,8 +117,8 @@ func (s *Service) liveTrial(ctx context.Context, c *registry.Command, live bool)
 func (s *Service) draftsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("project_enable", "Enable project",
-			"Turns a draft on: its triggers start running and the rights its manifest declares are granted always, but sending in the owner's name, which asks the owner the first time; the result lists what still asks.",
-			registry.OwnerOnly, s.projectEnable).Stays(),
+			"Turns a draft on, with the owner's fresh passkey, as the draft is not the owner's own: its triggers start running and the rights its manifest declares are granted always but those whose always takes a passkey, which the module asks for when it first needs them or the owner gives in its rights; the result lists those.",
+			registry.OwnerOnly, s.projectEnable).Stays().Fresh(nil),
 		registry.Def("command_try", "Try a command",
 			"Runs a command of a project once as a trial to check it before a button or a schedule runs it: calls of commands that are not internal are declined; a call of a tool, or of a model that is neither free nor local, waits for the owner's yes on that call, internal or not.",
 			registry.OwnerSide, s.commandTry).Brings(registry.FromData).Stays(),

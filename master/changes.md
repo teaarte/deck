@@ -451,3 +451,12 @@ and bring the modules in line.
   (its data folder is its results), so it reads page after page by its right; a call of it is `network` on the hosts
   its module's programs hold. The master's reader is `master.research`; the setting `master_web` (`ask`, `always`)
   lets the master read pages marked by its right of always.
+- 2026-11-13: an answer that trusts for long takes the owner's passkey touched within five minutes: always to `login`,
+  `money`, `send`, `modules`, the network of agents, `network` on `*` and `data` of other modules (not a module's own
+  services, `:models`, `:runs`); enabling a draft (`project_enable`), `token_create`, `pair_link`, `project_trust`,
+  `token_trust` with `trusted: true` and the setting `master_web` = `always`. Without one the call is refused with
+  status 428 and the owner's client asks for a touch; the master, agents and tokens never have one. Once, for this
+  work, no and a revoke take none. Enabling or creating a module gives in advance only what takes no passkey:
+  `network` of programs on named hosts, `files`, `data` of its own services and `:models`/`:runs`; `network` on `*`
+  and the data of other modules the owner grants in Access → Rights. `rights_list` says `key` (the owner's always to
+  the row takes a passkey) instead of `at_use`.

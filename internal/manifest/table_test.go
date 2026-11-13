@@ -3,6 +3,8 @@ package manifest
 import (
 	"encoding/json"
 	"testing"
+
+	"deck2/internal/registry"
 )
 
 func TestToolRight(t *testing.T) {
@@ -79,5 +81,44 @@ func TestCovers(t *testing.T) {
 		if got := Covers(row.right, row.has, row.want); got != row.covers {
 			t.Errorf("%s: Covers(%s, %q, %q) = %v, want %v", row.what, row.right, row.has, row.want, got, row.covers)
 		}
+	}
+}
+
+func TestKeyed(t *testing.T) {
+	m := &Manifest{Tools: Tools{HTTP: []HTTPTool{{Name: "mail", Method: "GET", URL: "https://mail.example/x"}}}}
+	for _, row := range []struct {
+		right, who, subject string
+		keyed               bool
+		what                string
+	}{
+		{Login, "", "claude-code", true, "a subscription login, keyed on every subject"},
+		{Money, "", "@text", true, "money"},
+		{Send, "", "post", true, "acting in the owner's name"},
+		{Modules, "", "notes.add", true, "another module's command"},
+		{Network, "", "api.example.com", false, "the network of programs to a named host"},
+		{Network, Programs, "api.example.com", false, "the same, whom named"},
+		{Network, "", "*", true, "the whole internet to programs"},
+		{Network, Agents, "api.example.com", true, "a named host in the shell of an agent"},
+		{Network, Agents, "*", true, "the whole internet in the shell of an agent"},
+		{Network, "", "192.168.1.0/24", false, "a named local network"},
+		{Data, "", "mail", false, "the module's own service, read with its key"},
+		{Data, "", "diary", true, "another module's data"},
+		{Data, "", "diary.entries", true, "a collection of another module"},
+		{Data, "", "diary/notes", true, "a document of another module"},
+		{Data, "", "*", true, "every module's data"},
+		{Data, "", "*:models", false, "the records deck keeps of the models of every module"},
+		{Data, "", "diary:runs", false, "the records deck keeps of the runs of a module"},
+		{Data, "", "diary:memory", true, "a subject after a colon that is no record of deck's"},
+		{Files, "", "gpu", false, "the graphics card"},
+		{Files, "", "*", false, "every folder of the project"},
+		{Files, "", "work", false, "a folder"},
+		{"microphone", "", "x", true, "a right outside the catalog"},
+	} {
+		if got := m.Keyed(registry.Need{Right: row.right, Who: row.who, Subject: row.subject}); got != row.keyed {
+			t.Errorf("Keyed(%s %s %s) = %v, want %v: %s", row.right, row.who, row.subject, got, row.keyed, row.what)
+		}
+	}
+	if (*Manifest)(nil).Keyed(registry.Need{Right: Data, Subject: "mail"}) != true {
+		t.Errorf("a missing manifest names no service of its own, so data takes the key")
 	}
 }

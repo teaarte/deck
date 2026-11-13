@@ -13,12 +13,12 @@ func loginRow(e *harness.Env, project string) (answer string, atUse bool) {
 	e.T.Helper()
 	var rows []struct {
 		Right, Answer string
-		AtUse         bool `json:"at_use"`
+		Key           bool `json:"key"`
 	}
 	e.Must("deck.rights_list", map[string]any{"project": project}, &rows)
 	for _, r := range rows {
 		if r.Right == "login" {
-			return r.Answer, r.AtUse
+			return r.Answer, r.Key
 		}
 	}
 	e.T.Fatalf("no row of login: %+v", rows)

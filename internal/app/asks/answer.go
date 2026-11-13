@@ -3,6 +3,7 @@ package asks
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"slices"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"deck2/internal/ask"
+	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -154,6 +156,24 @@ func (s *Service) answerCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("ask_answer", "Answer",
 			"Answers what waits for the owner: a question with text; a request about a call with allow (once), allow_work (for the work of its process), allow_always or deny (no, which a module that declared the right does not ask again; deny:<reason> tells why); a sign-in of a provider with retry or new_session; an unknown outcome with retry or done. Deny on an expired request clears it.",
-			registry.OwnerOnly, s.askAnswer).Stays(),
+			registry.OwnerOnly, s.askAnswer).Stays().Fresh(s.always),
 	}
+}
+
+// always says an answer is the owner's always to a right whose always takes a fresh passkey.
+func (s *Service) always(ctx context.Context, _ registry.Actor, input json.RawMessage) (bool, error) {
+	var in askAnswerIn
+	if err := json.Unmarshal(input, &in); err != nil || in.Answer != gateway.AllowAlways {
+		return false, nil
+	}
+	q, err := s.St.Q.GetAsk(ctx, in.Ask)
+	if err != nil {
+		return true, nil
+	}
+	f, err := ask.Decode[gateway.Frozen](q.Payload)
+	if err != nil || f.Need == nil {
+		return true, nil
+	}
+	m, _, err := docs.Rights(ctx, s.St.Q, q.ProjectID.Int64)
+	return err != nil || m.Keyed(*f.Need), nil
 }

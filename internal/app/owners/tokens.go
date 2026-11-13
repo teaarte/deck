@@ -159,7 +159,7 @@ func (s *Service) tokenCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("token_create", "Create automation token",
 			"Creates a token for a terminal agent, Shortcuts or a script; it acts as the master and may call only the listed commands.",
-			registry.OwnerOnly, s.tokenCreate).Stays(),
+			registry.OwnerOnly, s.tokenCreate).Stays().Fresh(nil),
 		registry.Read("tokens_list", "Automation tokens",
 			"Lists automation tokens by name with their commands, never the tokens themselves; revoked ones too.",
 			registry.OwnerSide, s.tokensList).Brings(registry.FromDeck).On(events.Devices).NoTokens(),
@@ -168,13 +168,19 @@ func (s *Service) tokenCommands() []*registry.Command {
 			registry.OwnerOnly, s.tokenRevoke).Stays(),
 		registry.Def("token_trust", "Trust what a token writes",
 			"Says whether the owner vouches for what an automation token writes into deck: by default it is text from outside, which marks the turns that read it; a trusted token's words are the owner's.",
-			registry.OwnerOnly, s.tokenTrust).Stays(),
+			registry.OwnerOnly, s.tokenTrust).Stays().Fresh(trusts),
 	}
 }
 
 type tokenTrustIn struct {
 	Token   int64 `desc:"Token id"`
 	Trusted bool  `desc:"Whether the owner vouches for what it writes"`
+}
+
+// trusts says a call of token_trust vouches for a token, which takes the owner's fresh passkey; taking it back does not.
+func trusts(_ context.Context, _ registry.Actor, input json.RawMessage) (bool, error) {
+	var in tokenTrustIn
+	return json.Unmarshal(input, &in) != nil || in.Trusted, nil
 }
 
 // tokenTrust keeps whether the owner vouches for what a token writes, which only the owner says.

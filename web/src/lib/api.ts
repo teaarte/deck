@@ -1,5 +1,5 @@
 import i18n from './i18n';
-import { signOut } from './signin';
+import { signOut, touched } from './signin';
 
 // authed is every request of the page to deck, by the browser's cookie; deck's own refusal signs the page out, while a
 // model's refused key is a 401 without the challenge.
@@ -15,12 +15,17 @@ export async function authed(url: string, init: RequestInit = {}): Promise<Respo
 export interface Answer<T> { data: T; topics: string[] }
 
 // invoke calls a registry command; a refusal throws the server's text in the language of the interface. A small call
-// outlives the page, so a press made as the page leaves still goes.
+// outlives the page; one that takes a fresh passkey waits for the owner's touch, then goes again.
 export async function invoke<T = unknown>(command: string, input: Record<string, unknown> = {}): Promise<Answer<T>> {
   const body = JSON.stringify(input);
-  const r = await authed('/api/commands/' + encodeURIComponent(command), {
+  const send = () => authed('/api/commands/' + encodeURIComponent(command), {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000,
   });
+  let r = await send();
+  if (r.status === 428) {
+    await touched((await r.text()).trim());
+    r = await send();
+  }
   const text = await r.text();
   if (!r.ok) throw new Error(text.trim() || r.statusText);
   const topics = r.headers.get('Deck-Topics');

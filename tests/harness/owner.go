@@ -134,8 +134,9 @@ func (c Client) Do(method, path string, body any) (int, []byte) {
 		}
 		out, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
-		// A session the clock of a test ran past is signed in again with the passkey, as the client does.
-		if resp.StatusCode == http.StatusUnauthorized && c.owner && try == 0 {
+		// A session the clock of a test ran past is signed in again with the passkey, as the client does; so is one whose
+		// touch of the passkey is older than a call that takes a fresh one.
+		if (resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusPreconditionRequired) && c.owner && try == 0 {
 			c.e.signIn()
 			continue
 		}

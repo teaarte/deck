@@ -298,18 +298,18 @@ func (e *Env) Project(name, manifest string) int64 {
 	return p.ID
 }
 
-// GiveAtUse answers always to the rights of a module the owner answers at use but sending, as an owner who said so
-// before: a test whose subject is not the question at first use starts from it.
+// GiveAtUse answers always to the rights of a module whose always takes the owner's passkey but sending, as an owner
+// who said so before: a test whose subject is not the question at first use starts from it.
 func (e *Env) GiveAtUse(project string) {
 	e.T.Helper()
 	var rows []struct {
 		Right, Who, Subject, Answer string
 		Declared                    bool
-		AtUse                       bool `json:"at_use"`
+		Key                         bool
 	}
 	e.Must("deck.rights_list", map[string]any{"project": project}, &rows)
 	for _, r := range rows {
-		if r.Declared && r.AtUse && r.Right != "send" && r.Answer == "" {
+		if r.Declared && r.Key && r.Right != "send" && r.Answer == "" {
 			e.Must("deck.right_set", map[string]any{"project": project, "right": r.Right, "who": r.Who, "subject": r.Subject, "answer": "always"}, nil)
 		}
 	}

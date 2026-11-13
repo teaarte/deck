@@ -43,3 +43,9 @@ func Unsigned(format string, a ...any) error { return refused(http.StatusUnautho
 
 // Limited is a call from an address that used up its tries for a while.
 func Limited(format string, a ...any) error { return refused(http.StatusTooManyRequests, format, a...) }
+
+// Unkeyed is a call of the owner that takes a passkey touched within FreshKey, from a session that has none: the
+// client asks the owner to touch it and calls again.
+func Unkeyed(format string, a ...any) error {
+	return refused(http.StatusPreconditionRequired, format, a...)
+}

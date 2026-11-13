@@ -70,11 +70,13 @@ type Principal struct {
 	Kind      string
 	// Unsettled marks a session of before devices were browsers, which Settle puts on its browser's device.
 	Unsettled bool
+	// Begun is when a passkey ceremony began the session of a browser: every session of one starts by a ceremony.
+	Begun time.Time
 }
 
-// Actor is the owner on the device.
+// Actor is the owner on the device, who touched a passkey when the session began.
 func (p Principal) Actor() registry.Actor {
-	return registry.Actor{Kind: registry.Owner, Workspace: p.Workspace, Device: p.Device}
+	return registry.Actor{Kind: registry.Owner, Workspace: p.Workspace, Device: p.Device, Passkey: p.Begun}
 }
 
 // ErrSignIn is a refusal of a code, a ceremony or a passkey; it says no more of why to the caller.
@@ -118,7 +120,11 @@ func (a *Auth) Session(ctx context.Context, raw string) (Principal, bool) {
 				q.TouchDevice(ctx, db.TouchDeviceParams{SeenAt: store.At(now), ID: row.Device.ID}))
 		})
 	}
-	return Principal{Device: row.Device.ID, Workspace: row.Device.WorkspaceID, Kind: row.Device.Kind, Unsettled: row.Settled == 0}, true
+	p := Principal{Device: row.Device.ID, Workspace: row.Device.WorkspaceID, Kind: row.Device.Kind, Unsettled: row.Settled == 0}
+	if p.Kind == Browser && !p.Unsettled {
+		p.Begun = made
+	}
+	return p, true
 }
 
 // NodeKey is the node a key signs in, while the node is not revoked.

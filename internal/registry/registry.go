@@ -114,6 +114,8 @@ type Command struct {
 	foreign, retries, keyed, untokened, page bool
 	// stays marks a command whose calls need no right of the catalog: they stay in deck.
 	stays bool
+	// fresh says which calls of the command take the owner's fresh passkey; nil none.
+	fresh func(ctx context.Context, a Actor, input json.RawMessage) (bool, error)
 	// fields are the properties of its input schema, which the identity of a call keeps; nil keeps every field.
 	fields []string
 	// asked marks a schema the registry gave the field why, owns one with a why of its own.
@@ -129,6 +131,16 @@ func Loose(name, title, desc string, callers []string, input json.RawMessage, h 
 // Stays declares that a call of the command needs no right of deck's catalog: what it does stays in deck.
 func (c *Command) Stays() *Command {
 	c.stays = true
+	return c
+}
+
+// Fresh declares the calls of the command that change deck's trust for long and so take the owner's passkey touched
+// within FreshKey: those when says, every call for nil.
+func (c *Command) Fresh(when func(ctx context.Context, a Actor, input json.RawMessage) (bool, error)) *Command {
+	if when == nil {
+		when = func(context.Context, Actor, json.RawMessage) (bool, error) { return true, nil }
+	}
+	c.fresh = when
 	return c
 }
 
@@ -560,7 +572,27 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 	if a.ReadOnly && !c.Reads() {
 		return nil, Refuse("%s changes deck; this caller only reads", c.Name)
 	}
+	if err := r.passkey(ctx, a, c, input); err != nil {
+		return nil, err
+	}
 	return c.Handler(ctx, a, input)
+}
+
+// passkey refuses a call that takes the owner's fresh passkey to a caller without one.
+func (r *Registry) passkey(ctx context.Context, a Actor, c *Command, input json.RawMessage) error {
+	if c.fresh == nil {
+		return nil
+	}
+	need, err := c.fresh(ctx, a, input)
+	switch {
+	case err != nil:
+		return err
+	case !need || Touched(a, r.now()):
+		return nil
+	case a.Kind != Owner:
+		return Refuse("%s changes what deck trusts for long, which only the owner does, with a passkey", c.Name)
+	}
+	return Unkeyed("%s changes what deck trusts for long: confirm it with your passkey, then it goes", c.Name)
 }
 
 // allowsKept is how long a button deck drew allows its calls; its end is a whole day, so a screen redrawn that day

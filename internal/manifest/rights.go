@@ -254,11 +254,20 @@ func (m *Manifest) service(subject string) bool {
 	return ok && declared
 }
 
-// AtUse says the owner answers need when it is first used, not when enabling the module gives it in advance: a row of
-// the catalog whose always takes a fresh passkey, or the network of the shells of agents.
-func AtUse(n registry.Need) bool {
+// Keyed says the owner's always to need takes a fresh passkey, so enabling the module does not give it: by the key of
+// its row of the catalog, wide on *, an agent's shell and data that is no own service nor deck's record of models and runs.
+func (m *Manifest) Keyed(n registry.Need) bool {
 	r, ok := RightOf(n.Right)
-	return !ok || r.Key || whom(n.Right, n.Who) == Agents
+	switch {
+	case !ok || r.Key == KeyAlways:
+		return true
+	case r.Key == KeyNever:
+		return false
+	case n.Right == Network:
+		return whom(n.Right, n.Who) == Agents || n.Subject == "*"
+	}
+	_, rest, _ := strings.Cut(n.Subject, ":")
+	return !(m != nil && m.service(n.Subject)) && rest != "models" && rest != "runs"
 }
 
 // Others are the data subjects of the module that are not its own services: other modules, memory, everything.

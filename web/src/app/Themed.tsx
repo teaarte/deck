@@ -10,6 +10,7 @@ import { forced, usePreview, useWear, useWorn } from '../theme/worn';
 import { UndoToast } from '../ui/actions/undo';
 import { Shell } from './Shell';
 import { SignIn } from './SignIn';
+import { TouchKey } from './TouchKey';
 
 // Themed wears the theme of the whole deck with what this device keeps, and follows the system color scheme unless
 // the device or the theme picked one.
@@ -27,6 +28,7 @@ export function Themed() {
       {signed && <PreviewBar />}
       <UndoToast />
       {signed ? <Shell /> : <SignIn why={why} />}
+      {signed && <TouchKey />}
     </MantineProvider>
   );
 }

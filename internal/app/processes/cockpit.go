@@ -78,6 +78,7 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, p db.Process, v
 	ws := words.In(lang)
 	tr := func(phrase string) string { return manifest.Tr(ws, phrase) }
 	v.Shown = process.Show(p, question, v.Long, tr)
+	v.Read = manifest.TrText(ws, v.Read)
 	v.Error = deckError(ws, p, v.Error)
 	if process.Waits(p, process.WaitFolder) {
 		s.heldBy(ctx, act, p, v, lang, tr)

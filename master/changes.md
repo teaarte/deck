@@ -500,3 +500,6 @@ and bring the modules in line.
   cost: a script's parallel calls wait for each other, and the run spends no more than when it calls in a row.
 - 2026-11-14: the owner's no or revoke to `network` or `files` of a module stops its running MCP servers at once; the
   next call of their tools starts them in the box of what the module holds then.
+- 2026-11-14: where text from outside came from (`untrusted` of `projects_list`, `read` of a process and of a chat
+  topic) is said in the owner's language; a module's mark reads "the call <command> of <who>" and the data "the data
+  of <module>, written by <who>".

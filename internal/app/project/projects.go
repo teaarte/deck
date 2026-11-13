@@ -80,7 +80,7 @@ func (s *Service) projectsList(ctx context.Context, act registry.Actor, in proje
 // viewProject is a project as the owner sees it, with its manifest when that loads.
 func (s *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Manifest, err error, lang string) projectView {
 	v := projectView{ID: p.ID, Name: p.Name, Title: p.Name, Status: p.Status, Paused: p.Paused == 1, Builtin: p.Builtin == 1, Screens: []manifest.ScreenLink{},
-		Rights: []string{}, Asks: []string{}, Models: []string{}, Untrusted: p.Untrusted}
+		Rights: []string{}, Asks: []string{}, Models: []string{}, Untrusted: manifest.TrText(words.In(lang), p.Untrusted)}
 	fs, _ := s.St.Q.ListProjectFolders(ctx, p.ID)
 	v.Folders = make([]folderView, 0, len(fs))
 	for _, f := range fs {

@@ -1332,5 +1332,13 @@
   "Reads the data of": "Читает данные",
   "%d requests in a day, most from %s": "%d запросов за сутки, больше всего от %s",
   "%d of %d yeses this week came within %d seconds of the request showing: requests are no longer read": "%d из %d «да» за неделю даны в первые %d с после показа запроса: запросы больше не читают",
-  "%d requests in a day, most from %s; %d of %d yeses this week came within %d seconds of the request showing: requests are no longer read": "%d запросов за сутки, больше всего от %s; %d из %d «да» за неделю даны в первые %d с после показа запроса: запросы больше не читают"
+  "%d requests in a day, most from %s; %d of %d yeses this week came within %d seconds of the request showing: requests are no longer read": "%d запросов за сутки, больше всего от %s; %d из %d «да» за неделю даны в первые %d с после показа запроса: запросы больше не читают",
+  "process %d, which read %s": "процесс %d, прочитавший %s",
+  "topic %d: process %d, which read %s": "тема %d: процесс %d, прочитавший %s",
+  "the input of process %d, which read %s": "вход процесса %d, прочитавшего %s",
+  "the result of process %d of its record, which read %s": "результат процесса %d её записи, прочитавшего %s",
+  "automation token %s": "токен автоматизации %s",
+  "the data of %s, written by %s": "данные %s, записанные: %s",
+  "the call %s of %s": "вызов %s, сделанный: %s",
+  "the network of its box: %s": "сеть его песочницы: %s"
 }

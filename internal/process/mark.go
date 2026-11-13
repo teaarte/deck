@@ -15,7 +15,7 @@ import (
 func (r *Runner) know(ctx context.Context, id int64, hosts []string, valued bool) {
 	err := r.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		if len(hosts) > 0 {
-			from := "the network of its box: " + untrusted.Cut(strings.Join(hosts, ", "), 300)
+			from := fmt.Sprintf("the network of its box: %s", untrusted.Cut(strings.Join(hosts, ", "), 300))
 			if err := q.MarkProcessRead(ctx, db.MarkProcessReadParams{ReadUntrusted: from, ID: id}); err != nil {
 				return err
 			}

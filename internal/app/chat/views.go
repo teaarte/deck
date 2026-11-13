@@ -378,7 +378,7 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 		for i := range ts {
 			_, ts[i].Logo, _ = facts(cmp.Or(ts[i].RepliedOn, ts[i].Model, v.Model))
 			ts[i].Tokens, _ = s.St.Q.TopicTokens(ctx, ts[i].ID)
-			ts[i].Read = untrusted.Cut(s.topicRead(ctx, db.ChatTopic{ID: ts[i].ID, WorkspaceID: act.Workspace}), 300)
+			ts[i].Read = untrusted.Cut(manifest.TrText(words.In(registry.Lang(ctx)), s.topicRead(ctx, db.ChatTopic{ID: ts[i].ID, WorkspaceID: act.Workspace})), 300)
 			if b, ok := busy[ts[i].ID]; ok {
 				ts[i].Busy, ts[i].Waits, ts[i].Since = true, b.Waits == 1, b.Since
 			}

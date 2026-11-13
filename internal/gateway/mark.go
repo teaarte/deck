@@ -121,7 +121,7 @@ func (g *Gateway) taint(ctx context.Context, act registry.Actor, c *registry.Com
 	targets := g.written(ctx, act.Workspace, c, project, input)
 	err := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		for _, id := range targets {
-			if err := q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{Untrusted: untrusted.Cut(c.Name+" by "+from, 300), ID: id}); err != nil {
+			if err := q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{Untrusted: untrusted.Cut(fmt.Sprintf("the call %s of %s", c.Name, from), 300), ID: id}); err != nil {
 				return err
 			}
 		}
@@ -173,7 +173,7 @@ func (g *Gateway) dataFrom(ctx context.Context, act registry.Actor, c *registry.
 	}
 	for _, id := range n.projects {
 		if p, err := g.st.Q.GetProject(ctx, id); err == nil && p.Untrusted != "" {
-			return fmt.Sprintf("the data of %s, where %s wrote", p.Name, p.Untrusted)
+			return fmt.Sprintf("the data of %s, written by %s", p.Name, p.Untrusted)
 		}
 	}
 	if len(n.projects) > 0 || len(n.processes) > 0 || n.topic != 0 {
@@ -183,7 +183,7 @@ func (g *Gateway) dataFrom(ctx context.Context, act registry.Actor, c *registry.
 	if errors.Is(err, sql.ErrNoRows) || err != nil {
 		return ""
 	}
-	return fmt.Sprintf("the data of %s, where %s wrote", p.Name, p.Untrusted)
+	return fmt.Sprintf("the data of %s, written by %s", p.Name, p.Untrusted)
 }
 
 // names are the modules, processes and topic the input of a call names by the formats of its schema.

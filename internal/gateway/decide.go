@@ -21,7 +21,7 @@ type Facts struct {
 	Answer string `json:"answer"`
 	// Pressed says the owner's press named this very call for the run that makes it.
 	Pressed bool `json:"pressed"`
-	// Asked marks a need only the owner's answer to the ask of this very call meets: no always, press or answer for the work.
+	// Asked marks a need the owner's answer to the ask of this very call meets: no always, press or answer for the work.
 	Asked bool `json:"asked"`
 	// InForce says what the call would make is so already.
 	InForce bool `json:"in_force"`

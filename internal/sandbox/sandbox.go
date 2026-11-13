@@ -19,7 +19,7 @@ type Sandbox struct {
 	home home.Layout
 	// Program is the program of the box on Linux; bwrap found on deck's PATH when empty.
 	Program string
-	// Also are paths every box reads and writes besides its own: the fakes of the tests.
+	// Also are paths a box reads and writes besides its own: the fakes of the tests.
 	Also struct{ Read, Write []string }
 
 	once  sync.Once

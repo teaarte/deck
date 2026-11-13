@@ -261,6 +261,10 @@ func TestLawsCatchQuantifiersWithoutATable(t *testing.T) {
 		`internal/api/who.go:3: "only"` + tail + `Who in lint.Tabled with its table test, or say it without the quantifier`,
 		`internal/egress/egress.go:13: "every"` + tail + `this comment in lint.Tabled with its table test, or say it without the quantifier`,
 		`internal/egress/egress.go:1: "only"` + tail + `this comment in lint.Tabled with its table test, or say it without the quantifier`,
+		`internal/egress/egress.go:21: "every"` + tail + `this comment in lint.Tabled with its table test, or say it without the quantifier`,
+		`internal/egress/egress.go:27: "never"` + tail + `this comment in lint.Tabled with its table test, or say it without the quantifier`,
+		`internal/egress/egress.go:33: "never"` + tail + `this comment in lint.Tabled with its table test, or say it without the quantifier`,
+		`internal/egress/egress.go:35: "every"` + tail + `this comment in lint.Tabled with its table test, or say it without the quantifier`,
 		`internal/egress/egress.go:7: "never"` + tail + `Dial in lint.Tabled with its table test, or say it without the quantifier`,
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {

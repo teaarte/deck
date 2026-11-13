@@ -91,7 +91,7 @@ type Command struct {
 	ProjectID   int64           `json:"-"`
 	// Words are the translations of the texts of a command of a module by language, from its manifest.
 	Words map[string]map[string]string `json:"-"`
-	// Readable marks a builtin command that changes nothing; only such a command fills a screen block. Topics are
+	// Readable marks a builtin command that changes nothing; such a command fills a screen block. Topics are
 	// the events after which its result may differ.
 	Readable bool     `json:"-"`
 	Topics   []string `json:"-"`
@@ -116,7 +116,7 @@ type Command struct {
 	stays bool
 	// fresh says which calls of the command take the owner's fresh passkey; nil none.
 	fresh func(ctx context.Context, a Actor, input json.RawMessage) (bool, error)
-	// fields are the properties of its input schema, which the identity of a call keeps; nil keeps every field.
+	// fields are the properties of its input schema, which the identity of a call keeps; nil keeps them all.
 	fields []string
 	// asked marks a schema the registry gave the field why, owns one with a why of its own.
 	asked, owns bool

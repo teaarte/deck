@@ -71,6 +71,14 @@ func LawsOf(root string, boundary []string, tabled map[string][]string) ([]Viola
 					switch s := s.(type) {
 					case *ast.TypeSpec:
 						check(s.Doc, "")
+						// Fields and methods, of inner structs too, by their doc and their line comment.
+						ast.Inspect(s.Type, func(n ast.Node) bool {
+							if fd, ok := n.(*ast.Field); ok {
+								check(fd.Doc, "")
+								check(fd.Comment, "")
+							}
+							return true
+						})
 					case *ast.ValueSpec:
 						check(s.Doc, "")
 					}

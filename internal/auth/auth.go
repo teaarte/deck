@@ -70,7 +70,7 @@ type Principal struct {
 	Kind      string
 	// Unsettled marks a session of before devices were browsers, which Settle puts on its browser's device.
 	Unsettled bool
-	// Begun is when a passkey ceremony began the session of a browser: every session of one starts by a ceremony.
+	// Begun is when a passkey ceremony began the session of a browser: a session of one starts by a ceremony.
 	Begun time.Time
 }
 

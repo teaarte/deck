@@ -44,7 +44,7 @@ type Box struct {
 	Read  []string `json:"read,omitempty"`
 	Write []string `json:"write,omitempty"`
 	// Shared are files and folders of the machine the box writes at other paths, by the path in the box: the login
-	// of a CLI every home of it shares, a home where the CLI finds it. One the machine has not yet is not there.
+	// of a CLI the homes of it share, a home where the CLI finds it. One the machine has not yet is not there.
 	Shared map[string]string `json:"shared,omitempty"`
 	// Hosts are what the door lets the box reach; nil is no network, "*" the public internet.
 	Hosts []string `json:"hosts,omitempty"`
@@ -54,7 +54,7 @@ type Box struct {
 	GPU bool `json:"gpu,omitempty"`
 	// Secrets are values the program is given that deck masks in what it writes, as it masks the key of the door.
 	Secrets []string `json:"secrets,omitempty"`
-	// HostNet keeps the network of the machine: only deck's browser of shots, which opens deck's own pages.
+	// HostNet keeps the network of the machine: deck's browser of shots, which opens deck's own pages.
 	HostNet bool `json:"host_net,omitempty"`
 }
 

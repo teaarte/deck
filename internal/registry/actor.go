@@ -32,23 +32,23 @@ type Actor struct {
 	// Token is the automation token of a caller of kind Token; Scope the modules its rights reach.
 	Token int64
 	Scope Scope
-	// Changes marks a call of a token that changes deck: it acts only in the modules its rights let it change.
+	// Changes marks a call of a token that changes deck: it acts in the modules its rights let it change.
 	Changes bool
 	// Commands narrow what a token or an agent whose command lists its calls may call.
 	Commands []string
-	// Trial marks a trial run: every call that is not internal is declined.
+	// Trial marks a trial run: the registry declines a gated call without a subject, the gateway asks of a draft's tool.
 	Trial bool
-	// Alone marks a trial of only the command called: the commands after it do not start.
+	// Alone marks a trial of the command called alone: the commands after it do not start.
 	Alone bool
 	// Looks marks a caller that looks at deck's pages in deck's own browser: a screen comes to it whole, as to the owner.
 	Looks bool
-	// ReadOnly marks a caller that only reads: the registry refuses it every command but a read.
+	// ReadOnly marks a caller that reads: the registry refuses it a command that is not a read.
 	ReadOnly bool
 	// Device is the owner's device the call came from, by its signed-in session.
 	Device int64
 	// Passkey is when the owner last touched a passkey for the session of the call: when a ceremony signed it in.
 	Passkey time.Time
-	// Allows are the calls the owner's press names for the run its command starts, as the press gave them; only an
+	// Allows are the calls the owner's press names for the run its command starts, as the press gave them; an
 	// owner's call has them.
 	Allows string
 	// Why is why the call asks, as its input said; the registry takes it out of a command that does not read it.

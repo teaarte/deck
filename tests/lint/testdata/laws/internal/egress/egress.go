@@ -15,3 +15,24 @@ var Hosts []string
 
 // Plain says what it does without a law.
 func Plain() {}
+
+// Gate holds a rule.
+type Gate struct {
+	// Trial says every call is declined.
+	Trial bool
+}
+
+// Asker answers.
+type Asker interface {
+	// Ask never waits.
+	Ask()
+}
+
+// Door holds its rules.
+type Door struct {
+	Open bool // never closes
+	Also struct {
+		// Read are paths every box reads.
+		Read []string
+	}
+}

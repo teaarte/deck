@@ -83,7 +83,7 @@ type Frozen struct {
 	Reason string `json:"reason,omitempty"`
 	// Replaces are the calls of the same caller this one took the place of while they waited.
 	Replaces []int64 `json:"replaces,omitempty"`
-	// Read is the untrusted text the turn that calls read, for which its way out goes only by the owner's once.
+	// Read is the untrusted text the turn that calls read, for which its way out goes by the owner's once.
 	Read string `json:"read,omitempty"`
 }
 

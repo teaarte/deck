@@ -99,7 +99,7 @@ type Gateway struct {
 	st   *store.Store
 	asks *ask.Broker
 	reg  *registry.Registry
-	// clear is the one clearance of the registry: only the gateway lets a call that is not internal through.
+	// clear is the one clearance of the registry: the gateway holds it to let a gated call through.
 	clear registry.Clearance
 
 	mu       sync.Mutex

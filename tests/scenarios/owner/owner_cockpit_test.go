@@ -573,7 +573,7 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 	}
 	e.Must("deck.ask_answer", params(old, 0), nil)
 	e.Must("deck.ask_answer", harness.Merge(params(q, 0), map[string]any{"answer": `{"Which topic?": "go"}`}), nil)
-	e.Must("deck.ask_answer", harness.Merge(params(fresh, 3), map[string]any{"reason": "not today"}), nil)
+	e.Must("deck.ask_answer", harness.Merge(params(fresh, 4), map[string]any{"reason": "not today"}), nil)
 	if a, _ := e.App.Store.Q.GetAsk(context.Background(), int64(fresh.ID.(float64))); a.Answer != "deny:not today" {
 		t.Fatalf("deny because sends the reason with the no: %q", a.Answer)
 	}

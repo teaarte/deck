@@ -307,7 +307,13 @@ func TestClaudeCodeReadsInItsFoldersAndShowsWhatItRefused(t *testing.T) {
 		}
 	}
 	env, allow := strings.Join(set.AutoMode.Environment, "\n"), strings.Join(set.AutoMode.Allow, "\n")
-	if len(folders) < 2 || !slices.Contains(set.AutoMode.Environment, "$defaults") || !slices.Contains(set.AutoMode.Allow, "$defaults") ||
+	if sandbox.Homed() {
+		// In a box of its own the CLI runs without its auto mode: the box bounds its tools.
+		folders = nil
+		if env != "" || allow != "" {
+			t.Fatalf("in its box the CLI is told no rules of auto mode: %s", call.Settings)
+		}
+	} else if len(folders) < 2 || !slices.Contains(set.AutoMode.Environment, "$defaults") || !slices.Contains(set.AutoMode.Allow, "$defaults") ||
 		!strings.Contains(allow, "inside the agent folders") {
 		t.Fatalf("auto mode keeps its rules and allows reads in the folders of the agent: %d folders, %s", len(folders), call.Settings)
 	}

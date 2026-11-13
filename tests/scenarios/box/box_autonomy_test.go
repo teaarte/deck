@@ -69,8 +69,8 @@ func TestCommandAgentRunsInAutoModeInItsFolders(t *testing.T) {
 		call = c.Call(n - 1)
 	}
 	data := filepath.Join(deckhome.Layout(home).Work(), "projects", fmt.Sprint(p), "data")
-	if mode, _ := harness.Flag(call.Args, "--permission-mode"); mode != "auto" {
-		t.Fatalf("the agent runs in the auto mode of the CLI: %v", call.Args)
+	if mode, _ := harness.Flag(call.Args, "--permission-mode"); mode != map[bool]string{true: "default", false: "auto"}[sandbox.Homed()] {
+		t.Fatalf("the agent runs in the auto mode of the CLI outside its box, in the default mode with the box's tools in it: %v", call.Args)
 	}
 	if off, _ := harness.Flag(call.Args, "--disallowedTools"); sandbox.Homed() != (off == "WebFetch,WebSearch") {
 		t.Fatalf("the agent has the web of the CLI only outside a box of its own: %v", call.Args)
@@ -83,8 +83,10 @@ func TestCommandAgentRunsInAutoModeInItsFolders(t *testing.T) {
 	}
 	allowed, _ := harness.Flag(call.Args, "--allowedTools")
 	for _, tool := range []string{"Bash", "Write", "Edit", "NotebookEdit", "WebFetch", "WebSearch"} {
-		if slices.Contains(strings.Split(allowed, ","), tool) {
-			t.Fatalf("%s is left to the auto mode of the CLI, not allowed outright: %s", tool, allowed)
+		// In its box the box bounds the tools of the CLI, its web excepted; outside it they are left to its auto mode.
+		inBox := sandbox.Homed() && !strings.HasPrefix(tool, "Web")
+		if slices.Contains(strings.Split(allowed, ","), tool) != inBox {
+			t.Fatalf("%s is allowed outright only in the box of the CLI, else left to its auto mode: %s", tool, allowed)
 		}
 	}
 	var set cliSettings

@@ -94,8 +94,8 @@ func TestCodexCommandAgentWorksThroughTheGateway(t *testing.T) {
 	if len(cfg.Skills.Config) != 1 || cfg.Skills.Config[0]["enabled"] != false || !strings.Contains(cfg.Skills.Config[0]["path"].(string), "owner-skill") {
 		t.Fatalf("the owner's skills are off in the thread: %v", cfg.Skills.Config)
 	}
-	if string(start["approvalPolicy"]) != `"on-request"` {
-		t.Fatalf("the thread runs on-request: %s", start["approvalPolicy"])
+	if want := map[bool]string{true: `"never"`, false: `"on-request"`}[sandbox.Homed()]; string(start["approvalPolicy"]) != want {
+		t.Fatalf("the thread asks on request outside its box, never in it: %s", start["approvalPolicy"])
 	}
 	for _, off := range []string{"features.plugins=false", "features.hooks=false", "features.apps=false", "agents.enabled=false", "notify=[]",
 		"features.exec_permission_approvals=false"} {

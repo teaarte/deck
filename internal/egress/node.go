@@ -19,7 +19,7 @@ const (
 // NodeHTTP2 is how each end of the connection of a node pings the other, so a side gone without a word ends it.
 var NodeHTTP2 = &http.HTTP2Config{SendPingTimeout: NodePing, PingTimeout: NodePingWait}
 
-// ToDeck is the transport of a node to the deck it joins, at the address the owner gave it: HTTP/1.1 only, as its
+// ToDeck is the transport of a node to the deck it joins, at the address the owner gave it: HTTP/1.1, as its
 // connection upgrades to deck's calls.
 var ToDeck = func() *http.Transport {
 	var p http.Protocols
@@ -55,12 +55,12 @@ func NodeConn(ctx context.Context, conn net.Conn) (*http.ClientConn, error) {
 	return t.NewClientConn(ctx, "http", "node:80")
 }
 
-// Loopback is the transport of a node to the services of its own machine: it dials only loopback addresses, as a
-// node serves deck those and nothing of its network.
+// Loopback is the transport of a node to the services of its own machine: it dials loopback addresses (DialLoopback),
+// as a node serves deck those and nothing of its network.
 var Loopback = &http.Transport{Proxy: nil, DialContext: dialLoopback, ResponseHeaderTimeout: 5 * time.Minute,
 	IdleConnTimeout: time.Minute, TLSHandshakeTimeout: 10 * time.Second}
 
-// DialLoopback dials host:port only when the host is a loopback address or resolves to one.
+// DialLoopback dials host:port when the host is a loopback address or resolves to one, and refuses the rest.
 func DialLoopback(ctx context.Context, addr string) (net.Conn, error) {
 	return dialLoopback(ctx, "tcp", addr)
 }

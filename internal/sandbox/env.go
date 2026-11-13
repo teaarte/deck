@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-// kept are the variables of deck every program it starts keeps, with LC_*; HOME, TMPDIR and XDG_* would lead a
-// confined one to the owner's settings, and keys never pass.
+// kept are the variables of deck the programs it starts keep, with LC_*; HOME, TMPDIR and XDG_* would lead a
+// confined one to the owner's settings, and keys do not pass.
 var kept = []string{"USER", "LOGNAME", "SHELL", "LANG", "TZ", "LC_"}
 
 // environ is deck's own environment.
@@ -24,8 +24,8 @@ func lookup(name string) string {
 	return ""
 }
 
-// Kept is deck's environment cut to the kept variables and more, its PATH Path; a name ending in _ keeps every
-// variable it begins.
+// Kept is deck's environment cut to the kept variables and more, its PATH Path; a name ending in _ keeps the
+// variables it begins.
 func Kept(more ...string) []string { return append(cut(more), "PATH="+Path()) }
 
 func cut(more []string) []string {

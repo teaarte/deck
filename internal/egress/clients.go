@@ -13,12 +13,12 @@ var Direct = &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 10 *
 	TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 5 * time.Minute, IdleConnTimeout: time.Minute,
 	ForceAttemptHTTP2: true}
 
-// Outbound dials only the addresses Pin gave a request, on a connection of its own, since a kept one would serve the
-// next request whatever it was pinned to.
+// Outbound dials the addresses Pin gave a request and no other, on a connection of its own, since a kept one would
+// serve the next request whatever it was pinned to.
 var Outbound = &http.Transport{Proxy: nil, DialContext: dialPinned, DisableKeepAlives: true, TLSHandshakeTimeout: 10 * time.Second,
 	ResponseHeaderTimeout: 5 * time.Minute}
 
-// Client is a client whose every request, each redirect too, goes only where domains let it, at the addresses its
+// Client is a client whose requests, redirects too, go where destination lets them by domains, at the addresses a
 // name resolved to once; a timeout of 0 lets an answer stream as long as it lasts.
 func Client(domains []string, timeout time.Duration) *http.Client {
 	return &http.Client{Transport: pinning(func(*http.Request) []string { return domains }), Timeout: timeout, CheckRedirect: func(_ *http.Request, via []*http.Request) error {
@@ -43,8 +43,8 @@ func (p pinning) RoundTrip(req *http.Request) (*http.Response, error) {
 	return Outbound.RoundTrip(pinned)
 }
 
-// Pinned is the client of an HTTP tool, whose request Pin bound: it follows a redirect only on its host. Push is the
-// client of a push to a device, at a public address.
+// Pinned is the client of an HTTP tool, whose request Pin bound: it follows a redirect on its host and no other. Push
+// is the client of a push to a device, at a public address.
 var (
 	Pinned = &http.Client{Transport: Outbound, Timeout: 5 * time.Minute, CheckRedirect: sameHost}
 	Push   = &http.Client{Transport: pinning(func(r *http.Request) []string { return With(Anywhere, r.URL.String()) }),

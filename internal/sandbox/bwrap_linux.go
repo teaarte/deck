@@ -33,7 +33,7 @@ var system = []string{"/opt", "/nix"}
 // under WSL, the home and host services of a Mac a container machine mounts.
 var foreign = []string{"/Users", "/Volumes", "/mnt", "/media", "/var/host-services"}
 
-// builtIn are the folders every box has of its own; no link is made in them.
+// builtIn are the folders a box has of its own; no link is made in them.
 var builtIn = []string{"/usr", "/etc", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32", "/opt", "/nix", "/proc", "/dev"}
 
 // Fix is what the administrator of the machine does once for bwrap to build boxes in deck's container.
@@ -55,7 +55,7 @@ func (s *Sandbox) program() string {
 	return "bwrap"
 }
 
-// check builds an empty box as every box is built; what bwrap says tells which line of the host is missing.
+// check builds an empty box as allowed builds one; what bwrap says tells which line of the host is missing.
 func (s *Sandbox) check() error {
 	prog := s.program()
 	if !runnable(prog) {
@@ -139,7 +139,7 @@ func (s *Sandbox) command(ctx context.Context, b Box, door *Door, env []string) 
 	return group(cmd), nil
 }
 
-// roots are the system of a box: /usr read-only and the links or folders of the old layout beside it.
+// roots are the system of a box: /usr to read and the links or folders of the old layout beside it.
 func roots() []string {
 	args := []string{"--ro-bind", "/usr", "/usr"}
 	for _, l := range []string{"/bin", "/sbin", "/lib", "/lib32", "/lib64", "/libx32"} {
@@ -157,7 +157,7 @@ func roots() []string {
 	return args
 }
 
-// unshare starts every box: in namespaces of its own, a program in it makes no user namespace, so it mounts nothing.
+// unshare starts a box (allowed): in namespaces of its own, where a program makes no user namespace and mounts nothing.
 var unshare = []string{"--die-with-parent", "--new-session", "--unshare-all", "--unshare-user", "--disable-userns"}
 
 // allowed are the arguments of bwrap for the box: only what is listed is there; the folders it reads and writes are

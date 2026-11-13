@@ -13,7 +13,7 @@ import (
 )
 
 // Policy is what sandbox-exec lets a program touch, the box of deck and of a node on macOS: all is readable but Hide,
-// Read reopens paths in Hide, Private closes paths in Read again; only Write is writable. Read and Write are real paths.
+// Read reopens paths in Hide, Private closes paths in Read again; Write is writable, the rest not; real paths.
 type Policy struct {
 	Argv    []string
 	Dir     string
@@ -76,7 +76,7 @@ func (s *Sandbox) command(ctx context.Context, b Box, door *Door, env []string) 
 		Private: c.Private, Door: door})
 }
 
-// follow are the real paths of the folders of a box, through the links of the system only: sandbox-exec checks the
+// follow are the real paths of the folders of a box, through links of the system (rootLink): sandbox-exec checks the
 // path a program reaches, so a folder turned into a link later leads where no rule opens.
 func follow(paths []string) ([]string, error) {
 	var out []string

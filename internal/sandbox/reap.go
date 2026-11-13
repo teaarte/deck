@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// Reap kills a process group an earlier deck left running, only while one of its members has marker in
-// its command line: a group id reused after a reboot belongs to someone else.
+// Reap kills a process group an earlier deck left running while one of its members has marker in its
+// command line, and leaves it otherwise: a group id reused after a reboot belongs to someone else.
 func Reap(pgid int, marker string) {
 	if pgid <= 0 || syscall.Kill(-pgid, 0) != nil || !holds(pgid, marker) {
 		return
@@ -29,7 +29,7 @@ func holds(pgid int, marker string) bool {
 	return ok
 }
 
-// reapMarked kills every process group one of whose members has marker in its command line; it looks again after
+// reapMarked kills the process groups one of whose members has marker in its command line; it looks again after
 // each round, for a box being set up forks a process with the mark into a group of its own while the first is killed.
 func reapMarked(marker string) {
 	for range 5 {

@@ -137,7 +137,7 @@ func stateful(serverFor func(*http.Request) *mcp.Server) http.Handler {
 	return provider.Stateful(mcp.NewStreamableHTTPHandler(serverFor, &mcp.StreamableHTTPOptions{SessionTimeout: time.Hour}))
 }
 
-// renew gives every live session with an MCP server the commands it may call now, after a project changed: a new
+// renew gives the live sessions with an MCP server the commands it may call now, after a project changed: a new
 // command is a tool at once, one taken out is gone; a session of a script has no server.
 func (g *Gateway) renew(ctx context.Context) {
 	g.mu.Lock()
@@ -165,7 +165,7 @@ func (g *Gateway) renew(ctx context.Context) {
 }
 
 // retool makes the tools of srv the commands s may call now, after old: a tool that stays is replaced in place, so
-// live sessions never miss it, one taken out is gone; ask and result_submit stay whatever the commands.
+// live sessions keep it meanwhile, one taken out is gone; ask and result_submit stay whatever the commands.
 func (g *Gateway) retool(ctx context.Context, srv *mcp.Server, s *Session, old []string) (allowed, tools []string, err error) {
 	allowed, tools, err = g.addCommands(ctx, srv, s)
 	if err != nil {
@@ -212,7 +212,7 @@ func (g *Gateway) Close(tok string) {
 	g.mu.Unlock()
 }
 
-// AllowedTools lists the gateway tools the provider may call without the approve round-trip, every one, since the
+// AllowedTools lists the gateway tools the provider may call without the approve round-trip, all of them, since the
 // gateway decides each call itself.
 func (g *Gateway) AllowedTools(tok string) []string {
 	g.mu.Lock()
@@ -235,7 +235,8 @@ func (g *Gateway) Tools(tok string) []string {
 
 func PermissionTool() string { return provider.Qualify(ApproveTool) }
 
-// ServeHTTP expects paths of the form /mcp/<token>; an existing MCP session is served only under its own token.
+// ServeHTTP expects paths of the form /mcp/<token>; an existing MCP session is served under its own token, and
+// another token gets none.
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if sid := r.Header.Get("Mcp-Session-Id"); sid != "" && !g.owns(r, sid) {
 		http.Error(w, "deck: no such session for this process", http.StatusNotFound)
@@ -362,7 +363,7 @@ func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session) 
 	return allowed, tools, nil
 }
 
-// progress tells a client that asked for it, every Progress until the call ends, that its call still runs, so a
+// progress tells a client that asked for it, each Progress until the call ends, that its call still runs, so a
 // client that cuts idle calls waits for a long one; the func it returns stops it.
 func (g *Gateway) progress(ctx context.Context, req *mcp.CallToolRequest) func() {
 	tok := req.Params.GetProgressToken()

@@ -82,7 +82,7 @@ func (sh shape) unknown(v any, asked []string) (bad, names []string) {
 	return bad, slices.Sorted(maps.Keys(known))
 }
 
-// fields are those asked of the rows of an object with one list, the rest of it kept, unless every one asked is
+// fields are those asked of the rows of an object with one list, the rest of it kept, unless all those asked are
 // the object's own and some is not a field of a row.
 func (sh shape) fields(fields []string) []string {
 	if sh.rows == "" {
@@ -117,7 +117,7 @@ func plain(out any) (any, error) {
 	return v, err
 }
 
-// cut keeps only the named fields of a result v, of every object of a list.
+// cut keeps the named fields of a result v and drops the rest, of each object of a list.
 func cut(v any, fields []string) any {
 	keep := tree{}
 	for _, f := range fields {

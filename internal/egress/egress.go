@@ -1,5 +1,5 @@
-// Package egress is the one way of deck to the web: a name resolves once, a request dials only the addresses it
-// resolved to, and a name reaches only public ones.
+// Package egress is the one way of deck to the web: a name resolves once, a request dials the addresses it resolved
+// to, and a name reaches public ones (destination).
 package egress
 
 import (
@@ -24,18 +24,24 @@ import (
 type pinnedKey struct{}
 
 // Reachable reports whether a page at host:port is in the domains (host with subdomains, host:port, IP, network,
-// "*"); a name reaches only public addresses, and a listed name that does not resolve passes: nothing loads.
+// "*") by destination; a listed name that does not resolve passes: nothing loads.
 func Reachable(domains []string, hostport string) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err := destination(ctx, domains, hostport)
+	_, err := destination(ctx, domains, hostport, resolve)
 	return err == nil || errors.Is(err, errUnresolved) && listed(domains, hostport)
 }
 
 var errUnresolved = errors.New("does not resolve")
 
-// destination resolves host:port once and gives the addresses to dial, when the domains let it go there.
-func destination(ctx context.Context, domains []string, hostport string) ([]string, error) {
+// resolve is how deck resolves a name: as its machine does.
+func resolve(ctx context.Context, host string) ([]netip.Addr, error) {
+	return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+}
+
+// destination resolves host:port once by lookup and gives the addresses to dial, when the domains let it go there:
+// a name only to public addresses, or to those the domains name; an IP only when public, named or a test's stand-in.
+func destination(ctx context.Context, domains []string, hostport string, lookup func(context.Context, string) ([]netip.Addr, error)) ([]string, error) {
 	host, port, err := net.SplitHostPort(hostport)
 	if err != nil {
 		return nil, err
@@ -49,7 +55,7 @@ func destination(ctx context.Context, domains []string, hostport string) ([]stri
 		}
 		return []string{hostport}, nil
 	}
-	ips, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+	ips, err := lookup(ctx, host)
 	if err != nil || len(ips) == 0 {
 		return nil, fmt.Errorf("%s %w", host, errUnresolved)
 	}
@@ -193,7 +199,7 @@ func port(u *url.URL) string {
 	return cmp.Or(u.Port(), map[string]string{"http": "80", "https": "443"}[u.Scheme])
 }
 
-// Anywhere are the domains of every public place.
+// Anywhere are the domains of all public places.
 var Anywhere = []string{"*"}
 
 var stand sync.Map
@@ -214,7 +220,7 @@ func Proxy(ctx context.Context, w http.ResponseWriter, r *http.Request, domains 
 	if r.Method != http.MethodConnect {
 		target = net.JoinHostPort(r.URL.Hostname(), port(r.URL))
 	}
-	pinned, err := destination(r.Context(), domains, target)
+	pinned, err := destination(r.Context(), domains, target, resolve)
 	if errors.Is(err, errUnresolved) {
 		err = fmt.Errorf("%w; the network or DNS of the machine may be down", err)
 		http.Error(w, "deck: "+err.Error(), http.StatusBadGateway)
@@ -233,10 +239,10 @@ func Proxy(ctx context.Context, w http.ResponseWriter, r *http.Request, domains 
 	return nil
 }
 
-// Pin is req bound to the addresses its host resolved to once, when the domains let it go there; Outbound dials only
-// them, a redirect of the same host too. A name that does not resolve is 502, a place the domains refuse 403.
+// Pin is req bound to the addresses its host resolved to once, when destination lets it go there; Outbound dials them
+// and no other, a redirect of the same host too. A name that does not resolve is 502, a refused place 403.
 func Pin(req *http.Request, domains []string) (*http.Request, error) {
-	pinned, err := destination(req.Context(), domains, net.JoinHostPort(req.URL.Hostname(), port(req.URL)))
+	pinned, err := destination(req.Context(), domains, net.JoinHostPort(req.URL.Hostname(), port(req.URL)), resolve)
 	if errors.Is(err, errUnresolved) {
 		return nil, fault.New(fault.Network, err.Error()+"; the network or DNS of the machine may be down")
 	}
@@ -318,8 +324,8 @@ func tunnel(ctx context.Context, w http.ResponseWriter, r *http.Request, target 
 	}
 }
 
-// Unsent reports whether a failed request never reached the other side: only a failed dial or name lookup proves
-// that; a timeout or a cut answer may have been billed.
+// Unsent reports whether a failed request did not reach the other side: a failed dial or name lookup proves that; a
+// timeout or a cut answer may have been billed.
 func Unsent(err error) bool {
 	var op *net.OpError
 	var dns *net.DNSError

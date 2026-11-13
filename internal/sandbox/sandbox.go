@@ -1,4 +1,4 @@
-// Package sandbox runs every foreign program in a box: it sees only what its box lists and reaches only through its
+// Package sandbox runs a foreign program in a box: it sees what its box lists (allowed) and reaches out through its
 // door. bubblewrap on Linux; sandbox-exec on macOS, where a node and deck without Docker run.
 package sandbox
 
@@ -63,10 +63,10 @@ func (s *Sandbox) side(tok string) http.Handler {
 	})
 }
 
-// marked begins the mark of every box of this deck.
+// marked begins the mark of the boxes of this deck.
 func (s *Sandbox) marked() string { return "deck-box " + string(s.home) + " " }
 
-// Mark is the mark of a box of kind for id: every box carries it in its command line, so a deck that starts again
+// Mark is the mark of a box of kind for id: a box carries it in its command line, so a deck that starts again
 // finds what one before it left running.
 func (s *Sandbox) Mark(kind, id string) string {
 	return s.marked() + kind + "=" + strings.ReplaceAll(id, " ", "_") + ";"

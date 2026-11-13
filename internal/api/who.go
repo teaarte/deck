@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/netip"
@@ -21,15 +22,21 @@ var (
 )
 
 // Who is the one place that says whom a call comes from: a lent or automation token in the header (a wrong one counts
-// against its address), else a browser's cookie where it signs in, a write only from deck's origin, a read its page.
+// against its address), else a browser's session by the cookie way lets through.
 func (s *Server) Who(w http.ResponseWriter, r *http.Request) (registry.Actor, error) {
-	if raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
-		if act, ok := s.app.Owners.Lent(raw); ok {
+	bearer, token, cookie, err := way(r, originOf(r))
+	switch {
+	case errors.Is(err, errNoOne):
+		return registry.Actor{}, s.unsigned(r)
+	case err != nil:
+		return registry.Actor{}, err
+	case bearer:
+		if act, ok := s.app.Owners.Lent(token); ok {
 			return act, nil
-		} else if s.app.Owners.IsLent(raw) {
+		} else if s.app.Owners.IsLent(token) {
 			return registry.Actor{}, s.unsigned(r)
 		}
-		act, err := s.app.Owners.Automation(r.Context(), raw)
+		act, err := s.app.Owners.Automation(r.Context(), token)
 		if err == nil {
 			return act, nil
 		}
@@ -38,30 +45,41 @@ func (s *Server) Who(w http.ResponseWriter, r *http.Request) (registry.Actor, er
 		}
 		return registry.Actor{}, s.unsigned(r)
 	}
-	o := originOf(r)
-	c, err := r.Cookie(cookieOf(o))
-	if err != nil || !o.Passkeys() {
-		return registry.Actor{}, s.unsigned(r)
-	}
-	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		if r.Header.Get("Origin") != o.Main {
-			return registry.Actor{}, errOrigin
-		}
-	} else if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
-		return registry.Actor{}, errOrigin
-	}
-	p, ok := s.app.Auth.Session(r.Context(), c.Value)
+	p, ok := s.app.Auth.Session(r.Context(), cookie)
 	if !ok || p.Kind != auth.Browser {
 		return registry.Actor{}, s.unsigned(r)
 	}
 	if p.Unsettled {
 		var mark string
-		if p, mark, err = s.app.Auth.Settle(r.Context(), c.Value, client(r)); err != nil {
+		if p, mark, err = s.app.Auth.Settle(r.Context(), cookie, client(r)); err != nil {
 			return registry.Actor{}, s.unsigned(r)
 		}
 		keepMark(w, r, mark)
 	}
 	return p.Actor(), nil
+}
+
+// errNoOne is a request that names no one deck could look up.
+var errNoOne = errors.New("no one")
+
+// way is what a request at o offers to say whom it comes from: a token in the header, else the cookie of a browser
+// where one signs in, a write only from deck's own page at o, a read from its pages or opened by hand.
+func way(r *http.Request, o auth.Origin) (bearer bool, token, cookie string, err error) {
+	if token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
+		return true, token, "", nil
+	}
+	c, err := r.Cookie(cookieOf(o))
+	if err != nil || !o.Passkeys() {
+		return false, "", "", errNoOne
+	}
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		if r.Header.Get("Origin") != o.Main {
+			return false, "", "", errOrigin
+		}
+	} else if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
+		return false, "", "", errOrigin
+	}
+	return false, "", c.Value, nil
 }
 
 // unsigned refuses a call of no one; at an address where no browser signs in it names those where one does.
@@ -85,7 +103,7 @@ func (s *Server) unsigned(r *http.Request) error {
 func markOf(o auth.Origin) string { return cookieOf(o) + "-device" }
 
 // cookieOf is the cookie of a browser's session at an origin: __Host- over https, so it stays with the one origin;
-// at deck.localhost one named by the port, as a browser sends it to every port and another deck may listen on one.
+// at deck.localhost one named by the port, as a browser sends it to all ports and another deck may listen on one.
 func cookieOf(o auth.Origin) string {
 	if o.Secure() {
 		return "__Host-deck"
@@ -102,8 +120,8 @@ func originOf(r *http.Request) auth.Origin {
 	return o
 }
 
-// hosted answers only at deck's own addresses, by the Host of a request, so a name an attacker's DNS points at deck
-// gets nothing; [::], 0.0.0.0 and [::1] go to localhost, as a CSP names no IPv6 address.
+// hosted answers at deck's own addresses, by the Host of a request, and refuses the rest, so a name an attacker's DNS
+// points at deck gets nothing; [::], 0.0.0.0 and [::1] go to localhost, as a CSP names no IPv6 address.
 func (s *Server) hosted(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Referrer-Policy", "no-referrer")

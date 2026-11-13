@@ -137,7 +137,7 @@ func Leaves(kind string) (files, network bool) {
 // the home of the user.
 func Homed() bool { return !outside(Box{Kind: KindCLI}) }
 
-// base is the environment every box starts from: deck's few variables, its PATH, the box's home and temp folder, so
+// base is the environment a box starts from: deck's few variables, its PATH, the box's home and temp folder, so
 // the caches of npm, uv and pip are the box's too; the box's own and its door's go over it.
 func base(b Box) []string {
 	return append(Kept(), "HOME="+b.Home, "TMPDIR="+filepath.Join(b.Home, "tmp"))

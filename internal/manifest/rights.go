@@ -199,8 +199,8 @@ func (m *Manifest) PrintOf(n registry.Need) string {
 	return ""
 }
 
-// MayWrite reports whether the agents and scripts of the project may write the document of this name, or every
-// document of a folder named with "/" at its end.
+// MayWrite reports whether the agents and scripts of the project may write the document of this name, or the
+// documents of a folder named with "/" at its end.
 func (m *Manifest) MayWrite(name string) bool {
 	return slices.ContainsFunc(m.Writes, func(w string) bool {
 		return w == name || strings.HasSuffix(w, "/") && strings.HasPrefix(name, w)

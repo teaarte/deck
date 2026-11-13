@@ -63,7 +63,7 @@ type Actor struct {
 }
 
 // Scope is what an automation token reaches by its rights of deck's catalog: the projects whose data deck's reads give
-// it, those where deck's other commands act for it, and Every, every module, so the documents of the workspace too.
+// it, those where deck's other commands act for it, and Every, all modules, so the documents of the workspace too.
 type Scope struct {
 	Reads []int64 `json:"reads,omitempty"`
 	Acts  []int64 `json:"acts,omitempty"`
@@ -94,7 +94,7 @@ func (c Clearance) Clear(a Actor, command string) Actor {
 	return a
 }
 
-// Clearance issues the one clearance of the registry; a second ask panics, so only the gateway holds it.
+// Clearance issues the one clearance of the registry; a second ask panics, so the gateway, which asks first, holds it.
 func (r *Registry) Clearance() Clearance {
 	if r.issued {
 		panic("registry: the clearance is already issued")

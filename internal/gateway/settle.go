@@ -23,8 +23,8 @@ const (
 // ErrStale tells the owner a call they answer is out of date; deck closed it and the caller heard so.
 var ErrStale = registry.Conflict("this request is out of date: what it would change changed since it was asked for, so deck closed it and told the caller")
 
-// Freshness says what became of what a frozen call acts on since it was asked for; probe also checks what only a call
-// out tells, as when the owner answers.
+// Freshness says what became of what a frozen call acts on since it was asked for; probe also checks what a call out
+// alone tells, as when the owner answers.
 func (g *Gateway) Freshness(ctx context.Context, a db.Ask, probe bool) int {
 	f, err := ask.Decode[Frozen](a.Payload)
 	if err != nil {

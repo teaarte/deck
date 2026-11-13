@@ -78,7 +78,7 @@ func (g *Gateway) giveBack(ctx context.Context, act registry.Actor, c *registry.
 	})
 }
 
-// wrote marks the run of act as one that did more than read, so a run of the schedule that only read is not counted
+// wrote marks the run of act as one that did more than read, so a run of the schedule that just read is not counted
 // as done.
 func (g *Gateway) wrote(ctx context.Context, act registry.Actor, c *registry.Command) {
 	// The own call of a tool run of a command that needs no right only reads.
@@ -91,7 +91,7 @@ func (g *Gateway) wrote(ctx context.Context, act registry.Actor, c *registry.Com
 }
 
 // Itself is the need of a command of deck a module or the master proposes to the owner: send on the command itself;
-// asked when only the owner's answer to the request of this very call meets it.
+// asked when the need is met by the owner's answer to the request of this very call (decide).
 func Itself(name string, asked bool) func(context.Context, registry.Actor, registry.Subject, json.RawMessage) ([]registry.Need, error) {
 	return func(context.Context, registry.Actor, registry.Subject, json.RawMessage) ([]registry.Need, error) {
 		return []registry.Need{{Right: manifest.Send, Subject: name, Asked: asked}}, nil

@@ -113,7 +113,7 @@ func (s *Session) wait(d time.Duration) time.Duration {
 	return d
 }
 
-// QuestionAnswers maps question texts to answers; a plain string answers every question.
+// QuestionAnswers maps question texts to answers; a plain string answers them all.
 func QuestionAnswers(texts []string, answer string) map[string]string {
 	answers := map[string]string{}
 	if json.Unmarshal([]byte(answer), &answers) == nil {

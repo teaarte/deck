@@ -124,7 +124,7 @@ func ReadRoot(root *os.Root, name string, limit int64) ([]byte, error) {
 	return b, nil
 }
 
-// OpenRegular opens a regular file of root for reading; the root keeps every link inside it, and a pipe opens without
+// OpenRegular opens a regular file of root for reading; the root keeps links inside it, and a pipe opens without
 // waiting for a writer.
 func OpenRegular(root *os.Root, name string) (*os.File, error) {
 	f, err := root.OpenFile(name, os.O_RDONLY|syscall.O_NONBLOCK, 0)

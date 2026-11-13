@@ -236,3 +236,34 @@ func TestTablesCatchTestsOffTheList(t *testing.T) {
 		t.Errorf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
+
+func TestRepositoryStatesLawsWithTables(t *testing.T) {
+	vs, err := lint.Laws("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range vs {
+		t.Error(v)
+	}
+}
+
+func TestLawsCatchQuantifiersWithoutATable(t *testing.T) {
+	vs, err := lint.LawsOf("testdata/laws", []string{"internal/egress/", "internal/api/who.go"}, map[string][]string{"internal/egress": {"Public"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, v := range vs {
+		got = append(got, v.String())
+	}
+	tail := " is a law on the trust boundary: put "
+	want := []string{
+		`internal/api/who.go:3: "only"` + tail + `Who in lint.Tabled with its table test, or say it without the quantifier`,
+		`internal/egress/egress.go:13: "every"` + tail + `this comment in lint.Tabled with its table test, or say it without the quantifier`,
+		`internal/egress/egress.go:1: "only"` + tail + `this comment in lint.Tabled with its table test, or say it without the quantifier`,
+		`internal/egress/egress.go:7: "never"` + tail + `Dial in lint.Tabled with its table test, or say it without the quantifier`,
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}

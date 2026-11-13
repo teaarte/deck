@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// Proc is the program of a box running: a process group of its own, ended whole with every process it started once
+// Proc is the program of a box running: a process group of its own, ended whole with the processes it started once
 // the program exits.
 type Proc struct {
 	// Stdin and Stdout are pipes to the program when its IO gave none.

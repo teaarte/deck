@@ -33,7 +33,7 @@ func (o Origin) RPID() string {
 }
 
 // Passkeys says a browser of the owner signs in at the origin with a passkey and a cookie: over https by a name, or
-// at deck.localhost on this machine. On http://localhost a cookie would reach every server of the host.
+// at deck.localhost on this machine. On http://localhost a cookie would reach all servers of the host.
 func (o Origin) Passkeys() bool {
 	return o.Secure() && net.ParseIP(o.RPID()) == nil || o.Here()
 }
@@ -80,7 +80,7 @@ func (o *Origins) write() error {
 	return home.WriteFile(o.file, b)
 }
 
-// ReadOrigins are the origins a deck of the home kept, none when it never ran.
+// ReadOrigins are the origins a deck of the home kept, none when it has not run.
 func ReadOrigins(file string) []Origin {
 	var list []Origin
 	if b, err := os.ReadFile(file); err == nil {
@@ -153,7 +153,7 @@ func sameHost(u *url.URL, host string) bool {
 	return u.Port() == "" && strings.EqualFold(net.JoinHostPort(u.Hostname(), std), host)
 }
 
-// Links are the addresses that pair a device by a code, at every origin where a browser makes a passkey, the https
+// Links are the addresses that pair a device by a code, at the origins where a browser makes a passkey, the https
 // ones first, as another device opens those; the code is in the fragment, which no server and no log sees.
 func Links(origins []Origin, code string) []string {
 	var out []string
@@ -167,8 +167,8 @@ func Links(origins []Origin, code string) []string {
 	return out
 }
 
-// Joins are the commands that pair a node by a code and start it as a service of its machine: at every https origin,
-// and at 127.0.0.1 for a node on deck's own machine; a key never crosses a network over plain http.
+// Joins are the commands that pair a node by a code and start it as a service of its machine: at the https origins,
+// and at 127.0.0.1 for a node on deck's own machine, so a key crosses no network over plain http.
 func Joins(origins []Origin, code string) []string {
 	var out []string
 	for _, secure := range []bool{true, false} {

@@ -1,5 +1,5 @@
-// Package home is the layout of deck's folder: state, which only deck reads, and work, where the programs deck
-// confines work in their own folders.
+// Package home is the layout of deck's folder: state, which deck reads, and work, where the programs deck confines
+// work in their own folders.
 package home
 
 import (
@@ -22,7 +22,7 @@ func (l Layout) work(elem ...string) string {
 	return filepath.Join(append([]string{string(l), "work"}, elem...)...)
 }
 
-// State holds everything only deck reads; nothing confined sees any of it.
+// State holds what deck reads; a box is given folders of work, not it.
 func (l Layout) State() string { return l.state() }
 
 // Work holds the folders of runs and the folders of projects.
@@ -85,13 +85,13 @@ func (l Layout) Agent(provider string, project int64) string {
 	return filepath.Join(string(l), "agents", provider, fmt.Sprint(project))
 }
 
-// Login is the folder of the one sign-in of the CLI of an agent, whose file every home of the CLI shares; no box
+// Login is the folder of the one sign-in of the CLI of an agent, whose file the homes of the CLI share; no box
 // writes it but through that file.
 func (l Layout) Login(provider string) string {
 	return filepath.Join(string(l), "agents", provider, "login")
 }
 
-// AgentLock is the folder every box of the CLI of an agent writes, its home inside: a lock the CLI takes beside its
+// AgentLock is the folder the boxes of the CLI of an agent write, its home inside: a lock the CLI takes beside its
 // home, as of a refresh of the login, is one for all homes.
 func (l Layout) AgentLock(provider string) string {
 	return filepath.Join(string(l), "agents", provider, "lock")
@@ -121,7 +121,7 @@ func (l Layout) Secrets(workspace int64) string { return l.state("secrets", fmt.
 // Keys holds the API keys of the connections of a workspace, a file each, apart from the secrets of modules.
 func (l Layout) Keys(workspace int64) string { return l.state("keys", fmt.Sprint(workspace)) }
 
-// Open makes deck's folder ready: its own and only deck's, of the current layout, with state/ and the folder of runs.
+// Open makes deck's folder ready: mode 700, of the current layout, with state/ and the folder of runs.
 func Open(dir string) (Layout, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err

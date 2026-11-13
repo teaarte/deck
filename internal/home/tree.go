@@ -125,8 +125,8 @@ func (l Layout) Trash(dir, name string, fi os.FileInfo, id int64) error {
 	return nil
 }
 
-// Untrash puts the stored file id back as the file name of dir, never over a file there (os.ErrExist) and never
-// through a link: the link is made by the descriptor of a folder taken through a root of dir.
+// Untrash puts the stored file id back as the file name of dir, not over a file there (os.ErrExist) nor through a
+// link: the link is made by the descriptor of a folder taken through a root of dir.
 func (l Layout) Untrash(id int64, dir, name string) error {
 	if !filepath.IsLocal(filepath.FromSlash(name)) {
 		return fmt.Errorf("%q is outside %s", name, dir)

@@ -16,7 +16,7 @@ import (
 const MarkLife = 400 * 24 * time.Hour
 
 // Client is what a browser says of itself at a step of signing in: its User-Agent and the mark of its device, which
-// it keeps in a cookie; the mark only names the device a new session goes to and signs nothing in.
+// it keeps in a cookie; the mark names the device a new session goes to and signs nothing in.
 type Client struct {
 	Agent string
 	Mark  string

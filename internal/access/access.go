@@ -88,7 +88,7 @@ func Within(act registry.Actor, projectID int64) error {
 }
 
 // DocScope is where a document call works: a project, or the workspace for the owner side and a token that reads it or
-// holds every module.
+// holds all modules.
 func DocScope(ctx context.Context, q *db.Queries, act registry.Actor, project string) (docs.Scope, error) {
 	if project == "" && (act.OwnerSide() || act.Kind == registry.Token && (!act.Changes || act.Scope.Every)) {
 		return docs.Scope{Workspace: act.Workspace}, nil
@@ -97,8 +97,7 @@ func DocScope(ctx context.Context, q *db.Queries, act registry.Actor, project st
 	return docs.ProjectScope(p), err
 }
 
-// ReadProject resolves a project whose data a call reads: a confined actor reads another project only where
-// the manifest of its own project declares it in reads.
+// ReadProject resolves a project whose data a call reads: a confined actor reads another project as MayRead says.
 func ReadProject(ctx context.Context, q *db.Queries, act registry.Actor, name, collection, document string) (db.Project, error) {
 	if name == "" || !act.Confined() {
 		return Project(ctx, q, act, name)
@@ -112,6 +111,24 @@ func ReadProject(ctx context.Context, q *db.Queries, act registry.Actor, name, c
 
 // MayRead reports whether the actor may read a collection or document of p; both empty asks for the project.
 func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, collection, document string) error {
+	return mayRead(act, p, collection, document, rightsOf(ctx, q, act))
+}
+
+// Reads says whether a confined actor may read a subject of data of another project p: its own module holds the
+// right data on it; the master and its memory no module reads.
+func Reads(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, subject string) error {
+	return reads(act, p, subject, rightsOf(ctx, q, act))
+}
+
+// rights are the manifest of the actor's module and the owner's answers to it, loaded when a decision needs them.
+type rights func() (*manifest.Manifest, manifest.Grants, error)
+
+func rightsOf(ctx context.Context, q *db.Queries, act registry.Actor) rights {
+	return func() (*manifest.Manifest, manifest.Grants, error) { return docs.Rights(ctx, q, act.ProjectID) }
+}
+
+// mayRead is MayRead by the rights of the actor's module.
+func mayRead(act registry.Actor, p db.Project, collection, document string, load rights) error {
 	if act.Kind == registry.Token {
 		return unreached(act, p)
 	}
@@ -120,26 +137,25 @@ func MayRead(ctx context.Context, q *db.Queries, act registry.Actor, p db.Projec
 	}
 	switch {
 	case collection != "":
-		return Reads(ctx, q, act, p, p.Name+"."+collection)
+		return reads(act, p, p.Name+"."+collection, load)
 	case document != "":
-		return Reads(ctx, q, act, p, p.Name+"/"+document)
+		return reads(act, p, p.Name+"/"+document, load)
 	}
 	if act.Within(p.ID) || !act.Confined() {
 		return nil
 	}
-	m, g, err := docs.Rights(ctx, q, act.ProjectID)
+	m, g, err := load()
 	if err != nil {
 		return err
 	}
 	if p.Builtin == 0 && slices.ContainsFunc(m.Held(g, manifest.Data, ""), func(s string) bool { return s == "*" || manifest.Covers(manifest.Data, p.Name, s) }) {
 		return nil
 	}
-	return Reads(ctx, q, act, p, p.Name)
+	return reads(act, p, p.Name, load)
 }
 
-// Reads says whether a confined actor may read a subject of data of another project p: its own module holds the
-// right data on it; the master and its memory no module reads.
-func Reads(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, subject string) error {
+// reads is Reads by the rights of the actor's module.
+func reads(act registry.Actor, p db.Project, subject string, load rights) error {
 	if act.Within(p.ID) || !act.Confined() {
 		return nil
 	}
@@ -150,7 +166,7 @@ func Reads(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project,
 		return registry.Refuse("project %s keeps the owner's memory and topics: it is for its own agents only", master.Name)
 	}
 	n := registry.Need{Right: manifest.Data, Subject: subject}
-	m, g, err := docs.Rights(ctx, q, act.ProjectID)
+	m, g, err := load()
 	if err != nil {
 		return err
 	}
@@ -172,7 +188,7 @@ func unreached(act registry.Actor, p db.Project) error {
 }
 
 // ReadModels resolves a project whose models' work a call reads, the caller's own when the name is empty: a confined
-// actor reads another one only where its module holds data on its models or those of every project.
+// actor reads another one where its module holds data on its models or on those of all projects (Reads).
 func ReadModels(ctx context.Context, q *db.Queries, act registry.Actor, name string) (db.Project, error) {
 	if name == "" || !act.Confined() {
 		return Project(ctx, q, act, name)
@@ -185,7 +201,7 @@ func ReadModels(ctx context.Context, q *db.Queries, act registry.Actor, name str
 }
 
 // ReadRuns says whether a confined actor reads the runs of another project p in brief: its module holds data on its
-// runs or those of every project.
+// runs or on those of all projects (Reads).
 func ReadRuns(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project) error {
 	return Reads(ctx, q, act, p, p.Name+":runs")
 }
@@ -221,7 +237,7 @@ func Name(ctx context.Context, q *db.Queries, id int64) string {
 	return p.Name
 }
 
-// Files refuses an automation token the files of a project unless it may call every command of it; a token that tries
+// Files refuses an automation token the files of a project unless it may call all commands of it; a token that tries
 // commands also uploads, the input of a trial.
 func Files(act registry.Actor, project string, upload bool) error {
 	if act.Kind != registry.Token || act.MayCall(project+".*") || upload && act.MayCall(registry.Deck("command_try")) {

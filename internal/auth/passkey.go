@@ -41,8 +41,8 @@ type Begun struct {
 	Device   int64  `json:"device,omitempty"`
 }
 
-// owner is the owner as a passkey knows them: a user handle of the passkey's own, so one passkey never takes the place
-// of another in an authenticator.
+// owner is the owner as a passkey knows them: a user handle of the passkey's own, so one passkey does not take the
+// place of another in an authenticator.
 type owner struct {
 	handle []byte
 	creds  []webauthn.Credential
@@ -232,7 +232,7 @@ func (a *Auth) pairHeld(ctx context.Context, o Origin, w *webauthn.WebAuthn, cer
 	})
 }
 
-// signIn starts a session of a browser by a passkey on the browser's device; a new device only if fresh.
+// signIn starts a session of a browser by a passkey on the browser's device; a new device when fresh.
 func (a *Auth) signIn(ctx context.Context, q *db.Queries, space, passkey int64, name string, br Client, fresh bool) (Begun, error) {
 	device, mark, err := a.browser(ctx, q, space, passkey, name, br, fresh)
 	if err != nil {
@@ -271,8 +271,8 @@ func (a *Auth) device(ctx context.Context, p db.CreateDeviceParams) (Begun, erro
 	})
 }
 
-// LoginBegin begins to sign in with a passkey of the origin; the browser offers those it has. Only a browser deck knows
-// as a device signs in by a passkey; another pairs by a link.
+// LoginBegin begins to sign in with a passkey of the origin; the browser offers those it has. A browser deck knows as a
+// device signs in by a passkey; another pairs by a link.
 func (a *Auth) LoginBegin(ctx context.Context, o Origin, br Client) (Begun, error) {
 	w, err := relying(o)
 	if err != nil {

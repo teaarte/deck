@@ -31,7 +31,8 @@ func (c *Command) Follows(reads ...string) *Command {
 	return c
 }
 
-// Brief makes a read give only these fields of each row unless the call asks for fields, the rest of them too.
+// Brief makes a read give these fields of each row and not the rest unless the call asks for fields, the rest of them
+// too.
 func (c *Command) Brief(fields ...string) *Command {
 	c.brief = fields
 	return c
@@ -56,7 +57,7 @@ func Limit(n, def, most int64) int64 {
 	return n
 }
 
-// Read declares a builtin command like Def that only reads, so a screen may show its result; the result schema
+// Read declares a builtin command like Def that changes nothing, so a screen may show its result; the result schema
 // is the json fields of Out, and a nil list comes back empty.
 func Read[In, Out any](name, title, desc string, callers []string, h func(ctx context.Context, a Actor, in In) (Out, error)) *Command {
 	c := Def(name, title, desc, callers, func(ctx context.Context, a Actor, in In) (any, error) {

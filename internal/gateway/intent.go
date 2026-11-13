@@ -17,7 +17,7 @@ import (
 )
 
 // Intent writes the start of an action outside deck with its parameters before it happens. An identical call, by the
-// one identity of a call, still being made or whose outcome is unknown, is refused: only the owner repeats it.
+// one identity of a call, still being made or whose outcome is unknown, is refused; the owner repeats it.
 func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64, tool string, params json.RawMessage) (int64, error) {
 	ownLine(ctx)
 	same := Canonical
@@ -55,7 +55,7 @@ func (g *Gateway) Refused(ctx context.Context, act registry.Actor, project int64
 }
 
 // Finish records the outcome of an action whose intent is id: done when the other side answered, rejected
-// when the call never left deck.
+// when the call did not leave deck.
 func (g *Gateway) Finish(ctx context.Context, id int64, outcome, externalID, errText string) {
 	_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		_, err := q.FinishToolCall(ctx, db.FinishToolCallParams{Outcome: outcome, ExternalID: externalID, Error: untrusted.Cut(errText, 2000), ID: id})
@@ -63,7 +63,7 @@ func (g *Gateway) Finish(ctx context.Context, id int64, outcome, externalID, err
 	})
 }
 
-// Lost marks an action whose answer never came as of unknown outcome and asks the owner to retry it or
+// Lost marks an action whose answer did not come as of unknown outcome and asks the owner to retry it or
 // count it as done.
 func (g *Gateway) Lost(ctx context.Context, id int64) {
 	ctx = context.WithoutCancel(ctx)

@@ -10,15 +10,18 @@ import (
 	"strings"
 )
 
-// Tabled are the pure functions on the trust boundary that keep a table test beside them, by package; a test
-// outside tests/ is one of these and nothing else, and a function joins the list only here.
+// Tabled are the functions on the trust boundary, pure or of a folder the test makes, that keep a table test beside
+// them, by package; a test outside tests/ is one of these and nothing else, and a function joins the list only here.
 var Tabled = map[string][]string{
+	"internal/access":   {"Within", "mayRead"},
+	"internal/api":      {"way"},
 	"internal/boxes":    {"For"},
-	"internal/egress":   {"Public", "listed"},
+	"internal/egress":   {"Public", "listed", "destination"},
 	"internal/gateway":  {"decide"},
-	"internal/home":     {"Within"},
+	"internal/home":     {"Within", "Resolve", "ReadIn", "Unpack", "RemoveIn", "Fresh"},
 	"internal/manifest": {"ToolRight", "Covers", "Keyed"},
-	"internal/registry": {"Permits", "Touched"},
+	"internal/registry": {"Permits", "Touched", "reachable"},
+	"internal/sandbox":  {"allowed", "parts", "rootLink"},
 	"internal/store":    {"rights16"},
 }
 

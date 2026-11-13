@@ -8,7 +8,7 @@ import (
 )
 
 // Agent gives what an agent may not read or write in deck's folder, by both its paths since macOS links /tmp and
-// /var: all of it but work, such as the state only deck reads and a log with the owner's link, as it is now.
+// /var: all of it but work, such as the state deck reads and a log with the owner's link, as it is now.
 func Agent(deck home.Layout) []string {
 	var out []string
 	for _, p := range Shut(deck) {

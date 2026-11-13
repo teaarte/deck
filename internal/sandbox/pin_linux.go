@@ -9,8 +9,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// pin opens path as the kernel resolves it, through links of the system only; bwrap mounts the opened file itself at
-// its real path, so nothing between deck's check and the mount changes what the box sees.
+// pin opens path as the kernel resolves it, through links of the system (rootLink) and refuses others; bwrap mounts the
+// opened file itself at its real path, so nothing between deck's check and the mount changes what the box sees.
 func pin(path string) (*os.File, string, error) {
 	fd, err := unix.Open("/", unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
 	if err != nil {

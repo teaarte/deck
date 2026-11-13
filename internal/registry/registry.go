@@ -35,7 +35,7 @@ var (
 )
 
 // Need is a right of deck's catalog a call needs: its name, whom of a network, the subject and its print, which always
-// holds to; Asked is met only by the owner's answer to its own request: not by always, a press or a yes for the work.
+// holds to; Asked is met by the owner's answer to its own request (decide), not by always, a press or a work's yes.
 type Need struct {
 	Right   string `json:"right"`
 	Who     string `json:"who,omitempty"`
@@ -135,7 +135,7 @@ func (c *Command) Stays() *Command {
 }
 
 // Fresh declares the calls of the command that change deck's trust for long and so take the owner's passkey touched
-// within FreshKey: those when says, every call for nil.
+// within FreshKey: those when says, all calls for nil.
 func (c *Command) Fresh(when func(ctx context.Context, a Actor, input json.RawMessage) (bool, error)) *Command {
 	if when == nil {
 		when = func(context.Context, Actor, json.RawMessage) (bool, error) { return true, nil }
@@ -171,7 +171,7 @@ func (c *Command) Page() *Command {
 	return c
 }
 
-// Reads says a caller that only reads may call the command.
+// Reads says a caller that changes nothing may call the command.
 func (c *Command) Reads() bool { return c.Readable || c.page }
 
 // Retried gives a command of a module the retry key in its input; the registry hands it to the handler as Actor.Key.
@@ -180,7 +180,7 @@ func (c *Command) Retried() *Command {
 	return c
 }
 
-// RetryKey is the optional input field of every command of a module: a call with the key of a running process
+// RetryKey is the optional input field of the commands of modules: a call with the key of a running process
 // returns it.
 const RetryKey = "retry_key"
 
@@ -261,12 +261,12 @@ func (r *Registry) Add(c *Command) {
 	r.builtins[c.Name] = c
 }
 
-// reads are the builtin reads of deck by name: the same commands in every registry, so screens check against them
+// reads are the builtin reads of deck by name: the same commands in each registry, so screens check against them
 // without one.
 var reads sync.Map
 
-// Declare makes the reads among deck's commands known before any registry is built; a read follows only topics deck
-// publishes.
+// Declare makes the reads among deck's commands known before any registry is built; a read that follows a topic deck
+// does not publish panics.
 func Declare(cs []*Command, topics []string) {
 	for _, c := range cs {
 		for _, name := range c.follows {
@@ -483,7 +483,7 @@ func jsonFields(input json.RawMessage) []string {
 func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 	var out []*Command
 	for _, c := range r.builtins {
-		if r.reachable(a, c) == nil {
+		if reachable(a, c) == nil {
 			out = append(out, c)
 		}
 	}
@@ -492,7 +492,7 @@ func (r *Registry) List(ctx context.Context, a Actor) ([]*Command, error) {
 		return nil, err
 	}
 	for _, c := range pcs {
-		if r.reachable(a, c) == nil {
+		if reachable(a, c) == nil {
 			out = append(out, c)
 		}
 	}
@@ -651,7 +651,7 @@ func (r *Registry) Resolve(ctx context.Context, a Actor, name string, input json
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := r.reachable(a, c); err != nil {
+	if err := reachable(a, c); err != nil {
 		return nil, nil, err
 	}
 	input, err = c.Validate(input)
@@ -720,7 +720,7 @@ func (c *Command) jsonText(input json.RawMessage) json.RawMessage {
 }
 
 // reachable reports whether the actor may call the command at all, before the gateway decides the rights it needs.
-func (r *Registry) reachable(a Actor, c *Command) error {
+func reachable(a Actor, c *Command) error {
 	if !slices.Contains(c.Callers, a.As()) {
 		who := a.Kind
 		if a.Run != "" {

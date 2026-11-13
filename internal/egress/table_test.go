@@ -1,7 +1,10 @@
 package egress
 
 import (
+	"context"
+	"errors"
 	"net/netip"
+	"slices"
 	"testing"
 )
 
@@ -103,6 +106,68 @@ func Test_listed(t *testing.T) {
 	} {
 		if got := listed(row.domains, row.hostport); got != row.listed {
 			t.Errorf("listed(%q, %s) = %v, want %v: %s", row.domains, row.hostport, got, row.listed, row.what)
+		}
+	}
+}
+
+func Test_destination(t *testing.T) {
+	names := map[string][]string{
+		"public.example":  {"93.184.215.14"},
+		"two.example":     {"93.184.215.14", "2606:2800:220:1::1"},
+		"inner.example":   {"10.0.0.5"},
+		"mixed.example":   {"93.184.215.14", "127.0.0.1"},
+		"rebind.example":  {"169.254.169.254"},
+		"mapped.example":  {"::ffff:10.0.0.5"},
+		"nat64.example":   {"64:ff9b::808:808"},
+		"docker.internal": {"0.250.250.254"},
+	}
+	lookup := func(_ context.Context, host string) ([]netip.Addr, error) {
+		var out []netip.Addr
+		for _, a := range names[host] {
+			out = append(out, netip.MustParseAddr(a))
+		}
+		if out == nil {
+			return nil, errors.New("no such host")
+		}
+		return out, nil
+	}
+	AsPublic("127.0.0.1:65001")
+	for _, row := range []struct {
+		domains  []string
+		hostport string
+		dial     []string
+		what     string
+	}{
+		{[]string{"public.example"}, "public.example:443", []string{"93.184.215.14:443"}, "a listed name to its public address"},
+		{[]string{"example"}, "public.example:443", []string{"93.184.215.14:443"}, "a name under a listed one"},
+		{[]string{"*"}, "public.example:443", []string{"93.184.215.14:443"}, "any public name by the wildcard"},
+		{[]string{"*"}, "two.example:443", []string{"93.184.215.14:443", "[2606:2800:220:1::1]:443"}, "every address of a name"},
+		{[]string{"other.example"}, "public.example:443", nil, "a name not listed"},
+		{nil, "public.example:443", nil, "no domains"},
+		{[]string{"*"}, "inner.example:443", nil, "a name to a private address by the wildcard"},
+		{[]string{"inner.example"}, "inner.example:443", nil, "a listed name to a private address"},
+		{[]string{"inner.example", "10.0.0.5"}, "inner.example:443", []string{"10.0.0.5:443"}, "a listed name to a private address listed too"},
+		{[]string{"inner.example", "10.0.0.0/8"}, "inner.example:443", []string{"10.0.0.5:443"}, "a private address in a listed network"},
+		{[]string{"inner.example", "10.0.0.5:80"}, "inner.example:443", nil, "a private address listed on another port"},
+		{[]string{"*"}, "mixed.example:443", nil, "a name with one private address among public ones"},
+		{[]string{"*"}, "rebind.example:80", nil, "a name to cloud metadata"},
+		{[]string{"*"}, "mapped.example:80", nil, "a name to a mapped private IPv4"},
+		{[]string{"*"}, "nat64.example:80", []string{"[64:ff9b::808:808]:80"}, "a name to NAT64 of a public IPv4"},
+		{[]string{"*"}, "docker.internal:80", nil, "a name to the host of OrbStack"},
+		{[]string{"*"}, "none.example:443", nil, "a name that does not resolve"},
+		{[]string{"*"}, "93.184.215.14:443", []string{"93.184.215.14:443"}, "a public IP by the wildcard"},
+		{[]string{"*"}, "10.0.0.5:443", nil, "a private IP by the wildcard"},
+		{[]string{"10.0.0.5"}, "10.0.0.5:443", []string{"10.0.0.5:443"}, "a private IP listed"},
+		{[]string{"10.0.0.0/8"}, "10.0.0.5:443", []string{"10.0.0.5:443"}, "a private IP in a listed network"},
+		{[]string{"*"}, "127.0.0.1:65001", []string{"127.0.0.1:65001"}, "a test's service that stands for a public one"},
+		{[]string{"*"}, "127.0.0.1:65002", nil, "loopback on another port"},
+		{[]string{"*"}, "[::1]:443", nil, "IPv6 loopback by the wildcard"},
+		{[]string{"*"}, "169.254.169.254:80", nil, "cloud metadata by the wildcard"},
+		{[]string{"*"}, "public.example", nil, "no port"},
+	} {
+		got, err := destination(context.Background(), row.domains, row.hostport, lookup)
+		if !slices.Equal(got, row.dial) || (row.dial == nil) != (err != nil) {
+			t.Errorf("destination(%q, %s) = %q, %v; want %q: %s", row.domains, row.hostport, got, err, row.dial, row.what)
 		}
 	}
 }

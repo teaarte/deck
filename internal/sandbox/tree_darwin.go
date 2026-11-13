@@ -13,12 +13,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// boxVar names in the environment of every process of a box the box it belongs to: macOS has no namespace that ends
+// boxVar names in the environment of the processes of a box the box they belong to: macOS has no namespace that ends
 // the processes of a box with it, and a child that leaves its group, such as by setsid, still carries it.
 const boxVar = "DECK_BOX"
 
-// descend marks the environment of cmd before it starts; the end it returns, once the program is done, kills every
-// process of the user that still carries the mark.
+// descend marks the environment of cmd before it starts; the end it returns, once the program is done, kills the
+// processes of the user that still carry the mark.
 func descend(cmd *exec.Cmd) func() {
 	if cmd.Env == nil {
 		// A command without an environment of its own would take deck's whole; every box gives one.

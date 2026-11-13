@@ -1,6 +1,8 @@
 package registry
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -62,6 +64,52 @@ func TestTouched(t *testing.T) {
 		}
 		if got := Touched(a, now); got != row.fresh {
 			t.Errorf("Touched(%s, %v ago) = %v, want %v: %s", row.kind, row.touched, got, row.fresh, row.what)
+		}
+	}
+}
+
+func Test_reachable(t *testing.T) {
+	needs := func(context.Context, Actor, Subject, json.RawMessage) ([]Need, error) { return nil, nil }
+	subject := func(context.Context, At, json.RawMessage) Subject { return Subject{} }
+	all := []string{Owner, Master, Agent, Trigger}
+	deck := &Command{Name: "deck.record_get", Callers: all}
+	ownerOnly := &Command{Name: "deck.pair_link", Callers: []string{Owner}}
+	untokened := (&Command{Name: "deck.thing", Callers: all}).NoTokens()
+	module := &Command{Name: "notes.add", Callers: all, ProjectID: 7}
+	gated := &Command{Name: "notes.send", Callers: all, ProjectID: 7, Gate: Gate{Needs: needs}}
+	held := &Command{Name: "notes.fix", Callers: all, ProjectID: 7, Gate: Gate{Needs: needs, Subject: subject}}
+	for _, row := range []struct {
+		actor Actor
+		cmd   *Command
+		may   bool
+		what  string
+	}{
+		{Actor{Kind: Owner}, deck, true, "the owner, a command of deck"},
+		{Actor{Kind: Owner}, ownerOnly, true, "the owner, a command of the owner"},
+		{Actor{Kind: Owner}, module, true, "the owner, a command of any module"},
+		{Actor{Kind: Master}, ownerOnly, false, "the master, a command of the owner alone"},
+		{Actor{Kind: Agent, ProjectID: 7}, ownerOnly, false, "an agent, a command of the owner alone"},
+		{Actor{Kind: Token}, ownerOnly, false, "a token counts as the master"},
+		{Actor{Kind: Token, Commands: []string{"deck.thing"}}, untokened, false, "a token, a command kept from tokens it lists"},
+		{Actor{Kind: Master}, untokened, true, "the master, a command kept from tokens"},
+		{Actor{Kind: Token, Commands: []string{"deck.record_get"}}, deck, true, "a token, a command it lists"},
+		{Actor{Kind: Token, Commands: []string{"deck.*"}}, deck, true, "a token, every command of deck"},
+		{Actor{Kind: Token}, deck, false, "a token without a list calls nothing"},
+		{Actor{Kind: Token, Commands: []string{"notes.*"}}, deck, false, "a token, a command it does not list"},
+		{Actor{Kind: Agent, ProjectID: 7}, module, true, "an agent, a command of its own module"},
+		{Actor{Kind: Agent, ProjectID: 8}, module, false, "an agent, a command of another module"},
+		{Actor{Kind: Trigger, ProjectID: 8}, module, false, "a trigger, a command of another module"},
+		{Actor{Kind: Master}, module, true, "the master, a command of a module"},
+		{Actor{Kind: Agent, ProjectID: 7, Commands: []string{"notes.list"}}, module, false, "an agent whose command does not list the call"},
+		{Actor{Kind: Agent, ProjectID: 7, Commands: []string{"notes.*"}}, module, true, "an agent whose command lists its module"},
+		{Actor{Kind: Agent, ProjectID: 7, Commands: []string{}}, module, false, "an agent whose command lists no calls"},
+		{Actor{Kind: Agent, ProjectID: 7, Trial: true}, module, true, "a trial run, a call that stays in deck"},
+		{Actor{Kind: Agent, ProjectID: 7, Trial: true}, gated, false, "a trial run, a call that may need a right"},
+		{Actor{Kind: Agent, ProjectID: 7, Trial: true}, held, true, "a trial run, a gated call with a subject goes on to the gateway"},
+		{Actor{Kind: Agent, ProjectID: 7}, gated, true, "a gated call outside a trial: the gateway decides it"},
+	} {
+		if got := reachable(row.actor, row.cmd) == nil; got != row.may {
+			t.Errorf("reachable(%+v, %s) = %v, want %v: %s", row.actor, row.cmd.Name, got, row.may, row.what)
 		}
 	}
 }

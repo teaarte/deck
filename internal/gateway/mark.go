@@ -30,7 +30,8 @@ func (g *Gateway) marked(ctx context.Context, act registry.Actor) bool {
 	return live && Marked(p)
 }
 
-// Marked says a turn read untrusted text and holds something of value, so its ways out go only by the owner's once.
+// Marked says a turn read untrusted text and holds something of value, so decide lets its ways out go by the owner's
+// once.
 func Marked(p db.Process) bool { return p.ReadUntrusted != "" && p.HoldsValued == 1 }
 
 // brought marks the process of act by what the call of c gave it: an answer from outside always, the data of a

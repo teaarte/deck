@@ -169,7 +169,7 @@ func (g *Gateway) print(ctx context.Context, workspace, project int64, name stri
 }
 
 // Decide keeps the owner's answer to the right of a frozen call, then makes the call once and keeps what it gave; a
-// failing keep or owner's call opens the ask again. A call of the agent's turn gets only the answer.
+// failing keep or owner's call opens the ask again. A call of the agent's turn gets the answer alone, not the call.
 func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, answer string) (any, error) {
 	f, err := ask.Decode[Frozen](a.Payload)
 	if err != nil {

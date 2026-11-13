@@ -42,7 +42,7 @@ type Key string
 const (
 	// KeyNever is no subject: the right stays near the module.
 	KeyNever Key = ""
-	// KeyAlways is every subject.
+	// KeyAlways is all subjects.
 	KeyAlways Key = "always"
 	// KeyWide is the whole internet, the shell of an agent, and the data of others: not a module's own services, nor
 	// the records deck keeps of models and runs.

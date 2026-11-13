@@ -731,3 +731,44 @@ func TestRealBrowserChatOpensAnAttachedPicture(t *testing.T) {
 	b.call("browser_press_key", map[string]any{"key": "Escape"})
 	b.until("the viewer closed", `!document.querySelector('[data-lightbox] img')`)
 }
+
+// TestRealBrowserTopicMarkExplainsOnTap: on a phone a tap on the mark of a topic whose replies read text from outside
+// shows where that text came from.
+func TestRealBrowserTopicMarkExplainsOnTap(t *testing.T) {
+	harness.Needs(t, "DECK_REAL_BROWSER")
+	t.Parallel()
+	page := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { _, _ = w.Write([]byte("<p>news</p>")) })
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "read" {
+			text, _ := c.Tool(ctx, "web_fetch", map[string]any{"url": page.URL + "/news"})
+			c.Tool(ctx, "record_upsert", map[string]any{"collection": "ideas", "records": harness.Jsonl(map[string]any{"title": text, "score": 1})})
+			return provider.Result{Structured: []byte(`{"n": 1}`)}
+		}
+		c.Tool(ctx, "records_list", map[string]any{"project": "pages", "collection": "ideas"})
+		return provider.Result{Text: "read it"}
+	}))
+	e.Project("pages", harness.Manifest(`{
+  "rights": [{"right": "network", "what": ["127.0.0.1"], "why": "reads the pages it keeps"}],
+  "collections": [{"name": "ideas", "description": "Short ideas", "key": "title",
+    "schema": {"type": "object", "properties": {"title": {"type": "string"}, "score": {"type": "integer"}}, "required": ["title", "score"]}}],
+  "commands": [`+harness.AgentCommand("read", `{"type": "object", "properties": {}}`)+`]}`))
+	e.WaitState(e.Start("pages", "read", nil), "done")
+	e.MasterSaid(e.Say(0, "what is in pages?"), 1)
+	var ts []struct{ Read string }
+	e.ChatTopics(false, &ts)
+	if len(ts) != 1 || ts[0].Read == "" {
+		t.Fatalf("the replies of the topic read text from outside: %+v", ts)
+	}
+	b := Open(t)
+	b.call("browser_resize", map[string]any{"width": 390, "height": 844})
+	b.Open(e, "#/deck/cockpit")
+	b.until("the tab of Deki", `document.querySelector('[data-tab="deki"]')`)
+	b.eval(`(document.querySelector('[data-tab="deki"]').click(), '')`)
+	b.until("the mark of the topic", `document.querySelector('[data-topic-read]')?.getBoundingClientRect().width > 0`)
+	b.eval(`(() => { const m = document.querySelector('[data-topic-read]'); const at = { bubbles: true, pointerType: 'touch', isPrimary: true };
+		for (const k of ['pointerover', 'pointerenter', 'pointerdown']) m.dispatchEvent(new PointerEvent(k, at));
+		for (const k of ['pointerup', 'pointerout', 'pointerleave']) m.dispatchEvent(new PointerEvent(k, at));
+		m.click(); return '' })()`)
+	b.until("a tap on the mark says where the text came from", `[...document.querySelectorAll('[role=dialog], [role=tooltip], [data-topic-read-why]')].some((d) => d.getBoundingClientRect().width > 0 && d.innerText.includes('read text from outside'))`)
+	b.shot("topic-read-tap-390")
+}

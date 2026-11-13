@@ -20,17 +20,18 @@ func (q *Queries) AddUnheardAsk(ctx context.Context, askID int64) error {
 }
 
 const answerAsk = `-- name: AnswerAsk :execrows
-UPDATE ask SET answer = ?, state = 'answered'
-WHERE id = ? AND state = 'open'
+UPDATE ask SET answer = ?1, state = 'answered', answered_at = CAST(?2 AS TEXT)
+WHERE id = ?3 AND state = 'open'
 `
 
 type AnswerAskParams struct {
 	Answer string
+	Now    string
 	ID     int64
 }
 
 func (q *Queries) AnswerAsk(ctx context.Context, arg AnswerAskParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, answerAsk, arg.Answer, arg.ID)
+	result, err := q.db.ExecContext(ctx, answerAsk, arg.Answer, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -38,18 +39,18 @@ func (q *Queries) AnswerAsk(ctx context.Context, arg AnswerAskParams) (int64, er
 }
 
 const claimDecision = `-- name: ClaimDecision :execrows
-UPDATE ask SET state = 'answered', answer = ?1
-WHERE id = ?2 AND state = 'open' AND (expires_at IS NULL OR expires_at > CAST(?3 AS TEXT))
+UPDATE ask SET state = 'answered', answer = ?1, answered_at = CAST(?2 AS TEXT)
+WHERE id = ?3 AND state = 'open' AND (expires_at IS NULL OR expires_at > CAST(?2 AS TEXT))
 `
 
 type ClaimDecisionParams struct {
 	Answer string
-	ID     int64
 	Now    string
+	ID     int64
 }
 
 func (q *Queries) ClaimDecision(ctx context.Context, arg ClaimDecisionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, claimDecision, arg.Answer, arg.ID, arg.Now)
+	result, err := q.db.ExecContext(ctx, claimDecision, arg.Answer, arg.Now, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -1030,7 +1031,7 @@ func (q *Queries) MarkRemarkDelivered(ctx context.Context, arg MarkRemarkDeliver
 }
 
 const reopenDecision = `-- name: ReopenDecision :exec
-UPDATE ask SET state = 'open', answer = '' WHERE id = ? AND state = 'answered'
+UPDATE ask SET state = 'open', answer = '', answered_at = NULL WHERE id = ? AND state = 'answered'
 `
 
 func (q *Queries) ReopenDecision(ctx context.Context, id int64) error {

@@ -77,22 +77,21 @@ func (s *Service) consent(ctx context.Context, workspace int64, now time.Time) (
 			fast++
 		}
 	}
-	var says []string
-	if today > tooMany {
-		top := slices.SortedFunc(maps.Keys(by), func(a, b string) int { return cmp.Or(by[b]-by[a], strings.Compare(a, b)) })
-		var lead []string
-		for _, name := range top[:min(3, len(top))] {
-			lead = append(lead, fmt.Sprintf("%s %d", name, by[name]))
-		}
-		says = append(says, fmt.Sprintf("%d requests in a day, most from %s", today, strings.Join(lead, ", ")))
+	top := slices.SortedFunc(maps.Keys(by), func(a, b string) int { return cmp.Or(by[b]-by[a], strings.Compare(a, b)) })
+	var lead []string
+	for _, name := range top[:min(3, len(top))] {
+		lead = append(lead, fmt.Sprintf("%s %d", name, by[name]))
 	}
-	if yes >= 4 && fast*2 > yes {
-		says = append(says, fmt.Sprintf("%d of %d yeses this week came within %d seconds of the request showing: requests are no longer read", fast, yes, int(unread.Seconds())))
+	most, unheard, secs := strings.Join(lead, ", "), yes >= 4 && fast*2 > yes, int(unread.Seconds())
+	switch {
+	case today > tooMany && unheard:
+		return health.Warning, fmt.Sprintf("%d requests in a day, most from %s; %d of %d yeses this week came within %d seconds of the request showing: requests are no longer read", today, most, fast, yes, secs)
+	case today > tooMany:
+		return health.Warning, fmt.Sprintf("%d requests in a day, most from %s", today, most)
+	case unheard:
+		return health.Warning, fmt.Sprintf("%d of %d yeses this week came within %d seconds of the request showing: requests are no longer read", fast, yes, secs)
 	}
-	if len(says) == 0 {
-		return health.OK, ""
-	}
-	return health.Warning, strings.Join(says, "; ")
+	return health.OK, ""
 }
 
 // shown notes when the owner saw the open requests of a workspace, for the measure of consent.

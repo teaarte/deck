@@ -45,8 +45,8 @@ WHERE id = sqlc.arg(id) AND state = 'open';
 
 
 -- name: AnswerAsk :execrows
-UPDATE ask SET answer = ?, state = 'answered'
-WHERE id = ? AND state = 'open';
+UPDATE ask SET answer = sqlc.arg(answer), state = 'answered', answered_at = CAST(sqlc.arg(now) AS TEXT)
+WHERE id = sqlc.arg(id) AND state = 'open';
 
 
 -- name: ListOpenAsksOfProcess :many
@@ -101,12 +101,12 @@ ORDER BY id LIMIT 1;
 
 
 -- name: ClaimDecision :execrows
-UPDATE ask SET state = 'answered', answer = sqlc.arg(answer)
+UPDATE ask SET state = 'answered', answer = sqlc.arg(answer), answered_at = CAST(sqlc.arg(now) AS TEXT)
 WHERE id = sqlc.arg(id) AND state = 'open' AND (expires_at IS NULL OR expires_at > CAST(sqlc.arg(now) AS TEXT));
 
 
 -- name: ReopenDecision :exec
-UPDATE ask SET state = 'open', answer = '' WHERE id = ? AND state = 'answered';
+UPDATE ask SET state = 'open', answer = '', answered_at = NULL WHERE id = ? AND state = 'answered';
 
 
 -- name: ListWorkspaceExpiredConfirms :many

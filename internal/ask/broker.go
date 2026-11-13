@@ -251,7 +251,7 @@ func (b *Broker) drop(id int64) {
 
 func (b *Broker) Answer(ctx context.Context, id int64, answer string) error {
 	n, err := store.TxGet(b.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		return q.AnswerAsk(ctx, db.AnswerAskParams{Answer: answer, ID: id})
+		return q.AnswerAsk(ctx, db.AnswerAskParams{Answer: answer, Now: store.Time(b.now()), ID: id})
 	})
 	if err != nil {
 		return err

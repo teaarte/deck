@@ -319,7 +319,7 @@ func (s *Service) AnswerShown(ctx context.Context, act registry.Actor, a db.Ask,
 	}
 	var msg db.ChatMessage
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if n, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: kept, ID: a.ID}); err != nil || n == 0 {
+		if n, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: kept, Now: store.Time(s.Now()), ID: a.ID}); err != nil || n == 0 {
 			return cmp.Or(err, ask.ErrNotOpen)
 		}
 		if n, err := q.AnswerMessage(ctx, db.AnswerMessageParams{Answer: kept, At: store.At(s.Now()), ID: m.ID}); err != nil || n == 0 {

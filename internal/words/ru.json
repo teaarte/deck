@@ -1329,5 +1329,8 @@
   "deck: %s changes what deck trusts for long, which only the owner does, with a passkey": "deck: %s надолго меняет, чему доверяет deck, — это делает только владелец, с ключом доступа",
   "Modules whose data it reads through the commands of deck; * every module but the master": "Модули, данные которых он читает командами deck; * — все модули, кроме мастера",
   "Modules whose commands it calls and where the commands of deck act for it, or one command of a module, as notes.add; * every module but the master": "Модули, команды которых он вызывает и в которых за него действуют команды deck, или одна команда модуля, например notes.add; * — все модули, кроме мастера",
-  "Reads the data of": "Читает данные"
+  "Reads the data of": "Читает данные",
+  "%d requests in a day, most from %s": "%d запросов за сутки, больше всего от %s",
+  "%d of %d yeses this week came within %d seconds of the request showing: requests are no longer read": "%d из %d «да» за неделю даны в первые %d с после показа запроса: запросы больше не читают",
+  "%d requests in a day, most from %s; %d of %d yeses this week came within %d seconds of the request showing: requests are no longer read": "%d запросов за сутки, больше всего от %s; %d из %d «да» за неделю даны в первые %d с после показа запроса: запросы больше не читают"
 }

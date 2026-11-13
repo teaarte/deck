@@ -259,7 +259,7 @@ func lines(vs []rightView, tr func(string) string) []string {
 		switch {
 		case v.Answer == manifest.No:
 			line += " — " + tr("you said no")
-		case v.Right == manifest.Send && v.Answer == "":
+		case v.Key && v.Answer == "":
 			later = append(later, line+" — "+tr("asks you the first time"))
 			continue
 		}

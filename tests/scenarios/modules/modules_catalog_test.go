@@ -310,3 +310,46 @@ func TestAPostNamedDataTakesThePasskeyAndSaysItSends(t *testing.T) {
 		t.Fatalf("the marked turn's call waits for the owner and sends nothing: %s %d", got, len(svc.To("/send")))
 	}
 }
+
+// TestTheDraftCardSaysWhatEnablingLeavesToTheOwner: the card of a draft puts every right enabling does not give, those
+// whose always takes the owner's passkey, after the rest as asked the first time, and enabling leaves them unanswered.
+func TestTheDraftCardSaysWhatEnablingLeavesToTheOwner(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	_, tok := e.Token("terminal", "deck.*")
+	m := harness.Declare(harness.DraftManifest, `{"right": "money", "what": ["openrouter"], "why": "calls models"}`,
+		`{"right": "network", "who": "agent", "what": ["example.org"], "why": "its agents read it"}`)
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "draft", "manifest": m}); code != 200 {
+		t.Fatalf("project_create: %d %s", code, out)
+	}
+	var card []struct {
+		Rights   string
+		Revision int64
+	}
+	e.Must("deck.project_draft_list", map[string]any{"project": "draft"}, &card)
+	if len(card) != 1 {
+		t.Fatalf("one card: %+v", card)
+	}
+	lines := strings.Split(card[0].Rights, "\n")
+	first := slices.IndexFunc(lines, func(l string) bool { return strings.Contains(l, "asks you the first time") })
+	for i, l := range lines {
+		later := strings.Contains(l, "asks you the first time")
+		keyed := strings.Contains(l, "calls models") || strings.Contains(l, "its agents read it") || strings.Contains(l, "sends what it made")
+		if keyed != later || later && i < first || !later && first >= 0 && i > first {
+			t.Fatalf("the card puts what enabling leaves to the owner last, as asked the first time:\n%s", card[0].Rights)
+		}
+	}
+	if p := e.ProjectRow("draft"); len(p.Asks) != 3 || slices.ContainsFunc(p.Rights, func(r string) bool { return strings.Contains(r, "money") || strings.Contains(r, "example.org") }) {
+		t.Fatalf("the module list says enabling grants only what it gives: %+v", p)
+	}
+	e.Must("deck.project_enable", map[string]any{"project": "draft", "revision": card[0].Revision}, nil)
+	rows := rightsOf(e, "draft")
+	if a, _ := answerOf(rows, "network", "example.com"); a != "always" {
+		t.Fatalf("enabling grants the network of its programs: %+v", rows)
+	}
+	for _, r := range [][2]string{{"money", "openrouter"}, {"network", "example.org"}} {
+		if a, _ := answerOf(rows, r[0], r[1]); a != "" {
+			t.Fatalf("enabling leaves %s on %s to the owner: %+v", r[0], r[1], rows)
+		}
+	}
+}

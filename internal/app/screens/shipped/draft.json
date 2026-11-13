@@ -5,7 +5,7 @@
   "params": {"project": "string", "revision": "number"},
   "blocks": [
     {"type": "card", "title": "Before you enable it", "icon": "power", "span": "full", "source": {"from": "deck.project_draft_list", "input": {"project": "=param.project"}},
-      "description": "Install modules only from authors you know. Enabling it grants the rights listed here, but acting in your name, which asks you the first time; until then it is a draft, and only its trials run.",
+      "description": "Install modules only from authors you know. Enabling it grants the rights listed here but those marked to ask you the first time, which you give with your passkey; until then it is a draft, and only its trials run.",
       "fields": [
         {"label": "Module", "bind": "title"},
         {"label": "What it does", "bind": "description", "markdown": true},

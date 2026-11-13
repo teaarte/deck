@@ -106,9 +106,12 @@ func (s *Service) viewProject(ctx context.Context, p db.Project, m *manifest.Man
 	v.Title, v.Icon, v.Screens = manifest.Nav(p.Name, m, ws)
 	if p.Status == store.ProjectDraft {
 		for _, r := range rows(p, m, nil, func(t string) string { return t }) {
-			if r.Right == manifest.Send {
+			switch {
+			case r.Right == manifest.Send:
 				v.Asks = append(v.Asks, r.Subject)
-			} else {
+			case r.Key:
+				v.Asks = append(v.Asks, r.Says)
+			default:
 				v.Rights = append(v.Rights, r.Says)
 			}
 		}

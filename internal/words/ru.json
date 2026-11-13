@@ -1172,7 +1172,7 @@
   "secret %s": "секрет %s",
   "A draft on one card": "Черновик одной карточкой",
   "Reset the data of a module": "Сбросить данные модуля",
-  "Install modules only from authors you know. Enabling it grants the rights listed here, but acting in your name, which asks you the first time; until then it is a draft, and only its trials run.": "Ставь модули только от авторов, которым доверяешь. Включение даёт ему перечисленные здесь права, кроме действий от твоего имени — о них он спросит в первый раз; до тех пор это черновик, и работают только его пробные запуски.",
+  "Install modules only from authors you know. Enabling it grants the rights listed here but those marked to ask you the first time, which you give with your passkey; until then it is a draft, and only its trials run.": "Ставь модули только от авторов, которым доверяешь. Включение даёт ему перечисленные здесь права, кроме отмеченных «спросит при первом использовании» — их ты даёшь сам, с ключом доступа; до тех пор это черновик, и работают только его пробные запуски.",
   "Before you enable it": "Перед включением",
   "{{w}} by {{h}} cells": "{{w}} на {{h}} клетки",
   "By provider and model": "По провайдерам и моделям",

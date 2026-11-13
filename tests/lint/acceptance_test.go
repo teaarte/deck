@@ -12,7 +12,7 @@ import (
 )
 
 // TestAcceptanceIsTraced checks that every row of docs/acceptance.md names tests that exist, a manual check or a
-// later step, and, where docs/spec.md is on the disk, that the rows are as many as the acceptance items of the spec.
+// later step, that the rows are as many as the items it states the spec has, and that count against docs/spec.md on disk.
 func TestAcceptanceIsTraced(t *testing.T) {
 	trace, err := os.ReadFile("../../docs/acceptance.md")
 	if err != nil {
@@ -30,15 +30,23 @@ func TestAcceptanceIsTraced(t *testing.T) {
 	if len(items) == 0 {
 		t.Fatal("docs/acceptance.md has no rows")
 	}
+	stated := regexp.MustCompile(`(?m)^The spec has (\d+) acceptance items\.$`).FindStringSubmatch(string(trace))
+	if stated == nil {
+		t.Fatal("docs/acceptance.md must state how many acceptance items the spec has")
+	}
+	count, _ := strconv.Atoi(stated[1])
+	if count != len(items) {
+		t.Errorf("docs/acceptance.md states %d spec items and has %d rows: the n-th row stands for the n-th item", count, len(items))
+	}
 	spec, err := os.ReadFile("../../docs/spec.md")
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		t.Log("docs/spec.md lives only on the owner's disk: the rows are not checked against its items")
+		t.Log("docs/spec.md lives only on the owner's disk: the stated count is not checked against it")
 	case err != nil:
 		t.Fatal(err)
 	default:
-		if n := specItems(t, string(spec)); n != len(items) {
-			t.Errorf("the spec has %d acceptance items, docs/acceptance.md has %d rows: the n-th row stands for the n-th item", n, len(items))
+		if n := specItems(t, string(spec)); n != count {
+			t.Errorf("the spec has %d acceptance items, docs/acceptance.md states %d", n, count)
 		}
 	}
 	m := regexp.MustCompile(`Steps done: 1–(\d+)\.`).FindStringSubmatch(string(trace))

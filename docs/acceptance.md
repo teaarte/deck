@@ -4,6 +4,8 @@ Each item of the acceptance section of `docs/spec.md` (its `- [ ] ` list) is a r
 text translated. Coverage: test names; "manual: …" is a manual check; "step N" / "stage N" is covered there;
 "partly: …" is what exists so far. Checked by `tests/lint` (`TestAcceptanceIsTraced`).
 
+The spec has 56 acceptance items.
+
 Steps done: 1–26. Stages 1–3; steps 19–20 of stage 2 went into 24 and 28; 27–28 are a week on working repos. The
 journals of steps and plans are in the git history.
 

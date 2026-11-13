@@ -17,7 +17,7 @@ func (g *Gateway) Permit(ctx context.Context, act registry.Actor, command string
 	if err != nil {
 		return err
 	}
-	v, err := g.verdict(ctx, act, c, act.ProjectID, input, true)
+	v, err := g.verdict(context.WithValue(ctx, modelsKey{}, true), act, c, act.ProjectID, input, true)
 	switch {
 	case err != nil:
 	case v.Does == DoRefuse:

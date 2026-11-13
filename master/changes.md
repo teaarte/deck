@@ -474,3 +474,6 @@ and bring the modules in line.
   out. The skill module-builder is shorter (about 6,400 words, at most 8,000): the rules of each field and block are
   in the `description` of `manifest_format_get`, which the skill no longer repeats; read it first. An edit of the
   skill that adds words takes as many out.
+- 2026-11-13: the mark of a turn is of its process, not only of a call it makes now: a button of a note a marked turn
+  wrote (`feed_press`) waits for the owner's yes to that very call when it reaches outside, whatever the module holds
+  always; the turn's own calls of models through deck are no way out.

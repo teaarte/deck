@@ -3,6 +3,7 @@ package owner
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -68,4 +69,45 @@ func TestAnAgentsFeedButtonOfAnOutwardCommandAsksFirst(t *testing.T) {
 	if b := feed[0].Buttons[0]; b.Command != "deck.feed_press" || b.Label != "send" {
 		t.Fatalf("a button of a command the module dropped is its call under its name: %+v", b)
 	}
+}
+
+// TestAMarkedTurnsFeedButtonAsksOnceEvenWithAlways: a button a marked turn wrote carries its mark, so its way out
+// held always waits for the owner's once, which shows what it sends and offers no always.
+func TestAMarkedTurnsFeedButtonAsksOnceEvenWithAlways(t *testing.T) {
+	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "sent"}`) })
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		_, _ = c.Tool(ctx, "owner_notify", map[string]any{"text": "Looks fine",
+			"actions": `[{"label": "Looks good", "command": "send", "params": {"id": "attacker", "text": "exfil-secret"}}]`})
+		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
+	}))
+	m := strings.NewReplacer(`"commands": [`, `"commands": [{"name": "send", "title": "Send out", "description": "Sends a note out.",
+    "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]},
+    "executor": {"type": "tool", "tool": "post"}}, `, `"what": ["post"]`, `"what": ["post", "send"]`).Replace(harness.PostManifest(svc.URL, ""))
+	p := e.Project("notes", m)
+	e.Secret("notes", "svc", "s3cret")
+	e.Grant("notes", "send", "post", "send")
+	writer := e.Run(p, "work")
+	e.WaitState(writer, "done", "failed")
+	// The writer read a page and holds something of value: the turn's mark.
+	e.SQL(`UPDATE process SET read_untrusted = 'deck.web_fetch evil', holds_valued = 1 WHERE id = ?`, writer)
+	var feed []struct {
+		Buttons []struct{ Params map[string]any }
+	}
+	e.Must("deck.feed_list", map[string]any{"kind": "note"}, &feed)
+	if len(feed) != 1 || len(feed[0].Buttons) != 1 {
+		t.Fatalf("one note with its button: %+v", feed)
+	}
+	var held struct{ Waiting int64 }
+	e.Must("deck.feed_press", feed[0].Buttons[0].Params, &held)
+	if held.Waiting == 0 || len(svc.Requests()) != 0 {
+		t.Fatalf("the press of a marked turn's button waits for the owner and sends nothing: %+v %d", held, len(svc.Requests()))
+	}
+	var rows []map[string]any
+	e.Must("deck.asks_list", nil, &rows)
+	if len(rows) != 1 || rows[0]["always"] != nil || rows[0]["work"] != nil || !strings.Contains(fmt.Sprint(rows[0]["change"]), "text: exfil-secret") {
+		t.Fatalf("one question of once that shows what it sends: %+v", rows)
+	}
+	e.Answer(int64(rows[0]["id"].(float64)), "allow")
+	e.Until("the call the owner allowed once", func() bool { return len(svc.Requests()) == 1 })
 }

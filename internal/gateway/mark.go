@@ -14,15 +14,18 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// turn is the process of an agent's turn or the master's that makes a call now, which deck marks by what it read; false
-// for a program, a trigger, a token, the owner and a call made later for the caller.
+// turn is the process of an agent's turn or the master's a call is made for, now or later as a button of its note, which
+// deck marks by what it read; false for a program, a trigger, a token, the owner and the turn's own models.
 func (g *Gateway) turn(ctx context.Context, act registry.Actor) (db.Process, bool) {
-	if !Live(ctx) || act.ProcessID == 0 || act.Run != "" || act.Kind != registry.Agent && act.Kind != registry.Master {
+	if ctx.Value(modelsKey{}) != nil || act.ProcessID == 0 || act.Run != "" || act.Kind != registry.Agent && act.Kind != registry.Master {
 		return db.Process{}, false
 	}
 	p, err := g.st.Q.GetProcess(ctx, act.ProcessID)
 	return p, err == nil
 }
+
+// modelsKey marks a call of a model through deck's proxy, which is no way out of the turn that thinks with it.
+type modelsKey struct{}
 
 // marked says the turn that makes a call now read untrusted text and holds something of value.
 func (g *Gateway) marked(ctx context.Context, act registry.Actor) bool {

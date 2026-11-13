@@ -493,3 +493,6 @@ and bring the modules in line.
   continuation of a marked process, a process sent back by a marked turn's remark and the master's turn told a note
   that quotes a marked process. A write that names no module — the owner's memory, a skill or document of the
   workspace — marks project master, which `project_trust` clears.
+- 2026-11-14: under `run_usd` a paid call of a model deck cannot price (the API sent no cost, the model has no price in
+  deck's settings) counts as past the cap: the next call of that run waits for the owner (an agent) or is refused (a
+  script). A model of the owner's machine, a free one and a subscription are not money.

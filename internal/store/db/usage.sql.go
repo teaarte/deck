@@ -23,13 +23,15 @@ func (q *Queries) LastSessionCost(ctx context.Context, sessionID string) (float6
 }
 
 const listProcessModelCalls = `-- name: ListProcessModelCalls :many
-SELECT gen_ai_provider_name, cost_usd, subscription FROM llm_call WHERE process_id = ? ORDER BY id
+SELECT l.gen_ai_provider_name, l.cost_usd, l.subscription, CAST(coalesce(c.local, 0) AS INTEGER) AS local
+FROM llm_call l LEFT JOIN connection c ON c.id = l.connection_id WHERE l.process_id = ? ORDER BY l.id
 `
 
 type ListProcessModelCallsRow struct {
 	GenAiProviderName string
 	CostUsd           sql.NullFloat64
 	Subscription      int64
+	Local             int64
 }
 
 func (q *Queries) ListProcessModelCalls(ctx context.Context, processID sql.NullInt64) ([]ListProcessModelCallsRow, error) {
@@ -41,7 +43,12 @@ func (q *Queries) ListProcessModelCalls(ctx context.Context, processID sql.NullI
 	var items []ListProcessModelCallsRow
 	for rows.Next() {
 		var i ListProcessModelCallsRow
-		if err := rows.Scan(&i.GenAiProviderName, &i.CostUsd, &i.Subscription); err != nil {
+		if err := rows.Scan(
+			&i.GenAiProviderName,
+			&i.CostUsd,
+			&i.Subscription,
+			&i.Local,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

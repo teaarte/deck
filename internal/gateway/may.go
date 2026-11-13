@@ -170,8 +170,8 @@ func (g *Gateway) exit(ctx context.Context, act registry.Actor, m *manifest.Mani
 	return !(act.Kind == registry.Master && g.cfg.MarkedWeb != nil && g.cfg.MarkedWeb(ctx, act.Workspace))
 }
 
-// over says the run of act has spent the least cap per run its module declares on the money needs spend, which the
-// owner's always holds to: the cost of the calls of its process through deck, a subscription's not counted.
+// over says the run of act has spent the least cap per run its module declares on the money needs spend: the cost
+// of its calls through deck, a subscription's or local one's not counted, an unpriced paid one past any cap.
 func (g *Gateway) over(ctx context.Context, act registry.Actor, m *manifest.Manifest, needs []registry.Need) (bool, error) {
 	var cap float64
 	for _, n := range needs {
@@ -188,7 +188,12 @@ func (g *Gateway) over(ctx context.Context, act registry.Actor, m *manifest.Mani
 	}
 	var spent float64
 	for _, c := range calls {
-		if c.Subscription == 0 && c.CostUsd.Valid {
+		switch {
+		case c.Subscription != 0 || c.Local != 0:
+		case !c.CostUsd.Valid:
+			// A paid call deck could not price may have spent any sum.
+			return true, nil
+		default:
 			spent += c.CostUsd.Float64
 		}
 	}

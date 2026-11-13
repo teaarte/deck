@@ -887,6 +887,34 @@ func TestAlwaysOfMoneyHoldsToTheMostARunSpends(t *testing.T) {
 	}
 }
 
+// TestRunCapCountsUnpricedCalls: under run_usd a paid call deck cannot price counts as past the cap, so the owner's
+// always does not cover spending deck does not count.
+func TestRunCapCountsUnpricedCalls(t *testing.T) {
+	t.Parallel()
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", harness.ChatText("hi")
+		},
+	})
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "paid", "api": "openai", "url": api.URL + "/v1", "key": "sk-real"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "paid", "model": "fact-model", "kind": "text", "name": "writer"}, nil)
+	e.Must("deck.project_create", map[string]any{"name": "films", "manifest": harness.ScriptManifest("media", "",
+		`, "rights": [{"right": "money", "what": ["paid"], "run_usd": 0.05, "why": "calls models"}]`)}, nil)
+	e.Grant("films", "money", "paid")
+	e.SaveScript("films", "scripts/main.py", manyCalls)
+	before := len(api.Calls())
+	id := e.Start("films", "media", map[string]any{"key": "paid/chat/completions", "other": `{"model": "fact-model", "messages": [{"role": "user", "content": "hi"}]}`, "times": 3})
+	got := e.WaitState(id, "done", "error")
+	var out struct{ Statuses []any }
+	if json.Unmarshal(got.Result, &out) != nil {
+		t.Fatalf("the script ran: %+v", got)
+	}
+	if fmt.Sprint(out.Statuses) != "[200 403 403]" || len(api.Calls())-before != 1 {
+		t.Fatalf("after a call deck could not price the run is past its cap: %v, %d calls", out.Statuses, len(api.Calls())-before)
+	}
+}
+
 // TestAnAgentPastTheMostARunSpendsWaitsForTheOwnersOnce: past the run_usd of its module an agent's call of a model
 // waits for the owner's yes to that very call, which offers no always.
 func TestAnAgentPastTheMostARunSpendsWaitsForTheOwnersOnce(t *testing.T) {

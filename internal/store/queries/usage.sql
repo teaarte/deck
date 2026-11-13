@@ -50,7 +50,8 @@ GROUP BY minute, provider, project;
 
 
 -- name: ListProcessModelCalls :many
-SELECT gen_ai_provider_name, cost_usd, subscription FROM llm_call WHERE process_id = ? ORDER BY id;
+SELECT l.gen_ai_provider_name, l.cost_usd, l.subscription, CAST(coalesce(c.local, 0) AS INTEGER) AS local
+FROM llm_call l LEFT JOIN connection c ON c.id = l.connection_id WHERE l.process_id = ? ORDER BY l.id;
 
 
 -- name: RecentRequestTokens :many

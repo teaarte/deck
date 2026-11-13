@@ -463,6 +463,6 @@ and bring the modules in line.
 - 2026-11-13: an automation token reaches modules by rights of the catalog: `token_create` takes `commands` (deck's
   alone, `deck.*` every one), `data` (modules whose data deck's reads give it) and `modules` (a module whole: its
   commands and deck's commands acting in it; `module.command`: that command alone); `*` is every module but the
-  master. A token reads nothing without a module named (`project is required`) and changes only modules named whole;
+  master, and lets the token write documents of the workspace (skills); others only read them. A token reads nothing without a module named (`project is required`) and changes only modules named whole;
   `tokens_list` gives `data` and `modules`. Tokens of before keep what they named: the commands of a module move to
   `modules`, and one that called deck's commands reaches the modules it named whole, or every module when it named none.

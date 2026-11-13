@@ -95,8 +95,10 @@ func rightsOf(raw string) []manifest.Declared {
 func reach(rights []manifest.Declared, ps []db.Project, deck []string) ([]string, registry.Scope) {
 	calls := slices.Clone(deck)
 	var reads, acts []int64
+	every := false
 	for _, r := range rights {
 		for _, subject := range r.What {
+			every = every || subject == "*" && r.Right == manifest.Modules
 			for _, p := range ps {
 				whole := subject == p.Name || subject == "*" && p.Builtin == 0
 				switch {
@@ -112,7 +114,7 @@ func reach(rights []manifest.Declared, ps []db.Project, deck []string) ([]string
 	}
 	slices.Sort(reads)
 	slices.Sort(acts)
-	return calls, registry.Scope{Reads: slices.Compact(reads), Acts: slices.Compact(acts)}
+	return calls, registry.Scope{Reads: slices.Compact(reads), Acts: slices.Compact(acts), Every: every}
 }
 
 type tokenCreateIn struct {

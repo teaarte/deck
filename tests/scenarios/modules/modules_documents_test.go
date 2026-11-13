@@ -389,7 +389,7 @@ func TestSkillsAndPromptsNameOnlyCommandsDeckHas(t *testing.T) {
 func TestABuiltInSkillAskedInAProjectSaysItIsOfTheWorkspace(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	_, tok := e.Token("terminal", "deck.*")
+	_, tok := e.TokenWith(map[string]any{"name": "terminal", "commands": []string{"deck.*"}, "modules": []string{"*", "master"}})
 	code, out := e.As(tok).Call("deck.document_get", map[string]any{"project": "master", "name": "skills/module-builder/SKILL.md"})
 	if code != 404 || !strings.Contains(string(out), "document of the workspace: leave out project") {
 		t.Fatalf("the error says where the skill is: %d %s", code, out)

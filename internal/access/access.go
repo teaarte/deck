@@ -87,9 +87,10 @@ func Within(act registry.Actor, projectID int64) error {
 	return registry.Refuse("this process cannot touch another project")
 }
 
-// DocScope is where a document call works: a project, or the workspace for the owner side and a token that reads it.
+// DocScope is where a document call works: a project, or the workspace for the owner side and a token that reads it or
+// holds every module.
 func DocScope(ctx context.Context, q *db.Queries, act registry.Actor, project string) (docs.Scope, error) {
-	if project == "" && (act.OwnerSide() || act.Kind == registry.Token && !act.Changes) {
+	if project == "" && (act.OwnerSide() || act.Kind == registry.Token && (!act.Changes || act.Scope.Every)) {
 		return docs.Scope{Workspace: act.Workspace}, nil
 	}
 	p, err := Project(ctx, q, act, project)

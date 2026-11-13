@@ -63,10 +63,11 @@ type Actor struct {
 }
 
 // Scope is what an automation token reaches by its rights of deck's catalog: the projects whose data deck's reads give
-// it, and those where deck's other commands act for it.
+// it, those where deck's other commands act for it, and Every, every module, so the documents of the workspace too.
 type Scope struct {
 	Reads []int64 `json:"reads,omitempty"`
 	Acts  []int64 `json:"acts,omitempty"`
+	Every bool    `json:"every,omitempty"`
 }
 
 // FreshKey is how long a touch of the owner's passkey lets the calls that take one through: one touch a batch.

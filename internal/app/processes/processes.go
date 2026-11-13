@@ -466,7 +466,7 @@ func (s *Service) processRework(ctx context.Context, act registry.Actor, in proc
 	if err != nil {
 		return nil, err
 	}
-	if err := s.Runner.Rework(ctx, in.Process, strings.TrimSpace(in.Remark+"\n\n"+given)); err != nil {
+	if err := s.Runner.Rework(ctx, in.Process, strings.TrimSpace(in.Remark+"\n\n"+given), act.ProcessID); err != nil {
 		return nil, err
 	}
 	return process.Started{Process: in.Process}, nil

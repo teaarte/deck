@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -818,4 +819,114 @@ func TestAScriptsFirstCallOfMoneyAsksTheOwnerOnce(t *testing.T) {
 	if out := run(); out["status"] != 200.0 || len(api.Calls()) != 1 {
 		t.Fatalf("always lets the next run through: %v", out)
 	}
+}
+
+// manyCalls calls the model of its input times times in one run and gives the status of each.
+const manyCalls = `import json, os, sys, urllib.request, urllib.error
+inp = json.load(sys.stdin)
+out = []
+for _ in range(inp["times"]):
+    req = urllib.request.Request(os.environ["DECK_MODELS"] + "/" + inp["key"], data=inp["other"].encode(), method="POST",
+        headers={"Authorization": "Bearer " + os.environ["DECK_TOKEN"], "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            out.append(r.status)
+    except urllib.error.HTTPError as e:
+        out.append(e.code)
+print(json.dumps({"statuses": out}))
+`
+
+// TestAlwaysOfMoneyHoldsToTheMostARunSpends: the owner's always lets a script's calls through until its run spent the
+// per_run its module declares, then refuses them; a new run starts from nothing.
+func TestAlwaysOfMoneyHoldsToTheMostARunSpends(t *testing.T) {
+	t.Parallel()
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/api/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", harness.PictureAnswer(0.03)
+		},
+	})
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/api/v1", "key": "sk-or-real"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "google/gemini-3.1-flash-lite-image", "kind": "image", "name": "painter", "call_usd": 0.04}, nil)
+	e.Must("deck.project_create", map[string]any{"name": "films", "manifest": harness.ScriptManifest("media", "",
+		`, "rights": [{"right": "money", "what": ["openrouter"], "per_run": 0.05, "why": "calls models"}]`)}, nil)
+	e.Grant("films", "money", "openrouter")
+	e.SaveScript("films", "scripts/main.py", manyCalls)
+	var last int64
+	run := func(times int) []any {
+		last = e.Start("films", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture, "times": times})
+		got := e.WaitState(last, "done", "error")
+		var out struct{ Statuses []any }
+		if json.Unmarshal(got.Result, &out) != nil {
+			t.Fatalf("the script ran: %+v", got)
+		}
+		return out.Statuses
+	}
+	if got := run(3); fmt.Sprint(got) != "[200 200 403]" || len(api.Calls()) != 2 {
+		t.Fatalf("always goes until the run spent 0.05 (0.03 a call), then the next call is refused: %v, %d calls", got, len(api.Calls()))
+	}
+	if asks := e.Asks(); len(asks) != 0 {
+		t.Fatalf("past the cap a program's call is refused and nothing asked, as the owner's always is in force: %+v", asks)
+	}
+	var explain struct {
+		Row   string `json:"row"`
+		Facts struct{ Over bool }
+	}
+	e.Must("deck.call_explain", map[string]any{"command": "deck.model_call", "process": last,
+		"input": `{"kind": "image", "model": "painter", "prompt": "a picture"}`}, &explain)
+	if explain.Row != "over" || !explain.Facts.Over {
+		t.Fatalf("call_explain names the row of the cap: %+v", explain)
+	}
+	if got := run(1); fmt.Sprint(got) != "[200]" || len(api.Calls()) != 3 {
+		t.Fatalf("a new run starts from nothing spent: %v", got)
+	}
+	code, raw := e.Call("deck.manifest_save", map[string]any{"project": "films", "manifest": harness.ScriptManifest("media", "",
+		`, "rights": [{"right": "network", "what": ["example.com"], "per_run": 0.05, "why": "reads a page"}, {"right": "money", "what": ["openrouter"], "why": "calls models"}]`)})
+	if code == 200 || !strings.Contains(string(raw), "per_run is of money alone") {
+		t.Fatalf("per_run on another right is refused on save: %d %s", code, raw)
+	}
+}
+
+// TestAnAgentPastTheMostARunSpendsWaitsForTheOwnersOnce: past the per_run of its module an agent's call of a model
+// waits for the owner's yes to that very call, which offers no always.
+func TestAnAgentPastTheMostARunSpendsWaitsForTheOwnersOnce(t *testing.T) {
+	t.Parallel()
+	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
+		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
+			return 200, "application/json", harness.ChatText("hi")
+		},
+	})
+	var mu sync.Mutex
+	var answers []string
+	said := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return slices.Clone(answers)
+	}
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		for range 3 {
+			out, _ := c.Tool(ctx, "model_call", map[string]any{"kind": "text", "prompt": "hi", "why": "a test"})
+			mu.Lock()
+			answers = append(answers, out)
+			mu.Unlock()
+		}
+		return provider.Result{Text: "done"}
+	}))
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": api.URL + "/v1"}, nil)
+	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.03}, nil)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"openrouter/qwen"}}, nil)
+	e.Project("writer", harness.Manifest(`{"rights": [{"right": "money", "what": ["@text"], "per_run": 0.05, "why": "writes with a model"}],
+	  "commands": [{"name": "write", "title": "Write", "description": "Writes.", "executor": {"type": "agent", "prompt": "Write."}}]}`))
+	e.Grant("writer", "money", "@text")
+	e.Start("writer", "write", map[string]any{})
+	a := e.WaitAsk()
+	e.Until("the turn made its three calls", func() bool { return len(said()) == 3 })
+	if answers := said(); len(api.Calls()) != 2 || !strings.Contains(answers[2], "spent the most its module declares per run") {
+		t.Fatalf("two calls go by always, the third past 0.05 waits for the owner: %d calls, %q", len(api.Calls()), said())
+	}
+	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow_always"}); code == 200 || !strings.Contains(string(out), "allow it once") {
+		t.Fatalf("past the cap the owner answers once, not always: %d %s", code, out)
+	}
+	e.Answer(a.ID, "allow")
+	e.Until("the owner's once makes the call", func() bool { return len(api.Calls()) >= 3 })
 }

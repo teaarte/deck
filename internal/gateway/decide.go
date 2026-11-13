@@ -35,6 +35,8 @@ type Facts struct {
 	Exit bool `json:"exit"`
 	// Instructs says the call rewrites what deck runs: an instruction of an enabled module or of the workspace.
 	Instructs bool `json:"instructs"`
+	// Over says the run has spent the most its module declares of the money the call spends: always covers no more.
+	Over bool `json:"over"`
 }
 
 // The answers of the owner a decision reads beside always and no: for the work of one process.
@@ -84,7 +86,9 @@ func decide(f Facts) Row {
 		return Row{"denied", DoRefuse, "the owner said no to this right, so it was not made and is not asked again"}
 	case f.Marked && f.Exit && !f.Pressed && (f.Answer == "always" || f.Answer == Work):
 		return Row{"marked", DoAsk, "this turn read text from outside deck and holds something of value: a way out goes only with the owner's yes to this very call"}
-	case f.Answer == "always" && !f.Asked:
+	case f.Over && f.Answer == "always" && !f.Pressed:
+		return Row{"over", DoAsk, "this run has spent the most its module declares per run of this money: a call beyond it goes only with the owner's yes to this very call"}
+	case f.Answer == "always" && !f.Asked && !f.Over:
 		return Row{"always", made, "the owner allows this right always"}
 	case f.Answer == Work && !f.Asked:
 		return Row{"for_work", made, "the owner allowed this right for the work of this process"}

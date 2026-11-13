@@ -76,12 +76,14 @@ func RightOf(name string) (Right, bool) {
 	return Catalog[i], true
 }
 
-// Declared is a right a module may ask for: the right, its subjects, why in the module's words, and whom of a network.
+// Declared is a right a module may ask for: the right, its subjects, why in the module's words, whom of a network, and
+// of money the most a run spends by the owner's always, in US dollars (zero for no cap).
 type Declared struct {
-	Right string   `json:"right"`
-	What  []string `json:"what"`
-	Why   string   `json:"why"`
-	Who   string   `json:"who,omitempty"`
+	Right  string   `json:"right"`
+	What   []string `json:"what"`
+	Why    string   `json:"why"`
+	Who    string   `json:"who,omitempty"`
+	PerRun float64  `json:"per_run,omitempty"`
 }
 
 // Whom is whom a declared right opens to: programs or agents for a network, nobody else's for the rest.

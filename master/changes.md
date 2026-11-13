@@ -466,3 +466,7 @@ and bring the modules in line.
   master, and lets the token write documents of the workspace (skills); others only read them. A token reads nothing without a module named (`project is required`) and changes only modules named whole;
   `tokens_list` gives `data` and `modules`. Tokens of before keep what they named: the commands of a module move to
   `modules`, and one that called deck's commands reaches the modules it named whole, or every module when it named none.
+- 2026-11-13: a right `money` takes `per_run`, the most one run (a process) spends by the owner's always, in US
+  dollars by deck's prices: past it an agent's call waits for the owner's yes to that very call (no always or for
+  this work is offered) and a script's call is refused (403); a new run starts from nothing; without `per_run` always
+  has no cap. `per_run` on another right is refused on save. `call_explain` names the row `over`.

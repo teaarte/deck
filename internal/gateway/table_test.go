@@ -55,6 +55,14 @@ func Test_decide(t *testing.T) {
 		{Facts{Marked: true, Instructs: true, Cleared: true}, "in_deck", DoRun, "the owner's yes to the change lets it through"},
 		{Facts{Owner: true, Marked: true, Instructs: true}, "owner", DoRun, "the owner rewrites freely"},
 		{with(declared, func(f *Facts) { f.Looks = true }), "ask", DoAsk, "a tool, nothing answered: ask"},
+		{with(declared, func(f *Facts) { f.Answer = "always"; f.Over = true }), "over", DoAsk, "always past the cap of money per run"},
+		{with(declared, func(f *Facts) { f.Answer = "always"; f.Over = true; f.Shown = true }), "over", DoAsk, "past the cap, shown or not"},
+		{with(declared, func(f *Facts) { f.Answer = Work; f.Over = true }), "for_work", DoRun, "for the work of this process is no always: no cap"},
+		{with(declared, func(f *Facts) { f.Answer = "always"; f.Over = true; f.Pressed = true }), "pressed", DoRun, "the owner's press past the cap"},
+		{with(declared, func(f *Facts) { f.Answer = "no"; f.Over = true }), "denied", DoRefuse, "no stays no past the cap"},
+		{with(declared, func(f *Facts) { f.Over = true }), "ask", DoAsk, "past the cap, nothing answered: ask"},
+		{Facts{Needs: true, Cleared: true, Declared: true, Answer: "always", Over: true}, "cleared", DoRun, "the owner's once lets a call past the cap through"},
+		{with(declared, func(f *Facts) { f.Answer = "always"; f.Over = true; f.Marked = true; f.Exit = true }), "marked", DoAsk, "a marked turn past the cap asks for its mark"},
 	} {
 		got := decide(row.facts)
 		if got.Name != row.name || got.Does != row.does || got.Text == "" {

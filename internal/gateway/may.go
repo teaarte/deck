@@ -124,6 +124,11 @@ func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.C
 	v.kept = project != 0 && n.Subject != "" && !n.Asked && f.Declared && !(registry.IsBuiltin(c.Name) && n.Subject == c.Name)
 	f.Pressed = slices.ContainsFunc(allows, func(a Allow) bool { return a.names(c, input) })
 	f.Exit = g.exit(ctx, act, m, n)
+	if f.Answer == manifest.Always && n.Right == manifest.Money && m != nil {
+		if f.Over, err = g.over(ctx, act, m, needs); err != nil {
+			return v, err
+		}
+	}
 	// What a module does outside deck in the owner's name, what deck can take back and what a press made are shown after.
 	outside := (n.Right == manifest.Send || n.Right == manifest.Modules) && !(registry.IsBuiltin(c.Name) && n.Subject == c.Name)
 	f.Shown = outside || c.Gate.Undo != nil || f.Pressed
@@ -144,6 +149,31 @@ func (g *Gateway) exit(ctx context.Context, act registry.Actor, m *manifest.Mani
 		return false
 	}
 	return !(act.Kind == registry.Master && g.cfg.MarkedWeb != nil && g.cfg.MarkedWeb(ctx, act.Workspace))
+}
+
+// over says the run of act has spent the least cap per run its module declares on the money needs spend, which the
+// owner's always holds to: the cost of the calls of its process through deck, a subscription's not counted.
+func (g *Gateway) over(ctx context.Context, act registry.Actor, m *manifest.Manifest, needs []registry.Need) (bool, error) {
+	var cap float64
+	for _, n := range needs {
+		if c := m.PerRun(n); c > 0 && (cap == 0 || c < cap) {
+			cap = c
+		}
+	}
+	if cap == 0 || act.ProcessID == 0 {
+		return false, nil
+	}
+	calls, err := g.st.Q.ListProcessModelCalls(ctx, store.ID(act.ProcessID))
+	if err != nil {
+		return false, err
+	}
+	var spent float64
+	for _, c := range calls {
+		if c.Subscription == 0 && c.CostUsd.Valid {
+			spent += c.CostUsd.Float64
+		}
+	}
+	return spent >= cap, nil
 }
 
 // rank orders the answers to the needs of one call: always over work over nothing over no.
@@ -333,6 +363,11 @@ func (g *Gateway) request(ctx context.Context, act registry.Actor, c *registry.C
 			"so its ways out and its changes of what an enabled module runs go only with the owner's yes to each, whatever the owner allowed always. It was not made yet. Go on with other work, and do not ask the owner about it: "+
 			"once they answer, deck makes exactly this call if allowed and tells you the result.", c.Name, a.ID, f.Read), Link: ask.Link(a.ID)}, nil
 	}
+	if v.Facts.Over {
+		return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s waits for the owner's yes to this very call (ask %d): this run has spent the most its module declares per run of this money, "+
+			"so a call beyond it goes only with the owner's yes to each. It was not made yet. Go on with other work, and do not ask the owner about it: "+
+			"once they answer, deck makes exactly this call if allowed and tells you the result.", c.Name, a.ID), Link: ask.Link(a.ID)}, nil
+	}
 	return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s needs a right the owner has not given this module, so it waits for the owner's confirmation (ask %d); it was not made yet. "+
 		"Go on with other work, and do not ask the owner about it: once they answer, deck makes exactly this call if allowed and tells you the result.", c.Name, a.ID), Link: ask.Link(a.ID)}, nil
 }
@@ -341,7 +376,7 @@ func (g *Gateway) request(ctx context.Context, act registry.Actor, c *registry.C
 // is kept.
 func offers(act registry.Actor, v Verdict) []string {
 	var out []string
-	marked := v.Facts.Marked && v.Facts.Exit
+	marked := v.Facts.Marked && v.Facts.Exit || v.Facts.Over
 	if act.ProcessID != 0 && !v.Facts.Draft && v.Need != nil && !v.Need.Asked && !marked {
 		out = append(out, Work)
 	}

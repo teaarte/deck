@@ -66,11 +66,10 @@ func Waits(p db.Process, reason string) bool {
 var Final = []string{StateDone, StateError, StateInterrupted, StateStopped}
 
 // Ceiling is how long a command agent may work, ScriptCeiling a command script or tool, when the manifest sets
-// no timeout; pauseProbe is how often a paused process tries again when its provider gave no reset time.
+// no timeout.
 const (
 	Ceiling       = time.Hour
 	ScriptCeiling = 10 * time.Minute
-	pauseProbe    = time.Hour
 )
 
 // The terms of the waits deck sets itself: for a red provider, for one whose agent did not get deck's tools, for a login.
@@ -192,8 +191,9 @@ type Deps struct {
 	Down func(ctx context.Context, workspace int64, name string) (status, text string)
 	// Broke hears that a turn on the provider failed or lost its login.
 	Broke func(ctx context.Context, name string)
-	// Recheck runs the self-check of the provider at the time a limit it met resets.
-	Recheck func(name string, at time.Time)
+	// Limited pauses the scope of a provider's usage limit until ends (unix seconds, zero when the answer said no
+	// reset) and says when the provider is called again; retry is a first limit without a reset, which pauses nothing.
+	Limited func(ctx context.Context, workspace int64, name string, ends int64, words string) (until time.Time, retry bool)
 	Prompt  func(ctx context.Context, projectID int64) (string, error)
 	// Text is the current text of a project document of the kind, of any kind for ""; empty when missing.
 	Text func(ctx context.Context, projectID int64, kind, name string) (string, error)

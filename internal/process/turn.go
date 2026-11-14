@@ -374,10 +374,9 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 			r.deps.Broke(bg, pv.Name())
 		case res.Is(fault.ModelLimit):
 			text := res.Fault.Text
-			if r.handOn(bg, *t, pv, fault.With(fault.ModelLimit, fmt.Sprintf("%s reached its usage limit", pv.Name()), text)) {
-				r.limited(bg, pv, res.ResetsAt, text)
-			} else {
-				r.pause(bg, pv, processID, res.ResetsAt, text)
+			until, _ := r.deps.Limited(bg, a.proj.WorkspaceID, pv.Name(), res.ResetsAt, text)
+			if !r.handOn(bg, *t, pv, fault.With(fault.ModelLimit, fmt.Sprintf("%s reached its usage limit", pv.Name()), text)) {
+				r.pause(bg, pv, processID, until)
 			}
 		case res.Is(fault.ModelLogin):
 			r.needLogin(bg, pv, processID, res.Fault.Text)

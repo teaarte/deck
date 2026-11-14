@@ -40,11 +40,28 @@ func down(h db.Health) bool {
 	return h.Status == health.Paused || h.Status == health.Error && h.Verdict == "adapter"
 }
 
-// Health is the health row of a model by name: of its self-check when it is built in or runs in an agent, else of
-// its last call in the workspace.
+// Health is the health row of a model: of its self-check when built in or in an agent, else of its last call; a live
+// pause of its scope stands in for a row not worse, and a pause whose end came reads as ok.
 func (s *Service) Health(ctx context.Context, workspace int64, name string) (db.Health, error) {
-	if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name}); err == nil && row.Model.Agent == "" {
-		return health.Get(ctx, s.St.Q, health.Of{Workspace: workspace}, health.Model(name))
+	var h db.Health
+	var err error
+	if row, gerr := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name}); gerr == nil && row.Model.Agent == "" {
+		h, err = health.Get(ctx, s.St.Q, health.Of{Workspace: workspace}, health.Model(name))
+	} else {
+		h, err = health.Get(ctx, s.St.Q, health.Of{}, health.Provider(name))
 	}
-	return health.Get(ctx, s.St.Q, health.Of{}, health.Provider(name))
+	now := s.Now()
+	if err == nil && health.Ended(h, now) {
+		h.Status, h.Error = health.OK, ""
+	}
+	if err == nil && (h.Status == health.Error || h.Status == health.NeedsLogin || h.Status == health.Checking) {
+		return h, nil
+	}
+	for _, subject := range s.scopes(ctx, workspace, name) {
+		if l, lerr := health.Get(ctx, s.St.Q, health.Of{Workspace: workspace}, subject); lerr == nil && l.Status == health.Paused &&
+			!health.Ended(l, now) && (err != nil || h.Status != health.Paused || health.Until(l).After(health.Until(h))) {
+			return l, nil
+		}
+	}
+	return h, err
 }

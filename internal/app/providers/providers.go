@@ -67,6 +67,8 @@ type Service struct {
 
 	mu    sync.Mutex
 	check map[string]*checks
+	// unknown are the streaks of limits without a reset, by workspace and the subject they pause.
+	unknown map[string]streak
 	// found is set once the ACP agents were looked for.
 	found bool
 }

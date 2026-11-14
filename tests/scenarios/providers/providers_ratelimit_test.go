@@ -55,9 +55,9 @@ func TestProviderLimitPausesAndContinuesTheSameSession(t *testing.T) {
 	}
 }
 
-// TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt: no end of its own; the owner stops it, and a
-// rework goes on in the same session.
-func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
+// TestAnUnknownLimitRetriesOnceThenPausesDoublingUpToAnHour: a limit without a reset is tried again in a moment, then
+// pauses 5, 10, 20, 40 minutes and an hour at most until the owner stops it; a rework resumes the session.
+func TestAnUnknownLimitRetriesOnceThenPausesDoublingUpToAnHour(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	ok := false
@@ -75,16 +75,29 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 	p := e.Project("plain", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting:limit")
-	for h := 1; h <= 9; h++ {
-		e.Clock.Add(30 * time.Minute)
+	if h := e.HealthRowOf("provider:fake"); h != nil && h["status"] == "paused" {
+		t.Fatalf("the first limit without a reset pauses nothing: %v", h)
+	}
+	e.Clock.Add(2 * time.Second)
+	e.Sweep()
+	e.Until("the retry in a moment", func() bool { return len(e.Fake.Calls()) == 2 })
+	e.WaitState(id, "waiting:limit")
+	calls := 2
+	for _, pause := range []time.Duration{5, 10, 20, 40, 60, 60} {
+		pause *= time.Minute
+		if h := e.WaitHealth("provider:fake", "paused"); !strings.Contains(h.Error, "next try at "+store.Time(e.Clock.Now().Add(pause))) {
+			t.Fatalf("the pause after another limit without a reset is %s: %+v", pause, h)
+		}
+		e.Clock.Add(pause - time.Second)
 		e.Sweep()
 		e.Settle()
-		if n := len(e.Fake.Calls()); n != h {
-			t.Fatalf("no probe before the hour is up: %d calls after %dh30", n, h-1)
+		if n := len(e.Fake.Calls()); n != calls {
+			t.Fatalf("no try before the pause of %s ends: %d calls", pause, n)
 		}
-		e.Clock.Add(30 * time.Minute)
+		e.Clock.Add(time.Second)
 		e.Sweep()
-		e.Until("the hourly probe", func() bool { return len(e.Fake.Calls()) == h+1 })
+		calls++
+		e.Until("the try at the end of the pause", func() bool { return len(e.Fake.Calls()) == calls })
 		e.WaitState(id, "waiting:limit")
 	}
 	var as []harness.Ask
@@ -97,8 +110,8 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 	e.Clock.Add(2 * time.Hour)
 	e.Sweep()
 	e.Settle()
-	if n := len(e.Fake.Calls()); n != 10 {
-		t.Fatalf("a stopped pause probes no more: %d calls", n)
+	if n := len(e.Fake.Calls()); n != calls {
+		t.Fatalf("a stopped pause tries no more: %d calls", n)
 	}
 	mu.Lock()
 	ok = true
@@ -107,8 +120,8 @@ func TestAPauseWithoutAResetTimeProbesHourlyUntilTheOwnerStopsIt(t *testing.T) {
 	e.WaitHealth("provider:fake", "ok")
 	e.Must("deck.process_rework", map[string]any{"process": id, "remark": "go on"}, nil)
 	got := e.WaitState(id, "done", "waiting:answer", "error")
-	calls := e.Fake.Calls()
-	if got.State != "done" || string(got.Result) != `{"n":2}` || !calls[10].Resume || calls[10].SessionID != calls[0].SessionID {
+	all := e.Fake.Calls()
+	if got.State != "done" || string(got.Result) != `{"n":2}` || !all[calls].Resume || all[calls].SessionID != all[0].SessionID {
 		t.Fatalf("a rework after the owner stopped the pause resumes the same session: %+v", got)
 	}
 }

@@ -9,15 +9,18 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"deck2/internal/docs"
 	"deck2/internal/egress"
 	"deck2/internal/fault"
 	"deck2/internal/gateway"
+	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/models"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -107,6 +110,17 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 			picks = append(picks, pick{row.Model, c})
 		}
 	}
+	if strings.HasPrefix(asked, "@") {
+		names := make([]string, len(picks))
+		for i, p := range picks {
+			names[i] = p.m.Name
+		}
+		ordered := make([]pick, 0, len(picks))
+		for _, i := range s.byHealth(ctx, act.Workspace, names) {
+			ordered = append(ordered, picks[i])
+		}
+		picks = ordered
+	}
 	hops := make([]models.Hop, 0, len(picks))
 	for i, p := range picks {
 		h, err := s.hop(act.Workspace, p.m, p.c)
@@ -121,9 +135,51 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 			s.answered(ctx, m, next, status)
 			s.record(ctx, act, m, c, status, u)
 		}
+		h.Limited = func(ctx context.Context, hdr http.Header, words string) bool {
+			_, retry := s.Limited(ctx, act.Workspace, m.Name, provider.LimitEnds(hdr, words, s.Now()), words)
+			return retry
+		}
+		paused := func(ctx context.Context) bool {
+			hl, err := s.Health(ctx, act.Workspace, m.Name)
+			return err == nil && hl.Status == health.Paused
+		}
+		if !paused(ctx) {
+			h.Paused = paused
+		}
 		hops = append(hops, h)
 	}
 	return hops, nil
+}
+
+// redFor is how long a model that did not answer a call stands last among the models of its role.
+const redFor = 10 * time.Minute
+
+// byHealth orders the models of a role for a call: those up in their order, then those red for less than redFor; a
+// paused one is left out until its end. With none up or red, every one goes in its order.
+func (s *Service) byHealth(ctx context.Context, workspace int64, names []string) []int {
+	var up, red, all []int
+	now := s.Now()
+	for i, name := range names {
+		all = append(all, i)
+		h, err := s.Health(ctx, workspace, name)
+		switch {
+		case err != nil:
+			up = append(up, i)
+		case h.Status == health.Paused:
+		case h.Status == health.Error:
+			if at, err := store.ParseTime(h.UpdatedAt); err == nil && now.Sub(at) < redFor {
+				red = append(red, i)
+			} else {
+				up = append(up, i)
+			}
+		default:
+			up = append(up, i)
+		}
+	}
+	if len(up)+len(red) == 0 {
+		return all
+	}
+	return append(up, red...)
 }
 
 // queuedKinds are the kinds a local server computes one call at a time, so deck holds the rest in its queue; a

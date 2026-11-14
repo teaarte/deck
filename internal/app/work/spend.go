@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"deck2/internal/fault"
 	"deck2/internal/health"
 	"deck2/internal/models"
 	"deck2/internal/process"
@@ -47,7 +48,8 @@ func price(m db.Model, u provider.Usage) *float64 {
 // that takes its work, its first or next good answer green; a model in an agent has the health of its self-check.
 func (s *Service) answered(ctx context.Context, m db.Model, next string, status int) {
 	failed := status <= 0 || models.Fallible(status)
-	if m.ID == 0 || m.Agent != "" || !failed && status >= 400 {
+	if m.ID == 0 || m.Agent != "" || !failed && status >= 400 || fault.OfStatus(fault.ModelStatus(status), true) == fault.ModelLimit {
+		// A usage limit pauses the model by what its answer said, not red.
 		return
 	}
 	text := "did not answer"

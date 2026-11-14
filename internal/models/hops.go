@@ -52,7 +52,15 @@ type Hop struct {
 	// Done keeps the call: the status the API answered (0 when the request never reached it, -1 when it broke off
 	// after) and what it used, nil when it did not say.
 	Done func(ctx context.Context, status int, u *provider.Usage)
+	// Limited hears a usage limit the model answered, by its header and words, before Done; retry says the call goes to
+	// the model once more in a moment.
+	Limited func(ctx context.Context, h http.Header, words string) (retry bool)
+	// Paused says the model went on a pause since the call was routed, by the limit of a model before it.
+	Paused func(ctx context.Context) bool
 }
+
+// limitRetry is how long a call waits before it goes again to a model whose limit said no reset.
+var limitRetry = 2 * time.Second
 
 // Router finds where a call of a model goes for an actor: the model of deck's settings the request names on the
 // connection; an @role names the models assigned to it, the fallbacks after the first.
@@ -135,8 +143,8 @@ func Send(ctx context.Context, t Target, c Call) (*http.Response, error) {
 	return t.Transport.RoundTrip(req)
 }
 
-// SendHops makes the call each hop builds, in order, past one unsent, a 429 or a 5xx; the usage of the answer
-// reaches the Done of its hop when its body closes.
+// SendHops makes the call each hop builds, in order, past one unsent, a 429 or a 5xx; the last one goes again once
+// after a limit its Limited says to retry. The usage of the answer reaches the Done of its hop when its body closes.
 func SendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*http.Response, Hop, error) {
 	resp, i, err := sendHops(ctx, hops, build)
 	if i < 0 {
@@ -184,13 +192,18 @@ func ReadHops[T any](ctx context.Context, hops []Hop, build func(Hop) (Call, err
 // sendHops is SendHops with the index of the hop that answered or failed, -1 for none.
 func sendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*http.Response, int, error) {
 	var last error = registry.Invalid("no model to call")
-	for i, h := range hops {
+	again := -1
+	for i := 0; i < len(hops); i++ {
+		h := hops[i]
 		c, err := build(h)
 		if err != nil {
 			return nil, i, err
 		}
 		if past := h.past(c.Body); past != "" {
 			last = fault.New(fault.ModelLimit, past)
+			continue
+		}
+		if h.Paused != nil && h.Paused(ctx) {
 			continue
 		}
 		release, waited, err := queued(ctx, h)
@@ -233,6 +246,28 @@ func sendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 			}
 			last = fault.New(fault.ModelLimit, fmt.Sprintf("deck: %s takes at most %d tools a request", h.Name, n))
 			continue
+		}
+		if limit := fault.OfStatus(fault.ModelStatus(resp.StatusCode), true) == fault.ModelLimit; limit && h.Limited != nil {
+			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+			_ = resp.Body.Close()
+			// A next model takes the call in place of the retry.
+			retry := h.Limited(ctx, resp.Header, string(raw)) && again != i && i == len(hops)-1
+			if retry || i < len(hops)-1 {
+				release()
+				h.Done(ctx, resp.StatusCode, nil)
+				last = fault.New(fault.ModelLimit, fmt.Sprintf("deck: %s answered %s: %s", h.Connection, resp.Status, untrusted.Cut(strings.TrimSpace(string(raw)), 500)))
+				if retry {
+					again = i
+					select {
+					case <-ctx.Done():
+						return nil, i, ctx.Err()
+					case <-time.After(limitRetry):
+					}
+					i--
+				}
+				continue
+			}
+			resp.Body = io.NopCloser(bytes.NewReader(raw))
 		}
 		if Fallible(resp.StatusCode) && i < len(hops)-1 {
 			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))

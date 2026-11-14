@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/store"
 	"deck2/tests/harness"
 )
 
@@ -758,8 +759,8 @@ func TestABigOptionOfAModelIsAFileOfIt(t *testing.T) {
 	}
 }
 
-// TestTheLastModelAtItsLimitIsTheModelsFailure: a model command whose last model answers 429 fails as the model's
-// limit, red in the health of that model, and does not go to the master; a refused key is the model's login.
+// TestTheLastModelAtItsLimitIsTheModelsFailure: a last model that answers 429 twice fails as its limit, paused 5
+// minutes in health, and does not go to the master; a refused key is the model's login.
 func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {
 	t.Parallel()
 	api := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
@@ -781,8 +782,12 @@ func TestTheLastModelAtItsLimitIsTheModelsFailure(t *testing.T) {
 	if got.ErrorType != "model.limit" || got.Whose != "model" {
 		t.Fatalf("the last model at its limit is the model's failure: %+v", got)
 	}
-	if h := e.HealthRowOf("model:groq/fact-model"); h == nil || h["status"] != "error" {
-		t.Fatalf("the model at its limit is red in health: %v", h)
+	if h := e.HealthRowOf("model:groq/fact-model"); h == nil || h["status"] != "paused" ||
+		!strings.Contains(fmt.Sprint(h["error"]), "next try at "+store.Time(e.Clock.Now().Add(5*time.Minute))) {
+		t.Fatalf("the model at its limit is paused in health for 5 minutes: %v", h)
+	}
+	if n := len(made(api)); n != 2 {
+		t.Fatalf("a limit without a reset is tried once more: %d calls", n)
 	}
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/keyless"}}, nil)
 	if got := e.Fault(e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "two"}), "done", "error").ID); got.ErrorType != "model.login" {
@@ -871,10 +876,14 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 	}
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/busy", "groq/fact-model"}}, nil)
 	e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "busy"}), "done", "error")
+	if h := e.HealthRowOf("model:groq/busy"); h != nil && h["status"] != "ok" {
+		t.Fatalf("a first limit without a reset pauses nothing; the next model takes the call: %v", h)
+	}
+	e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "busy again"}), "done", "error")
 	var m harness.ModelsOut
 	e.Must("deck.models_list", nil, &m)
 	if i := slices.IndexFunc(m.Assignments, func(a harness.AssignmentOut) bool { return a.Role == "text" }); i < 0 || m.Assignments[i].Using != "groq/fact-model" ||
-		!strings.HasPrefix(m.Assignments[i].Why, "groq/busy: answered HTTP 429") {
+		!strings.HasPrefix(m.Assignments[i].Why, "groq/busy: usage limit reached") {
 		t.Fatalf("the assignment says in one line of health why the first model does not take the work: %+v", m.Assignments)
 	}
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/gpt-oss"}}, nil)
@@ -885,8 +894,8 @@ func TestARequestPastTheLimitPerMinuteIsTheModelsLimit(t *testing.T) {
 	if got := e.Fault(e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "daily"}), "done", "error").ID); got.ErrorType != "model.limit" {
 		t.Fatalf("a 413 past another rate is the model's limit: %+v", got)
 	}
-	if h := e.HealthRowOf("model:groq/daily"); h == nil || h["status"] != "error" {
-		t.Fatalf("a model past a rate other than per minute is red: %v", h)
+	if h := e.HealthRowOf("model:groq/daily"); h == nil || h["status"] != "paused" {
+		t.Fatalf("a model past a rate other than per minute is paused: %v", h)
 	}
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/huge", "groq/fact-model"}}, nil)
 	if got := e.Fault(e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "three"}), "done", "error").ID); got.ErrorType != "input.invalid" {

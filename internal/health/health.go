@@ -111,7 +111,7 @@ const (
 )
 
 // Kinds are the kinds of the subjects of health: of many rows, then of the subjects of one row each.
-var Kinds = []string{OfProvider, OfNode, OfAgent, OfModel, OfConnection, OfSite, OfTool, OfMCP, OfCommand, OfTrigger, OfSecret,
+var Kinds = []string{OfProvider, OfLimit, OfNode, OfAgent, OfModel, OfConnection, OfSite, OfTool, OfMCP, OfCommand, OfTrigger, OfSecret,
 	OfRetention, OfScreen, OfProject, Scripts, Sandbox, Tailscale, HTTPS, Snapshot, Disk, Outbox, Push, Search, Master,
 	Update, Proxy, Consent}
 

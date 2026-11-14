@@ -152,7 +152,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, Hold: a.Files.Hold, AgentSlots: a.Settings.AgentSlots},
 		process.Deps{Store: st, Gateway: a.Gateway, Bus: a.Bus, Scripts: a.Scripts,
 			Hooks: []process.Hook{a.Chats.Hook(), a.Processes.Hook(), a.Triggers.Hook(), a.Answers.Hook()},
-			For:   a.Work.For, Next: a.Work.Next, Ahead: a.Work.Ahead, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Recheck: a.Providers.Recheck, Prompt: a.Documents.Prompt,
+			For:   a.Work.For, Next: a.Work.Next, Ahead: a.Work.Ahead, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Limited: a.Providers.Limited, Prompt: a.Documents.Prompt,
 			Text: a.Documents.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
 			Folders: a.Folders.Paths, ScriptsAt: a.Folders.ScriptsAt,
 			Memory: a.Chats.Memory, Lang: a.Chats.Gives, Programs: a.Documents.Programs})
@@ -192,7 +192,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		KeepBig: a.Work.KeepBig, View: a.Work.ModelView, Unassign: a.Work.Unassign}
 	a.Work = work.Service{St: st, Now: cfg.Now, Home: h, Hold: a.Files.Hold, VideoPoll: cfg.VideoPoll, VideoCeiling: cfg.VideoCeiling,
 		Key: a.Secrets.Key, Resolve: a.Tools.Resolve, Invoke: a.Registry.Invoke, Journal: a.Gateway.Journal, Builtin: builtin, Provider: a.Providers.Provider,
-		All: a.Providers.All, Off: a.Providers.Off, Up: a.Providers.Up, Health: a.Providers.Health, Exists: a.Providers.Exists, Free: a.Providers.Free, Spare: a.Providers.Spare,
+		All: a.Providers.All, Off: a.Providers.Off, Up: a.Providers.Up, Health: a.Providers.Health, Exists: a.Providers.Exists, Limited: a.Providers.Limited, Free: a.Providers.Free, Spare: a.Providers.Spare,
 		Installed: a.Providers.Installed, Node: a.nodeTransport,
 		Online: func(device int64) bool { return a.Nodes.State(device).Online }, FolderNodes: a.Folders.Nodes, Go: a.bg.Go,
 		Tools: func(ctx context.Context, p db.Project, cmd *manifest.Command) int {

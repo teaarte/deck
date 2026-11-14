@@ -2,11 +2,13 @@ package screens
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/store/db"
 	"deck2/internal/words"
 	"deck2/master"
 )
@@ -49,11 +51,20 @@ func (s *Service) pulse(ctx context.Context, act registry.Actor, lang string) (p
 	}
 	firstLine(&p, words.In(lang))
 	if p.Running > 0 {
-		var runs []openRun
-		if err := s.read(ctx, act, "processes_list", map[string]any{"open": true, "brief": true}, &runs); err == nil {
-			ws := words.In(lang)
-			p.Opens, p.Hosts = holding(runs, func(str string, a ...any) string { return fmt.Sprintf(manifest.TrText(ws, str), a...) })
+		ps, err := s.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace})
+		if err != nil {
+			slog.Error("menu: count", "what", "opens", "err", err)
 		}
+		var runs []openRun
+		for _, x := range ps {
+			r := openRun{ID: x.ID, Command: x.Command}
+			if x.Opens != "" && json.Unmarshal([]byte(x.Opens), &r.Opens) != nil {
+				r.Opens = nil
+			}
+			runs = append(runs, r)
+		}
+		ws := words.In(lang)
+		p.Opens, p.Hosts = holding(runs, func(str string, a ...any) string { return fmt.Sprintf(manifest.TrText(ws, str), a...) })
 	}
 	return p, asks, running, failing
 }

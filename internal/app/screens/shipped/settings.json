@@ -2,7 +2,7 @@
   "name": "settings",
   "icon": "settings",
   "title": "Settings",
-  "params": {"name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "node": "string", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string", "options": "string", "tpm": "number", "context": "number"},
+  "params": {"by": "string", "name": "string", "command": "string", "agent": "string", "url": "string", "model": "string", "connection": "string", "kind": "string", "role": "string", "project": "string", "models": "string", "api": "string", "local": "boolean", "node": "string", "free": "boolean", "subscription": "boolean", "input_usd": "number", "output_usd": "number", "call_usd": "number", "unit": "string", "options": "string", "tpm": "number", "context": "number"},
   "blocks": [
     {"type": "tabs", "tabs": [
       {"title": "Models", "icon": "cpu", "blocks": [
@@ -122,8 +122,8 @@
             {"verb": "resume", "command": "deck.project_pause", "params": {"project": "=name", "paused": "false"}, "when": "paused"},
             {"label": "Draw a cover", "icon": "sparkles", "screen": "settings", "params": {"tab": "Modules", "dialog": "draw-cover", "project": "=name"}, "when": "!builtin"},
             {"label": "Take off the cover", "icon": "photo-off", "confirm": true, "command": "deck.project_cover_set", "params": {"project": "=name", "theme": "=cover.theme", "remove": "true"}, "when": "cover != nil"},
-            {"verb": "export", "command": "deck.project_export", "params": {"project": "=name"}, "download": true, "when": "!builtin && manifest_error == ''"},
-            {"label": "Export with data", "icon": "database-export", "command": "deck.project_export", "params": {"project": "=name", "data": "true"}, "download": true, "when": "!builtin && manifest_error == ''"},
+            {"verb": "export", "command": "deck.project_export", "params": {"project": "=name"}, "download": true, "when": "!(builtin ?? false) && manifest_error == ''"},
+            {"label": "Export with data", "icon": "database-export", "command": "deck.project_export", "params": {"project": "=name", "data": "true"}, "download": true, "when": "!(builtin ?? false) && manifest_error == ''"},
             {"verb": "delete", "confirm": true, "command": "deck.project_delete", "params": {"project": "=name"}, "when": "!builtin"}
           ]},
         {"type": "table", "title": "Secrets of the modules", "icon": "key", "source": {"from": "deck.secrets_list", "sort": "project"}, "filter": ["project"],
@@ -140,31 +140,18 @@
           ]}
       ]},
       {"title": "Rights", "icon": "shield-check", "blocks": [
-        {"type": "tabs", "tabs": [
-          {"title": "By module", "icon": "apps", "blocks": [
-            {"type": "list", "title": "Rights by module", "icon": "apps", "span": "full", "source": {"from": "deck.rights_list", "input": {"project": "=param.project ?? ''"}},
-        "empty": "No module declares a right: each keeps to its own records, documents and files",
-        "item": {"group": "module", "title": "title", "text": "says", "icon": "{'network': 'world', 'login': 'key', 'data': 'database', 'files': 'folder', 'money': 'coin', 'send': 'send', 'modules': 'apps'}[right] ?? 'shield'", "since": "used ?? ''", "meta": "state", "tone": "answer == 'always' ? 'ok' : answer == 'no' ? 'error' : 'muted'"},
-        "actions": [
-          {"label": "Revoke", "icon": "arrow-back-up", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "answer == 'always'"},
-          {"label": "Allow again", "icon": "arrow-back-up", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "answer == 'no'"},
-          {"label": "Allow always", "icon": "check", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && !key && answer == ''"},
-          {"label": "Allow always with your passkey", "icon": "fingerprint", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && key && answer == ''"},
-          {"label": "Say no", "icon": "ban", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "no"}, "when": "declared && answer == ''"},
-          {"label": "Report", "icon": "report-analytics", "screen": "rights-report", "params": {"project": "=project"}}
-        ]}]},
-          {"title": "By right", "icon": "shield-check", "blocks": [
-            {"type": "list", "title": "Rights by right", "icon": "shield-check", "span": "full", "source": {"from": "deck.rights_list", "input": {"project": "=param.project ?? ''"}, "sort": "right"},
-        "empty": "No module declares a right: each keeps to its own records, documents and files",
-        "item": {"group": "title", "title": "module", "text": "says", "icon": "{'network': 'world', 'login': 'key', 'data': 'database', 'files': 'folder', 'money': 'coin', 'send': 'send', 'modules': 'apps'}[right] ?? 'shield'", "since": "used ?? ''", "meta": "state", "tone": "answer == 'always' ? 'ok' : answer == 'no' ? 'error' : 'muted'"},
-        "actions": [
-          {"label": "Revoke", "icon": "arrow-back-up", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "answer == 'always'"},
-          {"label": "Allow again", "icon": "arrow-back-up", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "answer == 'no'"},
-          {"label": "Allow always", "icon": "check", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && !key && answer == ''"},
-          {"label": "Allow always with your passkey", "icon": "fingerprint", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && key && answer == ''"},
-          {"label": "Say no", "icon": "ban", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "no"}, "when": "declared && answer == ''"},
-          {"label": "Report", "icon": "report-analytics", "screen": "rights-report", "params": {"project": "=project"}}
-        ]}]}]}]},
+        {"type": "list", "title": "Rights", "span": "full", "source": {"from": "deck.rights_list", "input": {"project": "=param.project ?? ''"}},
+          "head": [
+            {"label": "By module", "icon": "apps", "screen": "settings", "params": {"tab": "Rights"}},
+            {"label": "By right", "icon": "shield-check", "screen": "settings", "params": {"tab": "Rights", "by": "right"}}],
+          "empty": "No module declares a right",
+          "item": {"group": "param.by == 'right' ? title : module", "title": "param.by == 'right' ? module : title", "text": "says", "icon": "icon",
+            "since": "used ?? ''", "meta": "state", "tone": "answer == 'always' ? 'ok' : 'muted'", "actions": "actions ?? []"},
+          "actions": [
+          {"verb": "revoke", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "!(builtin ?? false) && answer == 'always'"},
+          {"label": "Allow always", "icon": "check", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "!(builtin ?? false) && declared && answer != 'always'"},
+          {"label": "Say no", "icon": "ban", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "no"}, "when": "!(builtin ?? false) && declared && answer == ''"},
+          {"label": "Ask again", "icon": "arrow-back-up", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "!(builtin ?? false) && answer == 'no'"}]}]},
       {"title": "Health", "icon": "heartbeat", "count": "failures", "blocks": [
         {"type": "list", "cards": true, "title": "Broken now", "icon": "alert-triangle", "span": "full", "source": {"from": "deck.feed_list", "input": {"kind": "failure"}},
           "empty": "Everything works",

@@ -59,10 +59,15 @@ print(json.dumps({"got": [fetch("`+svc.URL+`/a"), fetch("`+svc.URL+`/b")]}))
 			e.Answer(a.ID, "deny")
 		}
 
-		b.eval(`([...document.querySelectorAll('[role=tab]')].find((x) => x.innerText.includes('By right')).click(), '')`)
+		b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'By right').click(), '')`)
 		b.until(size.name+": the rights under each right, the modules in them", item("Network", "reach")+` && `+item("Sending in your name", "notes"))
 		b.shot("t9-rights-right-" + size.name)
 
+		b.Open(e, "#/deck/settings?tab=Rights")
+		report := `[...document.querySelectorAll('[data-group="reach"] button')].find((x) => x.innerText.includes('Report'))`
+		b.until(size.name+": the report of a module on its row", report)
+		b.eval(`(` + report + `.click(), '')`)
+		b.until(size.name+": the report of the module, opened from its row", `location.hash.includes('rights-report') && document.body.innerText.includes('reach')`)
 		b.Open(e, "#/deck/rights-report?project=reach&period=Today")
 		b.until(size.name+": the report counts the requests to the host", `[...document.querySelectorAll('[data-stat-block]')].find((x) => x.dataset.title === 'Requests')?.querySelector('[data-stat]')?.innerText.trim() === '2'
 			&& [...document.querySelectorAll('[data-item]')].some((r) => r.innerText.includes('`+host+`') && r.innerText.includes('requests: 2'))`)

@@ -296,7 +296,7 @@ function Pill({ mark }: { mark: NonNullable<Item['marks']>[number] }) {
   return (
     <span className={s.pill} data-pill={mark.text}>
       {mark.logo ? <Logo names={mark.logo} size={13} /> : mark.icon ? <NamedIcon name={mark.icon} fallback={mark.text} size={13} /> : null}
-      <span>{mark.text}</span>
+      <span className={s.pillText}>{mark.text}</span>
     </span>
   );
 }

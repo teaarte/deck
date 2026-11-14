@@ -231,7 +231,7 @@ func TestTheOwnerAnswersARightOnTheScreensOfTheModule(t *testing.T) {
 	e.Project("other", harness.PlainManifest)
 	var items []struct{ Group, Title, Text, Meta string }
 	notes := map[string]any{"params": `{"project": "notes"}`}
-	if err := json.Unmarshal(e.ScreenBlock("", "settings", "Rights by module", notes)["items"], &items); err != nil ||
+	if err := json.Unmarshal(e.ScreenBlock("", "settings", "Rights", notes)["items"], &items); err != nil ||
 		len(items) != 1 || items[0].Group != "notes" || items[0].Title != "Sending in your name" || items[0].Text != "it acts in your name: post" ||
 		items[0].Meta != "asks you; always with your passkey · never used" {
 		t.Fatalf("Rights lists the rights of a module, its title the group: %+v %v", items, err)

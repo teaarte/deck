@@ -1,7 +1,9 @@
 package modules
 
 import (
+	"encoding/json"
 	"fmt"
+	"slices"
 	"net/http"
 	"strings"
 	"testing"
@@ -148,9 +150,77 @@ func TestTodaySaysHowManyRequestsTheDayBroughtAndWhatRunsWithTheNetwork(t *testi
 	if len(open) != 1 || open[0].Opens == nil || len(open[0].Opens.Hosts) != 1 || open[0].Opens.Hosts[0] != host {
 		t.Fatalf("an open run says the hosts its box reaches: %+v", open)
 	}
+	var menu struct{ Pulse struct{ Opens, Hosts string } }
+	e.Must("deck.menu_get", nil, &menu)
+	if menu.Pulse.Opens != "Now with the network: 1 · with a login: 0" || !strings.Contains(menu.Pulse.Hosts, host) {
+		t.Fatalf("the head of Today says it too: %+v", menu.Pulse)
+	}
+	var items []struct {
+		Title string
+		Marks []struct{ Text, Icon string }
+	}
+	if err := json.Unmarshal(e.ScreenBlock("", "cockpit", "Running", nil)["items"], &items); err != nil || len(items) != 1 || len(items[0].Marks) != 1 ||
+		items[0].Marks[0].Text != host || items[0].Marks[0].Icon != "world" {
+		t.Fatalf("the run wears its host in what runs: %+v %v", items, err)
+	}
 	e.Must("deck.process_stop", map[string]any{"process": p}, nil)
 	e.WaitState(p, "stopped", "error", "done")
 	if got, ok := today()["opens"]; ok {
 		t.Fatalf("the line goes with the run: %+v", got)
+	}
+	e.Until("the head of Today without it", func() bool {
+		menu.Pulse.Opens = ""
+		e.Must("deck.menu_get", nil, &menu)
+		return menu.Pulse.Opens == ""
+	})
+}
+
+// TestRightsGroupByModuleOrByRight: Rights lists the rights under their module, or under the right with by=right; a
+// row of deck's master has no buttons, the first row of a module opens its report.
+func TestRightsGroupByModuleOrByRight(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Project("notes", harness.PostManifest("https://api.example", ""))
+	e.Project("reach", harness.ScriptManifest("go", "", `, "rights": [{"right": "network", "what": ["example.com"], "why": "reads it"}]`))
+	type item struct {
+		Group, Title string
+		Actions      []map[string]any
+	}
+	read := func(params string) []item {
+		var items []item
+		if err := json.Unmarshal(e.ScreenBlock("", "settings", "Rights", map[string]any{"params": params})["items"], &items); err != nil {
+			t.Fatal(err)
+		}
+		return items
+	}
+	groups := func(items []item) map[string][]string {
+		out := map[string][]string{}
+		for _, it := range items {
+			out[it.Group] = append(out[it.Group], it.Title)
+		}
+		return out
+	}
+	byModule := read(`{"tab": "Rights"}`)
+	if g := groups(byModule); len(g["notes"]) != 1 || g["notes"][0] != "Sending in your name" || len(g["reach"]) != 2 || len(g["master"]) == 0 {
+		t.Fatalf("by module, the rights under their module: %+v", g)
+	}
+	byRight := read(`{"tab": "Rights", "by": "right"}`)
+	if g := groups(byRight); !slices.Equal(g["Sending in your name"], []string{"notes", "reach"}) || !slices.Contains(g["Network"], "reach") {
+		t.Fatalf("by right, the modules under each right: %+v", g)
+	}
+	verbs := func(it item) string {
+		var out []string
+		for _, a := range it.Actions {
+			out = append(out, fmt.Sprint(a["verb"], a["label"]))
+		}
+		return strings.Join(out, ",")
+	}
+	for _, it := range byModule {
+		if it.Group == "master" && strings.Contains(verbs(it), "deck.right_set") || it.Group == "master" && strings.Contains(verbs(it), "revoke") {
+			t.Fatalf("a right of deck's master has no buttons: %+v", it)
+		}
+	}
+	if v := verbs(byModule[slices.IndexFunc(byModule, func(it item) bool { return it.Group == "notes" })]); !strings.Contains(v, "report") || !strings.Contains(v, "Allow always") {
+		t.Fatalf("the first row of a module opens its report beside its answers: %s", v)
 	}
 }

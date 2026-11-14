@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"slices"
 	"strings"
@@ -43,8 +44,14 @@ type rightView struct {
 	Exit bool `json:"exit"`
 	// Key says the owner's always to it takes a fresh passkey, so enabling the module does not give it in advance.
 	Key bool `json:"key"`
-	// State is the answer in the owner's words, and that it was never used.
+	// State is the answer in the owner's words with the day it was given, and that it was never used; Icon the icon of
+	// the right.
 	State string `json:"state"`
+	Icon  string `json:"icon"`
+	// Builtin marks a right of deck's own master, which deck grants and the owner does not answer.
+	Builtin bool `json:"builtin,omitempty"`
+	// Actions are the buttons a read gives a row: the first row of a module opens its report.
+	Actions []map[string]any `json:"actions,omitempty"`
 }
 
 // rows are the rights m declares, a row a subject, with the owner's answers rows gives; then the answers to rights no
@@ -92,15 +99,25 @@ func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(stri
 	for i, v := range out {
 		state := map[string]string{manifest.Always: "always", manifest.No: "you said no"}[v.Answer]
 		switch {
+		case p.Builtin == 1:
+			state = "deck's own"
 		case state != "":
 		case v.Key:
 			state = "asks you; always with your passkey"
 		default:
 			state = "asks you the first time"
 		}
-		out[i].State = tr(state)
+		out[i].State, out[i].Builtin = tr(state), p.Builtin == 1
+		if v.At != "" && p.Builtin != 1 {
+			out[i].State += " · " + fmt.Sprintf(tr("given %s"), v.At[:min(10, len(v.At))])
+		}
 		if v.Used == "" {
 			out[i].State += " · " + tr("never used")
+		}
+		out[i].Icon = map[string]string{manifest.Network: "world", manifest.Login: "key", manifest.Data: "database", manifest.Files: "folder",
+			manifest.Money: "coin", manifest.Send: "send", manifest.Modules: "apps"}[v.Right]
+		if i == 0 {
+			out[i].Actions = []map[string]any{{"verb": "report", "screen": "rights-report", "params": map[string]any{"project": p.Name}}}
 		}
 	}
 	return out
@@ -396,7 +413,7 @@ func (s *Service) rightsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("rights_list", "Rights of modules",
 			"Lists the rights of deck's catalog each module declares it may ask for, a row a subject: what it lets the module do in deck's words, why in the module's, and the owner's answer, always or no, or none while it asks when first used; then the answers to rights no manifest names, such as a command of deck.",
-			registry.OwnerSide, s.rightsList).On(events.Projects, events.Documents, events.Calls),
+			registry.OwnerSide, s.rightsList).On(events.Projects, events.Documents, events.Calls, events.Processes, events.Usage),
 		registry.Def("right_set", "Answer a right",
 			"Keeps the owner's answer to a right of a module on one subject: always, so it uses it without asking; no, so it does not and does not ask; or revoke, so it asks again when it next needs it.",
 			registry.OwnerOnly, s.rightSet).Stays().Fresh(s.always),

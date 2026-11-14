@@ -384,6 +384,10 @@
   line-height: 1.5;
   color: var(--deck-text-2);
   background: var(--mantine-color-default-hover);
+}
+
+.pillText {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

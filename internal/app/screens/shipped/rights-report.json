@@ -24,6 +24,34 @@
   ],
   "blocks": [
     {
+      "type": "card",
+      "span": "full",
+      "source": {
+        "from": "deck.projects_list",
+        "where": "name == param.project"
+      },
+      "fields": [
+        {
+          "label": "Module",
+          "bind": "title"
+        },
+        {
+          "label": "What it does",
+          "bind": "description"
+        }
+      ],
+      "actions": [
+        {
+          "verb": "rights",
+          "screen": "settings",
+          "params": {
+            "tab": "Rights",
+            "project": "=name"
+          }
+        }
+      ]
+    },
+    {
       "type": "stat",
       "title": "Requests",
       "icon": "world",

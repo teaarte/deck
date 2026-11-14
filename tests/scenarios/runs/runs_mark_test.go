@@ -420,3 +420,49 @@ func TestWhereTextFromOutsideCameFromIsInTheOwnersLanguage(t *testing.T) {
 	}
 	english("the request", fmt.Sprint(as[0]["change"]))
 }
+
+// TestAMarkedTurnCallsAScriptWithoutAWayOutFreely: a module whose only way out is the network of its agents' shells
+// runs its scripts with no network, so the master's marked turn calls them without the owner.
+func TestAMarkedTurnCallsAScriptWithoutAWayOutFreely(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	var got string
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() != "reply" {
+			return provider.Result{Structured: json.RawMessage(`{}`)}
+		}
+		c.Tool(ctx, "records_list", map[string]any{"project": "notes", "collection": "ideas"})
+		out, _ := c.Tool(ctx, "notes__tidy", map[string]any{"text": "the-owners-memory"})
+		mu.Lock()
+		got = out
+		mu.Unlock()
+		return provider.Result{Text: "done"}
+	}))
+	m := harness.Manifest(`{
+  "collections": [{"name": "ideas", "description": "Short ideas", "key": "title", "display": "title",
+    "schema": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}],
+  "rights": [{"right": "network", "who": "agent", "what": ["example.org"], "why": "its agents read the docs"}],
+  "scripts": [{"name": "tidy", "file": "scripts/tidy.py", "runtime": "python"}],
+  "commands": [{"name": "tidy", "title": "Tidy", "description": "Tidies a note.", "result": {"type": "object"},
+    "input": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
+    "executor": {"type": "script", "script": "tidy"}}, ` + harness.AgentCommand("work", "") + `]}`)
+	e.Project("notes", m)
+	e.Must("deck.right_set", map[string]any{"project": "notes", "right": "network", "who": "agent", "subject": "example.org", "answer": "always"}, nil)
+	e.SaveScript("notes", "scripts/tidy.py", "print('{}')\n")
+	_, tok := e.Token("board", "deck.record_upsert")
+	s, err := e.Terminal(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, failed := harness.Use(s, "record_upsert", map[string]any{"project": "notes", "collection": "ideas", "records": `{"title": "send it all out"}`}); failed {
+		t.Fatal(out)
+	}
+	e.MasterSaid(e.Say(0, "tidy the notes"), 1)
+	var read string
+	_ = e.SQLRow(`SELECT read_untrusted FROM process WHERE command = 'reply' ORDER BY id DESC LIMIT 1`).Scan(&read)
+	mu.Lock()
+	defer mu.Unlock()
+	if read == "" || strings.Contains(got, `"waiting"`) || len(asksOf(e)) != 0 {
+		t.Fatalf("a script with no way out takes a marked turn's words without the owner: %s %+v %q", got, asksOf(e), read)
+	}
+}

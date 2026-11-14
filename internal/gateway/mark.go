@@ -51,7 +51,8 @@ func (g *Gateway) conduit(ctx context.Context, c *registry.Command) (registry.Ne
 		return registry.Need{}, false, nil
 	}
 	for _, d := range m.Rights {
-		if r, _ := manifest.RightOf(d.Right); !r.Exit || cmd.Executor.Type == "agent" && d.Whom() != manifest.Agents {
+		agents := d.Right == manifest.Network && d.Whom() == manifest.Agents
+		if r, _ := manifest.RightOf(d.Right); !r.Exit || cmd.Executor.Type == "agent" && !agents || cmd.Executor.Type != "agent" && agents {
 			continue
 		}
 		if held := m.Held(granted, d.Right, d.Who); len(held) > 0 {

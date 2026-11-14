@@ -5,8 +5,8 @@ var exceptions = map[string][]string{
 	"now": {
 		"internal/app/asks/process_asks.go:80", "internal/app/asks/process_asks.go:84",
 		"internal/app/asks/process_asks.go:86", "internal/app/config.go:61", "internal/app/files/thumbs.go:31",
-		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:338",
-		"internal/app/processes/processes.go:342", "internal/app/processes/processes.go:335",
+		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:340",
+		"internal/app/processes/processes.go:344", "internal/app/processes/processes.go:337",
 		"internal/models/hops.go:200", "internal/models/hops.go:210",
 		"internal/models/meter.go:23", "internal/models/meter.go:32",
 		"internal/provider/acp/acp.go:189",

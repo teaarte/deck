@@ -9,9 +9,8 @@ import (
 	"deck2/tests/harness"
 )
 
-// TestRealBrowserRightsByModuleAndByRightRevokeAtOneTap: Rights in the settings lists the rights of the modules under
-// their module and, in the other tab, under the right; one tap revokes, and the next call asks; a module's report
-// counts what it did; on a desk and a phone.
+// TestRealBrowserRightsByModuleAndByRightRevokeAtOneTap: Rights lists the rights under the module and under the right;
+// one tap revokes and the next call asks; the report counts what a module did; on a desk and a phone.
 func TestRealBrowserRightsByModuleAndByRightRevokeAtOneTap(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()

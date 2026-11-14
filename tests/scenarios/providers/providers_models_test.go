@@ -921,7 +921,9 @@ func TestAlwaysOfMoneyHoldsToTheMostARunSpendsInParallel(t *testing.T) {
 		`, "rights": [{"right": "money", "what": ["openrouter"], "run_usd": 0.05, "why": "calls models"}]`)}, nil)
 	e.Grant("films", "money", "openrouter")
 	e.SaveScript("films", "scripts/main.py", parallelCalls)
-	asked := func() int { return len(slices.DeleteFunc(api.Calls(), func(c harness.ModelCall) bool { return c.Path != "/api/v1/chat/completions" })) }
+	asked := func() int {
+		return len(slices.DeleteFunc(api.Calls(), func(c harness.ModelCall) bool { return c.Path != "/api/v1/chat/completions" }))
+	}
 	before := asked()
 	id := e.Start("films", "media", map[string]any{"key": "openrouter/chat/completions", "other": picture, "times": 10})
 	got := e.WaitState(id, "done", "error")
@@ -950,7 +952,9 @@ func TestRunCapCountsUnpricedCalls(t *testing.T) {
 		`, "rights": [{"right": "money", "what": ["paid"], "run_usd": 0.05, "why": "calls models"}]`)}, nil)
 	e.Grant("films", "money", "paid")
 	e.SaveScript("films", "scripts/main.py", manyCalls)
-	asked := func() int { return len(slices.DeleteFunc(api.Calls(), func(c harness.ModelCall) bool { return c.Path != "/v1/chat/completions" })) }
+	asked := func() int {
+		return len(slices.DeleteFunc(api.Calls(), func(c harness.ModelCall) bool { return c.Path != "/v1/chat/completions" }))
+	}
 	before := asked()
 	id := e.Start("films", "media", map[string]any{"key": "paid/chat/completions", "other": `{"model": "fact-model", "messages": [{"role": "user", "content": "hi"}]}`, "times": 3})
 	got := e.WaitState(id, "done", "error")
@@ -994,15 +998,19 @@ func TestAnAgentPastTheMostARunSpendsWaitsForTheOwnersOnce(t *testing.T) {
 	e.Project("writer", harness.Manifest(`{"rights": [{"right": "money", "what": ["@text"], "run_usd": 0.05, "why": "writes with a model"}],
 	  "commands": [{"name": "write", "title": "Write", "description": "Writes.", "executor": {"type": "agent", "prompt": "Write."}}]}`))
 	e.Grant("writer", "money", "@text")
+	// The probe of a connection is no call of the turn.
+	asked := func() int {
+		return len(slices.DeleteFunc(api.Calls(), func(c harness.ModelCall) bool { return c.Path != "/v1/chat/completions" }))
+	}
 	e.Start("writer", "write", map[string]any{})
 	a := e.WaitAsk()
 	e.Until("the turn made its three calls", func() bool { return len(said()) == 3 })
-	if answers := said(); len(api.Calls()) != 2 || !strings.Contains(answers[2], "spent the most its module declares per run") {
-		t.Fatalf("two calls go by always, the third past 0.05 waits for the owner: %d calls, %q", len(api.Calls()), said())
+	if answers := said(); asked() != 2 || !strings.Contains(answers[2], "spent the most its module declares per run") {
+		t.Fatalf("two calls go by always, the third past 0.05 waits for the owner: %d calls, %q", asked(), said())
 	}
 	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow_always"}); code == 200 || !strings.Contains(string(out), "allow it once") {
 		t.Fatalf("past the cap the owner answers once, not always: %d %s", code, out)
 	}
 	e.Answer(a.ID, "allow")
-	e.Until("the owner's once makes the call", func() bool { return len(api.Calls()) >= 3 })
+	e.Until("the owner's once makes the call", func() bool { return asked() >= 3 })
 }

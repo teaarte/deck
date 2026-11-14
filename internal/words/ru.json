@@ -1340,5 +1340,12 @@
   "automation token %s": "токен автоматизации %s",
   "the data of %s, written by %s": "данные %s, записанные: %s",
   "the call %s of %s": "вызов %s, сделанный: %s",
-  "the network of its box: %s": "сеть его песочницы: %s"
+  "the network of its box: %s": "сеть его песочницы: %s",
+  "the work it continues of process %d, which read %s": "работа процесса %d, которую он продолжает, — тот прочитал %s",
+  "a remark of process %d, which read %s": "замечание процесса %d, прочитавшего %s",
+  "a remark of automation token %s": "замечание токена автоматизации %s",
+  "a note of deck that quotes process %d, which read %s": "заметка deck с цитатой процесса %d, прочитавшего %s",
+  "the memory of %s, where %s wrote": "память %s, куда писал: %s",
+  "the skills of %s, where %s wrote": "навыки %s, куда писал: %s",
+  "the skills of the workspace in %s, where %s wrote": "навыки пространства в %s, куда писал: %s"
 }

@@ -459,6 +459,7 @@ func TestAMarkedTurnCallsAScriptWithoutAWayOutFreely(t *testing.T) {
 	}
 	e.MasterSaid(e.Say(0, "tidy the notes"), 1)
 	var read string
+	// The master's reply turns, which the test does not name.
 	_ = e.SQLRow(`SELECT read_untrusted FROM process WHERE command = 'reply' ORDER BY id DESC LIMIT 1`).Scan(&read)
 	mu.Lock()
 	defer mu.Unlock()

@@ -51,7 +51,7 @@ func sources(out []string, parts ...*part) []process.Source {
 	var from []process.Source
 	for i, p := range parts {
 		if p != nil && out[i] != "" {
-			from = append(from, process.Source{As: "the memory of", Project: p.project})
+			from = append(from, process.Source{Project: p.project, OfProject: "the memory of %s, where %s wrote"})
 		}
 	}
 	return from

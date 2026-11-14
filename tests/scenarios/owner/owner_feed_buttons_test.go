@@ -131,6 +131,7 @@ func TestAMarkedTurnsButtonKeepsItsMarkPastADay(t *testing.T) {
 	e.Grant("notes", "send", "post", "send")
 	writer := e.Run(p, "work")
 	e.WaitState(writer, "done", "failed")
+	// The writer read a page and holds something of value: the turn's mark.
 	e.SQL(`UPDATE process SET read_untrusted = 'deck.web_fetch evil', holds_valued = 1 WHERE id = ?`, writer)
 	e.Settle()
 	e.Clock.Add(25 * time.Hour)

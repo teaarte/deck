@@ -182,7 +182,7 @@ func (s *Service) processRetry(ctx context.Context, act registry.Actor, in proce
 			return q.SetFollows(ctx, db.SetFollowsParams{Follows: store.ID(p.ID), ID: started.Process})
 		})
 		if err == nil {
-			s.Runner.Carries(ctx, started.Process, process.Source{As: "the work it continues of", Process: p.ID})
+			s.Runner.Carries(ctx, started.Process, process.Source{Process: p.ID, OfProcess: "the work it continues of process %d, which read %s"})
 		}
 		return out, err
 	}

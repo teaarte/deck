@@ -54,11 +54,11 @@ func (s *Service) Skills(ctx context.Context, projectID int64, names []string) (
 	}
 	var from []process.Source
 	if own {
-		from = append(from, process.Source{As: "the skills of", Project: p.ID})
+		from = append(from, process.Source{Project: p.ID, OfProject: "the skills of %s, where %s wrote"})
 	}
 	// Without the built-in master the workspace holds no mark.
 	if mp, err := access.Master(ctx, s.St.Q, p.WorkspaceID); workspace && err == nil {
-		from = append(from, process.Source{As: "the skills of the workspace in", Project: mp.ID})
+		from = append(from, process.Source{Project: mp.ID, OfProject: "the skills of the workspace in %s, where %s wrote"})
 	}
 	return out, from, nil
 }

@@ -43,12 +43,15 @@ func (r *Runner) Read(ctx context.Context, id int64, from string) {
 // Source is a piece of what deck puts into a turn's prompt or input, by where it came from: the words of a process or
 // the data of a module.
 type Source struct {
-	// As is what of it the turn gets: "the input of", "the memory of".
-	As      string
-	Process int64
-	Project int64
-	// Token is an automation token whose words it is.
-	Token int64
+	// Process is the process whose words it is, said by OfProcess of its id and what it read.
+	Process   int64
+	OfProcess string
+	// Project is the module whose data it is, said by OfProject of its name and who wrote there.
+	Project   int64
+	OfProject string
+	// Token is an automation token whose words it is, said by OfToken of its name.
+	Token   int64
+	OfToken string
 }
 
 // carried is where the untrusted text of the first of sources that holds some came from, empty for none.
@@ -56,17 +59,17 @@ func carried(ctx context.Context, q *db.Queries, sources ...Source) string {
 	for _, s := range sources {
 		if s.Process != 0 {
 			if p, err := q.GetProcess(ctx, s.Process); err == nil && p.ReadUntrusted != "" {
-				return fmt.Sprintf("%s process %d, which read %s", s.As, p.ID, p.ReadUntrusted)
+				return fmt.Sprintf(s.OfProcess, p.ID, p.ReadUntrusted)
 			}
 		}
 		if s.Project != 0 {
 			if p, err := q.GetProject(ctx, s.Project); err == nil && p.Untrusted != "" {
-				return fmt.Sprintf("%s %s, where %s wrote", s.As, p.Name, p.Untrusted)
+				return fmt.Sprintf(s.OfProject, p.Name, p.Untrusted)
 			}
 		}
 		if s.Token != 0 {
 			if t, err := q.GetToken(ctx, s.Token); err == nil && t.Trusted == 0 {
-				return fmt.Sprintf("%s automation token %s", s.As, t.Name)
+				return fmt.Sprintf(s.OfToken, t.Name)
 			}
 		}
 	}

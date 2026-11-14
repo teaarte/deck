@@ -467,7 +467,8 @@ func (s *Service) processRework(ctx context.Context, act registry.Actor, in proc
 		return nil, err
 	}
 	if err := s.Runner.Rework(ctx, in.Process, strings.TrimSpace(in.Remark+"\n\n"+given),
-		process.Source{As: "a remark of", Process: act.ProcessID, Token: act.Token}); err != nil {
+		process.Source{Process: act.ProcessID, OfProcess: "a remark of process %d, which read %s",
+			Token: act.Token, OfToken: "a remark of automation token %s"}); err != nil {
 		return nil, err
 	}
 	return process.Started{Process: in.Process}, nil

@@ -414,7 +414,8 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 func inherit(ctx context.Context, q *db.Queries, id int64, o Origin) error {
 	from := o.Read
 	if from == "" {
-		from = carried(ctx, q, append([]Source{{As: "the input of", Process: o.Parent}, {As: "the work it continues of", Process: o.Follows}}, o.Carries...)...)
+		from = carried(ctx, q, append([]Source{{Process: o.Parent, OfProcess: "the input of process %d, which read %s"},
+			{Process: o.Follows, OfProcess: "the work it continues of process %d, which read %s"}}, o.Carries...)...)
 	}
 	if from == "" && o.Resume && o.Session != "" {
 		read, err := q.SessionRead(ctx, db.SessionReadParams{Session: o.Session, ID: id})

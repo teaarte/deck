@@ -285,8 +285,10 @@ script's last call with an error takes the type of that answer (`input.invalid`,
   "confirm in the cockpit";
 - files go into `$DECK_RESULTS`; the result field `files: [{"path": "...", "record": <id>}]` attaches them;
 - a script installs its own packages when it runs: the registries are hosts of its `network` (Python: `pypi.org`,
-  `files.pythonhosted.org`; Node: `registry.npmjs.org`), the cache lives in `$DECK_DATA/.cache`. Programs it needs
-  from the machine go into `scripts[].programs` (`"uv"`, or `{"name": "typst", "install": "brew install typst"}`).
+  `files.pythonhosted.org`; Node: `registry.npmjs.org`), the cache lives in `$DECK_DATA/.cache`. deck removes a
+  cache untouched for 30 days (uv's once no script of the module ran for 30 days) and leaves caches out of snapshots
+  and exports, so nothing the module needs lives there. Programs it needs from the machine go into
+  `scripts[].programs` (`"uv"`, or `{"name": "typst", "install": "brew install typst"}`).
   deck's image carries the programs `python3`, `node`, `uv`, `bash`, `git`, `curl`, `ffmpeg`, `unzip` and
   `chromium`; a script names them all the same, for a deck or a node outside the image. A missing program refuses
   the run and is a red health row with how to get it: ask the owner, never work around it. A script of

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -29,6 +30,8 @@ func (s *server) start(ctx context.Context, h *Host, key string, spec Spec) erro
 			return fmt.Errorf("MCP server %s did not start: %v", key, err)
 		}
 		s.stderr, s.secrets, s.proc = stderr, spec.Secrets, p
+		// The time of its home is when the server last started: the cleanup keeps the caches in it by it.
+		_ = os.Chtimes(spec.Box.Home, h.Now(), h.Now())
 		transport = &mcp.IOTransport{Reader: p.Stdout, Writer: p.Stdin}
 	}
 	sess, err := client.Connect(ctx, transport, nil)

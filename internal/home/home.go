@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -174,6 +175,13 @@ func (l Layout) Data(project int64) string    { return l.work("projects", fmt.Sp
 
 // Cache is the folder of the caches of the programs of a project's scripts: rebuilt when gone.
 func (l Layout) Cache(project int64) string { return filepath.Join(l.Data(project), ".cache") }
+
+// Rebuilt says a folder of a module's folders holds what its programs fill again: caches, environments and
+// downloaded models, left out of snapshots and exports.
+func Rebuilt(name string) bool {
+	return strings.HasPrefix(name, ".") || strings.Contains(strings.ToLower(name), "cache") ||
+		slices.Contains([]string{"node_modules", "hf", "venv", "site-packages"}, name)
+}
 
 // Scripts is where the files of a project's scripts stay between runs, so their environments stay too; Drafts is that
 // of trial runs.

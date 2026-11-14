@@ -692,6 +692,7 @@
   "files: %d MB, free: %d MB": "файлы: %d МБ, свободно: %d МБ",
   "base: %d MB, the largest tables in MB: %s; snapshots: %d MB, files: %d MB, free: %d MB": "база: %d МБ, крупнейшие таблицы в МБ: %s; снимки: %d МБ, файлы: %d МБ, свободно: %d МБ",
   "the disk is almost full; %s": "диск почти заполнен; %s",
+  "%s; modules: %d MB, caches of them: %d MB, by module in MB: %s; runs: %d MB": "%s; модули: %d МБ, из них кеши: %d МБ, по модулям в МБ: %s; запуски: %d МБ",
   "deck could not look for an update: %s": "deck не смог проверить обновление: %s",
   "%s; the master did not take it: %s": "%s; мастер не взял: %s",
   "there is no master": "мастера нет",

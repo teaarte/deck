@@ -263,12 +263,6 @@ type leftOut struct {
 	squeezed bool
 }
 
-// rebuilt are folders of data folders their programs fill again: caches, environments and downloaded models.
-func rebuilt(name string) bool {
-	return strings.HasPrefix(name, ".") || strings.Contains(strings.ToLower(name), "cache") ||
-		slices.Contains([]string{"node_modules", "hf", "venv", "site-packages"}, name)
-}
-
 // writeSnapshot archives the base, the stored files and the data folders, or one project's, but for rebuilt folders
 // and data past budget bytes; a file it cannot read whole is left out and named.
 func writeSnapshot(path string, h home.Layout, copyDB, files string, project, budget int64) (leftOut, error) {
@@ -307,7 +301,7 @@ func writeSnapshot(path string, h home.Layout, copyDB, files string, project, bu
 				}
 				return nil
 			}
-			if d.IsDir() && p != dir && dir != files && rebuilt(d.Name()) {
+			if d.IsDir() && p != dir && dir != files && home.Rebuilt(d.Name()) {
 				return filepath.SkipDir
 			}
 			if !d.Type().IsRegular() {

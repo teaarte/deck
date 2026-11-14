@@ -417,7 +417,7 @@ func TestTheDiskRowNamesTheBaseItsLargestTablesAndTheSnapshots(t *testing.T) {
 	e.Sweep()
 	e.App.Snapshots.CheckDisk(context.Background(), e.Clock.Now().Add(time.Hour))
 	row := e.WaitHealth("disk", "ok")
-	m := regexp.MustCompile(`^base: (\d+) MB, the largest tables in MB: (\w+ \d+, \w+ \d+, \w+ \d+); snapshots: (\d+) MB, files: \d+ MB, free: \d+ MB$`).FindStringSubmatch(row.Error)
+	m := regexp.MustCompile(`^base: (\d+) MB, the largest tables in MB: (\w+ \d+, \w+ \d+, \w+ \d+); snapshots: (\d+) MB, files: \d+ MB, free: \d+ MB; modules: \d+ MB, caches of them: \d+ MB, by module in MB: master 0; runs: \d+ MB$`).FindStringSubmatch(row.Error)
 	if m == nil || m[1] == "0" && m[3] == "0" {
 		t.Fatalf("the disk row names the base, its three largest tables and the snapshots: %q", row.Error)
 	}

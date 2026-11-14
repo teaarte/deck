@@ -510,3 +510,8 @@ and bring the modules in line.
   `requires-python` that python does not meet fails as `program.missing` naming both versions. The file of a script
   stays under `work/projects/<id>/scripts/` by its path in the module (a trial's under `drafts/`), so all runs of it
   share one uv environment.
+- 2026-11-14: the daily cleanup removes a cache of a module untouched for 30 days: each folder of `$DECK_DATA/.cache`
+  and of the `.cache` and `.npm` of its MCP servers' homes whole, uv's by the last run of a script of the module, and
+  uv's environments of a script beyond one a file. An export of a module carries no caches, by the rule of snapshots
+  (folders starting with a dot or named like a cache, `node_modules`, `hf`, `venv`, `site-packages`). The disk row
+  names the folder of every module and its caches.

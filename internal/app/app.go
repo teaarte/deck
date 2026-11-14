@@ -125,7 +125,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	// Every service is a field of a, so each is built whole with the functions of the others.
 	a := &App{}
 	a.Cfg, a.Home, a.Store, a.Bus, a.Scripts = cfg, h, st, events.NewBus(), script.New(cfg.Sandbox, h)
-	a.Scripts.Image = cfg.Image
+	a.Scripts.Image, a.Scripts.Now = cfg.Image, cfg.Now
 	registry.Declare(cfg.Commands, events.Topics)
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.bg.ctx = a.ctx

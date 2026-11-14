@@ -90,6 +90,9 @@ func (s *Service) writeData(ctx context.Context, zw *zip.Writer, p db.Project) (
 		if err != nil {
 			return err
 		}
+		if d.IsDir() && rel != "." && home.Rebuilt(d.Name()) {
+			return fs.SkipDir
+		}
 		if !d.Type().IsRegular() {
 			return nil
 		}

@@ -20,7 +20,7 @@ const lowDisk = 5 << 30
 const tablesEvery = time.Hour
 
 // CheckDisk records what takes the disk deck keeps its state on: the base with its largest tables, the snapshots,
-// files/ and the free space.
+// files/, the free space and, by the daily walk, the folders of the modules and the runs.
 func (s *Service) CheckDisk(ctx context.Context, now time.Time) {
 	if now.Sub(s.disk) < 10*time.Minute {
 		return
@@ -37,11 +37,15 @@ func (s *Service) CheckDisk(ctx context.Context, now time.Time) {
 	free := uint64(st.Bavail) * uint64(st.Bsize)
 	text := fmt.Sprintf("files: %d MB, free: %d MB", size>>20, free>>20)
 	s.weights.Lock()
-	base, tables := s.base, s.tables
+	base, tables, work := s.base, s.tables, s.work
 	s.weights.Unlock()
 	if tables != "" {
 		text = fmt.Sprintf("base: %d MB, the largest tables in MB: %s; snapshots: %d MB, files: %d MB, free: %d MB",
 			base>>20, tables, folderSize(s.Home.Backups())>>20, size>>20, free>>20)
+	}
+	if work != nil {
+		text = fmt.Sprintf("%s; modules: %d MB, caches of them: %d MB, by module in MB: %s; runs: %d MB",
+			text, work.modules>>20, work.caches>>20, work.by, work.runs>>20)
 	}
 	status := health.OK
 	if free < lowDisk {

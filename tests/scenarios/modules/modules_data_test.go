@@ -24,11 +24,13 @@ func TestAModuleTravelsWithItsDataAndItsDataIsReset(t *testing.T) {
 	e.Must("deck.record_upsert", map[string]any{"project": "links", "collection": "sources", "records": `{"url": "https://a.example"}`}, nil)
 	e.Secret("links", "feed", "s3cret-feed-value")
 	data := e.App.Home.Data(e.ProjectID("links"))
-	if err := os.MkdirAll(filepath.Join(data, "cache"), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(data, "cache", "page.bin"), []byte{0, 1, 2, 3}, 0o600); err != nil {
-		t.Fatal(err)
+	for _, f := range []string{"pages/page.bin", ".cache/uv/env.bin", "node_modules/x/index.js", "models/hf/w.bin"} {
+		if err := os.MkdirAll(filepath.Dir(filepath.Join(data, f)), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(data, f), []byte{0, 1, 2, 3}, 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	export := e.RowAction("", "settings", "deck.project_export", map[string]any{"project": "links", "data": "true"})
@@ -51,9 +53,14 @@ func TestAModuleTravelsWithItsDataAndItsDataIsReset(t *testing.T) {
 	for _, f := range zr.File {
 		names = append(names, f.Name)
 	}
-	for _, want := range []string{"links/manifest.json", "links/.deck-data/records/sources.jsonl", "links/.deck-data/memory/owner-tea.md", "links/.deck-data/data/cache/page.bin"} {
+	for _, want := range []string{"links/manifest.json", "links/.deck-data/records/sources.jsonl", "links/.deck-data/memory/owner-tea.md", "links/.deck-data/data/pages/page.bin"} {
 		if !slices.Contains(names, want) {
 			t.Fatalf("the .zip with data has %s: %v", want, names)
+		}
+	}
+	for _, n := range names {
+		if strings.Contains(n, ".cache") || strings.Contains(n, "node_modules") || strings.Contains(n, "/hf/") {
+			t.Fatalf("an export carries no caches, environments or downloaded models, as a snapshot: %v", names)
 		}
 	}
 	if bytes.Contains(body, []byte("s3cret-feed-value")) {
@@ -75,7 +82,7 @@ func TestAModuleTravelsWithItsDataAndItsDataIsReset(t *testing.T) {
 	if len(recs) != 1 || !strings.Contains(fmtJSON(recs[0]), "a.example") {
 		t.Fatalf("the import brings the records back: %+v", recs)
 	}
-	if b, err := os.ReadFile(filepath.Join(e.App.Home.Data(im.ID), "cache", "page.bin")); err != nil || !bytes.Equal(b, []byte{0, 1, 2, 3}) {
+	if b, err := os.ReadFile(filepath.Join(e.App.Home.Data(im.ID), "pages", "page.bin")); err != nil || !bytes.Equal(b, []byte{0, 1, 2, 3}) {
 		t.Fatalf("the import brings the data folder back: %v %v", b, err)
 	}
 	var doc struct{ Text string }

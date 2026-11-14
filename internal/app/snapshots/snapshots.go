@@ -31,6 +31,8 @@ type Service struct {
 	weights sync.Mutex
 	base    int64
 	tables  string
+	// work is what the folders of the modules and the runs take, by the last daily walk.
+	work *workSize
 	// Budget is how much the snapshots of backups/ take together, the newest always kept; half of it is the most of
 	// the data folders one takes.
 	Budget int64

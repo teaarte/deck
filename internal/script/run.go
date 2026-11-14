@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
@@ -32,6 +33,8 @@ type Exec struct {
 	Keep home.Layout
 	// Image is the container image deck runs from: a program not in it comes only with a newer image.
 	Image string
+	// Now is deck's clock, which stamps the file of a script at each run; none on a node.
+	Now func() time.Time
 }
 
 func New(sb *sandbox.Sandbox, h home.Layout) *Exec { return &Exec{Sandbox: sb, Home: h, Keep: h} }
@@ -147,7 +150,11 @@ func (x *Exec) place(j Job) (string, error) {
 	}
 	file := filepath.Join(dir, filepath.FromSlash(rel))
 	if old, err := home.ReadIn(dir, filepath.FromSlash(rel), int64(len(j.Source))+1); err == nil && string(old) == j.Source {
-		return file, nil
+		if x.Now == nil {
+			return file, nil
+		}
+		// The time of the file is when a script of the module last ran: the cleanup keeps uv's cache by it.
+		return file, os.Chtimes(file, x.Now(), x.Now())
 	}
 	t, err := home.Create(filepath.Dir(file))
 	if err != nil {

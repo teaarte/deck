@@ -52,7 +52,7 @@ const (
 )
 
 // cleanup removes expired records, files left without an owner, stale uploads, old journal rows and notify
-// lines, and old agent work folders, and cuts the input and result of old runs.
+// lines, caches of modules and old agent work folders, and cuts the input and result of old runs.
 func (s *Service) cleanup(ctx context.Context, now time.Time) {
 	s.Expire(ctx, now)
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -93,6 +93,7 @@ func (s *Service) cleanup(ctx context.Context, now time.Time) {
 			_ = os.Remove(f)
 		}
 	}
+	s.tidyWork(ctx, now)
 	runs, _ := os.ReadDir(s.Home.Runs())
 	for _, r := range runs {
 		id, err := strconv.ParseInt(r.Name(), 10, 64)

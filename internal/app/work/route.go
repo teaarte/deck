@@ -135,9 +135,11 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 			s.answered(ctx, m, next, status)
 			s.record(ctx, act, m, c, status, u)
 		}
-		h.Limited = func(ctx context.Context, hdr http.Header, words string) bool {
-			_, retry := s.Limited(ctx, act.Workspace, m.Name, provider.LimitEnds(hdr, words, s.Now()), words)
-			return retry
+		if m.ID != 0 {
+			h.Limited = func(ctx context.Context, hdr http.Header, words string) bool {
+				_, retry := s.Limited(ctx, act.Workspace, m.Name, provider.LimitEnds(hdr, words, s.Now()), words)
+				return retry
+			}
 		}
 		paused := func(ctx context.Context) bool {
 			hl, err := s.Health(ctx, act.Workspace, m.Name)

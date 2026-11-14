@@ -87,7 +87,7 @@ func TestCodexOutOfCreditsEndsItsTurn(t *testing.T) {
 	if got := e.WaitState(id, "waiting:limit", "error", "done"); got.State != "waiting:limit" {
 		t.Fatalf("the process waits for the limit, its turn ended: %+v", got)
 	}
-	if h := e.WaitHealth("provider:codex", "paused"); !strings.Contains(h.Error, "workspace_member_credits_depleted") {
+	if h := e.WaitHealth("limit:codex", "paused"); !strings.Contains(h.Error, "workspace_member_credits_depleted") {
 		t.Fatalf("health says which limit: %+v", h)
 	}
 }

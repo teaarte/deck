@@ -77,9 +77,15 @@ func TestAFreeLimitOfAnAccountPausesItsFreeModelsOnly(t *testing.T) {
 	if status["or-b"] != "paused" || status["or-paid"] == "paused" || status["nv-free"] == "paused" {
 		t.Fatalf("only the free models of openrouter are paused: %v", status)
 	}
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"or-b", "or-a"}}, nil)
+	before := callsOf(api, "b:free")
+	e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "all paused"}), "done", "error")
+	if callsOf(api, "b:free") != before+1 {
+		t.Fatalf("with every model paused, each goes in its order: %+v", made(api))
+	}
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"or-a", "or-b", "or-paid"}}, nil)
 	e.Clock.Add(2 * time.Minute)
-	before := callsOf(api, "a:free")
+	before = callsOf(api, "a:free")
 	e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "after"}), "done", "error")
 	if callsOf(api, "a:free") != before+1 {
 		t.Fatalf("at the end of the pause the first free model is called again: %+v", made(api))

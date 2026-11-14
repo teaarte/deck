@@ -9,6 +9,9 @@ import (
 	"deck2/internal/store/db"
 )
 
+// shortLimit is the longest limit of a subscription a turn waits out on the same login, not handed on.
+const shortLimit = time.Minute
+
 // pause holds a process on a usage limit of its provider until it is called again, until the owner stops it; Wake
 // then goes on in the same session.
 func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int64, until time.Time) {

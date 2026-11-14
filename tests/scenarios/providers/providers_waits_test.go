@@ -30,7 +30,9 @@ func TestTheModelsTabSaysFirstWhatWaitsForTheOwner(t *testing.T) {
 	e.Must("deck.model_set", map[string]any{"connection": "claude", "model": "claude-haiku", "kind": "text"}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "models": []string{"groq/busy", "groq/fact-model"}}, nil)
 	e.Project("films", harness.ModelManifest)
+	// A first limit without a reset pauses nothing; the second does.
 	e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "busy"}), "done", "error")
+	e.WaitState(e.Start("films", "factcheck", map[string]any{"claim": "busy again"}), "done", "error")
 
 	var conns struct {
 		Connections []struct{ Name, API, Where string }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -48,8 +49,9 @@ type line struct {
 		} `json:"content"`
 	} `json:"message"`
 	RateLimitInfo *struct {
-		Status   string `json:"status"`
-		ResetsAt int64  `json:"resetsAt"`
+		Status         string            `json:"status"`
+		ResetsAt       int64             `json:"resetsAt"`
+		UnifiedWindows map[string]window `json:"unifiedWindows"`
 	} `json:"rate_limit_info"`
 }
 
@@ -141,6 +143,9 @@ func (t *turn) line(raw []byte) {
 		if l.RateLimitInfo.Status == "rejected" {
 			t.limited = true
 			t.res.ResetsAt = l.RateLimitInfo.ResetsAt
+		}
+		if q := quota(l.RateLimitInfo.UnifiedWindows); len(q) > 0 {
+			t.res.Quota = q
 		}
 		emit(provider.Event{Kind: provider.EventRateLimit, Text: l.RateLimitInfo.Status})
 	case "result":
@@ -262,4 +267,25 @@ func resultText(raw json.RawMessage) string {
 		}
 	}
 	return strings.Join(out, "\n")
+}
+
+// window is one window of the quota in a rate_limit_event.
+type window struct {
+	Utilization float64 `json:"utilization"`
+	ResetsAt    int64   `json:"resetsAt"`
+}
+
+// windowHours are the windows of the quota of a subscription Claude Code tells, by name.
+var windowHours = map[string]int64{"five_hour": 5, "seven_day": 7 * 24}
+
+// quota are the windows of a rate_limit_event, the shortest first.
+func quota(ws map[string]window) []provider.Window {
+	var out []provider.Window
+	for name, w := range ws {
+		if h, ok := windowHours[name]; ok {
+			out = append(out, provider.Window{Hours: h, Used: w.Utilization, ResetsAt: w.ResetsAt})
+		}
+	}
+	slices.SortFunc(out, func(a, b provider.Window) int { return int(a.Hours - b.Hours) })
+	return out
 }

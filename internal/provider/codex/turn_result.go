@@ -12,6 +12,11 @@ import (
 // finish accepts the turn only if it completed exactly once, without an error, in the thread of the session.
 func (t *turn) finish() (provider.Result, error) {
 	res := t.res
+	for _, w := range []*RateLimitWindow{t.limits.Primary, t.limits.Secondary} {
+		if w != nil && w.WindowDurationMins > 0 {
+			res.Quota = append(res.Quota, provider.Window{Hours: w.WindowDurationMins / 60, Used: float64(w.UsedPercent) / 100, ResetsAt: w.ResetsAt})
+		}
+	}
 	if t.completed > 1 {
 		return res, fmt.Errorf("codex reported %d completions of one turn", t.completed)
 	}

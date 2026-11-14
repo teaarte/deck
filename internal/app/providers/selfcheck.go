@@ -72,6 +72,7 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 	}
 	// A model of an ACP agent not on this machine is not installed rather than red: its checks before go.
 	spaces, _ := s.St.Q.ListWorkspaces(ctx)
+	s.sweepPauses(ctx, spaces, now)
 	for _, ws := range spaces {
 		rows, _ := s.St.Q.ListModels(ctx, ws)
 		for _, r := range rows {
@@ -230,6 +231,9 @@ func (s *Service) startCheck(name string, force bool) bool {
 		}
 		s.mu.Unlock()
 		s.writeCheck(context.WithoutCancel(ctx), name, status, text, version, verdict, res.Speed)
+		if status == health.OK || status == health.Warning {
+			s.lift(context.WithoutCancel(ctx), name)
+		}
 		if a, ok := sc.(interface{ AgentName() string }); ok && ctx.Err() == nil {
 			s.agentRow(ctx, a.AgentName(), res.Version, versionErr(res))
 		}

@@ -544,3 +544,11 @@ and bring the modules in line.
   a model tried through the cloud) and `first-setup` (three ways to reach models and the assignments of each kind). A
   `files: gpu` right is for rendering and video on Linux; on a Mac the box lets every program use the graphics card.
   The master reads `spend_list` and `spend_days_list`, to count how often a module calls a paid model.
+- 2026-11-14: a usage limit pauses what its answer speaks of: OpenRouter's `free-models-per-*` pauses every free model
+  of that connection (health row `limit:<connection>:free`), a limit of a CLI's subscription every way to it, on a node
+  too (`limit:<connection>`), any other the model. A limit without a reset is tried again once in two seconds (a CLI,
+  which retried already, pauses at once), then pauses 5, 10, 20, 40 minutes and an hour at most. A call of an `@role`
+  through `model_call` or `$DECK_MODELS` skips a paused model until its end and calls a model that did not answer
+  last for ten minutes; a 429 makes a model paused, not red. The row `limit:<cli>` shows the windows of the
+  subscription (5 hours, week: share used, reset); at 98 % new turns go to the next model until the window resets, a
+  limit that resets within a minute is waited out on the same login.

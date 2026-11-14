@@ -49,6 +49,8 @@ type Service struct {
 	Exists func(ctx context.Context, workspace int64, name string) bool
 	// Limited pauses a model on a usage limit it answered, ends in unix seconds or zero; retry says call it once more.
 	Limited func(ctx context.Context, workspace int64, name string, ends int64, words string) (until time.Time, retry bool)
+	// Answered hears that a model answered a call, which ends the streak of its limits.
+	Answered func(ctx context.Context, workspace int64, name string, ok bool, ws []provider.Window)
 	// Free says a model of the workspace costs nothing.
 	Free func(ctx context.Context, workspace int64, name string) bool
 	// Spare says a module may remove a model without the owner.

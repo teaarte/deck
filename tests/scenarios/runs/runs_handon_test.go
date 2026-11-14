@@ -29,7 +29,7 @@ func TestAModelAtItsLimitHandsTheWorkOnToTheNextModel(t *testing.T) {
 		c.Req.Emit(provider.Event{Kind: provider.EventMessage, Text: "rendered the stills of scene 1"})
 		c.Req.Emit(provider.Event{Kind: provider.EventTool, Title: "shell", Text: "render --stills scene1"})
 		c.Req.Emit(provider.Event{Kind: provider.EventRateLimit, Text: "workspace_member_credits_depleted"})
-		return harness.Limited(harness.T0)
+		return harness.Limited(time.Now().Add(time.Hour))
 	}, func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	})

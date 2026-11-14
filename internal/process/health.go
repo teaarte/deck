@@ -10,9 +10,10 @@ import (
 	"deck2/internal/store/db"
 )
 
-// unpause clears the pause of a provider once the reset a paused turn waited for has come; the turn tells again.
+// unpause clears the pause of a provider once the reset a paused turn waited for has come; the turn tells again. A
+// longer pause the provider met meanwhile stays.
 func unpause(ctx context.Context, q *db.Queries, now time.Time, name string) error {
-	if h, err := health.Get(ctx, q, health.Of{}, health.Provider(name)); err != nil || h.Status != health.Paused {
+	if h, err := health.Get(ctx, q, health.Of{}, health.Provider(name)); err != nil || h.Status != health.Paused || health.Until(h).After(now) {
 		return nil
 	}
 	return ProviderHealth(ctx, q, now, name, health.OK, "")

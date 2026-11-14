@@ -204,6 +204,7 @@ func sendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 			continue
 		}
 		if h.Paused != nil && h.Paused(ctx) {
+			last = fault.New(fault.ModelLimit, fmt.Sprintf("deck: %s went on the pause of a limit during the call", h.Name))
 			continue
 		}
 		release, waited, err := queued(ctx, h)
@@ -251,8 +252,9 @@ func sendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 			_ = resp.Body.Close()
 			// A next model takes the call in place of the retry.
-			retry := h.Limited(ctx, resp.Header, string(raw)) && again != i && i == len(hops)-1
-			if retry || i < len(hops)-1 {
+			more := goesOn(ctx, hops[i+1:])
+			retry := h.Limited(ctx, resp.Header, string(raw)) && again != i && !more
+			if retry || more {
 				release()
 				h.Done(ctx, resp.StatusCode, nil)
 				last = fault.New(fault.ModelLimit, fmt.Sprintf("deck: %s answered %s: %s", h.Connection, resp.Status, untrusted.Cut(strings.TrimSpace(string(raw)), 500)))
@@ -269,7 +271,7 @@ func sendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 			}
 			resp.Body = io.NopCloser(bytes.NewReader(raw))
 		}
-		if Fallible(resp.StatusCode) && i < len(hops)-1 {
+		if Fallible(resp.StatusCode) && goesOn(ctx, hops[i+1:]) {
 			raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
 			_ = resp.Body.Close()
 			release()
@@ -282,6 +284,16 @@ func sendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 		return resp, i, nil
 	}
 	return nil, -1, last
+}
+
+// goesOn says a call may go on to one of the hops after the one that failed: one not paused since it was routed.
+func goesOn(ctx context.Context, after []Hop) bool {
+	for _, h := range after {
+		if h.Paused == nil || !h.Paused(ctx) {
+			return true
+		}
+	}
+	return false
 }
 
 // bytesPerToken is how deck guesses the tokens of a request before it goes: four bytes a token.

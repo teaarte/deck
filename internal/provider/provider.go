@@ -107,12 +107,22 @@ type Result struct {
 	SessionMissing bool
 	// ResetsAt is when a usage limit ends, in unix seconds.
 	ResetsAt int64
+	// Quota are the windows of the subscription of a CLI as the turn last told them, none for an API.
+	Quota []Window
 	// Denied are the tools the provider refused by its own rules or auto mode, one entry per refused call.
 	Denied []string
 	// Refusal is the status and words of the model API when it refused the last call of the turn as a bad request.
 	Refusal string
 	// Past is why deck did not send the last call of the turn: it was past a limit of the model in deck's settings.
 	Past string
+}
+
+// Window is one window of the quota of a subscription: its length in hours, the share of it used (0 to 1) and when it
+// resets, in unix seconds.
+type Window struct {
+	Hours    int64
+	Used     float64
+	ResetsAt int64
 }
 
 // Is reports whether the turn failed with type t.

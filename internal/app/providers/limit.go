@@ -9,6 +9,7 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/models"
 	"deck2/internal/provider"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -30,11 +31,17 @@ type streak struct {
 // freeWords are what OpenRouter says of the limit of the free requests of an account.
 var freeWords = []string{"free-models-per-"}
 
-// scope is the subject and owner of the health row a limit of model name pauses: every model of the connection of a
-// CLI, the free models of an API connection when the words say the account's free requests ran out, else the model.
+// scoped is a health row: its subject and whose it is.
+type scoped struct {
+	subject string
+	of      health.Of
+}
+
+// scope is the row a limit of a model pauses: every way to a CLI (a row of the machine, as its login), the free models
+// of a connection when the words say the account's free requests ran out, else the model.
 func (s *Service) scope(ctx context.Context, workspace int64, name, words string) (string, health.Of) {
 	if cli := s.cliOf(ctx, workspace, name); cli != "" {
-		return health.Limit(cli), health.Of{Workspace: workspace}
+		return health.Limit(cli), health.Of{}
 	}
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
 	if err != nil {
@@ -67,15 +74,20 @@ func (s *Service) cliOf(ctx context.Context, workspace int64, name string) strin
 }
 
 // scopes are the rows of limits wider than model name that hold it too.
-func (s *Service) scopes(ctx context.Context, workspace int64, name string) []string {
+func (s *Service) scopes(ctx context.Context, workspace int64, name string) []scoped {
 	if cli := s.cliOf(ctx, workspace, name); cli != "" {
-		return []string{health.Limit(cli)}
+		return []scoped{{health.Limit(cli), health.Of{}}}
 	}
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
 	if err != nil || row.Model.Free == 0 {
 		return nil
 	}
-	return []string{health.FreeLimit(row.Connection.Name)}
+	return []scoped{{health.FreeLimit(row.Connection.Name), health.Of{Workspace: workspace}}}
+}
+
+// streakKey names the streak of limits without a reset of a health row.
+func streakKey(subject string, of health.Of) string {
+	return fmt.Sprintf("%d/%s", of.Workspace, subject)
 }
 
 // Limited pauses the scope of a usage limit of a model until ends (unix seconds, zero for none) and says when it is
@@ -83,11 +95,12 @@ func (s *Service) scopes(ctx context.Context, workspace int64, name string) []st
 func (s *Service) Limited(ctx context.Context, workspace int64, name string, ends int64, words string) (until time.Time, retry bool) {
 	now := s.Now()
 	subject, of := s.scope(ctx, workspace, name, words)
+	cli := s.cliOf(ctx, workspace, name) != ""
 	s.mu.Lock()
 	if s.unknown == nil {
 		s.unknown = map[string]streak{}
 	}
-	key := fmt.Sprintf("%d/%s", of.Workspace, subject)
+	key := streakKey(subject, of)
 	st := s.unknown[key]
 	switch {
 	case ends > now.Unix():
@@ -96,18 +109,25 @@ func (s *Service) Limited(ctx context.Context, workspace int64, name string, end
 	default:
 		if st.n == 0 || now.After(st.end.Add(unknownQuiet)) {
 			st = streak{}
+			if cli {
+				// A CLI reports a limit after its own retries: the first pause comes at once.
+				st.n = 1
+			}
 		}
 		st.n++
 		if st.n == 1 {
 			retry, until = true, now.Add(unknownRetry)
 		} else {
-			until = now.Add(min(unknownFirst<<(st.n-2), unknownMost))
+			until = now.Add(min(unknownFirst<<min(st.n-2, 4), unknownMost))
 		}
 		st.end = until
 		s.unknown[key] = st
 	}
 	s.mu.Unlock()
 	if retry {
+		if h, err := health.Get(ctx, s.St.Q, of, subject); err == nil && h.Status == health.Paused && health.Until(h).After(until) {
+			return health.Until(h), false
+		}
 		return until, true
 	}
 	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
@@ -115,6 +135,8 @@ func (s *Service) Limited(ctx context.Context, workspace int64, name string, end
 		switch {
 		case err != nil:
 		case h.Status == health.Paused && health.Until(h).After(until):
+			// A longer pause stands: the model is called again at its end.
+			until = health.Until(h)
 			return nil
 		case health.Kind(subject) == health.OfProvider && (h.Status == health.Checking || h.Status == health.Error):
 			// The health of a provider in its self-check or red by it is the self-check's.
@@ -124,4 +146,120 @@ func (s *Service) Limited(ctx context.Context, workspace int64, name string, end
 	})
 	s.Recheck(name, until)
 	return until, false
+}
+
+// Subscription is the connection of the CLI whose subscription a provider runs on, on a node too; empty for any other.
+func (s *Service) Subscription(ctx context.Context, workspace int64, name string) string {
+	return s.cliOf(ctx, workspace, name)
+}
+
+// nearly is the share of a window of a subscription past which a new turn goes to the next model.
+const nearly = 0.98
+
+// Answered hears how a turn or call of a model went: an answer ends the streak of its unknown limits; the windows a CLI
+// told go in the row of its subscription, or a pause until the window past nearly resets.
+func (s *Service) Answered(ctx context.Context, workspace int64, name string, ok bool, ws []provider.Window) {
+	if ok {
+		own, of := s.scope(ctx, workspace, name, "")
+		keys := []string{streakKey(own, of)}
+		for _, sc := range s.scopes(ctx, workspace, name) {
+			keys = append(keys, streakKey(sc.subject, sc.of))
+		}
+		s.mu.Lock()
+		for _, k := range keys {
+			delete(s.unknown, k)
+		}
+		s.mu.Unlock()
+	}
+	cli := s.cliOf(ctx, workspace, name)
+	if cli == "" || len(ws) == 0 {
+		return
+	}
+	now := s.Now()
+	var spent time.Time
+	var hours int64
+	var args []any
+	for _, w := range ws[:min(len(ws), 2)] {
+		end := time.Unix(w.ResetsAt, 0)
+		args = append(args, windowName(w.Hours), int(w.Used*100+0.5), store.Time(end))
+		if w.Used >= nearly && end.After(now) && end.After(spent) {
+			spent, hours = end, w.Hours
+		}
+	}
+	subject, of := health.Limit(cli), health.Of{}
+	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		if h, err := health.Get(ctx, q, of, subject); err == nil && h.Status == health.Paused && !health.Ended(h, now) && !health.Until(h).Before(spent) {
+			return nil
+		}
+		if !spent.IsZero() {
+			return health.Pause(ctx, q, now, of, subject, spent, fmt.Sprintf(quotaNearly, windowName(hours), int(nearly*100)))
+		}
+		text := quotaOne
+		if len(args) > 3 {
+			text = quotaTwo
+		}
+		_, err := health.Set(ctx, q, now, of, subject, health.OK, fmt.Sprintf(text, args...))
+		return err
+	})
+}
+
+// The words of the row of a subscription's quota: one or two windows as they stand, and a window nearly used up.
+const (
+	quotaOne    = "%s: %d%% used, resets at %s"
+	quotaTwo    = "%s: %d%% used, resets at %s; %s: %d%% used, resets at %s"
+	quotaNearly = "the %s window of the subscription is %d%% used; new turns go to the next model until it resets"
+)
+
+// windowName is a window of a quota by its length, in deck's words.
+func windowName(hours int64) string {
+	switch hours {
+	case 5:
+		return "5 hours"
+	case 7 * 24:
+		return "week"
+	}
+	return fmt.Sprintf("%d hours", hours)
+}
+
+// lift ends the pause of the subscription of a CLI whose self-check went through: its login answers again.
+func (s *Service) lift(ctx context.Context, name string) {
+	spaces, _ := s.St.Q.ListWorkspaces(ctx)
+	for _, ws := range spaces {
+		if cli := s.cliOf(ctx, ws, name); cli != "" {
+			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+				if h, err := health.Get(ctx, q, health.Of{}, health.Limit(cli)); err != nil || h.Status != health.Paused {
+					return nil
+				}
+				return health.Clear(ctx, q, health.Of{}, health.Limit(cli))
+			})
+			return
+		}
+	}
+}
+
+// sweepPauses clears the rows of pauses of limits and of models whose end came, which no turn or call clears.
+func (s *Service) sweepPauses(ctx context.Context, spaces []int64, now time.Time) {
+	for _, ws := range spaces {
+		rows, err := s.St.Q.ListHealth(ctx, store.ID(ws))
+		if err != nil {
+			return
+		}
+		for _, r := range rows {
+			h := r.Health
+			kind := health.Kind(h.Subject)
+			if (kind != health.OfLimit && kind != health.OfModel) || h.Status != health.Paused || !health.Ended(h, now) {
+				continue
+			}
+			of := health.Of{}
+			if h.WorkspaceID.Valid {
+				of.Workspace = h.WorkspaceID.Int64
+			}
+			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+				if cur, err := health.Get(ctx, q, of, h.Subject); err != nil || !health.Ended(cur, now) {
+					return nil
+				}
+				return health.Clear(ctx, q, of, h.Subject)
+			})
+		}
+	}
 }

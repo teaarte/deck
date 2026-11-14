@@ -194,7 +194,11 @@ type Deps struct {
 	// Limited pauses the scope of a provider's usage limit until ends (unix seconds, zero when the answer said no
 	// reset) and says when the provider is called again; retry is a first limit without a reset, which pauses nothing.
 	Limited func(ctx context.Context, workspace int64, name string, ends int64, words string) (until time.Time, retry bool)
-	Prompt  func(ctx context.Context, projectID int64) (string, error)
+	// Answered hears whether a turn of a provider answered and the windows of the subscription a turn of a CLI told;
+	// Subscription is the connection of the CLI a provider runs on, empty for any other.
+	Answered     func(ctx context.Context, workspace int64, name string, ok bool, ws []provider.Window)
+	Subscription func(ctx context.Context, workspace int64, name string) string
+	Prompt       func(ctx context.Context, projectID int64) (string, error)
 	// Text is the current text of a project document of the kind, of any kind for ""; empty when missing.
 	Text func(ctx context.Context, projectID int64, kind, name string) (string, error)
 	// Skills are the files of the named skills: the project's own, else the workspace's, whose mark from holds.

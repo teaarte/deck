@@ -333,6 +333,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error { return asks.mark(ctx, q, r.now()) })
 		asks = told{}
 		r.providerHealth(bg, pv, res, err)
+		r.deps.Answered(bg, a.proj.WorkspaceID, pv.Name(), err == nil && res.Fault == nil, res.Quota)
 		settled := err == nil && res.Fault == nil
 		if a.sub != nil && settled {
 			var spent bool
@@ -375,7 +376,9 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 		case res.Is(fault.ModelLimit):
 			text := res.Fault.Text
 			until, _ := r.deps.Limited(bg, a.proj.WorkspaceID, pv.Name(), res.ResetsAt, text)
-			if !r.handOn(bg, *t, pv, fault.With(fault.ModelLimit, fmt.Sprintf("%s reached its usage limit", pv.Name()), text)) {
+			// A short limit of a subscription waits on the same login: another one would take the burst and lose the cache.
+			short := r.deps.Subscription(bg, a.proj.WorkspaceID, pv.Name()) != "" && !until.After(r.now().Add(shortLimit))
+			if short || !r.handOn(bg, *t, pv, fault.With(fault.ModelLimit, fmt.Sprintf("%s reached its usage limit", pv.Name()), text)) {
 				r.pause(bg, pv, processID, until)
 			}
 		case res.Is(fault.ModelLogin):

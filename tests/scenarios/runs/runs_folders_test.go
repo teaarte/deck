@@ -293,7 +293,9 @@ func TestTheProjectsTabCreatesAProjectAndGivesItAFolder(t *testing.T) {
 // folder, and the one that waited for it, started on the next model, runs.
 func TestAPauseTheOwnerStopsFreesTheFolder(t *testing.T) {
 	t.Parallel()
-	main := &harness.Fake{Script: func(context.Context, *harness.Call) provider.Result { return harness.Limited(time.Time{}) }}
+	main := &harness.Fake{Script: func(context.Context, *harness.Call) provider.Result {
+		return harness.Limited(harness.T0.Add(time.Hour))
+	}}
 	other := &harness.Fake{ProviderName: "other", Script: func(context.Context, *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}}

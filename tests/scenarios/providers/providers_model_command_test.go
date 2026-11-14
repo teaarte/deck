@@ -287,7 +287,7 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 	})
 	down := httptest.NewServer(http.NotFoundHandler())
 	down.Close()
-	e := harness.New(t)
+	e := harness.New(t, harness.WithClock())
 	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": down.URL + "/v1", "local": true}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
@@ -330,11 +330,14 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 		},
 	})
 	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": refusing.URL + "/v1", "local": true}, nil)
+	// A red model stands last for ten minutes.
+	e.Clock.Add(10 * time.Minute)
 	e.WaitState(e.Start("films", "picture", map[string]any{"scene": "a knight"}), "done", "error")
 	if status, _ := health(); status != "error" {
 		t.Fatalf("a refusal is no good answer: %s", status)
 	}
 	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": local.URL + "/v1", "local": true}, nil)
+	e.Clock.Add(10 * time.Minute)
 	if got := e.WaitState(e.Start("films", "picture", map[string]any{"scene": "a knight"}), "done", "error"); got.State != "done" || len(local.Calls()) != 1 {
 		t.Fatalf("the first model draws again once it is up: %+v", got)
 	}

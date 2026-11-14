@@ -449,7 +449,10 @@ func (s *Service) agents(ctx context.Context, workspace int64, tr func(string) s
 		}
 		v := agentView{Name: pv.Name(), Builtin: true}
 		if h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Provider(pv.Name())); err == nil {
-			v.Version, v.Status, v.Error = h.Version, h.Status, h.Error
+			v.Version = h.Version
+		}
+		if h, err := s.Health(ctx, workspace, pv.Name()); err == nil {
+			v.Status, v.Error = h.Status, h.Error
 		}
 		if off := s.Off(ctx, workspace, pv.Name()); off != "" {
 			v.Status, v.Error = off, ""

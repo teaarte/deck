@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/health"
 	"deck2/tests/harness"
 )
 
@@ -27,6 +28,20 @@ func TestTheStartOfDeckRunsNoTurnOfACLI(t *testing.T) {
 		t.Fatalf("no self-check of the CLI runs at the start: %v", h)
 	}
 	e.Must("deck.provider_check", map[string]any{"provider": "claude-code"}, nil)
+	e.WaitHealth("provider:claude-code", "ok")
+}
+
+// TestACLIDeckLeftRedIsCheckedAsDeckStarts: a CLI that was red or in a self-check as deck stopped is checked at the
+// start, so the turns it holds do not wait for it forever.
+func TestACLIDeckLeftRedIsCheckedAsDeckStarts(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCLI(t)
+	c.ChecksPass()
+	e := harness.ClockCLIEnv(t, c)
+	if err := health.Write(context.Background(), e.App.Store, health.Of{}, "provider:claude-code", health.Error, "self-check failed"); err != nil {
+		t.Fatal(err)
+	}
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	e.WaitHealth("provider:claude-code", "ok")
 }
 

@@ -91,7 +91,7 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 		c := s.checksOf(pv.Name())
 		first, again := !c.started, !c.retry.IsZero() && !now.Before(c.retry)
 		s.mu.Unlock()
-		if first && cli {
+		if first && cli && !s.leftRed(ctx, pv.Name()) {
 			// A CLI spends turns of the subscription: it is checked on a button, a broken turn and again while red.
 			continue
 		}
@@ -202,9 +202,18 @@ func (s *Service) startCheck(name string, force bool) bool {
 		cctx, cancel := context.WithCancel(ctx)
 		timer := time.AfterFunc(max(ceiling, agentStart), cancel)
 		var ready, answered sync.Once
+		var sessionCost float64
 		cctx = provider.WithMarks(cctx, provider.Marks{Ready: func() { ready.Do(func() { timer.Reset(ceiling) }) },
 			Answered: func() { answered.Do(func() { timer.Reset(ceiling) }) },
 			Used: func(u provider.Usage) {
+				// A provider that counts the session tells its whole cost so far: the call costs what it grew by.
+				if u.CostUSD == nil && u.SessionCostUSD != nil {
+					grew := *u.SessionCostUSD - sessionCost
+					if grew < 0 {
+						grew = *u.SessionCostUSD
+					}
+					sessionCost, u.CostUSD = *u.SessionCostUSD, &grew
+				}
 				process.LogUsage(context.WithoutCancel(ctx), s.St, process.ModelCall{Workspace: ws, Command: SelfCheckCommand, Usage: u}, pv, s.Now())
 			}})
 		var res provider.Check

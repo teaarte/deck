@@ -25,6 +25,9 @@ func (s *Service) Goes(ctx context.Context, workspace int64, name string) bool {
 	if s.away(ctx, workspace, name) {
 		return false
 	}
+	if own, err := s.own(ctx, workspace, name); err == nil && (own.Status == health.Checking || down(own)) {
+		return false
+	}
 	h, err := s.Health(ctx, workspace, name)
 	return err != nil || h.Status != health.Checking && (!down(h) || nearlySpent(h))
 }

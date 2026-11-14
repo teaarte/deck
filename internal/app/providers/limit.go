@@ -134,7 +134,7 @@ func (s *Service) Limited(ctx context.Context, workspace int64, name string, end
 		h, err := health.Get(ctx, q, of, subject)
 		switch {
 		case err != nil:
-		case h.Status == health.Paused && health.Until(h).After(until):
+		case h.Status == health.Paused && health.Until(h).After(until) && !nearlySpent(h):
 			// A longer pause stands: the model is called again at its end.
 			until = health.Until(h)
 			return nil
@@ -207,7 +207,9 @@ func (s *Service) Answered(ctx context.Context, workspace int64, name string, ok
 const (
 	quotaOne    = "%s: %d percent used, resets at %s"
 	quotaTwo    = "%s: %d percent used, resets at %s; %s: %d percent used, resets at %s"
-	quotaNearly = "the %s window of the subscription is %d percent used; new turns go to the next model until it resets"
+	quotaNearly = "the %s " + nearlyMark + " %d percent used; new turns go to the next model until it resets"
+	// nearlyMark is the words that tell the pause of a window nearly used up from that of a limit.
+	nearlyMark = "window of the subscription is"
 )
 
 // windowName is a window of a quota by its length, in deck's words.
@@ -281,7 +283,7 @@ func (s *Service) checkLimited(ctx context.Context, workspace int64, name string
 func (s *Service) pausedTill(ctx context.Context, name string) (time.Time, bool) {
 	spaces, _ := s.St.Q.ListWorkspaces(ctx)
 	for _, ws := range spaces {
-		if h, err := s.Health(ctx, ws, name); err == nil && h.Status == health.Paused {
+		if h, err := s.Health(ctx, ws, name); err == nil && h.Status == health.Paused && !nearlySpent(h) {
 			if end := health.Until(h); end.After(s.Now()) {
 				return end, true
 			}
@@ -333,5 +335,12 @@ func (s *Service) laneOf(connection string) chan struct{} {
 // nearlySpent says a row of a subscription is the pause of a window nearly used up: the login still answers, so a
 // self-check does not lift it, and a turn with no other model to go to still runs on it.
 func nearlySpent(h db.Health) bool {
-	return h.Status == health.Paused && strings.Contains(h.Error, "window of the subscription is")
+	return h.Status == health.Paused && strings.Contains(h.Error, nearlyMark)
+}
+
+// leftRed says a provider's row is red or in a self-check deck stopped during, as deck left it: such a CLI is checked
+// at the start, so turns it holds do not wait for it forever.
+func (s *Service) leftRed(ctx context.Context, name string) bool {
+	h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Provider(name))
+	return err == nil && (h.Status == health.Error || h.Status == health.Checking)
 }

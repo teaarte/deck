@@ -57,7 +57,12 @@ print(json.dumps({"got": [fetch("`+svc.URL+`/a"), fetch("`+svc.URL+`/b"), fetch(
 		Count                  int64
 		Process                int64
 	}
-	e.Must("deck.calls_list", map[string]any{"project": "reach", "outcome": "reached"}, &calls)
+	// The line of a run goes to the journal as its session closes, a moment after the run says it is done.
+	e.Until("a line of the door for each run", func() bool {
+		calls = nil
+		e.Must("deck.calls_list", map[string]any{"project": "reach", "outcome": "reached"}, &calls)
+		return len(calls) == 2
+	})
 	var journal int64
 	for _, c := range calls {
 		if c.Need != "network" || c.Subject != host || c.Process == 0 {

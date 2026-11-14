@@ -169,15 +169,18 @@ func spareEnvironments(h home.Layout, project int64, envs string, now time.Time)
 	return out
 }
 
-// newest is the latest change or read the system keeps of anything under path, or since when later; links are not
-// followed.
+// newest is the latest change of anything under path or read of a file the system keeps, or since when later; links
+// are not followed.
 func newest(path string, since time.Time) time.Time {
 	_ = filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-		if fi, err := d.Info(); err == nil {
+		if fi, err := d.Info(); err == nil && fi.Mode().IsRegular() {
+			// The read of a folder is no use of it: deck's own walks list them.
 			since = maxTime(since, maxTime(fi.ModTime(), readAt(fi)))
+		} else if err == nil {
+			since = maxTime(since, fi.ModTime())
 		}
 		return nil
 	})

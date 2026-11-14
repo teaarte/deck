@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"deck2/internal/provider"
 	"deck2/tests/harness"
@@ -110,4 +111,40 @@ func TestAMarkedTurnsFeedButtonAsksOnceEvenWithAlways(t *testing.T) {
 	}
 	e.Answer(int64(rows[0]["id"].(float64)), "allow")
 	e.Until("the call the owner allowed once", func() bool { return len(svc.Requests()) == 1 })
+}
+
+// TestAMarkedTurnsButtonKeepsItsMarkPastADay: a process that wrote a note with a button stays while the note does,
+// so a press a day later still asks once.
+func TestAMarkedTurnsButtonKeepsItsMarkPastADay(t *testing.T) {
+	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "sent"}`) })
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		_, _ = c.Tool(ctx, "owner_notify", map[string]any{"text": "Looks fine",
+			"actions": `[{"label": "Looks good", "command": "send", "params": {"id": "attacker", "text": "exfil-secret"}}]`})
+		return provider.Result{Structured: json.RawMessage(`null`)}
+	}), harness.WithClock())
+	m := strings.NewReplacer(`"commands": [`, `"commands": [{"name": "send", "title": "Send out", "description": "Sends a note out.",
+    "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]},
+    "executor": {"type": "tool", "tool": "post"}}, `, `"what": ["post"]`, `"what": ["post", "send"]`).Replace(harness.Nullable(harness.PostManifest(svc.URL, "")))
+	p := e.Project("notes", m)
+	e.Secret("notes", "svc", "s3cret")
+	e.Grant("notes", "send", "post", "send")
+	writer := e.Run(p, "work")
+	e.WaitState(writer, "done", "failed")
+	e.SQL(`UPDATE process SET read_untrusted = 'deck.web_fetch evil', holds_valued = 1 WHERE id = ?`, writer)
+	e.Settle()
+	e.Clock.Add(25 * time.Hour)
+	e.Sweep()
+	var feed []struct {
+		Buttons []struct{ Params map[string]any }
+	}
+	e.Must("deck.feed_list", map[string]any{"kind": "note"}, &feed)
+	if len(feed) != 1 || len(feed[0].Buttons) != 1 {
+		t.Fatalf("one note with its button: %+v", feed)
+	}
+	var held struct{ Waiting int64 }
+	e.Must("deck.feed_press", feed[0].Buttons[0].Params, &held)
+	if held.Waiting == 0 || len(svc.Requests()) != 0 {
+		t.Fatalf("a day later the press of a marked turn's button still waits and sends nothing: %+v %d", held, len(svc.Requests()))
+	}
 }

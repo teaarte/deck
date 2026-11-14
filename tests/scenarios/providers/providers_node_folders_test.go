@@ -112,7 +112,7 @@ func TestAScriptOfAFolderOfANodeRunsOnTheNode(t *testing.T) {
 		t.Fatalf("the node keeps no files of a script deck took back: %v", entries)
 	}
 	own := deckhome.Layout(n.Home)
-	if _, err := os.Stat(filepath.Join(own.Scripts(e.ProjectID("lab")), "main.py")); err != nil {
+	if _, err := os.Stat(filepath.Join(own.Scripts(e.ProjectID("lab")), "scripts", "main.py")); err != nil {
 		t.Fatalf("the file of a script stays in the node's own folder, so its environment stays too: %v", err)
 	}
 	if fi, err := os.Stat(own.Cache(e.ProjectID("lab"))); err != nil || !fi.IsDir() {

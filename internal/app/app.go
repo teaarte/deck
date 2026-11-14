@@ -268,7 +268,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		return nil, err
 	}
 	box, boxText := a.Documents.Box()
-	status, text := script.Runtimes().Health()
+	status, text := script.Health()
 	if box == health.Error {
 		status, text = health.Error, fmt.Sprintf("%s No script runs while deck cannot build the box of foreign programs: see the row sandbox.", text)
 	}

@@ -69,7 +69,7 @@ func (s *Scripts) Run(ctx context.Context, j script.Job, side http.Handler, emit
 	tok, end := s.Hub.Side(s.Device, side)
 	defer end()
 	// The script calls deck with the token of its side; deck's side puts in that of the script.
-	call := scriptCall{Project: j.Project, Script: *j.Script, Source: j.Source, Dir: dir, Stdin: j.Stdin, Hosts: j.Box.Hosts,
+	call := scriptCall{Project: j.Project, Script: *j.Script, Source: j.Source, Draft: j.Draft, Dir: dir, Stdin: j.Stdin, Hosts: j.Box.Hosts,
 		GPU: j.Box.GPU, Folders: j.Box.Read, Side: tok, Session: session}
 	for _, p := range j.Read {
 		r, _ := s.rel(p)

@@ -11,12 +11,10 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
-	"time"
 
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
@@ -29,19 +27,24 @@ const maxStdout = 32 << 20
 type Exec struct {
 	Sandbox *sandbox.Sandbox
 	Home    home.Layout
+	// Keep is where the files of scripts and the caches of their programs stay between runs: Home on deck, the
+	// node's own folder on a node, out of the copies of deck's folders it runs in.
+	Keep home.Layout
 	// Image is the container image deck runs from: a program not in it comes only with a newer image.
 	Image string
 }
 
-func New(sb *sandbox.Sandbox, h home.Layout) *Exec { return &Exec{Sandbox: sb, Home: h} }
+func New(sb *sandbox.Sandbox, h home.Layout) *Exec { return &Exec{Sandbox: sb, Home: h, Keep: h} }
 
 // Job is one run of a script; Dir is its run folder, with work/ and results/ inside.
 type Job struct {
 	Project int64
 	Script  *manifest.Script
 	Source  string
-	Dir     string
-	Stdin   []byte
+	// Draft says the run is a trial, whose file stays apart from that of real runs.
+	Draft bool
+	Dir   string
+	Stdin []byte
 	// Box is the box of the script by its rights, with its mark and deck's side of its door; Run adds the program
 	// and its folders.
 	Box   sandbox.Box
@@ -60,16 +63,15 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	if err := x.check(*j.Script); err != nil {
 		return nil, err
 	}
-	src := filepath.Join(j.Dir, "script")
 	tmp := filepath.Join(j.Work(), "tmp")
-	data := x.Home.Data(j.Project)
-	for _, d := range []string{src, tmp, j.Results(), data} {
+	data, cache := x.Home.Data(j.Project), x.Keep.Cache(j.Project)
+	for _, d := range []string{tmp, j.Results(), data, cache} {
 		if err := os.MkdirAll(d, 0o700); err != nil {
 			return nil, err
 		}
 	}
-	file := filepath.Join(src, filepath.Base(j.Script.File))
-	if err := os.WriteFile(file, []byte(j.Source), 0o700); err != nil {
+	file, err := x.place(j)
+	if err != nil {
 		return nil, err
 	}
 	argv, err := argvOf(j.Script, file)
@@ -79,8 +81,11 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	b := j.Box
 	b.Argv, b.Dir, b.Home = argv, j.Work(), j.Work()
 	b.Write = append(slices.Clone(b.Write), j.Work(), j.Results(), data)
-	b.Read = append(append(slices.Clone(b.Read), src), j.Read...)
-	b.Env, b.Secrets = environ(j, data), append(slices.Clone(b.Secrets), j.Token)
+	if !home.Within(data, cache) {
+		b.Write = append(b.Write, cache)
+	}
+	b.Read = append(append(slices.Clone(b.Read), filepath.Dir(file)), j.Read...)
+	b.Env, b.Secrets = environ(j, data, cache), append(slices.Clone(b.Secrets), j.Token)
 	var out bytes.Buffer
 	var last []string
 	p, err := x.Sandbox.Run(ctx, b, sandbox.IO{Stdin: bytes.NewReader(j.Stdin), Stdout: &limited{w: &out, n: maxStdout},
@@ -118,6 +123,9 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 			f.Details = strings.TrimSpace(f.Details + "\n" + tail)
 			return nil, f
 		}
+		if f := otherPythonOf(j.Script.Name, tail, x.Image != ""); f != nil {
+			return nil, f
+		}
 		return nil, fault.With(kind, fmt.Sprintf("script %s exited with code %d: %s", j.Script.Name, code, lastLine(last))+hints, tail)
 	}
 	if err != nil {
@@ -126,25 +134,58 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-// environ is the environment of a script over that of its box: its folders, caches in the data of its project, and
-// deck at its door.
-func environ(j Job, data string) []string {
-	env := append(pathFirst([]string{"PATH=" + sandbox.Path()}), "TERM=dumb", "DECK_RESULTS="+j.Results(), "DECK_DATA="+data,
-		"XDG_CACHE_HOME="+filepath.Join(data, ".cache"), "npm_config_cache="+filepath.Join(data, ".cache", "npm"),
-		"UV_CACHE_DIR="+filepath.Join(data, ".cache", "uv"), "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1")
+// place is the file of a script in its folder of the project, written whole only when it changed: uv keeps the
+// environment of a script by its path, so every run of the same file shares one.
+func (x *Exec) place(j Job) (string, error) {
+	dir := x.Keep.Scripts(j.Project)
+	if j.Draft {
+		dir = x.Keep.Drafts(j.Project)
+	}
+	rel := strings.TrimPrefix(path.Clean(j.Script.File), "scripts/")
+	if !filepath.IsLocal(filepath.FromSlash(rel)) {
+		return "", fault.New(fault.ScriptFailed, fmt.Sprintf("script %s: file %q is outside the folder of scripts", j.Script.Name, j.Script.File))
+	}
+	file := filepath.Join(dir, filepath.FromSlash(rel))
+	if old, err := home.ReadIn(dir, filepath.FromSlash(rel), int64(len(j.Source))+1); err == nil && string(old) == j.Source {
+		return file, nil
+	}
+	t, err := home.Create(filepath.Dir(file))
+	if err != nil {
+		return "", err
+	}
+	defer t.Drop()
+	if _, err := t.WriteString(j.Source); err != nil {
+		return "", err
+	}
+	if err := t.Chmod(0o700); err != nil {
+		return "", err
+	}
+	return file, t.Keep(file)
+}
+
+// environ is the environment of a script over that of its box: its folders, caches of its project, the one python
+// of uv, and deck at its door.
+func environ(j Job, data, cache string) []string {
+	env := []string{"PATH=" + sandbox.Path(), "TERM=dumb", "DECK_RESULTS=" + j.Results(), "DECK_DATA=" + data,
+		"XDG_CACHE_HOME=" + cache, "npm_config_cache=" + filepath.Join(cache, "npm"), "UV_CACHE_DIR=" + filepath.Join(cache, "uv"),
+		"UV_PYTHON_DOWNLOADS=never", "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1"}
+	if py, err := Python(); err == nil {
+		env = append(env, "UV_PYTHON="+py)
+	}
 	if j.Box.Deck == "" {
 		return env
 	}
 	return append(env, "DECK_URL={door}", "DECK_TOKEN="+j.Token, "DECK_MODELS={door}/models")
 }
 
+// argvOf is how a script starts: one of runtime python by uv on the one python of deck, so its PEP 723 block counts.
 func argvOf(s *manifest.Script, file string) ([]string, error) {
 	argv := []string{file}
-	if p := interpreters[s.Runtime]; p != "" {
-		argv = []string{p, file}
-	}
-	if py, err := python(); err == nil && s.Runtime == "python" {
-		argv[0] = py
+	switch s.Runtime {
+	case "python":
+		argv = []string{"uv", "run", "--script", file}
+	case "node", "bash":
+		argv = []string{s.Runtime, file}
 	}
 	if !filepath.IsAbs(argv[0]) {
 		p, err := sandbox.Find(argv[0])
@@ -153,29 +194,7 @@ func argvOf(s *manifest.Script, file string) ([]string, error) {
 		}
 		argv[0] = p
 	}
-	if s.Runtime == "python" {
-		argv[0] = realPython(argv[0])
-	}
 	return argv, nil
-}
-
-var pythons sync.Map
-
-// realPython is the interpreter behind a launcher such as macOS /usr/bin/python3, which in a sandbox runs xcrun
-// and writes cache errors to stderr on every start; the launcher itself when it cannot tell.
-func realPython(path string) string {
-	if got, ok := pythons.Load(path); ok {
-		return got.(string)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	out, err := exec.CommandContext(ctx, path, "-c", "import sys; print(sys.executable)").Output()
-	real := strings.TrimSpace(string(out))
-	if fi, statErr := os.Stat(real); err != nil || statErr != nil || !filepath.IsAbs(real) || fi.IsDir() {
-		real = path
-	}
-	pythons.Store(path, real)
-	return real
 }
 
 type limited struct {

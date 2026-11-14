@@ -127,6 +127,7 @@ type scriptCall struct {
 	Project int64           `json:"project"`
 	Script  manifest.Script `json:"script"`
 	Source  string          `json:"source"`
+	Draft   bool            `json:"draft,omitempty"`
 	Dir     string          `json:"dir"`
 	Stdin   []byte          `json:"stdin,omitempty"`
 	Hosts   []string        `json:"hosts,omitempty"`

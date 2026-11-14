@@ -37,8 +37,8 @@ The contract, the same for every runtime:
 
 Style:
 
-- Python by default: `"runtime": "exec"`, `#!/usr/bin/env -S uv run --script` and a PEP 723 block with pinned
-  versions (`httpx==0.28.1`); the standard library when it is enough. Node: `npm install --prefix $DECK_DATA/node`
+- Python by default: `"runtime": "python"` and a PEP 723 block with pinned versions (`httpx==0.28.1`), no
+  `requires-python` above 3.11; the standard library when it is enough. Node: `npm install --prefix $DECK_DATA/node`
   of a pinned version, output to stderr.
 - A `main(inp)` that returns the result, small functions under it, constants at the top; no state in globals
   between functions, no `print` in helpers.

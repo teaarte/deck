@@ -700,36 +700,6 @@ os.replace(os.path.join(os.environ["DECK_DATA"], "items.json.tmp"), os.path.join
 	}
 }
 
-// TestScriptsRunOnOnePythonDeckPicksAndHealthNamesIt: every script runs on the python3 of 3.10 or newer deck picks,
-// its folder first on PATH, so uv and a shebang find it too; health names the python and node scripts see.
-func TestScriptsRunOnOnePythonDeckPicksAndHealthNamesIt(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	e.Project("tools", harness.ScriptManifest("collect", "", ""))
-	e.SaveScript("tools", "scripts/main.py", `import json, os, shutil, sys
-print(json.dumps({"version": list(sys.version_info[:2]), "first": os.environ["PATH"].split(":")[0], "which": shutil.which("python3")}))
-`)
-	p := e.WaitState(e.Start("tools", "collect", nil), "done", "error")
-	var got struct {
-		Version      []int
-		First, Which string
-	}
-	if p.State != "done" || json.Unmarshal(p.Result, &got) != nil || len(got.Version) != 2 || got.Version[0] != 3 || got.Version[1] < 10 ||
-		filepath.Dir(got.Which) != got.First {
-		t.Fatalf("the script runs on python 3.10 or newer, the first python3 of its PATH: %+v %+v", p, got)
-	}
-	rows := e.Health()
-	for _, r := range rows {
-		if r.Subject == "scripts" {
-			if r.Status != "ok" || !strings.Contains(r.Error, "python 3.") || !strings.Contains(r.Error, filepath.Join(got.First, "python3")) {
-				t.Fatalf("health names the python of scripts: %+v", r)
-			}
-			return
-		}
-	}
-	t.Fatalf("health has a row of the runtime of scripts: %+v", rows)
-}
-
 // TestANoteOfAScriptIsSignedByTheScript: a note a script writes is signed as a script, not an agent.
 func TestANoteOfAScriptIsSignedByTheScript(t *testing.T) {
 	t.Parallel()

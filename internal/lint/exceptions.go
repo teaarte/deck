@@ -14,7 +14,7 @@ var exceptions = map[string][]string{
 	},
 	"exec": {
 		"internal/app/updates/updates.go:19", "internal/provider/codex/gen/main.go:11",
-		"internal/script/run.go:14", "internal/script/runtime.go:7",
+		"internal/script/runtime.go:7",
 	},
 	"read": {
 		"cmd/deck-release/main.go:60", "internal/app/feed/push.go:66",
@@ -35,7 +35,7 @@ var exceptions = map[string][]string{
 		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:60", "cmd/deck/main.go:276",
 		"internal/app/snapshots/snapshot.go:158", "internal/app/updates/updates.go:329", "internal/process/settle.go:125",
 		"internal/provider/codex/gen/main.go:93", "internal/provider/codex/gen/main.go:104",
-		"internal/provider/shellcheck.go:80", "internal/provider/shellcheck.go:81", "internal/script/run.go:72",
+		"internal/provider/shellcheck.go:80", "internal/provider/shellcheck.go:81",
 	},
 	"env": {
 		"cmd/deck-release/main.go:33", "internal/provider/codex/config.go:30",

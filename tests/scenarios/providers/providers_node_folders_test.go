@@ -111,6 +111,13 @@ func TestAScriptOfAFolderOfANodeRunsOnTheNode(t *testing.T) {
 	if entries, _ := os.ReadDir(filepath.Dir(deckhome.Layout(n.Home).Mirror("x"))); len(entries) != 0 {
 		t.Fatalf("the node keeps no files of a script deck took back: %v", entries)
 	}
+	own := deckhome.Layout(n.Home)
+	if _, err := os.Stat(filepath.Join(own.Scripts(e.ProjectID("lab")), "main.py")); err != nil {
+		t.Fatalf("the file of a script stays in the node's own folder, so its environment stays too: %v", err)
+	}
+	if fi, err := os.Stat(own.Cache(e.ProjectID("lab"))); err != nil || !fi.IsDir() {
+		t.Fatalf("the caches of a script on a node stay in the node's own folder, out of the copy it drops: %v", err)
+	}
 
 	local := folderOf(t, "red 7")
 	e.Project("home", harness.Declared(harness.OnLogin(harness.ScriptManifest("read", "", ""))))

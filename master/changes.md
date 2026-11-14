@@ -505,3 +505,7 @@ and bring the modules in line.
   of <module>, written by <who>".
 - 2026-11-14: an HTTP tool of POST, PUT, PATCH or DELETE carries a request body its caller writes whatever right its
   author names, `network` too: a marked turn calls it only by the owner's once; a GET stays free on a named host.
+- 2026-11-14: a script of `"runtime": "python"` runs by `uv run --script` on deck's one python (3.11 in the image), so
+  its PEP 723 block gives it its packages; uv downloads no python (`UV_PYTHON_DOWNLOADS=never`), and a script whose
+  `requires-python` that python does not meet fails as `program.missing` naming both versions. The file of a script
+  stays at `work/projects/<id>/scripts/` (a trial's at `drafts/`), so all runs of it share one uv environment.

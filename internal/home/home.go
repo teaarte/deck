@@ -172,6 +172,18 @@ func (l Layout) Projects() string             { return l.work("projects") }
 func (l Layout) Project(project int64) string { return l.work("projects", fmt.Sprint(project)) }
 func (l Layout) Data(project int64) string    { return l.work("projects", fmt.Sprint(project), "data") }
 
+// Cache is the folder of the caches of the programs of a project's scripts: rebuilt when gone.
+func (l Layout) Cache(project int64) string { return filepath.Join(l.Data(project), ".cache") }
+
+// Scripts is where the files of a project's scripts stay between runs, so their environments stay too; Drafts is that
+// of trial runs.
+func (l Layout) Scripts(project int64) string {
+	return l.work("projects", fmt.Sprint(project), "scripts")
+}
+func (l Layout) Drafts(project int64) string {
+	return l.work("projects", fmt.Sprint(project), "drafts")
+}
+
 // MCP is the folder of an MCP server of a project, its home.
 func (l Layout) MCP(project int64, server string) string {
 	return l.work("projects", fmt.Sprint(project), "mcp", server)

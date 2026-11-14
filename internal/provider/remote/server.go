@@ -533,14 +533,17 @@ func (s *Server) script(w http.ResponseWriter, r *http.Request) {
 		_ = rc.Flush()
 	}
 	_ = rc.Flush()
-	job := script.Job{Project: in.Project, Script: &in.Script, Source: in.Source, Dir: at(in.Dir), Stdin: in.Stdin, Token: in.Side,
+	job := script.Job{Project: in.Project, Script: &in.Script, Source: in.Source, Draft: in.Draft, Dir: at(in.Dir), Stdin: in.Stdin, Token: in.Side,
 		Box: sandbox.Box{Kind: sandbox.KindScript, Read: folders, Hosts: in.Hosts, GPU: in.GPU,
 			Mark: s.Sandbox.Mark(sandbox.KindScript, in.Session), Deck: tok},
 		OnLine: func(line string) { send(scriptFrame{Line: &line}) }}
 	for _, rd := range in.Read {
 		job.Read = append(job.Read, at(rd))
 	}
-	out, err := script.New(s.Sandbox, home.Layout(dir)).Run(r.Context(), job)
+	// The file of the script and the caches of its programs stay in the node's own folder, out of the copy it drops.
+	x := script.New(s.Sandbox, home.Layout(dir))
+	x.Keep = s.Home
+	out, err := x.Run(r.Context(), job)
 	if r.Context().Err() != nil {
 		return
 	}

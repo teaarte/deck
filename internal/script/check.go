@@ -10,7 +10,8 @@ import (
 	"deck2/internal/sandbox"
 )
 
-var interpreters = map[string]string{"python": "python3", "node": "node", "bash": "bash"}
+// interpreters are the programs a script of a runtime starts on.
+var interpreters = map[string][]string{"python": {"python3", "uv"}, "node": {"node"}, "bash": {"bash"}}
 
 // Check reports the scripts of a manifest whose programs are not on this machine, by script name.
 func (x *Exec) Check(m *manifest.Manifest) map[string]error {
@@ -24,14 +25,11 @@ func (x *Exec) Check(m *manifest.Manifest) map[string]error {
 }
 
 func (x *Exec) check(s manifest.Script) error {
-	progs := s.Programs
-	if p := interpreters[s.Runtime]; p != "" {
-		progs = append([]manifest.Program{{Name: p}}, progs...)
+	var progs []manifest.Program
+	for _, p := range interpreters[s.Runtime] {
+		progs = append(progs, manifest.Program{Name: p})
 	}
-	for _, prog := range progs {
-		if prog.Name == "python3" && Runtimes().Python != "" {
-			continue
-		}
+	for _, prog := range append(progs, s.Programs...) {
 		if _, err := sandbox.Find(prog.Name); err != nil {
 			if x.Image != "" {
 				return fault.New(fault.ProgramMissing, fmt.Sprintf("program %q that script %s needs is not in deck's image; the owner updates the image of deck", prog.Name, s.Name))

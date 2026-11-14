@@ -289,8 +289,11 @@ script's last call with an error takes the type of that answer (`input.invalid`,
   from the machine go into `scripts[].programs` (`"uv"`, or `{"name": "typst", "install": "brew install typst"}`).
   deck's image carries the programs `python3`, `node`, `uv`, `bash`, `git`, `curl`, `ffmpeg`, `unzip` and
   `chromium`; a script names them all the same, for a deck or a node outside the image. A missing program refuses
-  the run and is a red health row with how to get it: ask the owner, never work around it. A script that needs a
-  newer python says so in `requires-python` of its PEP 723 block. Node installs into `$DECK_DATA`:
+  the run and is a red health row with how to get it: ask the owner, never work around it. A script of
+  `"runtime": "python"` runs by `uv run --script` on deck's one python (3.11 in deck's image), so its PEP 723 block
+  gives it its packages; uv downloads no python, and a `requires-python` above deck's fails as `program.missing`
+  that names both versions. Its file stays in the project between runs, so its environment is built once and again
+  only when the block changes. Node installs into `$DECK_DATA`:
   ```js
   const dir = process.env.DECK_DATA + "/node";
   require("node:child_process").execFileSync("npm", ["install", "--prefix", dir, "--no-audit", "--no-fund", "left-pad@1.3.0"], { stdio: ["ignore", 2, 2] });

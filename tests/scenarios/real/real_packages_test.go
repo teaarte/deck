@@ -1,6 +1,7 @@
 package real
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -35,6 +36,8 @@ func TestRealScriptPackages(t *testing.T) {
 	e := harness.New(t)
 	cases := []struct{ project, runtime, file, src, domains, want string }{
 		{"py", `"runtime": "exec", "programs": ["uv"]`, "scripts/main.py", realPythonScript, `"pypi.org", "files.pythonhosted.org"`, "1.16.0"},
+		{"uv", `"runtime": "python"`, "scripts/main.py", strings.TrimPrefix(realPythonScript, "#!/usr/bin/env -S uv run --script\n"), `"pypi.org", "files.pythonhosted.org"`, "1.16.0"},
+		{"plain", `"runtime": "python"`, "scripts/main.py", "import json, sys\nprint(json.dumps({\"value\": sys.version}))\n", `"pypi.org"`, "3."},
 		{"js", `"runtime": "node", "programs": ["npm"]`, "scripts/main.js", realNodeScript, `"registry.npmjs.org"`, "007"},
 	}
 	for _, c := range cases {
@@ -42,9 +45,16 @@ func TestRealScriptPackages(t *testing.T) {
 			Replace(harness.ScriptManifest("use", "", `, "rights": [{"right": "network", "what": [`+c.domains+`], "why": "reads it"}]`))
 		e.Project(c.project, m)
 		e.SaveScript(c.project, c.file, c.src)
-		p := e.WaitState(e.Start(c.project, "use", nil), "done", "error")
-		if p.State != "done" || !strings.Contains(string(p.Result), c.want) {
-			t.Fatalf("%s: the script installs its package from the registry: %+v", c.project, p)
+		for run := range 2 {
+			id := e.Start(c.project, "use", nil)
+			p := e.WaitState(id, "done", "error")
+			if p.State != "done" || !strings.Contains(string(p.Result), c.want) {
+				t.Fatalf("%s run %d: the script installs its package from the registry: %+v %v", c.project, run, p, e.Log(id))
+			}
+			installed := strings.Contains(fmt.Sprint(e.Log(id)), "Installed ")
+			if (c.project == "py" || c.project == "uv") && installed != (run == 0) {
+				t.Fatalf("%s run %d: uv installs the packages of a script once, its second run none: %v", c.project, run, e.Log(id))
+			}
 		}
 	}
 }

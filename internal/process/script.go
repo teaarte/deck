@@ -61,7 +61,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 		fail(fault.OfCall(err))
 		return
 	}
-	job := script.Job{Project: t.project, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Dir: r.runDir(id),
+	job := script.Job{Project: t.project, Script: t.m.Script(t.cmd.Executor.Script), Source: src, Draft: trial, Dir: r.runDir(id),
 		Stdin: []byte(input), Box: boxes.For(sandbox.KindScript, t.m, granted, false, place.Folders), Token: u.tok, Read: []string{inDir},
 		OnLine:  func(line string) { r.event(bg, id, u.stream, provider.Event{Kind: provider.EventStderr, Text: line}) },
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },

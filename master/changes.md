@@ -522,9 +522,9 @@ and bring the modules in line.
   of outcome `reached` with `subject` (the host) and `count`, at the end of a run and on the way. `rights_list` gives
   `used` (the last use), `module` and `title` (the right in the owner's words); an open process gives `opens` (`hosts`
   of its box, `login` of its CLI).
-- 2026-11-14: one screen of rights: Settings → Rights lists the rights of every module under its module and, in its
-  other tab, under the right, each with its answer (`state` of `rights_list`), when last used and a revoke at one tap;
-  `params.project` narrows it to one module. The rights table of a module's settings and the list of rights on the page
+- 2026-11-14: one screen of rights: Settings → Rights lists the rights of every module under its module or, with
+  `params.by` `right`, under the right, each with its answer (`state` of `rights_list`), when last used and a revoke at
+  one tap; `params.project` narrows it to one module; a right of the master is deck's own, without buttons. The rights table of a module's settings and the list of rights on the page
   of a draft are gone: the draft's card says how many rights enabling gives and how many ask first, with a button to
   Rights. A module's report is the screen `rights-report` (`project`, `period`). An open process gives `marks` (its
   hosts and login as labels) and a chat topic `opens`; the head of Today says how many runs hold the network or a login.

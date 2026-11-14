@@ -62,7 +62,7 @@ func (s *Service) draftOf(ctx context.Context, act registry.Actor, in projectDra
 	if err != nil {
 		return out, err
 	}
-	lines := lines(rows(p, ms[p.ID], gs, func(t string) string { return manifest.Tr(ws, t) }), tr)
+	lines := lines(rows(p, ms[p.ID], gs, func(t string) string { return manifest.Tr(ws, t) }, nil), tr)
 	// A custom block holds what its screen gives it, and deck cannot keep every way out of a browser shut.
 	if cs, err := s.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Kind: docs.KindCustom}); err == nil && len(cs) > 0 {
 		lines = append(lines, "- "+tr("its custom blocks see the data their screens give them and may carry it out of deck"))

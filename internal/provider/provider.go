@@ -49,6 +49,8 @@ type Request struct {
 	OnUsage func(Usage)
 	// OnStart gets the id of the process group the provider runs in, so a later deck can kill it.
 	OnStart func(pgid int)
+	// OnReach hears each host a program of the box of the turn reached through its door.
+	OnReach func(host string)
 	// Live brings the owner's messages into the running turn, for a provider with live input.
 	Live <-chan Message
 }

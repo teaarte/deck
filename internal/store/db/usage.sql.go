@@ -178,6 +178,30 @@ func (q *Queries) ProcessSpeed(ctx context.Context, processID sql.NullInt64) (Pr
 	return i, err
 }
 
+const projectSpendSince = `-- name: ProjectSpendSince :one
+SELECT CAST(count(*) AS INTEGER) AS calls, CAST(COALESCE(sum(CASE WHEN subscription = 0 THEN cost_usd END), 0) AS REAL) AS cost_usd,
+    CAST(COALESCE(max(created_at), '') AS TEXT) AS last_at
+FROM llm_call WHERE project_id = ?1 AND created_at >= ?2 AND subscription = 0
+`
+
+type ProjectSpendSinceParams struct {
+	ProjectID sql.NullInt64
+	Since     string
+}
+
+type ProjectSpendSinceRow struct {
+	Calls   int64
+	CostUsd float64
+	LastAt  string
+}
+
+func (q *Queries) ProjectSpendSince(ctx context.Context, arg ProjectSpendSinceParams) (ProjectSpendSinceRow, error) {
+	row := q.db.QueryRowContext(ctx, projectSpendSince, arg.ProjectID, arg.Since)
+	var i ProjectSpendSinceRow
+	err := row.Scan(&i.Calls, &i.CostUsd, &i.LastAt)
+	return i, err
+}
+
 const purgeOldLLMCalls = `-- name: PurgeOldLLMCalls :exec
 DELETE FROM llm_call WHERE created_at < CAST(?1 AS TEXT)
 `

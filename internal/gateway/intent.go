@@ -42,7 +42,7 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 			return registry.Refuse("an identical call of %s is being made now; wait for its outcome instead of repeating it", tool)
 		}
 		id, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(), Caller: frozenCaller(act), Tool: tool,
-			Need: manifest.Send, Outcome: "started", Params: Canonical(params)})
+			Need: manifest.Send, Subject: sent(tool), Count: 1, Outcome: "started", Params: Canonical(params)})
 		return err
 	})
 	return id, err
@@ -51,7 +51,7 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 // Refused writes a call that would have left deck but was refused before its intent.
 func (g *Gateway) Refused(ctx context.Context, act registry.Actor, project int64, tool string, params json.RawMessage, err error) {
 	ownLine(ctx)
-	g.journal(ctx, act, project, tool, manifest.Send, "rejected", Canonical(params), err.Error())
+	g.journal(ctx, act, project, tool, registry.Need{Right: manifest.Send, Subject: sent(tool)}, "rejected", Canonical(params), err.Error())
 }
 
 // Finish records the outcome of an action whose intent is id: done when the other side answered, rejected
@@ -149,7 +149,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 				act = registry.Actor{Kind: registry.Owner, Workspace: a.WorkspaceID, ProjectID: a.ProjectID.Int64}
 			}
 			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: a.ProjectID,
-				Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Need: right, Outcome: "unknown",
+				Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Need: right, Subject: needOf(f.Need).Subject, Count: 1, Outcome: "unknown",
 				Params: Canonical(f.Call.Input), AskID: sql.NullInt64{Int64: u.ID, Valid: true}}); err != nil {
 				return err
 			}
@@ -168,4 +168,13 @@ func Unresolved(asks []db.Ask) string {
 		}
 	}
 	return b.String()
+}
+
+// sent is the subject of the right to send of a tool: its name in its module, a command of deck whole.
+func sent(tool string) string {
+	if registry.IsBuiltin(tool) {
+		return tool
+	}
+	_, name, _ := strings.Cut(tool, ".")
+	return name
 }

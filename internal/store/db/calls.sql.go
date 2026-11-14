@@ -35,7 +35,7 @@ func (q *Queries) FinishToolCall(ctx context.Context, arg FinishToolCallParams) 
 }
 
 const getToolCall = `-- name: GetToolCall :one
-SELECT id, workspace_id, project_id, process_id, actor, caller, tool, need, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call WHERE id = ?
+SELECT id, workspace_id, project_id, process_id, actor, caller, tool, need, outcome, params, external_id, error, ask_id, run, result, created_at, subject, count FROM tool_call WHERE id = ?
 `
 
 func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
@@ -58,8 +58,61 @@ func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
 		&i.Run,
 		&i.Result,
 		&i.CreatedAt,
+		&i.Subject,
+		&i.Count,
 	)
 	return i, err
+}
+
+const listProjectCallsSince = `-- name: ListProjectCallsSince :many
+SELECT id, workspace_id, project_id, process_id, actor, caller, tool, need, outcome, params, external_id, error, ask_id, run, result, created_at, subject, count FROM tool_call WHERE project_id = ?1 AND created_at >= ?2 ORDER BY id
+`
+
+type ListProjectCallsSinceParams struct {
+	ProjectID sql.NullInt64
+	Since     string
+}
+
+func (q *Queries) ListProjectCallsSince(ctx context.Context, arg ListProjectCallsSinceParams) ([]ToolCall, error) {
+	rows, err := q.db.QueryContext(ctx, listProjectCallsSince, arg.ProjectID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ToolCall
+	for rows.Next() {
+		var i ToolCall
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.ProcessID,
+			&i.Actor,
+			&i.Caller,
+			&i.Tool,
+			&i.Need,
+			&i.Outcome,
+			&i.Params,
+			&i.ExternalID,
+			&i.Error,
+			&i.AskID,
+			&i.Run,
+			&i.Result,
+			&i.CreatedAt,
+			&i.Subject,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listRunningDecisions = `-- name: ListRunningDecisions :many
@@ -110,9 +163,10 @@ func (q *Queries) ListRunningDecisions(ctx context.Context) ([]ListRunningDecisi
 }
 
 const listToolCalls = `-- name: ListToolCalls :many
-SELECT id, workspace_id, project_id, process_id, actor, caller, tool, need, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call WHERE process_id = ? ORDER BY id
+SELECT id, workspace_id, project_id, process_id, actor, caller, tool, need, outcome, params, external_id, error, ask_id, run, result, created_at, subject, count FROM tool_call WHERE process_id = ? AND outcome != 'reached' ORDER BY id
 `
 
+// The calls a process made, without the lines of the hosts its box reached.
 func (q *Queries) ListToolCalls(ctx context.Context, processID sql.NullInt64) ([]ToolCall, error) {
 	rows, err := q.db.QueryContext(ctx, listToolCalls, processID)
 	if err != nil {
@@ -139,6 +193,8 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID sql.NullInt64) ([
 			&i.Run,
 			&i.Result,
 			&i.CreatedAt,
+			&i.Subject,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}
@@ -154,7 +210,7 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID sql.NullInt64) ([
 }
 
 const listUnresolvedCalls = `-- name: ListUnresolvedCalls :many
-SELECT t.id, t.workspace_id, t.project_id, t.process_id, t.actor, t.caller, t.tool, t.need, t.outcome, t.params, t.external_id, t.error, t.ask_id, t.run, t.result, t.created_at FROM tool_call t LEFT JOIN ask a ON a.id = t.ask_id
+SELECT t.id, t.workspace_id, t.project_id, t.process_id, t.actor, t.caller, t.tool, t.need, t.outcome, t.params, t.external_id, t.error, t.ask_id, t.run, t.result, t.created_at, t.subject, t.count FROM tool_call t LEFT JOIN ask a ON a.id = t.ask_id
 WHERE t.project_id IS ?1 AND t.tool = ?2
   AND (t.outcome = 'started' OR t.outcome = 'unknown' AND a.state = 'open' AND a.id != ?3)
 ORDER BY t.id
@@ -192,6 +248,55 @@ func (q *Queries) ListUnresolvedCalls(ctx context.Context, arg ListUnresolvedCal
 			&i.Run,
 			&i.Result,
 			&i.CreatedAt,
+			&i.Subject,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceOtherUses = `-- name: ListWorkspaceOtherUses :many
+SELECT p.project_id, 'login' AS need, CAST(json_extract(NULLIF(p.opens, ''), '$.login') AS TEXT) AS subject, CAST(max(p.started_at) AS TEXT) AS used_at
+FROM process p JOIN project j ON j.id = p.project_id
+WHERE j.workspace_id = ?1 AND json_extract(NULLIF(p.opens, ''), '$.login') IS NOT NULL
+GROUP BY p.project_id, subject
+UNION ALL
+SELECT c.project_id, 'money' AS need, '' AS subject, CAST(max(c.created_at) AS TEXT) AS used_at
+FROM llm_call c WHERE c.workspace_id = ?1 AND c.project_id IS NOT NULL AND c.subscription = 0
+GROUP BY c.project_id
+`
+
+type ListWorkspaceOtherUsesRow struct {
+	ProjectID int64
+	Need      string
+	Subject   string
+	UsedAt    string
+}
+
+// When each module last ran a turn on a login, by the CLI, and last paid for a model call, under money.
+func (q *Queries) ListWorkspaceOtherUses(ctx context.Context, workspaceID int64) ([]ListWorkspaceOtherUsesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceOtherUses, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWorkspaceOtherUsesRow
+	for rows.Next() {
+		var i ListWorkspaceOtherUsesRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.Need,
+			&i.Subject,
+			&i.UsedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -207,7 +312,7 @@ func (q *Queries) ListUnresolvedCalls(ctx context.Context, arg ListUnresolvedCal
 }
 
 const listWorkspaceToolCalls = `-- name: ListWorkspaceToolCalls :many
-SELECT id, workspace_id, project_id, process_id, actor, caller, tool, need, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call
+SELECT id, workspace_id, project_id, process_id, actor, caller, tool, need, outcome, params, external_id, error, ask_id, run, result, created_at, subject, count FROM tool_call
 WHERE workspace_id = ?1
   AND (CAST(?2 AS INTEGER) = 0 OR project_id = CAST(?2 AS INTEGER))
   AND (CAST(?3 AS TEXT) = '' OR outcome = ?3)
@@ -255,6 +360,49 @@ func (q *Queries) ListWorkspaceToolCalls(ctx context.Context, arg ListWorkspaceT
 			&i.Run,
 			&i.Result,
 			&i.CreatedAt,
+			&i.Subject,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceUses = `-- name: ListWorkspaceUses :many
+SELECT project_id, need, subject, CAST(max(created_at) AS TEXT) AS used_at FROM tool_call
+WHERE workspace_id = ?1 AND project_id IS NOT NULL AND need != '' AND outcome IN ('done', 'reached')
+GROUP BY project_id, need, subject
+`
+
+type ListWorkspaceUsesRow struct {
+	ProjectID sql.NullInt64
+	Need      string
+	Subject   string
+	UsedAt    string
+}
+
+func (q *Queries) ListWorkspaceUses(ctx context.Context, workspaceID int64) ([]ListWorkspaceUsesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listWorkspaceUses, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListWorkspaceUsesRow
+	for rows.Next() {
+		var i ListWorkspaceUsesRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.Need,
+			&i.Subject,
+			&i.UsedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -270,9 +418,9 @@ func (q *Queries) ListWorkspaceToolCalls(ctx context.Context, arg ListWorkspaceT
 }
 
 const logToolCall = `-- name: LogToolCall :one
-INSERT INTO tool_call (workspace_id, process_id, project_id, actor, caller, tool, need, outcome, params, error, ask_id, created_at)
+INSERT INTO tool_call (workspace_id, process_id, project_id, actor, caller, tool, need, subject, count, outcome, params, error, ask_id, created_at)
 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7,
-    ?8, ?9, ?10, ?11, ?12) RETURNING id
+    ?8, ?9, ?10, ?11, ?12, ?13, ?14) RETURNING id
 `
 
 type LogToolCallParams struct {
@@ -283,6 +431,8 @@ type LogToolCallParams struct {
 	Caller      string
 	Tool        string
 	Need        string
+	Subject     string
+	Count       int64
 	Outcome     string
 	Params      string
 	Error       string
@@ -299,6 +449,8 @@ func (q *Queries) LogToolCall(ctx context.Context, arg LogToolCallParams) (int64
 		arg.Caller,
 		arg.Tool,
 		arg.Need,
+		arg.Subject,
+		arg.Count,
 		arg.Outcome,
 		arg.Params,
 		arg.Error,
@@ -362,7 +514,7 @@ func (q *Queries) StartDecision(ctx context.Context, askID sql.NullInt64) error 
 }
 
 const startedToolCalls = `-- name: StartedToolCalls :many
-SELECT id, workspace_id, project_id, process_id, actor, caller, tool, need, outcome, params, external_id, error, ask_id, run, result, created_at FROM tool_call WHERE outcome = 'started' ORDER BY id
+SELECT id, workspace_id, project_id, process_id, actor, caller, tool, need, outcome, params, external_id, error, ask_id, run, result, created_at, subject, count FROM tool_call WHERE outcome = 'started' ORDER BY id
 `
 
 func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
@@ -391,6 +543,8 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 			&i.Run,
 			&i.Result,
 			&i.CreatedAt,
+			&i.Subject,
+			&i.Count,
 		); err != nil {
 			return nil, err
 		}

@@ -357,6 +357,7 @@ type Process struct {
 	WaitSilence      string
 	ReadUntrusted    string
 	HoldsValued      int64
+	Opens            string
 }
 
 type ProcessRead struct {
@@ -464,6 +465,8 @@ type ToolCall struct {
 	Run         string
 	Result      string
 	CreatedAt   string
+	Subject     string
+	Count       int64
 }
 
 type Trigger struct {

@@ -10,6 +10,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/egress"
 	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -23,13 +24,19 @@ import (
 // the module's own, and the owner's answer, empty while the module asks when it first needs it.
 type rightView struct {
 	Project string `json:"project"`
+	// Module is the title of the module and Title that of the right, in the owner's words: the headings of the two
+	// views of the screen of rights.
+	Module  string `json:"module"`
+	Title   string `json:"title"`
 	Right   string `json:"right" enum:"network|login|data|files|money|send|modules"`
 	Who     string `json:"who,omitempty"`
 	Subject string `json:"subject"`
 	Says    string `json:"says"`
 	Why     string `json:"why"`
 	Answer  string `json:"answer" enum:"always|no|"`
-	At      string `json:"at,omitempty"`
+	// At is when the owner answered; Used when the module last used the right on this subject, by the journal.
+	At   string `json:"at,omitempty"`
+	Used string `json:"used,omitempty"`
 	// Declared is false for an answer to a right no manifest names: a command of deck or a site the browser acts on.
 	Declared bool `json:"declared"`
 	// Exit says the right is a way out of a turn: the network, money, sending in the owner's name, other modules.
@@ -40,7 +47,10 @@ type rightView struct {
 
 // rows are the rights m declares, a row a subject, with the owner's answers rows gives; then the answers to rights no
 // manifest names.
-func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(string) string) []rightView {
+func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(string) string, usedAt used) []rightView {
+	if usedAt == nil {
+		usedAt = func(int64, string, string) string { return "" }
+	}
 	answer := func(right, who, subject string) (db.RightGrant, bool) {
 		i := slices.IndexFunc(rows, func(r db.RightGrant) bool { return r.Name == right && r.Who == who && r.Subject == subject })
 		if i < 0 {
@@ -59,11 +69,12 @@ func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(stri
 			}
 			seen[key] = true
 			n := registry.Need{Right: d.Right, Who: d.Whom(), Subject: subject}
-			v := rightView{Project: p.Name, Right: d.Right, Who: d.Whom(), Subject: subject, Why: d.Why, Declared: true, Exit: r.Exit || d.Whom() == manifest.Agents || m.Posts(n),
+			v := rightView{Project: p.Name, Module: cmp.Or(m.Title, p.Name), Title: groupOf(tr, d.Right), Right: d.Right, Who: d.Whom(), Subject: subject, Why: d.Why, Declared: true, Exit: r.Exit || d.Whom() == manifest.Agents || m.Posts(n),
 				Says: m.SaysOn(tr, d.Right, d.Who, subject), Key: m.Keyed(n)}
 			if g, ok := answer(d.Right, d.Whom(), subject); ok {
 				v.Answer, v.At = g.Answer, g.CreatedAt
 			}
+			v.Used = usedAt(p.ID, d.Right, subject)
 			out = append(out, v)
 		}
 	}
@@ -73,10 +84,40 @@ func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(stri
 		}
 		r, _ := manifest.RightOf(g.Name)
 		n := registry.Need{Right: g.Name, Who: g.Who, Subject: g.Subject}
-		out = append(out, rightView{Project: p.Name, Right: g.Name, Who: g.Who, Subject: g.Subject, Answer: g.Answer, At: g.CreatedAt, Exit: r.Exit || m.Posts(n),
-			Says: m.SaysOn(tr, g.Name, g.Who, g.Subject), Key: m.Keyed(n)})
+		out = append(out, rightView{Project: p.Name, Module: cmp.Or(m.Title, p.Name), Title: groupOf(tr, g.Name), Right: g.Name, Who: g.Who, Subject: g.Subject, Answer: g.Answer, At: g.CreatedAt, Exit: r.Exit || m.Posts(n),
+			Says: m.SaysOn(tr, g.Name, g.Who, g.Subject), Key: m.Keyed(n), Used: usedAt(p.ID, g.Name, g.Subject)})
 	}
 	return out
+}
+
+// used is when a module last used a right on a subject, empty when it did not.
+type used func(project int64, right, subject string) string
+
+// uses are when the modules of a workspace last used each right on each subject: the journal, the logins of their
+// turns and their paid model calls; a subject of the network covers the hosts it reached as egress does.
+func uses(ctx context.Context, q *db.Queries, workspace int64) (used, error) {
+	rs, err := q.ListWorkspaceUses(ctx, workspace)
+	if err != nil {
+		return nil, err
+	}
+	others, err := q.ListWorkspaceOtherUses(ctx, workspace)
+	if err != nil {
+		return nil, err
+	}
+	return func(project int64, right, subject string) string {
+		last := ""
+		for _, r := range rs {
+			if r.ProjectID.Int64 == project && r.Need == right && (r.Subject == subject || right == manifest.Network && egress.Covers(subject, r.Subject)) {
+				last = max(last, r.UsedAt)
+			}
+		}
+		for _, r := range others {
+			if r.ProjectID == project && r.Need == right && (r.Subject == subject || right == manifest.Money) {
+				last = max(last, r.UsedAt)
+			}
+		}
+		return last
+	}, nil
 }
 
 type rightsListIn struct {
@@ -101,6 +142,10 @@ func (s *Service) rightsList(ctx context.Context, act registry.Actor, in rightsL
 	}
 	ws := words.In(registry.Lang(ctx))
 	tr := func(t string) string { return manifest.Tr(ws, t) }
+	usedAt, err := uses(ctx, s.St.Q, act.Workspace)
+	if err != nil {
+		return nil, err
+	}
 	out := []rightView{}
 	for _, p := range ps {
 		m, err := docs.Manifest(ctx, s.St.Q, p)
@@ -114,7 +159,7 @@ func (s *Service) rightsList(ctx context.Context, act registry.Actor, in rightsL
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, rows(p, m, gs, tr)...)
+		out = append(out, rows(p, m, gs, tr, usedAt)...)
 	}
 	return out, nil
 }
@@ -242,7 +287,7 @@ func (s *Service) ungranted(ctx context.Context, p db.Project, m *manifest.Manif
 		return nil
 	}
 	var out []string
-	for _, v := range rows(p, m, gs, func(t string) string { return t }) {
+	for _, v := range rows(p, m, gs, func(t string) string { return t }, nil) {
 		if v.Declared && v.Answer == "" {
 			out = append(out, v.Says)
 		}
@@ -353,7 +398,7 @@ func (s *Service) rightsCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("rights_list", "Rights of modules",
 			"Lists the rights of deck's catalog each module declares it may ask for, a row a subject: what it lets the module do in deck's words, why in the module's, and the owner's answer, always or no, or none while it asks when first used; then the answers to rights no manifest names, such as a command of deck.",
-			registry.OwnerSide, s.rightsList).On(events.Projects, events.Documents),
+			registry.OwnerSide, s.rightsList).On(events.Projects, events.Documents, events.Calls),
 		registry.Def("right_set", "Answer a right",
 			"Keeps the owner's answer to a right of a module on one subject: always, so it uses it without asking; no, so it does not and does not ask; or revoke, so it asks again when it next needs it.",
 			registry.OwnerOnly, s.rightSet).Stays().Fresh(s.always),

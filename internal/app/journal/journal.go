@@ -35,7 +35,7 @@ type Service struct {
 
 type callsListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project gets its own, the owner and the master every project"`
-	Outcome string `opt:"" desc:"Only this outcome: done, rejected, waiting, expired, unknown, started"`
+	Outcome string `opt:"" desc:"Only this outcome: done, rejected, waiting, expired, unknown, started, or reached for the hosts the programs of a box reached"`
 	Limit   int64  `opt:"" desc:"At most this many, 200 by default"`
 	Process int64  `opt:"" desc:"Only the calls of this process"`
 }
@@ -47,8 +47,11 @@ type callView struct {
 	Actor   string `json:"actor"`
 	Project string `json:"project"`
 	Process int64  `json:"process"`
-	// Need is the right of deck's catalog the call needed, empty for one that stayed in deck.
+	// Need is the right of deck's catalog the call needed, empty for one that stayed in deck, and Subject what it was
+	// on; Count is how many requests a line of the door counts, one for a call.
 	Need       string `json:"need"`
+	Subject    string `json:"subject,omitempty"`
+	Count      int64  `json:"count"`
 	Outcome    string `json:"outcome"`
 	ExternalID string `json:"external_id"`
 	Error      string `json:"error"`
@@ -74,7 +77,7 @@ func (s *Service) callsList(ctx context.Context, act registry.Actor, in callsLis
 	out := make([]callView, 0, len(rows))
 	for _, c := range rows {
 		out = append(out, callView{ID: c.ID, Tool: c.Tool, Actor: c.Actor, Project: names[c.ProjectID.Int64], Process: c.ProcessID.Int64,
-			Need: c.Need, Outcome: c.Outcome, ExternalID: c.ExternalID, Error: c.Error, Params: c.Params, CreatedAt: c.CreatedAt})
+			Need: c.Need, Subject: c.Subject, Count: c.Count, Outcome: c.Outcome, ExternalID: c.ExternalID, Error: c.Error, Params: c.Params, CreatedAt: c.CreatedAt})
 	}
 	return out, nil
 }

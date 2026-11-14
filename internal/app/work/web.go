@@ -201,7 +201,13 @@ func (s *Service) journalRead(ctx context.Context, act registry.Actor, name stri
 		outcome, text = "rejected", err.Error()
 	}
 	raw, _ := json.Marshal(read)
-	s.Journal(ctx, act, act.ProjectID, registry.Deck(name), manifest.Network, outcome, string(raw), text)
+	n := registry.Need{Right: manifest.Network, Who: manifest.Agents}
+	if u, ok := read["url"].(string); ok {
+		if at, err := url.Parse(u); err == nil {
+			n.Subject = at.Hostname()
+		}
+	}
+	s.Journal(ctx, act, act.ProjectID, registry.Deck(name), n, outcome, string(raw), text)
 }
 
 // skipped are the elements whose content is no text of a page.

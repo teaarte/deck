@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -10,10 +11,22 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// know keeps what a process knows as it starts: the untrusted text a box with the network brings, whose reads deck
-// does not see, and whether it holds something of value: a subscription login, or the data of its module.
-func (r *Runner) know(ctx context.Context, id int64, hosts []string, valued bool) {
+// Opens is what a running process holds open: the hosts its box reaches and the CLI whose login it runs on.
+type Opens struct {
+	Hosts []string `json:"hosts,omitempty"`
+	Login string   `json:"login,omitempty"`
+}
+
+// know keeps what a process knows as it starts: what its box opens, the untrusted text a box with the network brings,
+// and whether it holds something of value: a subscription login, or the data of its module.
+func (r *Runner) know(ctx context.Context, id int64, hosts []string, login string, valued bool) {
 	err := r.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		if len(hosts) > 0 || login != "" {
+			b, _ := json.Marshal(Opens{Hosts: hosts, Login: login})
+			if err := q.SetProcessOpens(ctx, db.SetProcessOpensParams{Opens: string(b), ID: id}); err != nil {
+				return err
+			}
+		}
 		if len(hosts) > 0 {
 			from := fmt.Sprintf("the network of its box: %s", untrusted.Cut(strings.Join(hosts, ", "), 300))
 			if err := q.MarkProcessRead(ctx, db.MarkProcessReadParams{ReadUntrusted: from, ID: id}); err != nil {

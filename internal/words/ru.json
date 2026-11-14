@@ -1353,5 +1353,18 @@
   "a note of deck that quotes process %d, which read %s": "заметка deck с цитатой процесса %d, прочитавшего %s",
   "the memory of %s, where %s wrote": "память %s, куда писал: %s",
   "the skills of %s, where %s wrote": "навыки %s, куда писал: %s",
-  "the skills of the workspace in %s, where %s wrote": "навыки пространства в %s, куда писал: %s"
+  "the skills of the workspace in %s, where %s wrote": "навыки пространства в %s, куда писал: %s",
+  "Now with the network: %d · with a login: %d": "Сейчас с сетью: %d · с логином: %d",
+  "Requests today: %d": "Просьб сегодня: %d",
+  "Network": "Сеть",
+  "Subscription login": "Логин подписки",
+  "Your data": "Твои данные",
+  "Files and folders": "Файлы и папки",
+  "Money": "Деньги",
+  "Sending in your name": "Отправка от твоего имени",
+  "Other modules": "Другие модули",
+  "Read text from outside deck": "Читал текст извне deck",
+  "Turns that read text from outside deck": "Ходы, читавшие текст извне deck",
+  "Paid model calls": "Платные вызовы моделей",
+  "What a module did": "Что делал модуль"
 }

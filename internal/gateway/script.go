@@ -44,7 +44,7 @@ func (g *Gateway) Handler(tok string) http.Handler {
 		}
 		http.StripPrefix("/models", g.cfg.Models(s.actor())).ServeHTTP(w, r)
 	})
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return side{g: g, tok: tok, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		got := r.Header.Get("Authorization")
 		if subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+tok)) != 1 || g.session(tok) == nil {
 			http.Error(w, "deck: unknown or finished process token", http.StatusUnauthorized)
@@ -70,8 +70,18 @@ func (g *Gateway) Handler(tok string) http.Handler {
 		if len(e.refused) > 5 {
 			e.refused = e.refused[1:]
 		}
-	})
+	})}
 }
+
+// side is deck's side of the door of a session's box: it serves the calls of its programs and hears the hosts they
+// reached.
+type side struct {
+	http.Handler
+	g   *Gateway
+	tok string
+}
+
+func (s side) Reach(host string) { s.g.Went(s.tok, host) }
 
 // Refusal is a call of a script deck answered with an error: the command, or the model proxy and its connection,
 // the status and the start of the answer. Model says the call was of a model.

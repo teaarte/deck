@@ -273,10 +273,7 @@ func (g *Gateway) made(ctx context.Context, act registry.Actor, c *registry.Comm
 	if c.Gated() && !v.Facts.Owner {
 		act = g.clear.Clear(act, c.Name)
 	}
-	right := ""
-	if v.Need != nil {
-		right = v.Need.Right
-	}
+	right := needOf(v.Need)
 	own := false
 	out, err := g.reg.Invoke(context.WithValue(ctx, ownLineKey{}, &own), act, c.Name, input)
 	if err == nil {

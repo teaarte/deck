@@ -71,3 +71,9 @@ FROM llm_call WHERE process_id = ? AND connection_id IS NOT NULL AND duration_ms
 
 -- name: PurgeOldLLMCalls :exec
 DELETE FROM llm_call WHERE created_at < CAST(sqlc.arg(before) AS TEXT);
+
+
+-- name: ProjectSpendSince :one
+SELECT CAST(count(*) AS INTEGER) AS calls, CAST(COALESCE(sum(CASE WHEN subscription = 0 THEN cost_usd END), 0) AS REAL) AS cost_usd,
+    CAST(COALESCE(max(created_at), '') AS TEXT) AS last_at
+FROM llm_call WHERE project_id = sqlc.arg(project_id) AND created_at >= sqlc.arg(since) AND subscription = 0;

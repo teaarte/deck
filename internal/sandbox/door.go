@@ -25,11 +25,16 @@ type Door struct {
 	once      sync.Once
 	mu        sync.Mutex
 	refused   []string
+	// reach is told each host a request of the program reached through the door.
+	reach func(host string)
 }
 
-// open opens a door in the folder of doors: a request to another host that carries the key goes through egress to
-// domains, none goes without domains; deck serves a path under the key; a request without the key gets 407.
-func (s *Sandbox) open(domains []string, deck http.Handler) (*Door, error) {
+// Reacher is deck's side of a door that is told each host a program of the box reached.
+type Reacher interface{ Reach(host string) }
+
+// open opens a door in the folder of doors: a request with the key goes through egress to domains, reach hearing its
+// host, none without domains; deck serves a path under the key; a request without the key gets 407.
+func (s *Sandbox) open(domains []string, deck http.Handler, reach func(host string)) (*Door, error) {
 	if err := os.MkdirAll(s.home.Doors(), 0o700); err != nil {
 		return nil, err
 	}
@@ -43,7 +48,7 @@ func (s *Sandbox) open(domains []string, deck http.Handler) (*Door, error) {
 		return nil, err
 	}
 	life, cut := context.WithCancel(context.Background())
-	d := &Door{ln: ln, dirs: []string{dir, short}, self: s.addr(ln), key: nonce.Hex(16), cut: cut}
+	d := &Door{ln: ln, dirs: []string{dir, short}, self: s.addr(ln), key: nonce.Hex(16), cut: cut, reach: reach}
 	d.srv = &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodConnect && (!r.URL.IsAbs() || r.URL.Host == d.self) {
 			if r, ok := d.under(w, r); ok {
@@ -59,7 +64,7 @@ func (s *Sandbox) open(domains []string, deck http.Handler) (*Door, error) {
 			http.Error(w, "deck: "+r.Host+" is not reachable from this program", http.StatusForbidden)
 			return
 		}
-		if err := egress.Proxy(life, w, r, domains); err != nil {
+		if err := egress.Proxy(life, w, r, domains, d.reach); err != nil {
 			d.refuse(err.Error())
 		}
 	})}

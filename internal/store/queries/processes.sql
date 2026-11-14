@@ -119,7 +119,8 @@ ORDER BY p.finished_at DESC LIMIT sqlc.arg(lim);
 -- process.Final): when the first of them began and whether one waits for the owner.
 SELECT CAST(json_extract(t.input, '$.topic') AS INTEGER) AS topic,
     CAST(MIN(COALESCE(p.reopened_at, p.started_at)) AS TEXT) AS since,
-    CAST(MAX(EXISTS (SELECT 1 FROM ask a WHERE a.process_id = p.id AND a.state = 'open')) AS INTEGER) AS waits
+    CAST(MAX(EXISTS (SELECT 1 FROM ask a WHERE a.process_id = p.id AND a.state = 'open')) AS INTEGER) AS waits,
+    CAST(COALESCE(group_concat(NULLIF(p.opens, ''), char(10)), '') AS TEXT) AS opens
 FROM process p JOIN process t ON t.id IN (p.id, p.parent_id)
 WHERE p.finished_at IS NULL AND p.state NOT IN ('done', 'error', 'stopped', 'interrupted')
   AND t.project_id = sqlc.arg(master_id) AND json_extract(t.input, '$.topic') IS NOT NULL
@@ -487,6 +488,10 @@ UPDATE process SET read_untrusted = ? WHERE id = ? AND read_untrusted = '';
 UPDATE process SET holds_valued = 1 WHERE id = ? AND holds_valued = 0;
 
 
+-- name: SetProcessOpens :exec
+UPDATE process SET opens = ? WHERE id = ?;
+
+
 -- name: SessionRead :one
 -- What untrusted text a process of the same session read, which the session keeps.
 SELECT CAST(coalesce(max(read_untrusted), '') AS TEXT) FROM process
@@ -497,3 +502,9 @@ WHERE session_id = sqlc.arg(session) AND session_id != '' AND read_untrusted != 
 -- A process with untrusted text whose words a topic holds, and what it read.
 SELECT p.id, p.read_untrusted FROM chat_message m JOIN process p ON p.id = m.process_id
 WHERE m.topic_id = ? AND m.process_id != 0 AND p.read_untrusted != '' ORDER BY m.id LIMIT 1;
+
+
+-- name: ListProjectOpensSince :many
+SELECT id, opens, read_untrusted, started_at FROM process
+WHERE project_id = sqlc.arg(project_id) AND started_at >= sqlc.arg(since) AND (opens != '' OR read_untrusted != '')
+ORDER BY id;

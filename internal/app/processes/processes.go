@@ -108,6 +108,8 @@ type processView struct {
 	// turn with both has its ways out only by the owner's once.
 	Read   string `json:"read,omitempty"`
 	Valued bool   `json:"valued,omitempty"`
+	// Opens is what an open process holds open: the hosts its box reaches and the CLI whose login it runs on.
+	Opens *process.Opens `json:"opens,omitempty"`
 	// Models are the models of deck's settings the process called, and CostUSD what they cost, nil when one has no
 	// price; SubscriptionUSD is what the calls on a subscription would cost, an estimate out of the money spent.
 	Models []string `json:"models,omitempty"`
@@ -160,6 +162,12 @@ func procView(p db.Process, project string) processView {
 		Trigger: p.TriggerID.Int64, RetryKey: p.RetryKey, Empty: p.State == process.StateDone && p.Result == process.Empty && p.NotBySchema == 0,
 		Read: p.ReadUntrusted, Valued: p.HoldsValued == 1,
 		SilentSince: msTime(p.SilentSinceMs), SessionID: p.SessionID, Silent: p.SilentSinceMs.Valid, Folder: p.Folder, Deadline: msTime(p.DeadlineMs), Provider: p.Provider}
+	if !p.FinishedAt.Valid && p.Opens != "" {
+		var o process.Opens
+		if json.Unmarshal([]byte(p.Opens), &o) == nil {
+			v.Opens = &o
+		}
+	}
 	if p.State == process.StateWaiting {
 		v.Wait = &waitView{Reason: p.WaitReason, On: p.WaitOn, Until: msTime(p.WaitUntilMs), Silence: p.WaitSilence}
 	}

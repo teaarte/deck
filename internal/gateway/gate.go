@@ -117,7 +117,7 @@ func Hold(ctx context.Context, q *db.Queries, act registry.Actor, project, proce
 		return a, err
 	}
 	_, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(now), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project),
-		Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Need: right, Outcome: "waiting", Params: Canonical(f.Call.Input),
+		Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Need: right, Subject: needOf(f.Need).Subject, Count: 1, Outcome: "waiting", Params: Canonical(f.Call.Input),
 		AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
 	return a, err
 }
@@ -239,11 +239,7 @@ func (g *Gateway) Record(ctx context.Context, a db.Ask, outcome, why string) {
 	if err != nil {
 		return
 	}
-	right := ""
-	if f.Need != nil {
-		right = f.Need.Right
-	}
-	g.journal(ctx, f.Caller.actor(), a.ProjectID.Int64, f.Call.Command, right, outcome, string(f.Call.Input), why)
+	g.journal(ctx, f.Caller.actor(), a.ProjectID.Int64, f.Call.Command, needOf(f.Need), outcome, string(f.Call.Input), why)
 }
 
 // TurnMakes says the payload of a request is a call the agent's turn makes itself, a tool of its provider.

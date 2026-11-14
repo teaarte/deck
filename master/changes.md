@@ -515,3 +515,10 @@ and bring the modules in line.
   uv's environments of a script beyond one a file. An export of a module carries no caches, by the rule of snapshots
   (folders starting with a dot or named like a cache, `node_modules`, `hf`, `venv`, `site-packages`). The disk row
   names the folder of every module and its caches.
+- 2026-11-14: `deck.project_report` says what a module did in a period (`days`, 1 is today) by the rights of the catalog,
+  a line a subject: the hosts its programs and agents reached with how many requests (a tunnel of HTTPS counts once),
+  the calls that needed a right (made and `refused`), turns on a login, paid model calls (`usd`) and turns that read
+  text from outside deck (right `outside`). The door writes the hosts a box reached to the journal: `calls_list` lines
+  of outcome `reached` with `subject` (the host) and `count`, at the end of a run and on the way. `rights_list` gives
+  `used` (the last use), `module` and `title` (the right in the owner's words); an open process gives `opens` (`hosts`
+  of its box, `login` of its CLI).

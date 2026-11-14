@@ -82,6 +82,9 @@ func (x *MCP) spec(ctx context.Context, p db.Project, name string, s manifest.MC
 	b := boxes.For(sandbox.KindMCP, m, g, false, paths)
 	b.Mark = x.Host.Sandbox.Mark(sandbox.KindMCP, ServerKey(p.ID, name))
 	b.Argv, b.Dir, b.Home, b.Env, b.Write = append([]string{s.Command}, s.Args...), dir, dir, env, []string{dir}
+	if x.GW != nil {
+		b.Reach = x.GW.Tally(p.WorkspaceID, p.ID)
+	}
 	return mcphost.Spec{Box: b, Secrets: secrets}, nil
 }
 

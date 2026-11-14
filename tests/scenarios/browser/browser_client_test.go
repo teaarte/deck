@@ -56,8 +56,8 @@ func TestRealBrowserWebClient(t *testing.T) {
 	}
 	b.eval(`(document.querySelector('[data-later]').click(), '')`)
 	b.until("Later shows the next one", `document.querySelector('[data-kind]')?.innerText === 'Action' && `+card+`.innerText.includes('POST')`)
-	if got := b.eval(`JSON.stringify(` + buttons + `)`); got != `["Details","Allow once: post","No, and do not ask again","For this work","Deny because…","Later"]` {
-		t.Fatalf("a fresh request says what its yes once allows first, then no, for this work and always: %s", got)
+	if got := b.eval(`JSON.stringify(` + buttons + `)`); got != `["Details","Allow once: post","No, and do not ask again","For this work","Deny because…","Rights","Later"]` {
+		t.Fatalf("a fresh request says what its yes once allows first, then no, for this work and always, and where it is decided: %s", got)
 	}
 	if got := b.eval(card + `.innerText`); !strings.Contains(got, "post") || !strings.Contains(got, "POST "+svc.URL+"/items/n2") || !strings.Contains(got, "notes") || strings.Contains(got, "notes.post") {
 		t.Fatalf("a confirmation says what by its title, where and its module, the command under its details: %q", got)

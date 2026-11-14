@@ -434,9 +434,12 @@ func (r *renderer) list(b manifest.Block, items []map[string]any, out map[string
 			}
 		}
 		line := map[string]any{"id": it["_id"], "actions": acts}
-		if b.Item.Marks != "" && r.deck() {
-			if v, err := r.eval(b.Item.Marks, it); err == nil && v != nil {
-				line["marks"] = v
+		for key, e := range map[string]string{"marks": b.Item.Marks, "parts": b.Item.Parts} {
+			if e == "" || !r.deck() {
+				continue
+			}
+			if v, err := r.eval(e, it); err == nil && v != nil {
+				line[key] = v
 			}
 		}
 		if c := r.cover(b, it); c != nil {

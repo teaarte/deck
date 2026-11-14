@@ -19,12 +19,48 @@ import (
 )
 
 type askAnswerIn struct {
-	Ask    int64  `type:"ask" desc:"Ask id"`
-	Answer string `type:"text" desc:"The answer"`
-	Reason string `type:"text" opt:"" desc:"Why not, sent with deny to the agent"`
+	Ask    int64   `type:"ask" desc:"Ask id"`
+	Answer string  `type:"text" desc:"The answer"`
+	Reason string  `type:"text" opt:"" desc:"Why not, sent with deny to the agent"`
+	Also   []int64 `opt:"" desc:"Other requests of the same process answered the same, allow, allow_work or deny, one by one after it"`
 }
 
 func (s *Service) askAnswer(ctx context.Context, act registry.Actor, in askAnswerIn) (any, error) {
+	if len(in.Also) == 0 {
+		return s.answerOne(ctx, act, in)
+	}
+	if !slices.Contains([]string{"allow", gateway.AllowWork, "deny"}, in.Answer) {
+		return nil, registry.Invalid("also answers more requests only with allow, allow_work or deny; always is a right's, one at a time")
+	}
+	first, err := s.St.Q.GetAsk(ctx, in.Ask)
+	if err != nil || first.WorkspaceID != act.Workspace {
+		return nil, registry.NotFound("no ask %d", in.Ask)
+	}
+	for _, id := range in.Also {
+		q, err := s.St.Q.GetAsk(ctx, id)
+		if err != nil || q.WorkspaceID != act.Workspace || q.Kind != ask.KindCall || !first.ProcessID.Valid || q.ProcessID != first.ProcessID {
+			return nil, registry.Invalid("request %d is not one of the same process as request %d", id, in.Ask)
+		}
+	}
+	// One answered already on its own is skipped; the rest are answered all the same.
+	var answered, skipped []int64
+	var last error
+	for _, id := range append([]int64{in.Ask}, in.Also...) {
+		if _, err := s.answerOne(ctx, act, askAnswerIn{Ask: id, Answer: in.Answer, Reason: in.Reason}); err != nil {
+			slog.Warn("answer a request of the same work", "ask", id, "err", err)
+			skipped, last = append(skipped, id), err
+			continue
+		}
+		answered = append(answered, id)
+	}
+	if len(answered) == 0 {
+		return nil, last
+	}
+	return map[string]any{"ok": true, "answered": answered, "skipped": skipped}, nil
+}
+
+// answerOne answers one thing that waits for the owner.
+func (s *Service) answerOne(ctx context.Context, act registry.Actor, in askAnswerIn) (any, error) {
 	if in.Reason = strings.TrimSpace(in.Reason); in.Reason != "" && in.Answer == "deny" {
 		in.Answer = "deny:" + in.Reason
 	}

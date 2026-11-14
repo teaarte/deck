@@ -445,6 +445,9 @@ type Item struct {
 	Actions string `json:"actions,omitempty"`
 	// Marks are small labels beside the title, each a text with an icon or the words of a logo; only on deck's screens.
 	Marks string `json:"marks,omitempty"`
+	// Parts are the parts of an item, each a title, text and buttons of its own, such as the requests of one work;
+	// only on deck's screens.
+	Parts string `json:"parts,omitempty"`
 }
 
 type Tab struct {

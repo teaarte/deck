@@ -392,3 +392,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-md);
+}

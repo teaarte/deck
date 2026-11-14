@@ -7,8 +7,8 @@ import { usePress } from './usePress';
 import s from './PressAsks.module.css';
 
 // Answer is a button of the card that answers the ask, as the server gave it.
-function Answer({ id, act, answer, primary, busy, onBusy, onError }: {
-  id: number; act: Action; answer: string; primary?: boolean; busy: string; onBusy: (b: string) => void; onError: (e: string) => void;
+function Answer({ id, act, answer, primary, label, busy, onBusy, onError }: {
+  id: number; act: Action; answer: string; primary?: boolean; label?: string; busy: string; onBusy: (b: string) => void; onError: (e: string) => void;
 }) {
   const { t } = useTranslation();
   const { send } = usePress(act);
@@ -24,7 +24,7 @@ function Answer({ id, act, answer, primary, busy, onBusy, onError }: {
   };
   return (
     <Button size="xs" variant={primary ? 'filled' : 'default'} loading={busy === answer} disabled={!!busy} onClick={() => void go()} data-press-answer={answer}>
-      {t(primary ? 'Yes' : 'No')}
+      {label ?? t(primary ? 'Yes' : 'No')}
     </Button>
   );
 }
@@ -38,6 +38,7 @@ export function PressAsks() {
   const [error, setError] = useState('');
   const a = asks[0];
   const shown = !!a;
+  const always = a?.actions?.find((x) => x.verb === 'allow_always');
   useEffect(() => (shown ? followAsks() : undefined), [shown]);
   if (!a) return null;
   return (
@@ -49,6 +50,8 @@ export function PressAsks() {
             {asks.length > 1 && <Text size="xs" c="dimmed">1 / {asks.length}</Text>}
           </Group>
           <Text fw={650}>{a.what}</Text>
+          {a.waits && <Text size="sm" c="var(--deck-text-2)" data-press-waits>{a.waits}</Text>}
+          {a.change && <Text size="sm" className="deck-pre" data-press-change>{a.change}</Text>}
           {a.where && <Text size="sm" className="deck-wrap" data-press-where>{a.where}</Text>}
           {a.payload !== undefined && a.payload !== null && (
             <Code block mah={160} style={{ overflow: 'auto' }} data-press-input>{JSON.stringify(a.payload, null, 2)}</Code>
@@ -58,6 +61,7 @@ export function PressAsks() {
           <Group justify="flex-end" gap="xs">
             <Button size="xs" variant="subtle" color="gray" onClick={() => dropAsk(a.id)} data-press-answer="later">{t('Later, in the cockpit')}</Button>
             <Answer id={a.id} act={a.deny} answer="deny" busy={busy} onBusy={setBusy} onError={setError} />
+            {always && <Answer id={a.id} act={always} answer="allow_always" label={always.label} busy={busy} onBusy={setBusy} onError={setError} />}
             <Answer id={a.id} act={a.allow} answer="allow" primary busy={busy} onBusy={setBusy} onError={setError} />
           </Group>
         </Stack>

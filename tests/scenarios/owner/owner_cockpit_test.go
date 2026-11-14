@@ -547,7 +547,7 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 		return out
 	}
 	by := fmt.Sprintf("#%d work", second)
-	if fresh.Title != "post" || !strings.HasPrefix(fresh.Text, "it acts in your name: post\nPOST "+svc.URL+"/items/n2\n") ||
+	if fresh.Title != "post" || !strings.HasPrefix(fresh.Text, "Waits for your answer: you have not answered for this right yet\nit acts in your name: post\nPOST "+svc.URL+"/items/n2\n") ||
 		!strings.HasSuffix(fresh.Text, "id: n2\ntext: hi\nfor the test") || fresh.Meta != "notes · Work" ||
 		!strings.HasPrefix(fresh.Details, by+"\nnotes.post\n") {
 		t.Fatalf("a request says what the right lets, where, what it sends, its module and who asks in words; the process and the command under its details: %+v", fresh)
@@ -556,9 +556,9 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 		strings.Contains(fresh.Details, `"caller"`) {
 		t.Fatalf("the call and only the call is in the details: %s", fresh.Details)
 	}
-	if got := verbs(fresh); !slices.Equal(got, []string{"Allow once: post", "No, and do not ask again", "For this work", "Always let notes: it acts in your name: post", "Deny because…"}) ||
+	if got := verbs(fresh); !slices.Equal(got, []string{"Allow once: post", "No, and do not ask again", "For this work", "Always let notes: it acts in your name: post", "Deny because…", "Rights"}) ||
 		fresh.Actions[0]["primary"] != true || fresh.Actions[0]["until"] == nil || fresh.Actions[4]["input"] != "reason" {
-		t.Fatalf("a request offers once and a kept no, then for this work and always, each until it expires, and a no with a reason: %v", fresh.Actions)
+		t.Fatalf("a request offers once and a kept no, then for this work and always, each until it expires, a no with a reason and Rights: %v", fresh.Actions)
 	}
 	if got := verbs(old); !slices.Equal(got, []string{"Deny"}) || !strings.Contains(old.Details, `"id": "n1"`) {
 		t.Fatalf("an expired confirmation keeps only deny: %+v", old)
@@ -671,7 +671,7 @@ func TestProviderConfirmationSaysWhatAndWhere(t *testing.T) {
 	e.Run(p, "fetch")
 	e.Until("the confirmation", func() bool { return len(e.CockpitItems()) == 1 })
 	it := e.CockpitItems()[0]
-	if it.Title != "WebFetch" || it.Text != "url: https://example.com/page\nprompt: read it" || !strings.Contains(it.Details, "read it") {
+	if it.Title != "WebFetch" || it.Text != "Waits for your answer: you have not answered for this right yet\nurl: https://example.com/page\nprompt: read it" || !strings.Contains(it.Details, "read it") {
 		t.Fatalf("the confirmation says the tool and where it goes, with its whole input: %+v", it)
 	}
 }

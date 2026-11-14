@@ -43,6 +43,8 @@ type Service struct {
 	Lookup func(ctx context.Context, workspace int64, name string) (*registry.Command, error)
 	// Works is the work of the commands of a workspace in a language: its model and the models that could take it.
 	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
+	// Waits is why a request of a frozen call waits for the owner, by the row of the table of decisions.
+	Waits func(ctx context.Context, payload string) (string, []any)
 }
 
 // Commands are the commands of processes.
@@ -108,6 +110,9 @@ type processView struct {
 	// turn with both has its ways out only by the owner's once.
 	Read   string `json:"read,omitempty"`
 	Valued bool   `json:"valued,omitempty"`
+	// WhyWaits is why the first open request of a process waits for the owner, in the owner's words, and WaitsAsk which.
+	WhyWaits string `json:"why_waits,omitempty"`
+	WaitsAsk int64  `json:"waits_ask,omitempty"`
 	// Opens is what an open process holds open: the hosts its box reaches and the CLI whose login it runs on; Marks
 	// the same as labels beside its name.
 	Opens *process.Opens `json:"opens,omitempty"`
@@ -381,6 +386,16 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 			"your agent slot is free for it; a look without a wait answers at once and holds your slot", p.ID)
 	}
 	s.shown(ctx, act, p, &v, registry.Lang(ctx))
+	if asks, err := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID); err == nil && s.Waits != nil {
+		for _, q := range asks {
+			if q.Kind == ask.KindCall && q.State == ask.StateOpen {
+				if says, args := s.Waits(ctx, q.Payload); says != "" {
+					v.WhyWaits, v.WaitsAsk = fmt.Sprintf(manifest.TrText(words.In(registry.Lang(ctx)), says), args...), q.ID
+				}
+				break
+			}
+		}
+	}
 	if process.Waits(p, process.WaitSlot) {
 		ahead, err := s.St.Q.CountSlotAhead(ctx, db.CountSlotAheadParams{WorkspaceID: project.WorkspaceID, ID: p.ID})
 		if err != nil {

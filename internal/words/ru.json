@@ -1378,5 +1378,17 @@
   "Ask again": "Спрашивать снова",
   "deck's own": "своё у deck",
   "given %s": "выдано %s",
-  "No module declares a right": "Ни один модуль не объявляет прав"
+  "No module declares a right": "Ни один модуль не объявляет прав",
+  "This work asks for %d things": "Эта работа просит о нескольких вещах: %d",
+  "Requests of one work": "Просьбы одной работы",
+  "Allow all": "Разрешить все",
+  "Deny all": "Отклонить все",
+  "All for this work": "Все — для этой работы",
+  "Why it waits": "Почему ждёт",
+  "Waits for your answer: you have not answered for this right yet": "Ждёт твоего ответа: на это право ты ещё не отвечал",
+  "Waits: this work read text from outside deck (%s), so a way out goes only with your yes to this very call": "Ждёт: эта работа читала текст извне deck (%s), поэтому наружу — только с твоего «да» именно этому вызову",
+  "Waits: this work read text from outside deck (%s), so it changes what a module runs only with your yes": "Ждёт: эта работа читала текст извне deck (%s), поэтому меняет то, что запускает модуль, только с твоего «да»",
+  "Waits: this run spent the most its module allows per run; more goes only with your yes to this call": "Ждёт: этот прогон потратил предел своего модуля; дальше — только с твоего «да» этому вызову",
+  "Waits: a draft or a trial run, so you answer each of its calls": "Ждёт: это черновик или проба — каждый вызов решаешь ты",
+  "no to the requests of this work": "нет — просьбам этой работы"
 }

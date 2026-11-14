@@ -270,6 +270,11 @@ export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; 
       </Group>
       <div className={s.under}>
         {it.details && <Details text={it.details} />}
+        {it.parts && it.parts.length > 0 && (
+          <Stack gap={6} data-parts>
+            {it.parts.map((p) => <Part key={show(p.id)} part={p} />)}
+          </Stack>
+        )}
         {it.questions && <QuestionPicker questions={it.questions} act={answer} quiet={quiet} />}
         {later ? (
           <Group gap={6} wrap="wrap">
@@ -298,5 +303,21 @@ function Pill({ mark }: { mark: NonNullable<Item['marks']>[number] }) {
       {mark.logo ? <Logo names={mark.logo} size={13} /> : mark.icon ? <NamedIcon name={mark.icon} fallback={mark.text} size={13} /> : null}
       <span className={s.pillText}>{mark.text}</span>
     </span>
+  );
+}
+
+// Part is a part of an item with buttons of its own, such as one request of a work: a press of its own that waits
+// steps the part aside, not the item, until it goes or is taken back.
+function Part({ part }: { part: NonNullable<Item['parts']>[number] }) {
+  const [held, setHeld] = useState(false);
+  if (held) return null;
+  return (
+    <div className={s.part} data-part={show(part.id)}>
+      <Text fw={600} size="sm">{part.title}</Text>
+      {part.text && <Text size="xs" c="var(--deck-text-2)" className="deck-pre">{part.text}</Text>}
+      <Holding.Provider value={setHeld}>
+        <Actions actions={part.actions} max={3} quiet />
+      </Holding.Provider>
+    </div>
   );
 }

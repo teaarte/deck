@@ -15,7 +15,7 @@ type Decision = askView
 // Of are what the processes wait for the owner to decide but their questions, oldest first, each with its buttons;
 // an answer the owner may take back holds a few seconds, as on Today.
 func (s *Service) Of(ctx context.Context, act registry.Actor, processes []int64, lang string) ([]Decision, error) {
-	return s.rows(ctx, act, lang, func(q db.Ask) bool {
+	return s.rows(ctx, act, lang, true, func(q db.Ask) bool {
 		return q.Kind != ask.KindQuestion && slices.Contains(processes, q.ProcessID.Int64)
 	})
 }
@@ -67,6 +67,9 @@ func buttons(r askView) []map[string]any {
 			if r.ExpiresAt != "" {
 				a["until"] = r.ExpiresAt
 			}
+		}
+		if r.Waits != "" && r.Project != "" {
+			out = append(out, map[string]any{"verb": "rights", "screen": "settings", "params": map[string]any{"tab": "Rights", "project": r.Project}})
 		}
 		return out
 	case r.Kind == ask.KindSignIn && ask.Provider(db.Ask{Kind: r.Kind, Payload: string(r.Payload)}):

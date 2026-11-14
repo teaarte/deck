@@ -28,6 +28,7 @@ var verbs = map[string]button{
 	"revert": {"Back to this", "history"}, "save": {"Save", "device-floppy"}, "use": {"Use", "check"},
 	"trust": {"I checked it: trust", "shield-check"}, "distrust": {"Do not trust", "shield-x"},
 	"report": {"Report", "report-analytics"}, "rights": {"Rights", "shield-check"},
+	"allow_all": {"Allow all", "checks"}, "deny_all": {"Deny all", "x"}, "allow_work_all": {"All for this work", "player-play"},
 }
 
 // Verb is the label of a built-in button in ws and its icon; empty for a name that is no verb.

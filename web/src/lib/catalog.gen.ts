@@ -503,6 +503,15 @@ export interface Data {
       icon?: string;
       logo?: string;
     }[];
+    /**
+     * the parts of the item, each with buttons of its own
+     */
+    parts?: {
+      id: unknown;
+      title: string;
+      text?: string;
+      actions?: Action[];
+    }[];
     actions?: Action[];
   }[];
   /**

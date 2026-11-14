@@ -528,3 +528,8 @@ and bring the modules in line.
   of a draft are gone: the draft's card says how many rights enabling gives and how many ask first, with a button to
   Rights. A module's report is the screen `rights-report` (`project`, `period`). An open process gives `marks` (its
   hosts and login as labels) and a chat topic `opens`; the head of Today says how many runs hold the network or a login.
+- 2026-11-14: `asks_list` gives `waits`, why a request waits for the owner in the owner's words (by the row of the
+  table of decisions), and with `by_work` puts the open requests of one process in one item with `parts`, each with its
+  own buttons, and buttons for all (verbs `allow_all`, `deny_all`, `allow_work_all`); `ask_answer` takes `also`, other
+  requests of the same process answered the same (allow, allow_work or deny). `process_get` gives `why_waits` and
+  `waits_ask` of a process whose request is open. New verbs `rights` and `report`; a list item of deck's screens has `parts`.

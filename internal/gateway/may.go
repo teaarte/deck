@@ -556,3 +556,37 @@ func (g *Gateway) Explain(ctx context.Context, act registry.Actor, command strin
 	}
 	return g.verdict(ctx, act, c, project, in, false)
 }
+
+// waitsSays are why a call waits for the owner in the owner's words, by the row of the table of decisions; %s of
+// marked and instructs is where the turn read from outside.
+var waitsSays = map[string]string{
+	"ask":        "Waits for your answer: you have not answered for this right yet",
+	"marked":     "Waits: this work read text from outside deck (%s), so a way out goes only with your yes to this very call",
+	"instructs":  "Waits: this work read text from outside deck (%s), so it changes what a module runs only with your yes",
+	"over":       "Waits: this run spent the most its module allows per run; more goes only with your yes to this call",
+	"draft_tool": "Waits: a draft or a trial run, so you answer each of its calls",
+}
+
+// Waits is why a frozen call waits for the owner, words to translate with what goes in them, by the row the call would
+// take now, else that of a turn that read from outside or of a right not answered.
+func (g *Gateway) Waits(ctx context.Context, payload string) (string, []any) {
+	f, err := ask.Decode[Frozen](payload)
+	if err != nil {
+		return "", nil
+	}
+	row := "ask"
+	if f.Read != "" {
+		row = "marked"
+	}
+	if f.As != AsTurn {
+		// A row that would not ask, such as one the owner answered meanwhile, says nothing.
+		if v, err := g.Explain(ctx, f.Caller.actor(), f.Call.Command, f.Call.Input); err == nil {
+			row = v.Name
+		}
+	}
+	says := waitsSays[row]
+	if strings.Contains(says, "%s") {
+		return says, []any{cmp.Or(f.Read, "?")}
+	}
+	return says, nil
+}

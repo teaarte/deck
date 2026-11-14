@@ -24,6 +24,9 @@ import (
 type asksListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; every project without one"`
 	Lang    string `opt:"" desc:"Language of the sentences of deck, such as ru; English without one"`
+	// counts reads them only to count them, without why each waits.
+	counts bool
+	ByWork bool `json:"by_work" opt:"" desc:"The requests of one process as one item, each in parts, with buttons that answer them all"`
 }
 
 // askRow is what waits for the owner, with who asks, what and where in words.
@@ -50,6 +53,10 @@ type askView struct {
 	Kept bool `json:"kept,omitempty"`
 	// Turn marks a call of a tool of the agent's provider, which its turn makes itself once allowed.
 	Turn bool `json:"turn,omitempty"`
+	// Waits is why a request waits for the owner, in the owner's words: the row of the table of decisions it takes.
+	Waits string `json:"waits,omitempty"`
+	// Parts are the requests of one process an item of by_work holds, each with its own buttons.
+	Parts []askPart `json:"parts,omitempty"`
 	// Allow is the label of the yes with what it lets happen, for a call, a confirmation or a grant.
 	Allow     string          `json:"allow,omitempty"`
 	Where     string          `json:"where"`
@@ -71,11 +78,100 @@ func (s *Service) asksList(ctx context.Context, act registry.Actor, in asksListI
 	if err != nil {
 		return nil, err
 	}
-	return s.rows(ctx, act, registry.Lang(ctx), func(q db.Ask) bool { return pid == 0 || q.ProjectID.Int64 == pid })
+	rows, err := s.rows(ctx, act, registry.Lang(ctx), !in.counts, func(q db.Ask) bool { return pid == 0 || q.ProjectID.Int64 == pid })
+	if err != nil || !in.ByWork {
+		return rows, err
+	}
+	return byWork(rows, words.In(registry.Lang(ctx))), nil
+}
+
+// askPart is a request in an item of by_work: what it is, what a yes allows and why it waits, and its buttons.
+type askPart struct {
+	ID      int64            `json:"id"`
+	Title   string           `json:"title"`
+	Text    string           `json:"text,omitempty"`
+	Actions []map[string]any `json:"actions"`
+}
+
+func partOf(r askView) askPart {
+	text := strings.Join(slices.DeleteFunc([]string{r.Waits, cmp.Or(r.Change, r.Where), r.Why}, func(s string) bool { return s == "" }), "\n")
+	return askPart{ID: r.ID, Title: r.What, Text: text, Actions: r.Actions}
+}
+
+// byWork puts the open requests of one process in one item, in its first one's place: each a part with its own
+// buttons, and buttons that allow, allow for the work or say no to all of them at once.
+func byWork(rows []askView, ws map[string]string) []askView {
+	tr := func(text string) string { return manifest.TrText(ws, text) }
+	at := map[int64]int{}
+	out := make([]askView, 0, len(rows))
+	for _, r := range rows {
+		if r.Kind != ask.KindCall || r.Process == 0 || r.Expired {
+			out = append(out, r)
+			continue
+		}
+		i, ok := at[r.Process]
+		if !ok {
+			at[r.Process] = len(out)
+			out = append(out, r)
+			continue
+		}
+		if len(out[i].Parts) == 0 {
+			out[i].Parts = []askPart{partOf(out[i])}
+		}
+		out[i].Parts = append(out[i].Parts, partOf(r))
+	}
+	for i, r := range out {
+		if len(r.Parts) == 0 {
+			continue
+		}
+		g := r
+		g.What = fmt.Sprintf(tr("This work asks for %d things"), len(r.Parts))
+		g.Change, g.Where, g.Allow, g.Always, g.Kept, g.Waits, g.Why, g.Payload = "", "", "", "", false, "", "", json.RawMessage("null")
+		var also []int64
+		work := true
+		for _, p := range r.Parts[1:] {
+			also = append(also, p.ID)
+		}
+		for _, p := range r.Parts {
+			work = work && slices.ContainsFunc(p.Actions, func(a map[string]any) bool { return a["verb"] == "allow_work" })
+		}
+		until := ""
+		for _, p := range r.Parts {
+			for _, a := range p.Actions {
+				if u, ok := a["until"].(string); ok && (until == "" || u < until) {
+					until = u
+				}
+			}
+		}
+		all := func(verb, answer string, primary bool) map[string]any {
+			a := button(r.ID, verb, answer)
+			a["params"].(map[string]any)["also"] = also
+			if until != "" {
+				a["until"] = until
+			}
+			a["hold"] = true
+			if primary {
+				a["primary"] = true
+			}
+			if label, icon := manifest.Verb(ws, verb); label != "" {
+				a["label"], a["icon"] = label, icon
+			}
+			return a
+		}
+		no := all("deny_all", "deny", false)
+		// A no to all refuses these calls, and keeps no no to their rights.
+		no["params"].(map[string]any)["reason"] = tr("no to the requests of this work")
+		g.Actions = []map[string]any{all("allow_all", "allow", true), no}
+		if work {
+			g.Actions = append(g.Actions, all("allow_work_all", gateway.AllowWork, false))
+		}
+		out[i] = g
+	}
+	return out
 }
 
 // rows are the open asks and expired confirmations keep holds for, oldest first, in the owner's words.
-func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, keep func(db.Ask) bool) ([]askView, error) {
+func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, waits bool, keep func(db.Ask) bool) ([]askView, error) {
 	open, err := s.St.Q.ListWorkspaceOpenAsks(ctx, act.Workspace)
 	if err != nil {
 		return nil, err
@@ -102,34 +198,7 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, kee
 			in = s.langOf(ctx, act.Workspace, q.ProcessID.Int64, lang)
 			langs[q.ProcessID.Int64] = in
 		}
-		ws := words.In(in)
-		tr := func(text string) string { return manifest.TrText(ws, text) }
-		r := s.askRow(ctx, q, names, in)
-		r.Who, r.Always = tr(r.Who), tr(r.Always)
-		switch {
-		case q.Kind == ask.KindQuestion:
-			r.What = tr(r.What)
-		case ask.Provider(q):
-			r.What, r.Text = tr(r.What), tr(r.Text)
-		case registry.IsBuiltin(r.Command):
-			// A call of several, as assignments, says each on its line.
-			r.Where = trLines(tr, r.Where)
-		}
-		r.Change, r.Work = trLines(tr, r.Change), tr(r.Work)
-		if q.Kind == ask.KindCall && r.What != "" {
-			r.Allow = tr(fmt.Sprintf("Allow once: %s", r.What))
-		}
-		r.Actions = buttons(r)
-		for _, a := range r.Actions {
-			// The buttons of an ask speak its language, not the reader's.
-			if label, icon := manifest.Verb(ws, fmt.Sprint(a["verb"])); label != "" && a["label"] == nil {
-				a["label"] = label
-				if a["icon"] == nil {
-					a["icon"] = icon
-				}
-			}
-		}
-		out = append(out, r)
+		out = append(out, s.said(ctx, q, s.askRow(ctx, q, names, in), in, waits))
 	}
 	if len(out) > 0 {
 		s.shown(ctx, act)
@@ -159,7 +228,7 @@ func (s *Service) langOf(ctx context.Context, workspace, process int64, lang str
 
 // Waiting are how many things wait for the owner, as asks_list gives them, by project, deck's own under "".
 func (s *Service) Waiting(ctx context.Context, act registry.Actor) (map[string]int64, error) {
-	rows, err := s.asksList(ctx, act, asksListIn{})
+	rows, err := s.asksList(ctx, act, asksListIn{counts: true})
 	out := map[string]int64{}
 	for _, r := range rows {
 		out[r.Project]++
@@ -356,4 +425,41 @@ func (s *Service) listCommands() []*registry.Command {
 			"Lists what waits for the owner, oldest first: questions, requests about calls that need a right, unknown outcomes and sign-ins, with who asks, what and where, and the link of the screen that answers them; a request gives in deck's words what a yes allows and, apart, why the caller asks in its own. Requests that expired stay until the owner clears them.",
 			registry.OwnerSide, s.asksList).On(events.Asks),
 	}
+}
+
+// said is a row in the words of lang, with why it waits when waits, and the buttons that decide it, the same on Today,
+// in the chat and at the button that started its run.
+func (s *Service) said(ctx context.Context, q db.Ask, r askView, lang string, waits bool) askView {
+	ws := words.In(lang)
+	tr := func(text string) string { return manifest.TrText(ws, text) }
+	r.Who, r.Always = tr(r.Who), tr(r.Always)
+	switch {
+	case q.Kind == ask.KindQuestion:
+		r.What = tr(r.What)
+	case ask.Provider(q):
+		r.What, r.Text = tr(r.What), tr(r.Text)
+	case registry.IsBuiltin(r.Command):
+		// A call of several, as assignments, says each on its line.
+		r.Where = trLines(tr, r.Where)
+	}
+	r.Change, r.Work = trLines(tr, r.Change), tr(r.Work)
+	if waits && q.Kind == ask.KindCall && q.State == ask.StateOpen && s.Gateway != nil {
+		if says, args := s.Gateway.Waits(ctx, q.Payload); says != "" {
+			r.Waits = fmt.Sprintf(tr(says), args...)
+		}
+	}
+	if q.Kind == ask.KindCall && r.What != "" {
+		r.Allow = tr(fmt.Sprintf("Allow once: %s", r.What))
+	}
+	r.Actions = buttons(r)
+	for _, a := range r.Actions {
+		// The buttons of an ask speak its language, not the reader's.
+		if label, icon := manifest.Verb(ws, fmt.Sprint(a["verb"])); label != "" && a["label"] == nil {
+			a["label"] = label
+			if a["icon"] == nil {
+				a["icon"] = icon
+			}
+		}
+	}
+	return r
 }

@@ -31,6 +31,8 @@ a work's result, data of a module that holds some — goes out only with the own
 research, a send waits for their answer, and the answer says so; that is deck's rule, not a refusal to work around. Models are deck's, declared once in
 its settings; a module calls only them. A model the work needs and deck lacks you propose with `deck.model_set`
 (connection, model, kind; the price comes from the catalog of the connection), which waits for the owner's button.
+Weights of models never live in deck, yours or a module's: a model is a cloud API or a ready open-source server the
+owner runs (the models skill), and you try one through the cloud, never by downloading it.
 You never enable a draft, add a folder or set a secret: `commands_list` marks such commands `owner_only` with `form`,
 the address of their form, and `form_params`, the parameters after `?` that fill it; give the owner that link with
 the values, and `command_describe` gives the fields of the form (`deck.secret_set`, …), so name them as they are.

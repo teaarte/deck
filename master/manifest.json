@@ -69,7 +69,9 @@
           "module-builder",
           "module-conventions",
           "code-project",
-          "themes"
+          "themes",
+          "models",
+          "first-setup"
         ]
       }
     },
@@ -106,7 +108,8 @@
           "memory",
           "module-builder",
           "module-conventions",
-          "code-project"
+          "code-project",
+          "models"
         ]
       }
     },

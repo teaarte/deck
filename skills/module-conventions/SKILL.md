@@ -13,10 +13,11 @@ module reads the same and a reviewer knows what to look for.
 
 - `manifest.json` — the module; `prompt.md` — its first line is the one-line description, then what it is for.
 - `prompts/<command>.md` — the prompt of each agent command; facts and criteria in `<topic>.md` it reads.
-- `scripts/<command>.py` (or `.mjs`, `.sh`) — one script per script command, named as the command.
+- `scripts/<command>.py` (or `.sh`; `.mjs` only to start a ready JS engine) — one script per script command, named as
+  the command.
 - `skills/<name>/SKILL.md` — a way of working an agent of the module reuses; `custom/<name>.html` — a custom block.
 - The data folder (`$DECK_DATA`): `<collection>/<key>/` for what a record has, `cache/` for what can be made again,
-  `.cache` for package managers; nothing loose at its root. State that must survive a trial's undo is a record.
+  `.cache` for package managers, never weights of a model; nothing loose at its root. State that must survive a trial's undo is a record.
 - Names: commands and collections in `snake_case` verbs and plural nouns (`fetch`, `score`, `items`), fields in
   `snake_case`, never a name of an expression function (`date`, `count`, `len`) — `day`, `ops`.
 - Texts of screens and commands in English with `i18n` for the owner's language.
@@ -38,8 +39,10 @@ The contract, the same for every runtime:
 Style:
 
 - Python by default: `"runtime": "python"` and a PEP 723 block with pinned versions (`httpx==0.28.1`), no
-  `requires-python` above 3.11; the standard library when it is enough. Node: `npm install --prefix $DECK_DATA/node`
-  of a pinned version, output to stderr.
+  `requires-python` above 3.11; the standard library when it is enough. Node only to start a ready JS engine:
+  `npm install --prefix $DECK_DATA/node` of a pinned version, output to stderr.
+- A model is a connection called through `$DECK_MODELS` — a cloud API or a ready open-source server — never torch,
+  mlx or diffusers loading weights in the script, nor a download from Hugging Face (module-builder, section 5).
 - A `main(inp)` that returns the result, small functions under it, constants at the top; no state in globals
   between functions, no `print` in helpers.
 - Every network call has a timeout and goes through the proxy deck sets (`HTTP(S)_PROXY`); its hosts are under

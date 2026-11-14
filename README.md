@@ -130,6 +130,14 @@ itself maybe (Docker starts it again), instead of the host's other services. A d
 shows as `unhealthy` in `docker compose ps`; a monitor outside the machine, such as an uptime check of deck's https
 address, tells you when the machine itself is down.
 
+**What it holds, what you add.** The image carries deck and the programs its work runs: the CLIs of Claude Code, Codex
+and goose, Python with uv, Node, ffmpeg, git and Chromium. Models are not in it and never live in deck: you add one way
+to reach them in Settings → Models — sign in to a Claude or ChatGPT subscription, or give an OpenRouter key, or a free
+key of Groq or NVIDIA — and Deki proposes which model takes each kind of work. A model of your own hardware is a
+ready open-source server (Ollama, llama.cpp, whisper.cpp, LocalAI): a service beside deck in `compose.override.yaml`
+is a connection by its service name (`http://ollama:11434/v1`, [details](docs/install.md#a-model-server-beside-deck)),
+a server on your Mac comes through a node.
+
 **First steps.** Open the link, then sign in to the agents in Settings → Models → **Sign in** (Codex shows a link and a
 code, Claude Code a link whose page gives the code). An empty deck says "Tell Deki what to do": describe a routine in
 the chat and Deki builds the module, or add the starter module it offers as a draft. The models, agents and folders of

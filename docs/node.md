@@ -5,6 +5,8 @@ that listen on its own `127.0.0.1` (whisper, servers of pictures, music and spee
 GPU, its agents' logins or its folders. A **node** serves them: the same `deck` binary on that machine, outside
 Docker, holds one connection out to deck and carries deck's calls to its loopback. It needs no Tailscale and opens no
 port; it reaches nothing of its network but its own loopback, and its key opens nothing of deck but that connection.
+A server that listens on the machine's address in the local network needs no node: its connection is that address,
+such as `http://192.168.1.20:11434/v1`, and the network and the open port are yours.
 
 ## Pairing a node
 

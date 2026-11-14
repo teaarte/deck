@@ -1,7 +1,8 @@
 # Installing deck: the details
 
 The short way is in the [README](../README.md#install). This page has the rest: a server with a domain, what the
-container needs, behind the host's tailscale serve, Windows, moving a deck that ran without Docker, and deck without Docker.
+container needs, behind the host's tailscale serve, a model server beside deck, Windows, moving a deck that ran without
+Docker, and deck without Docker.
 
 ## A server with a domain
 
@@ -44,6 +45,25 @@ The gateway is no proxy of deck, as any container of the host comes from it too;
 names it (`DECK_PROXY=caddy,gateway`) works, and Settings → Health says to drop `gateway`. Without Docker deck takes
 X-Forwarded-For from no address, loopback too, unless `-proxy` names it (`-proxy 127.0.0.1` behind the host's own
 proxy).
+
+## A model server beside deck
+
+deck runs no model itself: a model of your own hardware is a ready open-source server (Ollama, llama.cpp, whisper.cpp,
+LocalAI). On deck's machine add it as a service to `compose.override.yaml` beside `compose.yaml` (an update downloads
+`compose.yaml` again; the override stays, and the one `install.sh` wrote already holds `services:`), such as
+
+```yaml
+services:
+  ollama:
+    image: ollama/ollama
+    volumes: [ollama:/root/.ollama]
+volumes:
+  ollama:
+```
+
+then `docker compose up -d` and, in Settings → Models → Connections, a connection of the address by the service name,
+`http://ollama:11434/v1`, marked local; its models keep their weights in the server's own volume, not in deck's. A
+server on another machine comes through a [node](node.md) or by its address on the local network.
 
 ## Windows
 

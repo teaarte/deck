@@ -245,13 +245,15 @@ box of its own that sees and reaches what the rights of the module list:
   subscription login (Claude Code, Codex) nor in a module that reads the data of others: there it installs and
   clones nothing itself, a script of the module does. An agent searches with deck's `web_search` and reads pages
   with `web_fetch`;
-- inside its box a program binds local ports, starts a headless browser and keeps its caches (`$DECK_DATA/.cache`);
-  `files` on `gpu` adds the graphics card;
+- inside its box a program binds local ports, starts a headless browser and keeps the caches of its package managers
+  (`$DECK_DATA/.cache`); `files` on `gpu` opens the graphics card on Linux (`/dev/dri`) to render and encode video
+  (Chrome, ffmpeg), not to run models (section 5);
 - no secrets and no keys of the owner in its environment: a secret reaches a module through what its manifest
   names (an HTTP tool, an MCP server).
 
 On a node on a Mac (and deck without Docker there) scripts, MCP servers and ACP agents run in `sandbox-exec`
-without local ports or the GPU, and the CLIs of Claude Code and Codex run outside the box.
+without local ports; that box lets every program use the graphics card, so `gpu` changes nothing there. The CLIs of
+Claude Code and Codex run outside the box.
 
 ## 5. Scripts
 
@@ -273,7 +275,9 @@ script's last call with an error takes the type of that answer (`input.invalid`,
   of an error response, not the status alone;
 - no secrets and no keys of the owner; ask for an HTTP tool of the manifest instead, and never ask the owner to
   `export` a key for a module;
-- `runtime` is `python`, `node`, `bash` or `exec`; `timeout_minutes` is the ceiling of a run, 10 by default;
+- a script is Python with a PEP 723 header; `node` only starts a ready JS engine (Remotion, a CLI of npm), and deck
+  warns of a script of `runtime: node`. `runtime` is `python`, `node`, `bash` or `exec`; `timeout_minutes` is the
+  ceiling of a run, 10 by default;
 - a script runs alone: a helper shared by scripts is repeated in each; the helpers of this skill,
   `helpers/deck_helper.py` and `helpers/deck_helper.mjs`, are the ones module-conventions names;
 - deck commands over HTTP: `curl -s -H "Authorization: Bearer $DECK_TOKEN" -d '<json>' "$DECK_URL/commands/deck.record_upsert"`
@@ -285,7 +289,7 @@ script's last call with an error takes the type of that answer (`input.invalid`,
   "confirm in the cockpit";
 - files go into `$DECK_RESULTS`; the result field `files: [{"path": "...", "record": <id>}]` attaches them;
 - a script installs its own packages when it runs: the registries are hosts of its `network` (Python: `pypi.org`,
-  `files.pythonhosted.org`; Node: `registry.npmjs.org`), the cache lives in `$DECK_DATA/.cache`. deck removes a
+  `files.pythonhosted.org`; Node: `registry.npmjs.org`), their cache lives in `$DECK_DATA/.cache`. deck removes a
   cache untouched for 30 days (uv's once no script of the module ran for 30 days) and leaves caches out of snapshots
   and exports, so nothing the module needs lives there. Programs it needs from the machine go into
   `scripts[].programs` (`"uv"`, or `{"name": "typst", "install": "brew install typst"}`).
@@ -295,7 +299,7 @@ script's last call with an error takes the type of that answer (`input.invalid`,
   `"runtime": "python"` runs by `uv run --script` on deck's one python (3.11 in deck's image), so its PEP 723 block
   gives it its packages; uv downloads no python, and a `requires-python` above deck's fails as `program.missing`
   that names both versions. Its file stays in the project between runs, so its environment is built once and again
-  only when the block changes. Node installs into `$DECK_DATA`:
+  only when the block changes. The packages of a JS engine install into `$DECK_DATA`:
   ```js
   const dir = process.env.DECK_DATA + "/node";
   require("node:child_process").execFileSync("npm", ["install", "--prefix", dir, "--no-audit", "--no-fund", "left-pad@1.3.0"], { stdio: ["ignore", 2, 2] });
@@ -308,6 +312,15 @@ script's last call with an error takes the type of that answer (`input.invalid`,
 protocol; a video is a job deck polls until the clip is ready. A picture, track or clip comes back as a file with
 `model` and `cost_usd`; `deck.process_get` names the `models` of a process and their `cost_usd`. A model on the
 owner's machine (a local server) is a connection like any other.
+
+Weights of models never live in deck: not in `$DECK_DATA`, not in a script's cache, not for a trial. A model is a
+connection — a cloud API, or a ready open-source server the owner runs on a machine of theirs (Ollama, llama.cpp or
+vLLM for text, whisper.cpp for speech to text, mlx-audio or LocalAI for speech, mlx-openai-server or LocalAI for
+pictures, SearXNG for search), reached by its address on the local network or through a node. A script does not load
+torch, mlx or diffusers to run a model, nor downloads from Hugging Face; deck warns of mlx or CUDA in a PEP 723
+header, of torch or diffusers there with `gpu`, and of a download from Hugging Face. A small model a package computes
+on the CPU, such as a depth map, stays a dependency in the script's cache, its warning expected. No ready server for a model: the work goes
+to a cloud API under `money`, or is not done; a module never carries a server of its own.
 
 Anything else — a service with its own API (fal, Replicate, ElevenLabs, Google Veo's own API) — is a script that
 calls it through `$DECK_MODELS`, so the key stays with deck and the call is in its journal. The owner adds the

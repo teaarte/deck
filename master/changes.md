@@ -539,3 +539,8 @@ and bring the modules in line.
   onnxruntime-gpu in a header, of a script that downloads from Hugging Face or `network` on huggingface.co, and of a
   script of `runtime: node` (a script is Python; node only starts a ready JS engine). `files: gpu` is for rendering
   and video.
+- 2026-11-14: the master has the skills `models` (a model is a ready open-source server or a cloud API: a server by
+  kind, its install on a Mac or Linux, its connection through a node or a local address, cloud or own by how often,
+  a model tried through the cloud) and `first-setup` (three ways to reach models and the assignments of each kind). A
+  `files: gpu` right is for rendering and video on Linux; on a Mac the box lets every program use the graphics card.
+  The master reads `spend_list` and `spend_days_list`, to count how often a module calls a paid model.

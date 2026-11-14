@@ -149,25 +149,27 @@ func (x *Exec) place(j Job) (string, error) {
 		return "", fault.New(fault.ScriptFailed, fmt.Sprintf("script %s: file %q is outside the folder of scripts", j.Script.Name, j.Script.File))
 	}
 	file := filepath.Join(dir, filepath.FromSlash(rel))
-	if old, err := home.ReadIn(dir, filepath.FromSlash(rel), int64(len(j.Source))+1); err == nil && string(old) == j.Source {
-		if x.Now == nil {
-			return file, nil
+	if old, err := home.ReadIn(dir, filepath.FromSlash(rel), int64(len(j.Source))+1); err != nil || string(old) != j.Source {
+		t, err := home.Create(filepath.Dir(file))
+		if err != nil {
+			return "", err
 		}
-		// The time of the file is when a script of the module last ran: the cleanup keeps uv's cache by it.
-		return file, os.Chtimes(file, x.Now(), x.Now())
+		defer t.Drop()
+		if _, err := t.WriteString(j.Source); err != nil {
+			return "", err
+		}
+		if err := t.Chmod(0o700); err != nil {
+			return "", err
+		}
+		if err := t.Keep(file); err != nil {
+			return "", err
+		}
 	}
-	t, err := home.Create(filepath.Dir(file))
-	if err != nil {
-		return "", err
+	if x.Now == nil {
+		return file, nil
 	}
-	defer t.Drop()
-	if _, err := t.WriteString(j.Source); err != nil {
-		return "", err
-	}
-	if err := t.Chmod(0o700); err != nil {
-		return "", err
-	}
-	return file, t.Keep(file)
+	// The time of the file is when a script of the module last ran: the cleanup keeps uv's cache by it.
+	return file, os.Chtimes(file, x.Now(), x.Now())
 }
 
 // environ is the environment of a script over that of its box: its folders, caches of its project, the one python

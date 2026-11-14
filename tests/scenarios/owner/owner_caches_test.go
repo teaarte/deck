@@ -33,20 +33,27 @@ func put(t *testing.T, dir string, at time.Time, files ...string) {
 }
 
 // TestTheDailyCleanupRemovesCachesUntouchedForAMonth: a cache of a module or its MCP server untouched for 30 days
-// goes, its data and uv's of a script run lately stay; the disk row names the folder of every module.
+// goes, its data and uv's, old but of a script run now, stay; the disk row names every module's folder.
 func TestTheDailyCleanupRemovesCachesUntouchedForAMonth(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock())
 	now := e.Clock.Now()
 	old, recent := now.Add(-31*24*time.Hour), now.Add(-24*time.Hour)
 	h := deckhome.Layout(e.App.Cfg.Home)
-	id := e.Project("big", harness.ScriptManifest("use", "", ""))
+	id := e.Project("big", strings.Replace(harness.ScriptManifest("use", "", ""), `"runtime": "python"`, `"runtime": "bash"`, 1))
+	e.SaveScript("big", "scripts/main.py", "echo '{}'\n")
+	if p := e.WaitState(e.Start("big", "use", nil), "done", "error"); p.State != "done" {
+		t.Fatalf("the script runs: %+v", p)
+	}
+	if fi, err := os.Stat(filepath.Join(h.Scripts(id), "scripts", "main.py")); err != nil || !fi.ModTime().Equal(now) {
+		t.Fatalf("a run stamps the file of its script by deck's clock: %v %v", fi, err)
+	}
 	e.Project("tiny", harness.ScriptManifest("use", "", ""))
 	dir := h.Project(id)
 	put(t, dir, old, "data/out/a.bin", "data/.cache/huggingface/model.bin", "mcp/files/state.json", "mcp/files/.npm/_npx/old/pkg.js",
 		"data/.cache/uv/environments-v2/main-0000000000000001/lib.py", "data/.cache/uv/environments-v2/stale-0000000000000003/lib.py")
-	put(t, dir, recent, "data/.cache/pip/http/fresh", "data/.cache/uv/environments-v2/main-0000000000000002/lib.py",
-		"scripts/scripts/main.py")
+	put(t, dir, recent, "data/.cache/pip/http/fresh")
+	put(t, dir, now.Add(-10*24*time.Hour), "data/.cache/uv/environments-v2/main-0000000000000002/lib.py")
 	put(t, filepath.Join(dir, "mcp", "other"), old, ".cache/uv/x")
 	if err := os.Chtimes(filepath.Join(dir, "mcp", "other"), recent, recent); err != nil {
 		t.Fatal(err)

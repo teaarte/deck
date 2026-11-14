@@ -19,6 +19,9 @@ import (
 // cachesKept is how long a cache of a module stays untouched before the daily cleanup removes it.
 const cachesKept = 30 * 24 * time.Hour
 
+// envsKept is how long a spare environment of uv stays, so none a run is building goes.
+const envsKept = 7 * 24 * time.Hour
+
 // workSize is what the folders of the modules, their caches among them, and the runs take; by names each module.
 type workSize struct {
 	modules, caches, runs int64
@@ -73,16 +76,31 @@ func (s *Service) tidyWork(ctx context.Context, now time.Time) {
 }
 
 // cacheFolders are the folders of a module's caches by their paths in its folder: that of its scripts and agents,
-// and those its MCP servers keep in their homes.
+// and those its MCP servers keep in their homes; a link in the place of one is none.
 func cacheFolders(h home.Layout, project int64) []string {
-	out := []string{filepath.Join("data", ".cache")}
-	servers, _ := os.ReadDir(filepath.Join(h.Project(project), "mcp"))
+	dir := h.Project(project)
+	var out []string
+	if plainDir(dir, "data") && plainDir(dir, filepath.Join("data", ".cache")) {
+		out = append(out, filepath.Join("data", ".cache"))
+	}
+	if !plainDir(dir, "mcp") {
+		return out
+	}
+	servers, _ := os.ReadDir(filepath.Join(dir, "mcp"))
 	for _, sv := range servers {
-		if sv.IsDir() {
-			out = append(out, filepath.Join("mcp", sv.Name(), ".cache"), filepath.Join("mcp", sv.Name(), ".npm"))
+		for _, c := range []string{".cache", ".npm"} {
+			if rel := filepath.Join("mcp", sv.Name(), c); sv.IsDir() && plainDir(dir, rel) {
+				out = append(out, rel)
+			}
 		}
 	}
 	return out
+}
+
+// plainDir says rel under dir is a folder and no link.
+func plainDir(dir, rel string) bool {
+	fi, err := os.Lstat(filepath.Join(dir, rel))
+	return err == nil && fi.IsDir()
 }
 
 // staleCaches are the caches of a module untouched for cachesKept by their paths in its folder, each child of a cache
@@ -103,7 +121,7 @@ func staleCaches(h home.Layout, project int64, now time.Time) []string {
 			if c == filepath.Join("data", ".cache") && e.Name() == "uv" {
 				touched = maxTime(touched, ran)
 				if now.Sub(touched) <= cachesKept {
-					out = append(out, spareEnvironments(h, project, filepath.Join(rel, "environments-v2"))...)
+					out = append(out, spareEnvironments(h, project, filepath.Join(rel, "environments-v2"), now)...)
 				}
 			}
 			if now.Sub(touched) > cachesKept {
@@ -114,9 +132,9 @@ func staleCaches(h home.Layout, project int64, now time.Time) []string {
 	return out
 }
 
-// spareEnvironments are uv's environments under envs past the newest one a script file of that name: uv names one by
-// its file and keeps it by its path. One of a name no file has waits for the rule of 30 days.
-func spareEnvironments(h home.Layout, project int64, envs string) []string {
+// spareEnvironments are uv's environments under envs past the newest one a script file of that name, unchanged for a
+// week: uv names one by its file and keeps it by its path. One of a name no file has waits for the rule of 30 days.
+func spareEnvironments(h home.Layout, project int64, envs string, now time.Time) []string {
 	files := map[string]int{}
 	for _, d := range []string{h.Scripts(project), h.Drafts(project)} {
 		_ = filepath.WalkDir(d, func(_ string, e fs.DirEntry, err error) error {
@@ -143,20 +161,23 @@ func spareEnvironments(h home.Layout, project int64, envs string) []string {
 	for name, es := range by {
 		slices.SortFunc(es, func(a, b env) int { return b.at.Compare(a.at) })
 		for _, e := range es[min(files[name], len(es)):] {
-			out = append(out, filepath.Join(envs, e.name))
+			if now.Sub(e.at) > envsKept {
+				out = append(out, filepath.Join(envs, e.name))
+			}
 		}
 	}
 	return out
 }
 
-// newest is the latest change of anything under path, or since when later; links are not followed.
+// newest is the latest change or read the system keeps of anything under path, or since when later; links are not
+// followed.
 func newest(path string, since time.Time) time.Time {
 	_ = filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
 		if fi, err := d.Info(); err == nil {
-			since = maxTime(since, fi.ModTime())
+			since = maxTime(since, maxTime(fi.ModTime(), readAt(fi)))
 		}
 		return nil
 	})

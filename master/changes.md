@@ -503,3 +503,5 @@ and bring the modules in line.
 - 2026-11-14: where text from outside came from (`untrusted` of `projects_list`, `read` of a process and of a chat
   topic) is said in the owner's language; a module's mark reads "the call <command> of <who>" and the data "the data
   of <module>, written by <who>".
+- 2026-11-14: an HTTP tool of POST, PUT, PATCH or DELETE carries a request body its caller writes whatever right its
+  author names, `network` too: a marked turn calls it only by the owner's once; a GET stays free on a named host.

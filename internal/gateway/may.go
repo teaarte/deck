@@ -142,7 +142,7 @@ func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.C
 	// An answer is kept for a right on a subject, never for deck's own command a module proposes.
 	v.kept = project != 0 && n.Subject != "" && !n.Asked && f.Declared && !(registry.IsBuiltin(c.Name) && n.Subject == c.Name)
 	f.Pressed = slices.ContainsFunc(allows, func(a Allow) bool { return a.names(c, input) })
-	f.Exit = g.exit(ctx, act, m, n)
+	f.Exit = g.exit(ctx, act, m, n) || own && m.SendsBody(strings.TrimPrefix(c.Name, p.Name+"."))
 	if f.Answer == manifest.Always && n.Right == manifest.Money && m != nil {
 		if f.Over, v.capped, err = g.over(ctx, act, m, needs); err != nil {
 			return v, err

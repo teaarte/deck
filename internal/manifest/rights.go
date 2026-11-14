@@ -64,7 +64,9 @@ func (m *Manifest) Names(n registry.Need) bool {
 }
 
 // Holds says the module holds need: a declared subject that covers it the owner answered always, to its print.
-func (m *Manifest) Holds(g Grants, n registry.Need) bool { return m.holds(g, n, func(string) bool { return false }) }
+func (m *Manifest) Holds(g Grants, n registry.Need) bool {
+	return m.holds(g, n, func(string) bool { return false })
+}
 
 // Reads says the module holds need of data of another module: Holds by a subject that is no service of its own, whose
 // name may be another module's.
@@ -285,6 +287,14 @@ func (m *Manifest) Posts(n registry.Need) bool {
 	return m != nil && n.Right == Data && slices.ContainsFunc(m.Tools.HTTP, func(t HTTPTool) bool {
 		right, subject := ToolRight(t)
 		return t.Name == n.Subject && subject == n.Subject && right == Data && t.Method != "GET" && t.Method != "HEAD"
+	})
+}
+
+// SendsBody says the module's HTTP tool of that name is of a method other than GET or HEAD: it carries a request body
+// its caller writes, whatever right its author names.
+func (m *Manifest) SendsBody(tool string) bool {
+	return m != nil && slices.ContainsFunc(m.Tools.HTTP, func(t HTTPTool) bool {
+		return t.Name == tool && t.Method != "GET" && t.Method != "HEAD"
 	})
 }
 

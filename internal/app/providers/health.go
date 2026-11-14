@@ -2,8 +2,10 @@ package providers
 
 import (
 	"context"
+	"time"
 
 	"deck2/internal/health"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
@@ -24,7 +26,7 @@ func (s *Service) Goes(ctx context.Context, workspace int64, name string) bool {
 		return false
 	}
 	h, err := s.Health(ctx, workspace, name)
-	return err != nil || h.Status != health.Checking && !down(h)
+	return err != nil || h.Status != health.Checking && (!down(h) || nearlySpent(h))
 }
 
 // Down is the status and text of the own health of a provider that is paused or red by its adapter, so no turn goes
@@ -70,9 +72,18 @@ func (s *Service) Health(ctx context.Context, workspace int64, name string) (db.
 		case lerr != nil:
 		case l.Status == health.Paused && !health.Ended(l, now) && (err != nil || h.Status != health.Paused || health.Until(l).After(health.Until(h))):
 			return l, nil
-		case l.Status == health.OK && l.Error != "" && (err != nil || h.Status == health.OK && h.Error == ""):
+		case l.Status == health.OK && l.Error != "" && (err != nil || h.Status == health.OK && h.Error == "") && !stale(l, now):
 			return l, nil
 		}
 	}
 	return h, err
+}
+
+// quotaFresh is how long the windows of a subscription a turn told stand in the health of its CLI.
+const quotaFresh = 5 * time.Hour
+
+// stale says the windows a row tells are older than quotaFresh.
+func stale(h db.Health, now time.Time) bool {
+	at, err := store.ParseTime(h.UpdatedAt)
+	return err != nil || now.Sub(at) > quotaFresh
 }

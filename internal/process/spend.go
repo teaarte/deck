@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"time"
 
 	"deck2/internal/provider"
 	"deck2/internal/store"
@@ -18,12 +19,17 @@ type ModelCall struct {
 	Provider     string
 	Usage        provider.Usage
 	Subscription bool
+	// Command names a call without a process, such as a self-check.
+	Command string
 }
 
 // LogModelCall is the one writer of the journal of model calls; a call of a provider that counts only the session
 // costs what the session grew by since its last call, or all of it when the count started over.
 func LogModelCall(ctx context.Context, q *db.Queries, c ModelCall, now string) error {
 	u := c.Usage
+	if u.CostUSD == nil && u.SessionCostUSD != nil && c.Process == 0 {
+		u.CostUSD = u.SessionCostUSD
+	}
 	if u.CostUSD == nil && u.SessionCostUSD != nil {
 		p, err := q.GetProcess(ctx, c.Process)
 		if err != nil {
@@ -43,21 +49,28 @@ func LogModelCall(ctx context.Context, q *db.Queries, c ModelCall, now string) e
 		ConnectionID: store.ID(u.Connection), Provider: c.Provider, RequestModel: u.RequestModel, ResponseModel: u.Model,
 		InputTokens: u.Input, OutputTokens: u.Output, CacheReadTokens: u.CacheRead, CacheCreationTokens: u.CacheCreation,
 		DurationMs: u.Duration.Milliseconds(), CostUsd: store.Cost(u.CostUSD), CreatedAt: now,
-		SessionCostUsd: store.Cost(u.SessionCostUSD), Subscription: store.Bool(c.Subscription)})
+		SessionCostUsd: store.Cost(u.SessionCostUSD), Subscription: store.Bool(c.Subscription), Command: c.Command})
 }
 
 // usage writes one model call of an agent turn; a model of deck's settings tells whether it is on a subscription.
 func (r *Runner) usage(ctx context.Context, workspace, processID int64, pv provider.Provider, u provider.Usage) {
 	r.answered(processID)
-	_, subscribed := pv.(provider.Subscribed)
-	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if m, err := q.GetModelOf(ctx, db.GetModelOfParams{ConnectionID: u.Connection, Model: u.RequestModel}); u.Connection != 0 && err == nil {
-			subscribed = m.Model.Subscription != 0
+	LogUsage(ctx, r.st, ModelCall{Workspace: workspace, Process: processID, Usage: u}, pv, r.now())
+}
+
+// LogUsage keeps a call of the model of an agent turn of provider pv, in a transaction of its own: on a subscription
+// when the provider or the model of its connection is one.
+func LogUsage(ctx context.Context, st *store.Store, c ModelCall, pv provider.Provider, now time.Time) {
+	_, c.Subscription = pv.(provider.Subscribed)
+	c.Provider = pv.Name()
+	err := st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if m, err := q.GetModelOf(ctx, db.GetModelOfParams{ConnectionID: c.Usage.Connection, Model: c.Usage.RequestModel}); c.Usage.Connection != 0 && err == nil {
+			c.Subscription = m.Model.Subscription != 0
 		}
-		return LogModelCall(ctx, q, ModelCall{Workspace: workspace, Process: processID, Provider: pv.Name(), Usage: u, Subscription: subscribed}, store.Time(r.now()))
+		return LogModelCall(ctx, q, c, store.Time(now))
 	})
 	if err != nil {
-		slog.Error("model call journal", "process", processID, "err", err)
+		slog.Error("model call journal", "process", c.Process, "command", c.Command, "err", err)
 	}
 }
 

@@ -105,6 +105,9 @@ func (t *turn) handle(ctx context.Context, m message) {
 		var n AccountRateLimitsUpdatedNotification
 		if decode(m.Params, &n) {
 			t.limits = n.RateLimits
+			if id := n.RateLimits.LimitID; id == "" || id == "codex" {
+				t.quota = n.RateLimits
+			}
 			if reached := string(n.RateLimits.RateLimitReachedType); reached != "" {
 				t.emit(provider.Event{Kind: provider.EventRateLimit, Text: reached})
 				if t.limitHit == "" && t.turnID != "" && t.completed == 0 {

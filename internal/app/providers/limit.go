@@ -205,9 +205,9 @@ func (s *Service) Answered(ctx context.Context, workspace int64, name string, ok
 
 // The words of the row of a subscription's quota: one or two windows as they stand, and a window nearly used up.
 const (
-	quotaOne    = "%s: %d%% used, resets at %s"
-	quotaTwo    = "%s: %d%% used, resets at %s; %s: %d%% used, resets at %s"
-	quotaNearly = "the %s window of the subscription is %d%% used; new turns go to the next model until it resets"
+	quotaOne    = "%s: %d percent used, resets at %s"
+	quotaTwo    = "%s: %d percent used, resets at %s; %s: %d percent used, resets at %s"
+	quotaNearly = "the %s window of the subscription is %d percent used; new turns go to the next model until it resets"
 )
 
 // windowName is a window of a quota by its length, in deck's words.
@@ -227,7 +227,7 @@ func (s *Service) lift(ctx context.Context, name string) {
 	for _, ws := range spaces {
 		if cli := s.cliOf(ctx, ws, name); cli != "" {
 			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-				if h, err := health.Get(ctx, q, health.Of{}, health.Limit(cli)); err != nil || h.Status != health.Paused {
+				if h, err := health.Get(ctx, q, health.Of{}, health.Limit(cli)); err != nil || h.Status != health.Paused || nearlySpent(h) {
 					return nil
 				}
 				return health.Clear(ctx, q, health.Of{}, health.Limit(cli))
@@ -262,4 +262,76 @@ func (s *Service) sweepPauses(ctx context.Context, spaces []int64, now time.Time
 			})
 		}
 	}
+}
+
+// SelfCheckCommand is the command the calls of a self-check stand under in the journal of model calls.
+const SelfCheckCommand = "self-check"
+
+// checkLimited pauses a model whose self-check met its limit and says until when: a self-check is not tried again in a
+// moment, so a first limit without a reset pauses as the next one would.
+func (s *Service) checkLimited(ctx context.Context, workspace int64, name string, ends int64, words string) time.Time {
+	until, retry := s.Limited(ctx, workspace, name, ends, words)
+	if retry {
+		until, _ = s.Limited(ctx, workspace, name, ends, words)
+	}
+	return until
+}
+
+// pausedTill says a model is at a limit in a workspace that has it, and until when.
+func (s *Service) pausedTill(ctx context.Context, name string) (time.Time, bool) {
+	spaces, _ := s.St.Q.ListWorkspaces(ctx)
+	for _, ws := range spaces {
+		if h, err := s.Health(ctx, ws, name); err == nil && h.Status == health.Paused {
+			if end := health.Until(h); end.After(s.Now()) {
+				return end, true
+			}
+		}
+	}
+	return time.Time{}, false
+}
+
+// workspaceOf is the workspace a model of name is in, the first one for a provider of the machine.
+func (s *Service) workspaceOf(ctx context.Context, name string) int64 {
+	spaces, _ := s.St.Q.ListWorkspaces(ctx)
+	for _, ws := range spaces {
+		if _, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: ws, Name: name}); err == nil {
+			return ws
+		}
+	}
+	if len(spaces) > 0 {
+		return spaces[0]
+	}
+	return 0
+}
+
+// connectionOf is the connection a model calls through: of its row, the CLI's, or the provider itself.
+func (s *Service) connectionOf(ctx context.Context, workspace int64, name string) string {
+	if cli := s.cliOf(ctx, workspace, name); cli != "" {
+		return cli
+	}
+	if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name}); err == nil {
+		return row.Connection.Name
+	}
+	return name
+}
+
+// laneOf is the one place at a time the self-checks of a connection take.
+func (s *Service) laneOf(connection string) chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.lanes == nil {
+		s.lanes = map[string]chan struct{}{}
+	}
+	l := s.lanes[connection]
+	if l == nil {
+		l = make(chan struct{}, 1)
+		s.lanes[connection] = l
+	}
+	return l
+}
+
+// nearlySpent says a row of a subscription is the pause of a window nearly used up: the login still answers, so a
+// self-check does not lift it, and a turn with no other model to go to still runs on it.
+func nearlySpent(h db.Health) bool {
+	return h.Status == health.Paused && strings.Contains(h.Error, "window of the subscription is")
 }

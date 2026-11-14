@@ -69,6 +69,8 @@ type Service struct {
 	check map[string]*checks
 	// unknown are the streaks of limits without a reset, by workspace and the subject they pause.
 	unknown map[string]streak
+	// lanes hold the self-checks of a connection to one at a time.
+	lanes map[string]chan struct{}
 	// found is set once the ACP agents were looked for.
 	found bool
 }

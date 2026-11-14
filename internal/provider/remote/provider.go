@@ -337,7 +337,7 @@ func (p *Provider) SelfCheck(ctx context.Context) provider.Check {
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&c); err != nil {
 		return provider.Check{Err: fmt.Errorf("node %s: %w", p.cfg.Node, err)}
 	}
-	out := provider.Check{Version: c.Version, Held: c.Held, ModelFailed: c.ModelFailed, Slow: c.Slow, Speed: c.Speed}
+	out := provider.Check{Version: c.Version, Held: c.Held, ResetsAt: c.ResetsAt, ModelFailed: c.ModelFailed, Slow: c.Slow, Speed: c.Speed}
 	if c.Error != "" {
 		out.Err = errors.New(c.Error)
 	}

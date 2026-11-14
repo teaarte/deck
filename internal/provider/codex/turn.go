@@ -34,6 +34,8 @@ type turn struct {
 	final     string
 	failure   *TurnError
 	limits    RateLimitSnapshot
+	// quota is the last snapshot of the limits of the subscription itself, not of a model's own bucket.
+	quota RateLimitSnapshot
 	// limitHit is a usage limit codex reported reached in the turn, which deck interrupted for it.
 	limitHit string
 

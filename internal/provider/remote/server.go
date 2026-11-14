@@ -571,7 +571,7 @@ func (s *Server) check(w http.ResponseWriter, r *http.Request) {
 		out.Error = err.Error()
 	} else if sc, ok := pv.(provider.SelfChecker); ok {
 		c := sc.SelfCheck(r.Context())
-		out = check{Version: c.Version, Held: c.Held, ModelFailed: c.ModelFailed, Slow: c.Slow, Speed: c.Speed}
+		out = check{Version: c.Version, Held: c.Held, ResetsAt: c.ResetsAt, ModelFailed: c.ModelFailed, Slow: c.Slow, Speed: c.Speed}
 		if c.Err != nil {
 			out.Error = c.Err.Error()
 		}

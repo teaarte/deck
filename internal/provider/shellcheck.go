@@ -117,6 +117,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		},
 		OnUsage: func(u Usage) {
 			Answered(ctx)
+			Used(ctx, u)
 			mu.Lock()
 			tokens += u.Input + u.Output + u.CacheRead
 			output += u.Output
@@ -137,7 +138,7 @@ func (s ShellCheck) Check(ctx context.Context, start Check) (c Check) {
 		tokens = 0
 		mu.Unlock()
 		res, err := s.Run(ctx, r)
-		c.Held = res.Held()
+		c.Held, c.ResetsAt = res.Held(), res.ResetsAt
 		raw, approved, asked := cs.Take()
 		var o out
 		_ = json.Unmarshal(raw, &o)

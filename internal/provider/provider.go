@@ -239,8 +239,10 @@ type Provider interface {
 type Check struct {
 	Version string
 	Err     error
-	// Held is model.limit or model.login when the check hit a usage limit or found no valid login.
-	Held string
+	// Held is model.limit or model.login when the check hit a usage limit or found no valid login; ResetsAt is when the
+	// limit ends, in unix seconds, zero when it did not say.
+	Held     string
+	ResetsAt int64
 	// ModelFailed is set when Err is the model not doing the steps of the check, not a fault of the adapter.
 	ModelFailed bool
 	// Slow is set when the model ran out of time rather than failed a step.

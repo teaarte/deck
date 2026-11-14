@@ -33,7 +33,7 @@ func TestFailedSelfCheckHoldsClaudeCodeProcesses(t *testing.T) {
 	c.Stream(0, "ok.jsonl")
 	e := harness.ClockCLIEnv(t, c)
 	ctx := context.Background()
-	e.App.Providers.Checks(ctx, e.Clock.Now())
+	e.App.Providers.Check("claude-code")
 	h := e.WaitHealth("provider:claude-code", "error")
 	if h.Version != "2.1.281" || !strings.Contains(h.Error, "self-check of 2.1.281 failed") || !strings.Contains(h.Error, "first turn") {
 		t.Fatalf("a failed self-check is red with the version and the reason: %+v", h)
@@ -94,7 +94,7 @@ func TestSelfCheckHittingTheLimitIsAPauseNotABrokenAdapter(t *testing.T) {
 			cli.Stream(1, c.fixture)
 			cli.Stream(0, "ok.jsonl")
 			e := harness.ClockCLIEnv(t, cli)
-			e.App.Providers.Checks(context.Background(), e.Clock.Now())
+			e.App.Providers.Check("claude-code")
 			e.WaitHealth("provider:claude-code", c.status)
 			if got := healthIn(e, "ru", "provider:claude-code"); !strings.Contains(got, "; первый ход: ") {
 				t.Fatalf("the step of the self-check reads in Russian: %q", got)
@@ -166,13 +166,19 @@ func TestSelfCheckCutShortIsRunAgain(t *testing.T) {
 	c.Stream(3, "selfcheck_resume.jsonl")
 	c.ChecksPass()
 	e := harness.ClockCLIEnv(t, c)
-	e.App.Providers.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Check("claude-code")
 	if h := e.WaitHealth("provider:claude-code", "paused"); h.Version != "" {
 		t.Fatalf("a self-check cut short by the limit proves nothing about the version: %+v", h)
 	}
+	before := c.Calls()
 	e.App.Providers.Checks(context.Background(), e.Clock.Add(31*time.Minute))
+	e.Settle()
+	if c.Calls() != before {
+		t.Fatalf("a self-check at a limit is not run again before its reset: %d calls", c.Calls())
+	}
+	e.App.Providers.Checks(context.Background(), e.Clock.Add(time.Unix(1790379000, 0).Sub(e.Clock.Now())))
 	if h := e.WaitHealth("provider:claude-code", "ok"); h.Version != "2.1.281" {
-		t.Fatalf("the self-check runs again once the limit may be gone: %+v", h)
+		t.Fatalf("the self-check runs again once at the reset: %+v", h)
 	}
 }
 
@@ -185,7 +191,7 @@ func TestSelfCheckAllowsOnlyItsOwnCommand(t *testing.T) {
 [ -n "$url" ] && DECK_FAKE_MCP=approve '%s' "$url" Bash '{"command":"cat ~/.ssh/id_rsa"}'
 `, self))
 	e := harness.ClockCLIEnv(t, c)
-	e.App.Providers.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Check("claude-code")
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "asked deck about a command") || !strings.Contains(h.Error, "id_rsa") {
 		t.Fatalf("a question about any other command makes the self-check red: %+v", h)
 	}
@@ -197,7 +203,7 @@ func TestSelfCheckIsRedWhenTheCLIStopsCountingTokens(t *testing.T) {
 	c.Stream(1, "selfcheck_nousage.jsonl")
 	c.ChecksPass()
 	e := harness.ClockCLIEnv(t, c)
-	e.App.Providers.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Check("claude-code")
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "token counts") {
 		t.Fatalf("a turn without usage turns the self-check red: %+v", h)
 	}
@@ -210,7 +216,7 @@ func TestSelfCheckIsRedWhenAResumeStopsCountingTokens(t *testing.T) {
 	c.Stream(2, "selfcheck_resume_nousage.jsonl")
 	c.ChecksPass()
 	e := harness.ClockCLIEnv(t, c)
-	e.App.Providers.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Check("claude-code")
 	if h := e.WaitHealth("provider:claude-code", "error"); !strings.Contains(h.Error, "turn after resume: token counts") {
 		t.Fatalf("a resume without usage turns the self-check red: %+v", h)
 	}
@@ -308,7 +314,7 @@ func TestATurnTheProviderReportsAsAnErrorChecksIt(t *testing.T) {
 	c := harness.NewCLI(t)
 	c.ChecksPass()
 	e := harness.ClockCLIEnv(t, c)
-	e.App.Providers.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Check("claude-code")
 	e.WaitHealth("provider:claude-code", "ok")
 	c.Stream(4, "error.jsonl")
 	c.Stream(5, "error.jsonl")

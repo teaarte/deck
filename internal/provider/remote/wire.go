@@ -162,6 +162,7 @@ type check struct {
 	Version     string  `json:"version,omitempty"`
 	Error       string  `json:"error,omitempty"`
 	Held        string  `json:"held,omitempty"`
+	ResetsAt    int64   `json:"resets_at,omitempty"`
 	ModelFailed bool    `json:"model_failed,omitempty"`
 	Slow        bool    `json:"slow,omitempty"`
 	Speed       float64 `json:"speed,omitempty"`

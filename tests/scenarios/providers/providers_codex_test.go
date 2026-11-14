@@ -217,7 +217,7 @@ func TestFailedCodexSelfCheckHoldsCodexProcesses(t *testing.T) {
 	}}
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(fake, c.Adapter(home)), harness.WithClock(clock))
 	ctx := context.Background()
-	e.App.Providers.Checks(ctx, e.Clock.Now())
+	e.App.Providers.Check("codex")
 	h := e.WaitHealth("provider:codex", "error")
 	if h.Version != "0.155.1" || !strings.Contains(h.Error, "self-check of 0.155.1 failed") {
 		t.Fatalf("a failed self-check of Codex is red with the version and the reason: %+v", h)
@@ -271,7 +271,7 @@ func TestCodexSelfCheckIsRedWhenAutoModeStopsWorking(t *testing.T) {
 			c.Stream(i+1, s)
 		}
 		e := harness.New(t, harness.WithCodex(c))
-		e.App.Providers.Checks(context.Background(), time.Now())
+		e.App.Providers.Check("codex")
 		status := "error"
 		if tc.want == "no valid login" {
 			status = "needs_login"

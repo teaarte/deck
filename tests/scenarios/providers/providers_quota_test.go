@@ -47,7 +47,7 @@ func TestTheQuotaOfASubscriptionShowsAndANearlySpentOneHandsNewTurnsOn(t *testin
 	if got := e.WaitState(e.Start("plain", "work", nil), "done", "error"); got.State != "done" {
 		t.Fatalf("the turn is done: %+v", got)
 	}
-	want := fmt.Sprintf("5 hours: 62%% used, resets at %s; week: 40%% used, resets at %s", store.Time(time.Unix(quotaReset, 0)), store.Time(time.Unix(quotaReset+5*86400, 0)))
+	want := fmt.Sprintf("5 hours: 62 percent used, resets at %s; week: 40 percent used, resets at %s", store.Time(time.Unix(quotaReset, 0)), store.Time(time.Unix(quotaReset+5*86400, 0)))
 	if h := e.HealthRowOf("limit:claude-code"); h == nil || h["status"] != "ok" || h["error"] != want {
 		t.Fatalf("the row of the subscription shows its windows: %v", h)
 	}
@@ -61,7 +61,7 @@ func TestTheQuotaOfASubscriptionShowsAndANearlySpentOneHandsNewTurnsOn(t *testin
 			shown = m.Error
 		}
 	}
-	if !strings.Contains(shown, "62%") {
+	if !strings.Contains(shown, "62 percent") {
 		t.Fatalf("Settings → Models shows the quota of the CLI: %+v", out.Models)
 	}
 	if got := e.WaitState(e.Start("plain", "work", nil), "done", "error"); got.State != "done" || len(backup.Calls()) != 0 {

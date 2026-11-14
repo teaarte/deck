@@ -552,3 +552,7 @@ and bring the modules in line.
   last for ten minutes; a 429 makes a model paused, not red. The row `limit:<cli>` shows the windows of the
   subscription (5 hours, week: share used, reset); at 98 % new turns go to the next model until the window resets, a
   limit that resets within a minute is waited out on the same login.
+- 2026-11-14: self-checks spend less and show what they spend: a CLI is not checked as deck starts, only on the button,
+  after a broken turn and again while red; a model at a limit is checked once, when its pause ends; the models of one
+  connection are checked one at a time; the calls of a self-check are in the journal of model calls as command
+  `self-check` without a process (`spend_list`). A limit a self-check meets is a pause, not a failed check.

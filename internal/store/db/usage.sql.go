@@ -109,17 +109,18 @@ INSERT INTO llm_call (workspace_id, project_id, process_id, command, connection_
     gen_ai_usage_cache_creation_input_tokens, duration_ms, cost_usd, created_at, session_cost_usd, subscription)
 VALUES (?1,
     COALESCE((SELECT p.project_id FROM process p WHERE p.id = ?2), CAST(?3 AS INTEGER)), ?2,
-    COALESCE((SELECT p.command FROM process p WHERE p.id = ?2), ''),
-    ?4,
-    ?5, ?6, ?7, ?8, ?9,
-    ?10, ?11, ?12, ?13, ?14,
-    ?15, ?16)
+    COALESCE((SELECT p.command FROM process p WHERE p.id = ?2), CAST(?4 AS TEXT)),
+    ?5,
+    ?6, ?7, ?8, ?9, ?10,
+    ?11, ?12, ?13, ?14, ?15,
+    ?16, ?17)
 `
 
 type LogModelCallParams struct {
 	WorkspaceID         int64
 	ProcessID           sql.NullInt64
 	ProjectID           sql.NullInt64
+	Command             string
 	ConnectionID        sql.NullInt64
 	Provider            string
 	RequestModel        string
@@ -135,12 +136,13 @@ type LogModelCallParams struct {
 	Subscription        int64
 }
 
-// A call of a process takes the project and command of the process.
+// A call of a process takes the project and command of the process; one without a process, such as a self-check, its own.
 func (q *Queries) LogModelCall(ctx context.Context, arg LogModelCallParams) error {
 	_, err := q.db.ExecContext(ctx, logModelCall,
 		arg.WorkspaceID,
 		arg.ProcessID,
 		arg.ProjectID,
+		arg.Command,
 		arg.ConnectionID,
 		arg.Provider,
 		arg.RequestModel,

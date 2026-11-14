@@ -50,7 +50,7 @@ func (s *Service) checksOf(name string) *checks {
 }
 
 // Checks finds the ACP agents and runs the self-check of each provider that has one at the first call, and again
-// while it is red; a model of a CLI spends turns of the subscription, so it is checked on a button and a broken turn.
+// while it is red; a CLI spends turns of the subscription, so it is checked on a button and a broken turn.
 func (s *Service) Checks(ctx context.Context, now time.Time) {
 	s.mu.Lock()
 	found := s.found
@@ -86,13 +86,24 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 			s.unstick(ctx, pv.Name())
 			continue
 		}
-		if s.onCLI(ctx, pv.Name()) {
-			continue
-		}
+		cli := s.onCLI(ctx, pv.Name())
 		s.mu.Lock()
 		c := s.checksOf(pv.Name())
-		due := !c.started || !c.retry.IsZero() && !now.Before(c.retry)
+		first, again := !c.started, !c.retry.IsZero() && !now.Before(c.retry)
 		s.mu.Unlock()
+		if first && cli {
+			// A CLI spends turns of the subscription: it is checked on a button, a broken turn and again while red.
+			continue
+		}
+		if end, paused := s.pausedTill(ctx, pv.Name()); paused {
+			// A model at a limit is checked once, when it ends.
+			s.Recheck(pv.Name(), end)
+			s.mu.Lock()
+			s.checksOf(pv.Name()).started = true
+			s.mu.Unlock()
+			continue
+		}
+		due := first || again
 		if due {
 			s.startCheck(pv.Name(), false)
 		}
@@ -164,7 +175,20 @@ func (s *Service) startCheck(name string, force bool) bool {
 	c.running, c.started, c.last, c.retry, c.broke = true, true, s.Now(), time.Time{}, false
 	s.mu.Unlock()
 	subject := health.Provider(name)
+	ws := s.workspaceOf(s.Ctx, name)
+	pv := sc.(provider.Provider)
 	started := s.Go(func(ctx context.Context) {
+		// The models of one connection are checked one at a time: at once they would meet its limit per minute.
+		lane := s.laneOf(s.connectionOf(ctx, ws, name))
+		select {
+		case lane <- struct{}{}:
+			defer func() { <-lane }()
+		case <-ctx.Done():
+			s.mu.Lock()
+			c.running = false
+			s.mu.Unlock()
+			return
+		}
 		h, _ := health.Get(ctx, s.St.Q, health.Of{}, subject)
 		if force || h.Status == health.Error || h.Status == health.Checking {
 			s.writeCheck(ctx, name, health.Checking, "the self-check is running", "", "", 0)
@@ -179,7 +203,10 @@ func (s *Service) startCheck(name string, force bool) bool {
 		timer := time.AfterFunc(max(ceiling, agentStart), cancel)
 		var ready, answered sync.Once
 		cctx = provider.WithMarks(cctx, provider.Marks{Ready: func() { ready.Do(func() { timer.Reset(ceiling) }) },
-			Answered: func() { answered.Do(func() { timer.Reset(ceiling) }) }})
+			Answered: func() { answered.Do(func() { timer.Reset(ceiling) }) },
+			Used: func(u provider.Usage) {
+				process.LogUsage(context.WithoutCancel(ctx), s.St, process.ModelCall{Workspace: ws, Command: SelfCheckCommand, Usage: u}, pv, s.Now())
+			}})
 		var res provider.Check
 		unreached := s.Reach(cctx)
 		if unreached == nil {
@@ -189,13 +216,15 @@ func (s *Service) startCheck(name string, force bool) bool {
 		cancel()
 		of := cmp.Or(res.Version, "an unknown version")
 		status, text, verdict := health.OK, "", ""
+		var until time.Time
 		switch {
 		case ctx.Err() != nil:
 			status, text = health.Checking, "deck stopped during the self-check"
 		case unreached != nil:
 			status, text, verdict = health.Error, fmt.Sprintf("agents do not reach deck's MCP server, so they would start without deck's tools: %s", unreached), "adapter"
 		case res.Held == fault.ModelLimit:
-			status, text = health.Paused, fmt.Sprintf("the self-check hit the usage limit; %s", errText(res.Err))
+			until = s.checkLimited(ctx, ws, name, res.ResetsAt, errText(res.Err))
+			status, text = health.Paused, health.PauseText(until, "the self-check hit the usage limit; "+errText(res.Err))
 		case res.Held == fault.ModelLogin:
 			status, text = health.NeedsLogin, fmt.Sprintf("the self-check found no valid login; %s", errText(res.Err))
 		case res.Err != nil && res.Slow:
@@ -239,7 +268,10 @@ func (s *Service) startCheck(name string, force bool) bool {
 		}
 		s.mu.Lock()
 		c.running = false
-		if status != health.OK && status != health.Warning {
+		switch {
+		case status == health.Paused && !until.IsZero():
+			c.retry = until
+		case status != health.OK && status != health.Warning:
 			c.retry = s.Now().Add(selfCheckRetry)
 		}
 		s.mu.Unlock()
@@ -309,15 +341,13 @@ func (s *Service) unstick(ctx context.Context, name string) {
 	}
 }
 
-// onCLI reports whether a provider is a model of an agent CLI on the owner's subscription, on a node too.
+// onCLI reports whether a provider runs on the subscription of an agent CLI: the CLI itself or a model of it, on a
+// node too.
 func (s *Service) onCLI(ctx context.Context, name string) bool {
-	if base, _, ok := provider.AtNode(name); ok {
-		name = base
-	}
 	spaces, _ := s.St.Q.ListWorkspaces(ctx)
 	for _, ws := range spaces {
-		if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: ws, Name: name}); err == nil {
-			return row.Connection.Api == models.APICLI
+		if s.cliOf(ctx, ws, name) != "" {
+			return true
 		}
 	}
 	return false

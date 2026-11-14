@@ -16,7 +16,11 @@ import (
 type answeredKey struct{}
 
 // Marks are what a self-check hears of its agent: Ready once it can call its model, Answered at each answer.
-type Marks struct{ Ready, Answered func() }
+type Marks struct {
+	Ready, Answered func()
+	// Used hears each call of the model of the check, so its use is kept as any other.
+	Used func(Usage)
+}
 
 // WithMarks is ctx of a self-check whose ceiling counts again from the marks of its agent.
 func WithMarks(ctx context.Context, m Marks) context.Context {
@@ -27,6 +31,13 @@ func WithMarks(ctx context.Context, m Marks) context.Context {
 func Answered(ctx context.Context) {
 	if m, ok := ctx.Value(answeredKey{}).(Marks); ok && m.Answered != nil {
 		m.Answered()
+	}
+}
+
+// Used tells the self-check of ctx a call of its model and what it used.
+func Used(ctx context.Context, u Usage) {
+	if m, ok := ctx.Value(answeredKey{}).(Marks); ok && m.Used != nil {
+		m.Used(u)
 	}
 }
 

@@ -6,10 +6,12 @@ import (
 	"deck2/internal/events"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -21,11 +23,11 @@ type todayGetIn struct {
 	Lang string `opt:"" desc:"Language of the lines, such as ru; English without one"`
 }
 
-// todayLine is a line of the card of Today, the most pressing first: what waits, what failed, what runs, what the day
-// did and cost and what runs next; a calm day says so first.
+// todayLine is a line of the card of Today, the most pressing first: no model to work, what waits, what failed, what
+// runs, what the day did and cost and what runs next; a calm day says so first.
 type todayLineView struct {
 	ID    string `json:"id"`
-	Kind  string `json:"kind" enum:"asks|failures|running|opens|calm|day|asked|spent|next"`
+	Kind  string `json:"kind" enum:"access|asks|failures|running|opens|calm|day|asked|spent|next"`
 	Title string `json:"title"`
 	Text  string `json:"text,omitempty"`
 	Icon  string `json:"icon"`
@@ -40,6 +42,14 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 	ws := words.In(registry.Lang(ctx))
 	tr := func(str string, a ...any) string { return fmt.Sprintf(manifest.TrText(ws, str), a...) }
 	out := []todayLineView{}
+	var models struct{ Models []agentModel }
+	if err := s.read(ctx, act, "models_list", map[string]any{}, &models); err != nil {
+		return nil, err
+	}
+	if !slices.ContainsFunc(models.Models, agentModel.works) {
+		out = append(out, todayLineView{ID: "access", Kind: "access", Title: tr("No model can work as an agent yet"),
+			Text: tr("Sign in to Claude Code or Codex, or add a key of OpenRouter, Groq or NVIDIA"), Icon: "key", Tone: "warn"})
+	}
 	var asks []struct{ What, Allow string }
 	if err := s.read(ctx, act, "asks_list", map[string]any{}, &asks); err != nil {
 		return nil, err
@@ -131,6 +141,19 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 	return out, nil
 }
 
+// agentModel is a model of models_list as the line of access reads it.
+type agentModel struct {
+	Agent, Status         string
+	Builtin, Subscription bool
+}
+
+// works says a model may take an agent turn: an agent built in or of an ACP agent whose last check did not fail; a model
+// of a CLI's subscription is the CLI's, which deck checks instead.
+func (m agentModel) works() bool {
+	return m.Agent != "" && (m.Builtin || !m.Subscription) &&
+		!slices.Contains([]string{health.NeedsLogin, health.Missing, health.Off, health.Error, health.Paused}, m.Status)
+}
+
 // read calls a read of deck as the caller and takes its result.
 func (s *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
 	raw, _ := json.Marshal(input)
@@ -169,6 +192,8 @@ func opensOf(l todayLineView) []map[string]any {
 	switch l.Kind {
 	case "asks":
 		return open("cockpit", nil, nil)
+	case "access":
+		return open("settings", map[string]any{"tab": "Models"}, nil)
 	case "failures":
 		return open("settings", map[string]any{"tab": "Health"}, nil)
 	case "running":

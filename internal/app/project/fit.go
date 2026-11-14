@@ -28,13 +28,24 @@ func (s *Service) unassigned(ctx context.Context, p db.Project, m *manifest.Mani
 	return out
 }
 
-// untold are the warnings of the agent commands of a module that may change what is stored and do not say what they
-// changed, or call its commands whose answer no schema tells; the built-in project tells the owner in its topic.
-func untold(p db.Project, m *manifest.Manifest) []string {
+// untold are the warnings of a module's commands that do not say what they changed or call one whose answer no schema
+// tells, and of its scripts that keep a model in deck or are not Python; the built-in project tells the owner itself.
+func (s *Service) untold(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
 	if p.Builtin == 1 {
 		return nil
 	}
-	return slices.Concat(m.Unreported(), m.Unshaped(p.Name))
+	return slices.Concat(m.Unreported(), m.Unshaped(p.Name), s.heavy(ctx, p, m))
+}
+
+// heavy are the warnings of the scripts of a module that keep a model in deck or are not Python, read with their files.
+func (s *Service) heavy(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
+	return m.Heavy(func(file string) string {
+		if p.ID == 0 {
+			return ""
+		}
+		text, _ := docs.CurrentText(ctx, s.St.Q, docs.ProjectScope(p), docs.KindScript, file)
+		return text
+	})
 }
 
 // unpaged are the blocks without a limit on a collection that holds more records than a page: each shows a page and

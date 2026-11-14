@@ -182,6 +182,8 @@ type Service struct {
 	Places func(ctx context.Context, workspace int64) map[string]provider.Placed
 	// Go runs work beside the calls unless deck stops.
 	Go func(func(context.Context)) bool
+	// Image says deck runs from its container image, where 127.0.0.1 is the container itself.
+	Image bool
 
 	// deriving keeps one Derive at a time.
 	deriving sync.Mutex

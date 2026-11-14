@@ -533,3 +533,9 @@ and bring the modules in line.
   own buttons, and buttons for all (verbs `allow_all`, `deny_all`, `allow_work_all`); `ask_answer` takes `also`, other
   requests of the same process answered the same (allow, allow_work or deny). `process_get` gives `why_waits` and
   `waits_ask` of a process whose request is open. New verbs `rights` and `report`; a list item of deck's screens has `parts`.
+- 2026-11-14: weights of models never live in deck: a model is a connection to a ready open-source server or a cloud
+  API. `manifest_get`, `manifest_check`, `manifest_save` and an import warn, and still take the module, of `files: gpu`
+  with a package that loads weights (torch, diffusers, transformers, …) in a script's PEP 723 header, of mlx, CUDA or
+  onnxruntime-gpu in a header, of a script that downloads from Hugging Face or `network` on huggingface.co, and of a
+  script of `runtime: node` (a script is Python; node only starts a ready JS engine). `files: gpu` is for rendering
+  and video.

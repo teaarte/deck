@@ -84,7 +84,7 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in manifestChec
 		out.Enable = p.Status != store.ProjectEnabled
 		out.Ungranted = append(out.Ungranted, s.ungranted(ctx, p, pm.m)...)
 	}
-	out.Warnings = append(out.Warnings, untold(p, pm.m)...)
+	out.Warnings = append(out.Warnings, s.untold(ctx, p, pm.m)...)
 	unused, untranslated := s.words(ctx, p, pm.m)
 	out.Unused = append(out.Unused, unused...)
 	out.Untranslated = append(out.Untranslated, untranslated...)

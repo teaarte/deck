@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"slices"
 	"strings"
 
 	"deck2/internal/docs"
+	"deck2/internal/egress"
 	"deck2/internal/events"
 	"deck2/internal/health"
 	"deck2/internal/store"
@@ -63,6 +65,17 @@ func (s *Service) derive(ctx context.Context, ws int64, projects []string) error
 	want := map[string]derived{}
 	if text := s.NoSearch(ctx, ws); text != "" {
 		want[health.Search] = derived{health.Of{Workspace: ws}, health.Warning, text}
+	}
+	if s.Image {
+		conns, err := s.St.Q.ListConnections(ctx, ws)
+		if err != nil {
+			return err
+		}
+		for _, c := range conns {
+			if u, err := url.Parse(c.Url); err == nil && c.Local != 0 && !c.NodeID.Valid && (egress.IsLoopback(strings.ToLower(u.Hostname())) || u.Hostname() == "0.0.0.0") {
+				want[health.Connection(c.Name)] = derived{health.Of{Workspace: ws}, health.Warning, inContainer}
+			}
+		}
 	}
 	missing := s.Missing(ctx, ws)
 	for name, places := range missing {
@@ -136,6 +149,9 @@ func (s *Service) derive(ctx context.Context, ws int64, projects []string) error
 	})
 }
 
+// inContainer is the row of a connection of the owner's machine on 127.0.0.1 without a node while deck runs in its image.
+const inContainer = "deck runs in its container, where this address is the container itself: add a node of the machine the server runs on in Devices and pick it for the connection, or give the server's address on the local network"
+
 // noModel is the start of the row Derive writes of a model deck has none of while assignments name it.
 const noModel = "deck has no such model"
 
@@ -144,11 +160,11 @@ func gone(h db.Health) bool {
 	return health.Kind(h.Subject) == health.OfModel && strings.HasPrefix(h.Error, noModel)
 }
 
-// ownDerived reports whether Derive writes a row: of a manifest, a secret, search, or of a command that is not of a
+// ownDerived reports whether Derive writes a row: of a manifest, a secret, a connection, search, or of a command not of a
 // script, whose row is of its programs; a manifest that does not read takes the rows of its commands along.
 func ownDerived(h db.Health, scripts map[string]bool) bool {
 	switch health.Kind(h.Subject) {
-	case health.OfProject, health.OfSecret, health.Search:
+	case health.OfProject, health.OfSecret, health.OfConnection, health.Search:
 		return true
 	case health.OfCommand:
 		return !scripts[h.Subject]

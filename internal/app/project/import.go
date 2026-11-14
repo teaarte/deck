@@ -184,7 +184,7 @@ func (s *Service) importFiles(ctx context.Context, act registry.Actor, name, fro
 		return nil, err
 	}
 	out := map[string]any{"id": p.ID, "name": p.Name, "status": p.Status, "files": len(files), "rights": s.ungranted(ctx, p, pm.m)}
-	if w := append(s.unassigned(ctx, p, pm.m), untold(p, pm.m)...); len(w) > 0 {
+	if w := append(s.unassigned(ctx, p, pm.m), s.untold(ctx, p, pm.m)...); len(w) > 0 {
 		out["warnings"] = w
 	}
 	out["needs"] = slices.DeleteFunc(s.needs(ctx, p, pm.m, nil, nil), func(n needView) bool { return n.Done })

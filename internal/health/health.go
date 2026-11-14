@@ -94,23 +94,24 @@ const (
 
 // The kinds of subjects of many rows, each the start of its subjects before a colon.
 const (
-	OfProvider  = "provider"
-	OfNode      = "node"
-	OfAgent     = "agent"
-	OfModel     = "model"
-	OfSite      = "site"
-	OfTool      = "tool"
-	OfMCP       = "mcp"
-	OfCommand   = "command"
-	OfTrigger   = "trigger"
-	OfSecret    = "secret"
-	OfRetention = "retention"
-	OfScreen    = "screen"
-	OfProject   = "project"
+	OfProvider   = "provider"
+	OfNode       = "node"
+	OfAgent      = "agent"
+	OfModel      = "model"
+	OfConnection = "connection"
+	OfSite       = "site"
+	OfTool       = "tool"
+	OfMCP        = "mcp"
+	OfCommand    = "command"
+	OfTrigger    = "trigger"
+	OfSecret     = "secret"
+	OfRetention  = "retention"
+	OfScreen     = "screen"
+	OfProject    = "project"
 )
 
 // Kinds are the kinds of the subjects of health: of many rows, then of the subjects of one row each.
-var Kinds = []string{OfProvider, OfNode, OfAgent, OfModel, OfSite, OfTool, OfMCP, OfCommand, OfTrigger, OfSecret,
+var Kinds = []string{OfProvider, OfNode, OfAgent, OfModel, OfConnection, OfSite, OfTool, OfMCP, OfCommand, OfTrigger, OfSecret,
 	OfRetention, OfScreen, OfProject, Scripts, Sandbox, Tailscale, HTTPS, Snapshot, Disk, Outbox, Push, Search, Master,
 	Update, Proxy, Consent}
 
@@ -137,6 +138,9 @@ func Agent(name string) string { return OfAgent + ":" + name }
 
 // Model is the subject of a model of a workspace.
 func Model(name string) string { return OfModel + ":" + name }
+
+// Connection is the subject of a connection of a workspace.
+func Connection(name string) string { return OfConnection + ":" + name }
 
 // Site is the subject of a site of the browser.
 func Site(site string) string { return OfSite + ":" + site }

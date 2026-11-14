@@ -55,7 +55,7 @@ func (s *Service) manifestGet(ctx context.Context, act registry.Actor, in manife
 	v := manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: r.Text}
 	v.Warnings = append(v.Warnings, s.problems(ctx, p)...)
 	if m, err := docs.ManifestAt(ctx, s.St.Q, p.ID, d.Current); err == nil {
-		v.Warnings = append(v.Warnings, s.unassigned(ctx, p, m)...)
+		v.Warnings = slices.Concat(v.Warnings, s.unassigned(ctx, p, m), s.heavy(ctx, p, m))
 	}
 	return v, nil
 }
@@ -268,7 +268,7 @@ func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pro
 	}
 	saved.Screens = s.CheckScreens(ctx, act, p, pm.m)
 	saved.Unused, saved.Untranslated = s.words(ctx, p, pm.m)
-	saved.Warnings = slices.Concat(s.unassigned(ctx, p, pm.m), s.unpaged(ctx, p, pm.m), untold(p, pm.m))
+	saved.Warnings = slices.Concat(s.unassigned(ctx, p, pm.m), s.unpaged(ctx, p, pm.m), s.untold(ctx, p, pm.m))
 	saved.Ungranted = s.ungranted(ctx, p, pm.m)
 	return saved, nil
 }

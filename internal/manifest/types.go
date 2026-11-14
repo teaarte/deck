@@ -443,6 +443,8 @@ type Item struct {
 	Cover string `json:"cover,omitempty"`
 	// Actions are the buttons a read of deck gives an item, after those of the block; only on deck's screens.
 	Actions string `json:"actions,omitempty"`
+	// Marks are small labels beside the title, each a text with an icon or the words of a logo; only on deck's screens.
+	Marks string `json:"marks,omitempty"`
 }
 
 type Tab struct {

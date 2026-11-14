@@ -1,5 +1,5 @@
 import { Group, Text } from '@mantine/core';
-import { IconAlertCircle, IconCheck, IconHandFinger } from '@tabler/icons-react';
+import { IconAlertCircle, IconCheck, IconHandFinger, IconWorld } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useMenuData } from '../hooks/useMenu';
 import { locale } from '../lib/i18n';
@@ -13,9 +13,17 @@ export function TodayLine() {
   if (!pulse.line) return null;
   const Mark = MARKS[pulse.mark as keyof typeof MARKS] ?? IconCheck;
   return (
-    <Group gap={10} wrap="nowrap" data-today-line={pulse.mark}>
-      <span className={s.todayMark} data-mark={pulse.mark}><Mark size={16} /></span>
-      <Text size="md" c="var(--deck-text-2)">{pulse.line}</Text>
+    <Group gap={10} wrap="wrap" data-today-line={pulse.mark}>
+      <Group gap={10} wrap="nowrap">
+        <span className={s.todayMark} data-mark={pulse.mark}><Mark size={16} /></span>
+        <Text size="md" c="var(--deck-text-2)">{pulse.line}</Text>
+      </Group>
+      {pulse.opens && (
+        <Group gap={6} wrap="nowrap" title={pulse.hosts} data-today-opens>
+          <IconWorld size={16} />
+          <Text size="sm" fw={600} c="var(--deck-text-2)">{pulse.opens}</Text>
+        </Group>
+      )}
     </Group>
   );
 }

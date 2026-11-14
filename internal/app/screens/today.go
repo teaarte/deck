@@ -65,16 +65,7 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 		}
 		out = append(out, todayLineView{ID: "failures", Kind: "failures", Title: title, Text: fails[0].Text, Icon: "alert-circle", Tone: "error", Since: fails[0].CreatedAt})
 	}
-	var running []struct {
-		ID                 int64
-		Title, Command     string
-		Topic, Since, Word string
-		Project            string
-		Opens              *struct {
-			Hosts []string
-			Login string
-		}
-	}
+	var running []openRun
 	if err := s.read(ctx, act, "processes_list", map[string]any{"open": true}, &running); err != nil {
 		return nil, err
 	}
@@ -85,19 +76,8 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 		out = append(out, todayLineView{ID: fmt.Sprint("running-", p.ID), Kind: "running", Title: cmp.Or(p.Topic, p.Title, p.Command), Text: p.Word,
 			Icon: "activity", Since: p.Since})
 	}
-	var network, login []string
-	for _, p := range running {
-		switch {
-		case p.Opens == nil:
-		case p.Opens.Login != "":
-			login = append(login, cmp.Or(p.Title, p.Command))
-		case len(p.Opens.Hosts) > 0:
-			network = append(network, cmp.Or(p.Title, p.Command)+" · "+strings.Join(p.Opens.Hosts, ", "))
-		}
-	}
-	if len(network)+len(login) > 0 {
-		out = append(out, todayLineView{ID: "opens", Kind: "opens", Title: tr("Now with the network: %d · with a login: %d", len(network), len(login)),
-			Text: strings.Join(append(network, login...), "\n"), Icon: "world"})
+	if title, text := holding(running, tr); title != "" {
+		out = append(out, todayLineView{ID: "opens", Kind: "opens", Title: title, Text: text, Icon: "world"})
 	}
 	if len(out) == 0 {
 		out = append(out, todayLineView{ID: "calm", Kind: "calm", Title: tr("All is well: nothing to decide, no failures."), Icon: "check", Tone: "ok"})
@@ -205,4 +185,33 @@ func opensOf(l todayLineView) []map[string]any {
 		return open("settings", map[string]any{"tab": "Rights"}, nil)
 	}
 	return nil
+}
+
+// openRun is an open process as Today reads it: its name and what its box holds open.
+type openRun struct {
+	ID                 int64
+	Title, Command     string
+	Topic, Since, Word string
+	Opens              *struct {
+		Hosts []string
+		Login string
+	}
+}
+
+// holding says how many open runs hold the network and how many a login, and which, a line each; nothing when none.
+func holding(runs []openRun, tr func(string, ...any) string) (title, text string) {
+	var network, login []string
+	for _, p := range runs {
+		switch {
+		case p.Opens == nil:
+		case p.Opens.Login != "":
+			login = append(login, cmp.Or(p.Title, p.Command)+" · "+p.Opens.Login)
+		case len(p.Opens.Hosts) > 0:
+			network = append(network, cmp.Or(p.Title, p.Command)+" · "+strings.Join(p.Opens.Hosts, ", "))
+		}
+	}
+	if len(network)+len(login) == 0 {
+		return "", ""
+	}
+	return tr("Now with the network: %d · with a login: %d", len(network), len(login)), strings.Join(append(network, login...), "\n")
 }

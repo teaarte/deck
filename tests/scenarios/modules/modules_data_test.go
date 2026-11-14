@@ -146,8 +146,9 @@ func TestADraftIsEnabledFromOneCard(t *testing.T) {
 	}
 	_ = json.Unmarshal(card["value"], &v)
 	text := fmtJSON(v.Fields)
-	if !strings.Contains(text, "post_link") || !strings.Contains(text, "feed") || !harness.HasVerb(v.Actions, "enable") ||
-		!slices.ContainsFunc(v.Actions, func(a map[string]any) bool { return a["label"] == "Set the secrets" }) {
+	if !strings.Contains(text, "4 ask you the first time") || !strings.Contains(text, "feed") || !harness.HasVerb(v.Actions, "enable") ||
+		!slices.ContainsFunc(v.Actions, func(a map[string]any) bool { return a["label"] == "Set the secrets" }) ||
+		!slices.ContainsFunc(v.Actions, func(a map[string]any) bool { return a["label"] == "Rights" }) {
 		t.Fatalf("one card says what the draft may do and lacks, with Enable and its secrets: %s %v", text, v.Actions)
 	}
 	var menu struct {

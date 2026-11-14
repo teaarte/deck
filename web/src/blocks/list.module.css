@@ -367,3 +367,24 @@
   align-self: center;
   color: var(--mantine-color-dimmed);
 }
+
+.titleRow {
+  min-width: 0;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 1px 8px;
+  border-radius: var(--mantine-radius-xl);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--deck-text-2);
+  background: var(--mantine-color-default-hover);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

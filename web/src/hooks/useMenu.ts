@@ -38,6 +38,8 @@ export interface MenuEntry {
 export interface Pulse {
   asks: number; running: number; errors: number; failed?: number; notes?: number; state: 'asks' | 'errors' | 'talking' | 'running' | 'calm';
   line?: string; mark?: string;
+  // opens says how many runs hold the network and a login now, hosts which.
+  opens?: string; hosts?: string;
 }
 
 // MenuGroup is a group at the foot of the menu, its links each of a project or of deck.

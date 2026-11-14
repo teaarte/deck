@@ -277,8 +277,8 @@ func TestAModuleExportedToAZipImportsAsADraftWithWhatItMayDo(t *testing.T) {
 	rev := e.ManifestRevision("links-shared")
 	data := e.Screen("", "draft", map[string]any{"params": fmt.Sprintf(`{"project": "links-shared", "revision": "%d"}`, rev)})
 	b, _ := json.Marshal(data)
-	if !strings.Contains(string(b), "post_link") {
-		t.Fatalf("the page of a draft lists what it may do: %s", b)
+	if !strings.Contains(string(b), "see them in Rights") || !strings.Contains(string(b), `"tab":"Rights"`) {
+		t.Fatalf("the page of a draft says how many rights it asks for and opens them in Rights: %s", b)
 	}
 	msgs, _ := json.Marshal(e.ScreenMessages("", "draft", nil))
 	if !strings.Contains(string(msgs), "Install modules only from authors you know") {

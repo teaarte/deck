@@ -583,3 +583,27 @@
   justify-content: space-between;
   column-gap: 16px;
 }
+
+.opens {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 160px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--mantine-radius-xl);
+  font: inherit;
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 600;
+  color: var(--deck-text-2);
+  background: var(--mantine-color-default-hover);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.opensHost {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

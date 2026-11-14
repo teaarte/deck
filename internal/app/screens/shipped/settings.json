@@ -139,6 +139,32 @@
             {"verb": "settings", "screen": "settings", "project": "=project", "params": {"tab": "Access"}}
           ]}
       ]},
+      {"title": "Rights", "icon": "shield-check", "blocks": [
+        {"type": "tabs", "tabs": [
+          {"title": "By module", "icon": "apps", "blocks": [
+            {"type": "list", "title": "Rights by module", "icon": "apps", "span": "full", "source": {"from": "deck.rights_list", "input": {"project": "=param.project ?? ''"}},
+        "empty": "No module declares a right: each keeps to its own records, documents and files",
+        "item": {"group": "module", "title": "title", "text": "says", "icon": "{'network': 'world', 'login': 'key', 'data': 'database', 'files': 'folder', 'money': 'coin', 'send': 'send', 'modules': 'apps'}[right] ?? 'shield'", "since": "used ?? ''", "meta": "state", "tone": "answer == 'always' ? 'ok' : answer == 'no' ? 'error' : 'muted'"},
+        "actions": [
+          {"label": "Revoke", "icon": "arrow-back-up", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "answer == 'always'"},
+          {"label": "Allow again", "icon": "arrow-back-up", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "answer == 'no'"},
+          {"label": "Allow always", "icon": "check", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && !key && answer == ''"},
+          {"label": "Allow always with your passkey", "icon": "fingerprint", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && key && answer == ''"},
+          {"label": "Say no", "icon": "ban", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "no"}, "when": "declared && answer == ''"},
+          {"label": "Report", "icon": "report-analytics", "screen": "rights-report", "params": {"project": "=project"}}
+        ]}]},
+          {"title": "By right", "icon": "shield-check", "blocks": [
+            {"type": "list", "title": "Rights by right", "icon": "shield-check", "span": "full", "source": {"from": "deck.rights_list", "input": {"project": "=param.project ?? ''"}, "sort": "right"},
+        "empty": "No module declares a right: each keeps to its own records, documents and files",
+        "item": {"group": "title", "title": "module", "text": "says", "icon": "{'network': 'world', 'login': 'key', 'data': 'database', 'files': 'folder', 'money': 'coin', 'send': 'send', 'modules': 'apps'}[right] ?? 'shield'", "since": "used ?? ''", "meta": "state", "tone": "answer == 'always' ? 'ok' : answer == 'no' ? 'error' : 'muted'"},
+        "actions": [
+          {"label": "Revoke", "icon": "arrow-back-up", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "answer == 'always'"},
+          {"label": "Allow again", "icon": "arrow-back-up", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "revoke"}, "when": "answer == 'no'"},
+          {"label": "Allow always", "icon": "check", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && !key && answer == ''"},
+          {"label": "Allow always with your passkey", "icon": "fingerprint", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "always"}, "when": "declared && key && answer == ''"},
+          {"label": "Say no", "icon": "ban", "command": "deck.right_set", "params": {"project": "=project", "right": "=right", "who": "=who ?? ''", "subject": "=subject", "answer": "no"}, "when": "declared && answer == ''"},
+          {"label": "Report", "icon": "report-analytics", "screen": "rights-report", "params": {"project": "=project"}}
+        ]}]}]}]},
       {"title": "Health", "icon": "heartbeat", "count": "failures", "blocks": [
         {"type": "list", "cards": true, "title": "Broken now", "icon": "alert-triangle", "span": "full", "source": {"from": "deck.feed_list", "input": {"kind": "failure"}},
           "empty": "Everything works",

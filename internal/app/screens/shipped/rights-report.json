@@ -1,0 +1,110 @@
+{
+  "name": "rights-report",
+  "icon": "report-analytics",
+  "title": "What a module did",
+  "params": {
+    "project": "string",
+    "period": {
+      "type": "string",
+      "default": "7 days"
+    }
+  },
+  "side": [
+    {
+      "type": "filter",
+      "title": "Period",
+      "icon": "calendar",
+      "param": "period",
+      "options": [
+        "Today",
+        "7 days",
+        "30 days"
+      ]
+    }
+  ],
+  "blocks": [
+    {
+      "type": "stat",
+      "title": "Requests",
+      "icon": "world",
+      "span": 1,
+      "source": {
+        "from": "deck.project_report",
+        "input": {
+          "project": "=param.project",
+          "days": "={'Today': 1, '7 days': 7, '30 days': 30}[param.period] ?? 7"
+        }
+      },
+      "value": "sum(map(filter(rows, .right == 'network'), .count))",
+      "format": "number"
+    },
+    {
+      "type": "stat",
+      "title": "Hosts",
+      "icon": "server",
+      "span": 1,
+      "source": {
+        "from": "deck.project_report",
+        "input": {
+          "project": "=param.project",
+          "days": "={'Today': 1, '7 days': 7, '30 days': 30}[param.period] ?? 7"
+        }
+      },
+      "value": "len(filter(rows, .right == 'network'))",
+      "format": "number"
+    },
+    {
+      "type": "stat",
+      "title": "Paid",
+      "icon": "coin",
+      "span": 1,
+      "source": {
+        "from": "deck.project_report",
+        "input": {
+          "project": "=param.project",
+          "days": "={'Today': 1, '7 days': 7, '30 days': 30}[param.period] ?? 7"
+        }
+      },
+      "value": "sum(map(rows, .usd ?? 0))",
+      "format": "money",
+      "currency": "USD"
+    },
+    {
+      "type": "stat",
+      "title": "Read text from outside",
+      "icon": "world-exclamation",
+      "span": 1,
+      "source": {
+        "from": "deck.project_report",
+        "input": {
+          "project": "=param.project",
+          "days": "={'Today': 1, '7 days': 7, '30 days': 30}[param.period] ?? 7"
+        }
+      },
+      "value": "sum(map(filter(rows, .right == 'outside'), .count))",
+      "format": "number"
+    },
+    {
+      "type": "list",
+      "title": "By right",
+      "icon": "shield-check",
+      "span": "full",
+      "source": {
+        "from": "deck.project_report",
+        "input": {
+          "project": "=param.project",
+          "days": "={'Today': 1, '7 days': 7, '30 days': 30}[param.period] ?? 7"
+        }
+      },
+      "empty": "It did nothing beyond its own records in this period",
+      "item": {
+        "group": "group",
+        "title": "says",
+        "since": "last ?? ''",
+        "icon": "{'network': 'world', 'login': 'key', 'data': 'database', 'files': 'folder', 'money': 'coin', 'send': 'send', 'modules': 'apps', 'outside': 'world-exclamation'}[right] ?? 'shield'",
+        "meta": "counted",
+        "tone": "(refused ?? 0) > 0 ? 'warn' : ''"
+      }
+    }
+  ]
+}

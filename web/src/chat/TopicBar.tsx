@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ActionIcon, Button, Combobox, Group, Menu, Popover, Select, Stack, Text, Tooltip } from '@mantine/core';
-import { IconActivity, IconCheck, IconCpu, IconMessage, IconPlus, IconStack2, IconWorldExclamation } from '@tabler/icons-react';
+import { IconActivity, IconCheck, IconCpu, IconMessage, IconPlus, IconStack2, IconWorld, IconWorldExclamation } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import type { ChatData } from './chatData';
 import { notifyError } from '../lib/notify';
@@ -99,6 +99,7 @@ export function TopicBar({ value, topics, model, setModel }: {
           : <TopicLine topic={topics.topicOf(option.value)} label={option.label} checked={!!checked} icon={topics.iconOf(topics.topicOf(option.value)?.project)} />}
         searchable nothingFoundMessage={t('No topics')} maxDropdownHeight={420}
         comboboxProps={{ width: 340, position: 'bottom-start', styles: { dropdown: { maxWidth: 'calc(100vw - 16px)' } } }} />
+      {picked?.opens && <Opens opens={picked.opens} />}
       {picked?.read && (
         <Popover position="bottom" withArrow shadow="md" withinPortal>
           <Popover.Target>
@@ -162,5 +163,24 @@ export function TopicBar({ value, topics, model, setModel }: {
       </Tooltip>
       {topic && <ActionsMenu actions={[value.archive!, value.delete!].filter(Boolean)} />}
     </Group>
+  );
+}
+
+// Opens is what the open work of a topic holds open, beside its name: the mark of the CLI whose login it runs on, else
+// the first host its box reaches with how many more.
+function Opens({ opens }: { opens: NonNullable<Topic['opens']> }) {
+  const { t } = useTranslation();
+  const hosts = opens.hosts ?? [];
+  const text = opens.login ? t('With the login of {{cli}}', { cli: opens.login }) : t('With the network: {{hosts}}', { hosts: hosts.join(', ') });
+  return (
+    <Popover position="bottom" withArrow shadow="md" withinPortal>
+      <Popover.Target>
+        <button type="button" className={s.opens} aria-label={text} data-topic-opens={opens.login || hosts[0]}>
+          {opens.login ? <Logo names={opens.login} size={14} /> : <IconWorld size={14} />}
+          {!opens.login && <span className={s.opensHost}>{hosts[0]}{hosts.length > 1 ? ` +${hosts.length - 1}` : ''}</span>}
+        </button>
+      </Popover.Target>
+      <Popover.Dropdown maw={320} data-topic-opens-why><Text size="sm">{text}</Text></Popover.Dropdown>
+    </Popover>
   );
 }

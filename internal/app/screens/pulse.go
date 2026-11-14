@@ -23,6 +23,9 @@ type pulse struct {
 	Line    string `json:"line"`
 	// Mark is the icon of the line: hand-finger while decisions wait, alert-circle for failures alone, check else.
 	Mark string `json:"mark"`
+	// Opens says how many runs hold the network and a login now, and Hosts which, a line each.
+	Opens string `json:"opens,omitempty"`
+	Hosts string `json:"hosts,omitempty"`
 }
 
 // pulse counts what waits for the owner, runs and fails in the workspace, by project too, and writes the first line
@@ -45,6 +48,13 @@ func (s *Service) pulse(ctx context.Context, act registry.Actor, lang string) (p
 		p.State = "calm"
 	}
 	firstLine(&p, words.In(lang))
+	if p.Running > 0 {
+		var runs []openRun
+		if err := s.read(ctx, act, "processes_list", map[string]any{"open": true, "brief": true}, &runs); err == nil {
+			ws := words.In(lang)
+			p.Opens, p.Hosts = holding(runs, func(str string, a ...any) string { return fmt.Sprintf(manifest.TrText(ws, str), a...) })
+		}
+	}
 	return p, asks, running, failing
 }
 

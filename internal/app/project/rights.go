@@ -43,6 +43,8 @@ type rightView struct {
 	Exit bool `json:"exit"`
 	// Key says the owner's always to it takes a fresh passkey, so enabling the module does not give it in advance.
 	Key bool `json:"key"`
+	// State is the answer in the owner's words, and that it was never used.
+	State string `json:"state"`
 }
 
 // rows are the rights m declares, a row a subject, with the owner's answers rows gives; then the answers to rights no
@@ -86,6 +88,20 @@ func rows(p db.Project, m *manifest.Manifest, rows []db.RightGrant, tr func(stri
 		n := registry.Need{Right: g.Name, Who: g.Who, Subject: g.Subject}
 		out = append(out, rightView{Project: p.Name, Module: cmp.Or(m.Title, p.Name), Title: groupOf(tr, g.Name), Right: g.Name, Who: g.Who, Subject: g.Subject, Answer: g.Answer, At: g.CreatedAt, Exit: r.Exit || m.Posts(n),
 			Says: m.SaysOn(tr, g.Name, g.Who, g.Subject), Key: m.Keyed(n), Used: usedAt(p.ID, g.Name, g.Subject)})
+	}
+	for i, v := range out {
+		state := map[string]string{manifest.Always: "always", manifest.No: "you said no"}[v.Answer]
+		switch {
+		case state != "":
+		case v.Key:
+			state = "asks you; always with your passkey"
+		default:
+			state = "asks you the first time"
+		}
+		out[i].State = tr(state)
+		if v.Used == "" {
+			out[i].State += " · " + tr("never used")
+		}
 	}
 	return out
 }
@@ -293,24 +309,6 @@ func (s *Service) ungranted(ctx context.Context, p db.Project, m *manifest.Manif
 		}
 	}
 	return out
-}
-
-// lines are the rights of a module as lines of markdown for the owner, what they let it do and why, the answer of
-// each beside it when given; those enabling it leaves to ask when first used come last.
-func lines(vs []rightView, tr func(string) string) []string {
-	var now, later []string
-	for _, v := range vs {
-		line := "- " + bullet(v.Says, v.Why)
-		switch {
-		case v.Answer == manifest.No:
-			line += " — " + tr("you said no")
-		case v.Key && v.Answer == "":
-			later = append(later, line+" — "+tr("asks you the first time"))
-			continue
-		}
-		now = append(now, line)
-	}
-	return append(now, later...)
 }
 
 // checkData verifies what a manifest declares it reads of other modules: modules there are, their collections, never

@@ -17,6 +17,26 @@ type Opens struct {
 	Login string   `json:"login,omitempty"`
 }
 
+// Mark is a small label of what a process holds open: a host with the icon of the web, or a login with the mark of
+// its CLI.
+type Mark struct {
+	Text string `json:"text"`
+	Icon string `json:"icon,omitempty"`
+	Logo string `json:"logo,omitempty"`
+}
+
+// Marks are the labels of what o holds open, the login first.
+func (o Opens) Marks() []Mark {
+	var out []Mark
+	if o.Login != "" {
+		out = append(out, Mark{Text: o.Login, Logo: o.Login})
+	}
+	for _, h := range o.Hosts {
+		out = append(out, Mark{Text: h, Icon: "world"})
+	}
+	return out
+}
+
 // know keeps what a process knows as it starts: what its box opens, the untrusted text a box with the network brings,
 // and whether it holds something of value: a subscription login, or the data of its module.
 func (r *Runner) know(ctx context.Context, id int64, hosts []string, login string, valued bool) {

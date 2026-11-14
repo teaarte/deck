@@ -182,6 +182,7 @@ function Chip({ it }: { it: Item }) {
     <div className={s.chip} data-chip data-tone={it.tone} title={it.details} {...rowOpen(it.actions, ctx)}>
       {it.icon && <span className={s.chipIcon}><NamedIcon name={it.icon} fallback={it.title} size={15} /></span>}
       <Text size="sm" fw={600} truncate>{it.title}</Text>
+      {it.marks?.map((m, i) => <Pill key={i} mark={m} />)}
       {it.since && <Since at={it.since} />}
       {act && <ActionIconButton act={act} icon={actionIcon(act)} variant="default" />}
     </div>
@@ -252,7 +253,10 @@ export function Line({ it, big, quiet, max, later }: { it: Item; big?: boolean; 
       <Group gap={12} wrap="nowrap" align="flex-start">
         {marked}
         <Stack gap={2} miw={0} className="deck-grow">
-          <Text fw={600} lh={1.35} className={s.itemTitle}>{it.title}</Text>
+          <Group gap={6} wrap="wrap" className={s.titleRow}>
+            <Text fw={600} lh={1.35} className={s.itemTitle}>{it.title}</Text>
+            {it.marks?.map((m, i) => <Pill key={i} mark={m} />)}
+          </Group>
           {it.text && <Text size="sm" c="var(--deck-text-2)" lh={1.45} className="deck-pre">{it.text}</Text>}
           {(it.meta || it.since || until) && (
             <Group gap={8} wrap="wrap" mt={2}>
@@ -285,4 +289,14 @@ function Since({ at, inline }: { at: string; inline?: boolean }) {
   if (!d) return null;
   if (inline) return <span data-since>{relative(d, now)}</span>;
   return <Text size="xs" c="dimmed" className={s.meta} data-since>{relative(d, now)}</Text>;
+}
+
+// Pill is a small label beside the title of a line: a host a run reaches with its icon, a login with its mark.
+function Pill({ mark }: { mark: NonNullable<Item['marks']>[number] }) {
+  return (
+    <span className={s.pill} data-pill={mark.text}>
+      {mark.logo ? <Logo names={mark.logo} size={13} /> : mark.icon ? <NamedIcon name={mark.icon} fallback={mark.text} size={13} /> : null}
+      <span>{mark.text}</span>
+    </span>
+  );
 }

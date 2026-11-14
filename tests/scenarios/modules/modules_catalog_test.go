@@ -140,13 +140,18 @@ func TestEnablingADraftShowsAndGrantsWhatItDeclares(t *testing.T) {
 		Revision int64
 	}
 	e.Must("deck.project_draft_list", map[string]any{"project": "draft"}, &card)
-	if len(card) != 1 || !strings.Contains(card[0].Rights, "its programs reach example.com and may send its data there — reads its pages") ||
-		!strings.Contains(card[0].Rights, "it acts in your name: send — sends what it made — asks you the first time") {
-		t.Fatalf("the card says each right in deck's words and why in the module's: %+v", card)
+	if len(card) != 1 || !strings.Contains(card[0].Rights, "enabling gives it 1 of its rights, 1 ask you the first time: see them in Rights") {
+		t.Fatalf("the card says how many rights enabling gives and leaves to the owner, each in Rights: %+v", card)
+	}
+	var said []struct{ Says, Why, State string }
+	e.Must("deck.rights_list", map[string]any{"project": "draft"}, &said)
+	if len(said) != 2 || said[0].Says != "its programs reach example.com and may send its data there" || said[0].Why != "reads its pages" ||
+		said[1].Says != "it acts in your name: send" || said[1].State != "asks you; always with your passkey · never used" {
+		t.Fatalf("Rights says each right in deck's words and why in the module's: %+v", said)
 	}
 	var ru []struct{ Rights string }
 	e.In("ru").Must("deck.project_draft_list", map[string]any{"project": "draft"}, &ru)
-	if says := fmt.Sprintf(words.In("ru")["its programs reach %s and may send its data there"], "example.com"); len(ru) != 1 || says == "" || !strings.Contains(ru[0].Rights, says) {
+	if says := fmt.Sprintf(words.In("ru")["enabling gives it %d of its rights, %d ask you the first time: see them in Rights"], 1, 1); len(ru) != 1 || says == "" || !strings.Contains(ru[0].Rights, says) {
 		t.Fatalf("the card speaks the owner's language: %+v", ru)
 	}
 	e.Must("deck.project_enable", map[string]any{"project": "draft", "revision": card[0].Revision}, nil)
@@ -217,23 +222,27 @@ func TestTheMasterHoldsWhatDeckShipsNotWhatItWrites(t *testing.T) {
 	}
 }
 
-// TestTheOwnerAnswersARightOnTheScreensOfTheModule: the settings of a module and the card of a draft list its rights
-// in deck's words with buttons; a press answers always or revokes.
+// TestTheOwnerAnswersARightOnTheScreensOfTheModule: Rights in the settings of deck lists the rights of the modules in
+// deck's words with buttons, the module's own alone from its card; a press answers always or revokes.
 func TestTheOwnerAnswersARightOnTheScreensOfTheModule(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("notes", harness.PostManifest("https://api.example", ""))
-	rows := harness.BlockData[[]harness.ScreenRow](t, e.ScreenBlock("notes", "settings", "Rights", nil)["rows"])
-	if len(rows) != 1 || rows[0].Cells[0] != "it acts in your name: post" || rows[0].Cells[1] != "asks first" {
-		t.Fatalf("the settings of a module list its rights: %+v", rows)
+	e.Project("other", harness.PlainManifest)
+	var items []struct{ Group, Title, Text, Meta string }
+	notes := map[string]any{"params": `{"project": "notes"}`}
+	if err := json.Unmarshal(e.ScreenBlock("", "settings", "Rights by module", notes)["items"], &items); err != nil ||
+		len(items) != 1 || items[0].Group != "notes" || items[0].Title != "Sending in your name" || items[0].Text != "it acts in your name: post" ||
+		items[0].Meta != "asks you; always with your passkey · never used" {
+		t.Fatalf("Rights lists the rights of a module, its title the group: %+v %v", items, err)
 	}
-	if code, out := e.Press(e.RowAction("notes", "settings", "deck.right_set", map[string]any{"answer": "always"})); code != 200 {
+	if code, out := e.Press(e.Button("", "settings", notes, "deck.right_set", map[string]any{"answer": "always"})); code != 200 {
 		t.Fatalf("allow always on the screen: %d %s", code, out)
 	}
 	if a, _ := answerOf(rightsOf(e, "notes"), "send", "post"); a != "always" {
 		t.Fatalf("the press is the owner's answer: %q", a)
 	}
-	if code, out := e.Press(e.RowAction("notes", "settings", "deck.right_set", map[string]any{"answer": "revoke"})); code != 200 {
+	if code, out := e.Press(e.Button("", "settings", notes, "deck.right_set", map[string]any{"answer": "revoke"})); code != 200 {
 		t.Fatalf("revoke on the screen: %d %s", code, out)
 	}
 	if a, _ := answerOf(rightsOf(e, "notes"), "send", "post"); a != "" {
@@ -243,10 +252,9 @@ func TestTheOwnerAnswersARightOnTheScreensOfTheModule(t *testing.T) {
 	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "draft", "manifest": harness.DraftManifest}); code != 200 {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
-	params := map[string]any{"params": `{"project": "draft", "revision": "1"}`}
-	press := e.Button("", "draft", params, "deck.right_set", map[string]any{"subject": "example.com", "answer": "always"})
+	press := e.Button("", "settings", map[string]any{"params": `{"project": "draft"}`}, "deck.right_set", map[string]any{"subject": "example.com", "answer": "always"})
 	if code, out := e.Press(press); code != 200 {
-		t.Fatalf("a right of a draft is granted on its card before enabling: %d %s", code, out)
+		t.Fatalf("a right of a draft is granted in Rights before enabling: %d %s", code, out)
 	}
 	if a, _ := answerOf(rightsOf(e, "draft"), "network", "example.com"); a != "always" {
 		t.Fatalf("the card's press grants it: %q", a)

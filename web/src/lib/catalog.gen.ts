@@ -280,6 +280,13 @@ export interface Topic {
    * the text from outside deck its words carry, where from: its replies are marked by it
    */
   read?: string;
+  /**
+   * what its open work holds open: the hosts of their boxes and the CLI whose login they run on
+   */
+  opens?: {
+    hosts?: string[];
+    login?: string;
+  };
 }
 /**
  * This interface was referenced by `Catalog`'s JSON-Schema
@@ -488,6 +495,14 @@ export interface Data {
      */
     logo?: string;
     questions?: Question[];
+    /**
+     * small labels beside the title
+     */
+    marks?: {
+      text: string;
+      icon?: string;
+      logo?: string;
+    }[];
     actions?: Action[];
   }[];
   /**

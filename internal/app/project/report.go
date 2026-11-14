@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strings"
 	"time"
@@ -37,6 +38,8 @@ type reportRow struct {
 	Refused int64   `json:"refused,omitempty"`
 	USD     float64 `json:"usd,omitempty"`
 	Last    string  `json:"last,omitempty"`
+	// Counted is the numbers of the line in the owner's words.
+	Counted string `json:"counted"`
 }
 
 // outside is the line of the report that counts the turns that read text from outside deck.
@@ -128,6 +131,15 @@ func (s *Service) rightsReport(ctx context.Context, act registry.Actor, in right
 		default:
 			r.Group, r.Says = groupOf(tr, r.Right), manifest.Says(tr, r.Right, "", []string{r.Subject})
 		}
+		unit := map[string]string{manifest.Network: "requests: %d", manifest.Login: "turns: %d", outside: "turns: %d"}[r.Right]
+		parts := []string{fmt.Sprintf(tr(cmp.Or(unit, "calls: %d")), r.Count)}
+		if r.Refused > 0 {
+			parts = append(parts, fmt.Sprintf(tr("refused: %d"), r.Refused))
+		}
+		if r.USD > 0 {
+			parts = append(parts, fmt.Sprintf("$%.2f", r.USD))
+		}
+		r.Counted = strings.Join(parts, " · ")
 		out = append(out, *r)
 	}
 	order := func(right string) int {

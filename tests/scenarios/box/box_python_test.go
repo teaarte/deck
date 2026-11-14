@@ -88,7 +88,7 @@ func TestAScriptRunTwiceKeepsOneEnvironment(t *testing.T) {
 		if envs := environments(t, e, c.project); len(envs) != 1 {
 			t.Fatalf("%s: two runs of one script share one environment of uv: %v", c.project, envs)
 		}
-		file := filepath.Join(home.Layout(e.App.Cfg.Home).Project(e.ProjectID(c.project)), "scripts", "main.py")
+		file := filepath.Join(home.Layout(e.App.Cfg.Home).Project(e.ProjectID(c.project)), "scripts", "scripts", "main.py")
 		if b, err := os.ReadFile(file); err != nil || !strings.Contains(string(b), "deckfixture") {
 			t.Fatalf("%s: the file of the script stays in the folder of the project: %v", c.project, err)
 		}
@@ -128,6 +128,24 @@ print(json.dumps({"python": sys.executable, "downloads": os.environ.get("UV_PYTH
 	}
 	if real, _ := filepath.EvalSymlinks(got.Python); !strings.Contains(text, got.Python) && !strings.Contains(text, real) {
 		t.Fatalf("the script runs on the python health names: %s, %+v", got.Python, row)
+	}
+
+	_, tok := e.Token("terminal", "deck.*")
+	var draft struct{ ID int64 }
+	if code, out := e.As(tok).Call("deck.project_create", map[string]any{"name": "trial", "manifest": harness.ScriptManifest("use", "", "")}); code != 200 || json.Unmarshal(out, &draft) != nil {
+		t.Fatalf("an agent makes a draft: %d %s", code, out)
+	}
+	e.Names[draft.ID] = "trial"
+	e.SaveScript("trial", "scripts/main.py", "print('{}')\n")
+	if p := e.WaitState(e.Start("trial", "use", nil), "done", "error"); p.State != "done" {
+		t.Fatalf("a trial run of a draft runs: %+v", p)
+	}
+	h, id := home.Layout(e.App.Cfg.Home), draft.ID
+	if _, err := os.Stat(filepath.Join(h.Drafts(id), "scripts", "main.py")); err != nil {
+		t.Fatalf("the file of a trial run stays apart from that of real runs: %v", err)
+	}
+	if _, err := os.Stat(h.Scripts(id)); !os.IsNotExist(err) {
+		t.Fatalf("a trial run writes no file of real runs: %v", err)
 	}
 
 	e.SaveScript("plain", "scripts/main.py", `# /// script

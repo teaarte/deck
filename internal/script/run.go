@@ -141,7 +141,7 @@ func (x *Exec) place(j Job) (string, error) {
 	if j.Draft {
 		dir = x.Keep.Drafts(j.Project)
 	}
-	rel := strings.TrimPrefix(path.Clean(j.Script.File), "scripts/")
+	rel := path.Clean(j.Script.File)
 	if !filepath.IsLocal(filepath.FromSlash(rel)) {
 		return "", fault.New(fault.ScriptFailed, fmt.Sprintf("script %s: file %q is outside the folder of scripts", j.Script.Name, j.Script.File))
 	}
@@ -169,8 +169,10 @@ func environ(j Job, data, cache string) []string {
 	env := []string{"PATH=" + sandbox.Path(), "TERM=dumb", "DECK_RESULTS=" + j.Results(), "DECK_DATA=" + data,
 		"XDG_CACHE_HOME=" + cache, "npm_config_cache=" + filepath.Join(cache, "npm"), "UV_CACHE_DIR=" + filepath.Join(cache, "uv"),
 		"UV_PYTHON_DOWNLOADS=never", "PYTHONDONTWRITEBYTECODE=1", "PYTHONUNBUFFERED=1"}
-	if py, err := Python(); err == nil {
-		env = append(env, "UV_PYTHON="+py)
+	if r := j.Script.Runtime; r == "python" || r == "exec" {
+		if py, err := Python(); err == nil {
+			env = append(env, "UV_PYTHON="+py)
+		}
 	}
 	if j.Box.Deck == "" {
 		return env

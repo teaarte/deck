@@ -314,7 +314,7 @@ func (s *Service) projectReset(ctx context.Context, act registry.Actor, in proje
 		}
 	}
 	params, _ := json.Marshal(map[string]any{"project": p.Name, "snapshot": snapshot})
-	s.Gateway.Journal(ctx, act, 0, registry.Deck("project_reset"), "", "done", string(params), "")
+	s.Gateway.Journal(ctx, act, 0, registry.Deck("project_reset"), registry.Need{}, "done", string(params), "")
 	return map[string]any{"reset": p.Name, "records": records, "snapshot": snapshot}, nil
 }
 

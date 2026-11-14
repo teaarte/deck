@@ -25,6 +25,15 @@ type entry struct {
 	last provider.Answer
 	// answered hears each answer of the model API, a refusal too.
 	answered func()
+	// reach hears each host the agent reached through the door of its box.
+	reach func(host string)
+}
+
+// Reach hears a host the agent reached through the door of its box.
+func (e *entry) Reach(host string) {
+	if e.reach != nil {
+		e.reach(host)
+	}
 }
 
 func (e *entry) ServeHTTP(w http.ResponseWriter, r *http.Request) {

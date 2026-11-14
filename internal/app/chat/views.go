@@ -6,6 +6,7 @@ import (
 	"deck2/internal/events"
 	"encoding/json"
 	"slices"
+	"strings"
 	"strconv"
 
 	"deck2/internal/access"
@@ -57,6 +58,8 @@ type topicView struct {
 	Since string `json:"since,omitempty"`
 	// Read is the text from outside deck the words of the topic carry, where from: its replies are marked by it.
 	Read string `json:"read,omitempty"`
+	// Opens is what its open work holds open: the hosts of their boxes and the CLI whose login they run on.
+	Opens *process.Opens `json:"opens,omitempty"`
 }
 
 // replyView is the process that answers a message, with its state and a button that opens it.
@@ -381,6 +384,7 @@ func (s *Service) chatTopics(ctx context.Context, act registry.Actor, in chatTop
 			ts[i].Read = untrusted.Cut(manifest.TrText(words.In(registry.Lang(ctx)), s.topicRead(ctx, db.ChatTopic{ID: ts[i].ID, WorkspaceID: act.Workspace})), 300)
 			if b, ok := busy[ts[i].ID]; ok {
 				ts[i].Busy, ts[i].Waits, ts[i].Since = true, b.Waits == 1, b.Since
+				ts[i].Opens = opensOf(b.Opens)
 			}
 		}
 	}
@@ -568,4 +572,25 @@ func (s *Service) viewsCommands() []*registry.Command {
 			"Gives the turn going on in a topic of the chat with the master: the lines of its log, the processes it started, its questions and what it waits for the owner to decide; and the work the replies of the topic started that goes on or ended within the hour.",
 			registry.OwnerSide, s.chatTurn).On(events.Log, events.Asks, events.Processes),
 	}
+}
+
+// opensOf is what the open work of a topic holds open, out of the lines of what each process holds.
+func opensOf(lines string) *process.Opens {
+	var out process.Opens
+	for _, line := range strings.Split(lines, "\n") {
+		var o process.Opens
+		if json.Unmarshal([]byte(line), &o) != nil {
+			continue
+		}
+		out.Login = cmp.Or(out.Login, o.Login)
+		for _, h := range o.Hosts {
+			if !slices.Contains(out.Hosts, h) {
+				out.Hosts = append(out.Hosts, h)
+			}
+		}
+	}
+	if out.Login == "" && len(out.Hosts) == 0 {
+		return nil
+	}
+	return &out
 }

@@ -56,6 +56,8 @@ type Box struct {
 	Secrets []string `json:"secrets,omitempty"`
 	// HostNet keeps the network of the machine: deck's browser of shots, which opens deck's own pages.
 	HostNet bool `json:"host_net,omitempty"`
+	// Reach hears each host the box reached through its door; without it the side of Deck does, when a Reacher.
+	Reach func(host string) `json:"-"`
 }
 
 // IO is what the program of a box reads and writes; nil Stdin and Stdout are pipes of the Proc.
@@ -88,7 +90,11 @@ func (s *Sandbox) Run(ctx context.Context, b Box, o IO) (*Proc, error) {
 	}
 	var door *Door
 	if b.Hosts != nil || b.Deck != "" {
-		if door, err = s.open(b.Hosts, s.side(b.Deck)); err != nil {
+		reach := b.Reach
+		if reach == nil {
+			reach = s.reacher(b.Deck)
+		}
+		if door, err = s.open(b.Hosts, s.side(b.Deck), reach); err != nil {
 			return nil, err
 		}
 	}

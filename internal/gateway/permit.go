@@ -43,11 +43,7 @@ func (g *Gateway) Permit(ctx context.Context, act registry.Actor, command string
 		err = registry.Refuse("%s", wait)
 	}
 	if err != nil {
-		right := ""
-		if v.Need != nil {
-			right = v.Need.Right
-		}
-		g.journal(ctx, act, act.ProjectID, command, right, "rejected", Canonical(input), err.Error())
+		g.journal(ctx, act, act.ProjectID, command, needOf(v.Need), "rejected", Canonical(input), err.Error())
 	}
 	return done, err
 }

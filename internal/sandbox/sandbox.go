@@ -63,6 +63,18 @@ func (s *Sandbox) side(tok string) http.Handler {
 	})
 }
 
+// reacher tells deck's side of tok each host a program of its box reached, when that side is a Reacher.
+func (s *Sandbox) reacher(tok string) func(host string) {
+	return func(host string) {
+		s.mu.Lock()
+		h := s.sides[tok]
+		s.mu.Unlock()
+		if r, ok := h.(Reacher); ok {
+			r.Reach(host)
+		}
+	}
+}
+
 // marked begins the mark of the boxes of this deck.
 func (s *Sandbox) marked() string { return "deck-box " + string(s.home) + " " }
 

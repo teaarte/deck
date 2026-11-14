@@ -143,7 +143,7 @@ func (s *Service) projectNeeds(ctx context.Context, act registry.Actor, in proje
 		return nil, err
 	}
 	ws := words.In(registry.Lang(ctx))
-	return s.needs(ctx, p, ms[p.ID], rows(p, ms[p.ID], gs, func(t string) string { return manifest.Tr(ws, t) }), ws), nil
+	return s.needs(ctx, p, ms[p.ID], rows(p, ms[p.ID], gs, func(t string) string { return manifest.Tr(ws, t) }, nil), ws), nil
 }
 
 func (s *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest, rights []rightView, ws map[string]string) []needView {

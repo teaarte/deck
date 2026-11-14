@@ -25,7 +25,7 @@ type todayGetIn struct {
 // did and cost and what runs next; a calm day says so first.
 type todayLineView struct {
 	ID    string `json:"id"`
-	Kind  string `json:"kind" enum:"asks|failures|running|calm|day|spent|next"`
+	Kind  string `json:"kind" enum:"asks|failures|running|opens|calm|day|asked|spent|next"`
 	Title string `json:"title"`
 	Text  string `json:"text,omitempty"`
 	Icon  string `json:"icon"`
@@ -69,6 +69,11 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 		ID                 int64
 		Title, Command     string
 		Topic, Since, Word string
+		Project            string
+		Opens              *struct {
+			Hosts []string
+			Login string
+		}
 	}
 	if err := s.read(ctx, act, "processes_list", map[string]any{"open": true}, &running); err != nil {
 		return nil, err
@@ -80,6 +85,20 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 		out = append(out, todayLineView{ID: fmt.Sprint("running-", p.ID), Kind: "running", Title: cmp.Or(p.Topic, p.Title, p.Command), Text: p.Word,
 			Icon: "activity", Since: p.Since})
 	}
+	var network, login []string
+	for _, p := range running {
+		switch {
+		case p.Opens == nil:
+		case p.Opens.Login != "":
+			login = append(login, cmp.Or(p.Title, p.Command))
+		case len(p.Opens.Hosts) > 0:
+			network = append(network, cmp.Or(p.Title, p.Command)+" · "+strings.Join(p.Opens.Hosts, ", "))
+		}
+	}
+	if len(network)+len(login) > 0 {
+		out = append(out, todayLineView{ID: "opens", Kind: "opens", Title: tr("Now with the network: %d · with a login: %d", len(network), len(login)),
+			Text: strings.Join(append(network, login...), "\n"), Icon: "world"})
+	}
 	if len(out) == 0 {
 		out = append(out, todayLineView{ID: "calm", Kind: "calm", Title: tr("All is well: nothing to decide, no failures."), Icon: "check", Tone: "ok"})
 	}
@@ -90,6 +109,13 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 		return nil, err
 	}
 	out = append(out, todayLineView{ID: "day", Kind: "day", Title: tr("Done today: %d", done), Icon: "checks"})
+	asked, err := s.St.Q.ListRecentRequests(ctx, db.ListRecentRequestsParams{WorkspaceID: act.Workspace, Since: store.Time(time.Date(y, m, d, 0, 0, 0, 0, time.Local))})
+	if err != nil {
+		return nil, err
+	}
+	if len(asked) > 0 {
+		out = append(out, todayLineView{ID: "asked", Kind: "asked", Title: tr("Requests today: %d", len(asked)), Icon: "hand-finger"})
+	}
 	var spent []struct {
 		CostUSD float64 `json:"cost_usd"`
 	}
@@ -173,6 +199,10 @@ func opensOf(l todayLineView) []map[string]any {
 		return open("schedule", nil, nil)
 	case "spent":
 		return open("spend", nil, nil)
+	case "opens":
+		return open("cockpit", nil, nil)
+	case "asked":
+		return open("settings", map[string]any{"tab": "Rights"}, nil)
 	}
 	return nil
 }

@@ -17,6 +17,7 @@ import (
 
 	"deck2/internal/ask"
 	"deck2/internal/events"
+	"deck2/internal/manifest"
 	"deck2/internal/nonce"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -122,6 +123,8 @@ type entry struct {
 	refused []Refusal
 	// lastOK says the last call of the script was answered without an error.
 	lastOK bool
+	// tally counts the requests the programs of its box sent through the door, by host.
+	tally *tally
 }
 
 func New(cfg Config, deps Deps) *Gateway {
@@ -191,7 +194,7 @@ func (g *Gateway) Open(ctx context.Context, s *Session) (string, error) {
 	tok := nonce.Hex(16)
 	if s.Run != "" {
 		g.mu.Lock()
-		g.sessions[tok] = &entry{session: s}
+		g.sessions[tok] = &entry{session: s, tally: g.tallyOf(s.actor(), s.ProjectID, manifest.Programs)}
 		g.mu.Unlock()
 		return tok, nil
 	}
@@ -201,16 +204,31 @@ func (g *Gateway) Open(ctx context.Context, s *Session) (string, error) {
 	}
 	cmds, _ := g.reg.List(ctx, s.actor())
 	g.mu.Lock()
-	g.sessions[tok] = &entry{session: s, server: srv, allowed: allowed, tools: tools, commands: commandsOf(cmds)}
+	g.sessions[tok] = &entry{session: s, server: srv, allowed: allowed, tools: tools, commands: commandsOf(cmds),
+		tally: g.tallyOf(s.actor(), s.ProjectID, manifest.Agents)}
 	g.mu.Unlock()
 	return tok, nil
 }
 
-// Close ends the session of tok.
+// Close ends the session of tok and writes to the journal what its tally of hosts still holds.
 func (g *Gateway) Close(tok string) {
 	g.mu.Lock()
+	e := g.sessions[tok]
 	delete(g.sessions, tok)
 	g.mu.Unlock()
+	if e != nil {
+		e.tally.flush()
+	}
+}
+
+// Went counts a request the programs of the box of the session of tok sent through its door to host.
+func (g *Gateway) Went(tok, host string) {
+	g.mu.Lock()
+	e := g.sessions[tok]
+	g.mu.Unlock()
+	if e != nil {
+		e.tally.reach(host)
+	}
 }
 
 // AllowedTools lists the gateway tools the provider may call without the approve round-trip, all of them, since the
@@ -440,10 +458,7 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 		v, give, err = g.held(ctx, act, v, func() (Verdict, error) { return g.verdict(ctx, act, c, project, input, true) })
 	}
 	defer give()
-	right := ""
-	if v.Need != nil {
-		right = v.Need.Right
-	}
+	right := needOf(v.Need)
 	if err == nil && v.Does == DoRefuse {
 		err = v.refusal(c, g.projectName(ctx, project))
 	}
@@ -463,6 +478,14 @@ func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, arg
 	return g.made(ctx, act, c, project, input, v, params)
 }
 
+// needOf is the right of a call for its line in the journal, none when it needs none.
+func needOf(n *registry.Need) registry.Need {
+	if n == nil {
+		return registry.Need{}
+	}
+	return *n
+}
+
 // projectName is the name of a project for the words of a refusal.
 func (g *Gateway) projectName(ctx context.Context, project int64) string {
 	p, err := g.st.Q.GetProject(ctx, project)
@@ -472,21 +495,22 @@ func (g *Gateway) projectName(ctx context.Context, project int64) string {
 	return p.Name
 }
 
-func (g *Gateway) log(ctx context.Context, s *Session, tool, right, outcome, params string) {
+func (g *Gateway) log(ctx context.Context, s *Session, tool string, right registry.Need, outcome, params string) {
 	g.journal(ctx, s.actor(), s.ProjectID, tool, right, outcome, params, "")
 }
 
 // Journal writes a call to the journal for a command that writes its own line: one the owner made past the gateway,
 // such as a delete from a screen, or a read of the web with the address it read.
-func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64, tool, right, outcome, params, errText string) {
+func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string) {
 	ownLine(ctx)
 	g.journal(ctx, act, project, tool, right, outcome, params, errText)
 }
 
-func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool, right, outcome, params, errText string) {
+// journal writes a line of a call with the right it needs and the subject of that right.
+func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string) {
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(),
-			Caller: frozenCaller(act), Tool: tool, Need: right, Outcome: outcome, Params: params, Error: errText})
+			Caller: frozenCaller(act), Tool: tool, Need: right.Right, Subject: right.Subject, Count: 1, Outcome: outcome, Params: params, Error: errText})
 		return err
 	})
 	if err != nil {

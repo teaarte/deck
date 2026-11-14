@@ -132,7 +132,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	}
 	life, stop := context.WithCancel(context.WithoutCancel(ctx))
 	defer stop()
-	e := &entry{mcp: mcp, modelAt: "/model/" + nonce.Hex(16), now: a.now, answered: func() { provider.Answered(ctx) }}
+	e := &entry{mcp: mcp, modelAt: "/model/" + nonce.Hex(16), now: a.now, answered: func() { provider.Answered(ctx) }, reach: req.OnReach}
 	e.api = a.cfg.API(provider.ModelHooks{Usage: req.OnUsage, Answer: e.heard})
 	if _, err := sandbox.Find(a.cfg.Binary); err != nil {
 		return provider.Result{}, fmt.Errorf("acp: %s is not installed: %w", a.cfg.Agent, err)

@@ -40,7 +40,7 @@ type Service struct {
 	Now     func() time.Time
 	MCPBase string
 	loans   loans
-	Journal func(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params, errText string)
+	Journal func(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string)
 	// Code makes a code that pairs a device; Kick ends the open connections of a revoked device; Origins are the
 	// addresses of deck.
 	Code    func(workspace int64, kind, name string) (string, time.Time, error)
@@ -222,7 +222,7 @@ func (s *Service) tokenRevoke(ctx context.Context, act registry.Actor, in tokenR
 	if n == 0 {
 		return nil, registry.NotFound("no active token %d", in.Token)
 	}
-	s.Journal(ctx, act, 0, registry.Deck("token_revoke"), "", "done", fmt.Sprintf(`{"token": %d}`, in.Token), "")
+	s.Journal(ctx, act, 0, registry.Deck("token_revoke"), registry.Need{}, "done", fmt.Sprintf(`{"token": %d}`, in.Token), "")
 	return map[string]any{"revoked": in.Token}, nil
 }
 
@@ -270,6 +270,6 @@ func (s *Service) tokenTrust(ctx context.Context, act registry.Actor, in tokenTr
 	if n == 0 {
 		return nil, registry.NotFound("no active token %d", in.Token)
 	}
-	s.Journal(ctx, act, 0, registry.Deck("token_trust"), "", "done", fmt.Sprintf(`{"token": %d, "trusted": %t}`, in.Token, in.Trusted), "")
+	s.Journal(ctx, act, 0, registry.Deck("token_trust"), registry.Need{}, "done", fmt.Sprintf(`{"token": %d, "trusted": %t}`, in.Token, in.Trusted), "")
 	return map[string]any{"token": in.Token, "trusted": in.Trusted}, nil
 }

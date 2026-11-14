@@ -200,13 +200,18 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	if now, granted, err := docs.Rights(ctx, r.st.Q, t.project); err == nil {
 		box = boxes.For(sandbox.KindAgent, now, append(granted, t.work...), login, read)
 	}
-	r.know(ctx, t.process, box.Hosts, login || len(box.Hosts) == 0 && !t.cmd.WebOnly())
+	cli := ""
+	if sub, ok := pv.(provider.Subscribed); ok {
+		cli = sub.OnLogin()
+	}
+	r.know(ctx, t.process, box.Hosts, cli, login || len(box.Hosts) == 0 && !t.cmd.WebOnly())
 	processID := t.process
 	a.req = provider.Request{
 		Project: t.project, Cwd: work, Repo: repo, Folder: t.folder != "", Prompt: t.message, ResultSchema: t.cmd.Result,
 		MCPURL: r.cfg.MCPBase + "/mcp/" + tok, AllowedTools: r.gw.AllowedTools(tok), PermissionMCP: gateway.PermissionTool(),
 		SessionID: t.session, Resume: t.resume, Dirs: []string{a.data, r.cfg.Home.Results(processID)}, Given: inputs, Data: a.data, Read: read, Hosts: box.Hosts, GPU: box.GPU,
 		OnStart: func(pid int) { r.setGroup(ctx, processID, pid) },
+		OnReach: func(host string) { r.gw.Went(tok, host) },
 		OnEvent: func(e provider.Event) { r.event(ctx, processID, stream, e) },
 		OnUsage: func(u provider.Usage) { r.usage(ctx, proj.WorkspaceID, processID, pv, u) },
 	}

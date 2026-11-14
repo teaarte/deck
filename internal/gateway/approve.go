@@ -137,7 +137,7 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	v := g.turnVerdict(ctx, act, in.ToolName, input)
 	switch v.Does {
 	case DoRefuse:
-		g.log(ctx, s, in.ToolName, "", "rejected", params)
+		g.log(ctx, s, in.ToolName, registry.Need{}, "rejected", params)
 		if v.Name == "draft" {
 			return decision{Behavior: "deny", Message: TrialRefusal}
 		}
@@ -145,7 +145,7 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	case DoAsk:
 	default:
 		if g.taken(ctx, act, in.ToolName, input, v) {
-			g.log(ctx, s, in.ToolName, "", "done", params)
+			g.log(ctx, s, in.ToolName, registry.Need{}, "done", params)
 			return decision{Behavior: "allow", UpdatedInput: in.Input}
 		}
 	}
@@ -159,11 +159,11 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	}
 	if v := g.turnVerdict(ctx, act, in.ToolName, input); v.Does != DoAsk && v.Does != DoRefuse && g.taken(ctx, act, in.ToolName, input, v) {
 		g.delivered(ctx, a.ID)
-		g.log(ctx, s, in.ToolName, "", "done", params)
+		g.log(ctx, s, in.ToolName, registry.Need{}, "done", params)
 		return decision{Behavior: "allow", UpdatedInput: in.Input}
 	}
 	g.delivered(ctx, a.ID)
-	g.log(ctx, s, in.ToolName, "", "rejected", params)
+	g.log(ctx, s, in.ToolName, registry.Need{}, "rejected", params)
 	return decision{Behavior: "deny", Message: RejectMessage(answer)}
 }
 

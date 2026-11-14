@@ -70,6 +70,25 @@ func destination(ctx context.Context, domains []string, hostport string, lookup 
 	return out, nil
 }
 
+// bare is host:port as a network right names it: the host alone on the ports of the web.
+func bare(hostport string) string {
+	host, port, err := net.SplitHostPort(hostport)
+	if err != nil || port == "80" || port == "443" {
+		return cmp.Or(host, hostport)
+	}
+	return hostport
+}
+
+// Covers reports whether a subject of a network right covers a host it reached, as bare says it: "*", the host with
+// subdomains, host:port, an IP or a network.
+func Covers(subject, reached string) bool {
+	hostport := reached
+	if _, _, err := net.SplitHostPort(reached); err != nil {
+		hostport = net.JoinHostPort(strings.Trim(reached, "[]"), "443")
+	}
+	return strings.TrimSpace(subject) == "*" || listed([]string{subject}, hostport)
+}
+
 func wildcard(domains []string) bool {
 	return slices.ContainsFunc(domains, func(d string) bool { return strings.TrimSpace(d) == "*" })
 }
@@ -213,9 +232,9 @@ func standing(hostport string) bool {
 	return ok
 }
 
-// Proxy carries a proxy request of a confined program to a host in the domains, dialled at the addresses it
-// resolved to once; tunnels close when ctx ends. The error is why it refused: 502 for a name that does not resolve.
-func Proxy(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string) error {
+// Proxy carries a proxy request of a confined program to a host in the domains, dialled at the addresses it resolved
+// to once, went hearing the host; tunnels close when ctx ends. The error is why it refused: 502 for a name unresolved.
+func Proxy(ctx context.Context, w http.ResponseWriter, r *http.Request, domains []string, went func(host string)) error {
 	target := r.Host
 	if r.Method != http.MethodConnect {
 		target = net.JoinHostPort(r.URL.Hostname(), port(r.URL))
@@ -231,6 +250,9 @@ func Proxy(ctx context.Context, w http.ResponseWriter, r *http.Request, domains 
 		return err
 	}
 	r = r.WithContext(context.WithValue(r.Context(), pinnedKey{}, pinned))
+	if went != nil {
+		went(bare(target))
+	}
 	if r.Method == http.MethodConnect {
 		tunnel(ctx, w, r, target)
 		return nil

@@ -36,7 +36,7 @@ type Service struct {
 	// Invoke calls a command, as speech to text calls a model.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	// Journal writes the line of a command that keeps its own in the journal of the gateway, a read of the web.
-	Journal func(ctx context.Context, act registry.Actor, project int64, tool, class, outcome, params, errText string)
+	Journal func(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string)
 	// Builtin are the providers deck was started with, the main one first.
 	Builtin []provider.Provider
 	// Provider is a provider of a workspace by name, All every one that is on, Off why one takes no work.

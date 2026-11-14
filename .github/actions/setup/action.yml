@@ -1,8 +1,8 @@
 name: setup
-description: Go with its caches; on Linux with sandbox, bubblewrap with user namespaces open for the sandbox of deck.
+description: Go with its caches; with sandbox, uv of deck's image, and on Linux bubblewrap with user namespaces open.
 inputs:
   sandbox:
-    description: Install bubblewrap and open user namespaces on Linux
+    description: Install uv as deck's image has it, and on Linux bubblewrap with user namespaces open
     default: "false"
 runs:
   using: composite
@@ -22,3 +22,11 @@ runs:
           timeout 120 sudo apt-get update -q -o Acquire::Retries=3 || true
         done
         exit 1
+    - if: runner.os == 'Linux' && inputs.sandbox == 'true'
+      shell: bash
+      run: |
+        image=$(sed -n 's|^FROM \(ghcr.io/astral-sh/uv:[^ ]*\) AS uv$|\1|p' Dockerfile)
+        id=$(docker create "$image" /uv) && sudo docker cp "$id:/uv" /usr/local/bin/uv && docker rm "$id" && uv --version
+    - if: runner.os == 'macOS' && inputs.sandbox == 'true'
+      shell: bash
+      run: command -v uv || brew install uv

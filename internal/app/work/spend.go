@@ -46,13 +46,17 @@ func price(m db.Model, u provider.Usage) *float64 {
 
 // answered keeps in the health of a model whether it answered its last call: one that did not is red with the model
 // that takes its work, its first or next good answer green; a model in an agent has the health of its self-check.
-func (s *Service) answered(ctx context.Context, m db.Model, next string, status int) {
+func (s *Service) answered(ctx context.Context, m db.Model, next string, status int, onNode bool) {
 	if m.ID != 0 && status >= 200 && status < 400 {
 		s.Answered(ctx, m.WorkspaceID, m.Name, true, nil)
 	}
 	failed := status <= 0 || models.Fallible(status)
 	if m.ID == 0 || m.Agent != "" || !failed && status >= 400 || fault.OfStatus(fault.ModelStatus(status), true) == fault.ModelLimit {
 		// A usage limit pauses the model by what its answer said, not red.
+		return
+	}
+	if onNode && status == 0 {
+		// Nothing reached the model: the node is off or refused its port, which the node's row tells.
 		return
 	}
 	text := "did not answer"

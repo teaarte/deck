@@ -17,6 +17,10 @@
           {"type": "form", "command": "deck.connection_set", "description": "The address of a model API and its key, kept apart from modules. A server of a Mac on 127.0.0.1 is reached through its node.",
             "values": {"name": "=param.name", "api": "=param.api", "url": "=param.url", "local": "=param.local", "node": "=param.node"},
             "choices": {"node": {"source": {"from": "deck.devices_list", "where": "kind == 'node' && !revoked"}, "value": "name"}}}]},
+        {"type": "dialog", "name": "login", "title": "Add a login", "icon": "login", "blocks": [
+          {"type": "form", "command": "deck.connection_set", "description": "Another subscription of Claude Code or Codex, a login of its own: put it after the first in the fallbacks of the work, and the work goes to it once the first one's quota is spent. Sign in to it on its card; a module runs on it once it declares login on its name.",
+            "values": {"name": "=param.name", "agent": "=param.agent", "api": "cli", "url": "=''", "key": "=''", "local": "false", "node": "=''"},
+            "fixed": ["api", "url", "key", "local", "node"]}]},
         {"type": "dialog", "name": "assign", "title": "Fallbacks", "icon": "list-numbers", "blocks": [
           {"type": "form", "command": "deck.assignment_set", "description": "The first model does the work; the next ones take it while the first is down or refuses.",
             "values": {"role": "=param.role", "project": "=param.project", "command": "=param.command", "models": "=(param.models ?? '') != '' ? split(param.models, ',') : nil"},
@@ -65,15 +69,15 @@
             "details": "(error ?? '') != '' ? error : len(places ?? []) > 0 ? join(places, '; ') : status == nil ? 'No work has gone to it yet' : nil",
             "tone": "status == 'ok' ? 'ok' : status == 'error' ? 'error' : status == 'missing' || status == 'off' ? 'muted' : status != nil ? 'warn' : nil"},
           "actions": [
-            {"verb": "sign_in", "command": "deck.agent_login", "params": {"provider": "=name"}, "when": "builtin && (status == 'needs_login' || status == 'error' || status == 'warning')"},
+            {"verb": "sign_in", "command": "deck.agent_login", "params": {"provider": "=login"}, "when": "(login ?? '') != '' && (status == 'needs_login' || status == 'error' || status == 'warning')"},
             {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != '' && status != 'missing'"},
             {"verb": "check", "command": "deck.model_call", "params": {"kind": "tts", "model": "=name", "text": "This is a short check of the voice."}, "when": "kind == 'tts'"},
             {"verb": "check", "command": "deck.model_call", "params": {"kind": "text", "model": "=name", "prompt": "This is a short check of the model: reply with the one word ok."}, "when": "kind == 'text' && (agent ?? '') == ''"},
             {"verb": "turn_off", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "true"}, "when": "builtin && status != 'off' && status != 'missing'"},
             {"verb": "turn_on", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "false"}, "when": "builtin && status == 'off'"},
             {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''", "free": "=free", "subscription": "=subscription",
-              "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''", "tpm": "=tpm ?? 0", "context": "=context ?? 0"}, "when": "!builtin"},
-            {"verb": "remove", "confirm": true, "command": "deck.model_delete", "params": {"name": "=name"}, "when": "!builtin"}
+              "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''", "tpm": "=tpm ?? 0", "context": "=context ?? 0"}, "when": "!builtin && (login ?? '') != name"},
+            {"verb": "remove", "confirm": true, "command": "deck.model_delete", "params": {"name": "=name"}, "when": "!builtin && (login ?? '') != name"}
           ]},
         {"type": "list", "title": "Models not in use", "icon": "archive", "collapsed": true, "cards": true, "source": {"from": "deck.models_list", "rows": "models", "where": "!used"}, "filter": ["kind", "connection", "status"],
           "description": "No work goes to these: assign one in Who does what, or remove it. For agent work, add a text model again with the agent goose.",
@@ -83,22 +87,24 @@
             "details": "(error ?? '') != '' ? error : status == nil ? 'No work has gone to it yet' : nil",
             "tone": "status == 'error' ? 'error' : 'muted'"},
           "actions": [
+            {"verb": "sign_in", "command": "deck.agent_login", "params": {"provider": "=login"}, "when": "(login ?? '') != '' && (status == 'needs_login' || status == 'error' || status == 'warning')"},
             {"verb": "check", "command": "deck.provider_check", "params": {"provider": "=name"}, "when": "(agent ?? '') != '' && status != 'missing'"},
             {"verb": "check", "command": "deck.model_call", "params": {"kind": "text", "model": "=name", "prompt": "This is a short check of the model: reply with the one word ok."}, "when": "kind == 'text' && (agent ?? '') == ''"},
             {"verb": "turn_on", "command": "deck.provider_switch", "params": {"provider": "=name", "off": "false"}, "when": "builtin && status == 'off'"},
             {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "model", "name": "=name", "connection": "=connection", "model": "=model", "kind": "=kind", "agent": "=agent ?? ''", "free": "=free", "subscription": "=subscription",
-              "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''", "tpm": "=tpm ?? 0", "context": "=context ?? 0"}, "when": "!builtin"},
-            {"verb": "remove", "confirm": true, "command": "deck.model_delete", "params": {"name": "=name"}, "when": "!builtin"}
+              "input_usd": "=input_usd", "output_usd": "=output_usd", "call_usd": "=call_usd", "unit": "=unit", "options": "=options ?? ''", "tpm": "=tpm ?? 0", "context": "=context ?? 0"}, "when": "!builtin && (login ?? '') != name"},
+            {"verb": "remove", "confirm": true, "command": "deck.model_delete", "params": {"name": "=name"}, "when": "!builtin && (login ?? '') != name"}
           ]},
         {"type": "list", "title": "Connections", "icon": "plug", "collapsed": true, "cards": true, "source": {"from": "deck.models_list", "rows": "connections"},
-          "description": "An API on the web, a server of deck's machine, or one of a Mac through its node (deck pair --node). claude-code@Mac is Claude Code on that Mac, by its sign-in.",
+          "description": "An API on the web, a server of deck's machine, or one of a Mac through its node (deck pair --node). claude-code@Mac is Claude Code on that Mac, by its sign-in. Another subscription of a CLI is a login of its own: Add a login on its card.",
           "empty": "No connections yet: add one with the address of a model API and its key",
           "item": {"title": "name", "text": "where", "meta": "api == 'cli' ? '' : key == 'set' ? 'Key set' : 'No key'", "logo": "name + ' ' + url",
             "details": "api == 'cli' ? nil : url",
             "tone": "(node ?? '') != '' && !online ? 'warn' : nil"},
           "actions": [
             {"verb": "edit", "screen": "settings", "params": {"tab": "Models", "dialog": "connections", "name": "=name", "api": "=api", "url": "=url", "local": "=local", "node": "=node ?? ''"}, "when": "api != 'cli'"},
-            {"verb": "remove", "confirm": true, "command": "deck.connection_delete", "params": {"name": "=name"}, "when": "models == 0 && api != 'cli'"}
+            {"label": "Add a login", "icon": "login", "screen": "settings", "params": {"tab": "Models", "dialog": "login", "agent": "=agent", "name": "=agent + '-2'"}, "when": "api == 'cli' && agent == name"},
+            {"verb": "remove", "confirm": true, "command": "deck.connection_delete", "params": {"name": "=name"}, "when": "models == 0 && api != 'cli' || api == 'cli' && agent != name"}
           ]}
       ]},
       {"title": "Modules", "icon": "folders", "blocks": [

@@ -138,6 +138,10 @@ func (s *Service) onNodes(ctx context.Context, workspace int64, base []modelView
 		for _, b := range base {
 			if b.Name == name[:i] {
 				b.Name, b.Node, b.Builtin = name, name[i+1:], false
+				if b.Login != "" {
+					// A node signs in to its own CLI, which its name on the node names.
+					b.Login += "@" + b.Node
+				}
 				out = append(out, b)
 			}
 		}

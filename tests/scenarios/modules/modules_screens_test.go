@@ -356,12 +356,12 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 		}
 	}
 	memory := []string{"/b0-4-0", "/b0-4-1", "/b0-4-2", "/b0-4-3", "/b0-4-4", "/b0-4-5"}
-	for topic, signIns := range map[string][]string{"health": {"/b0-0-4"}, "models": nil} {
+	for topic, signIns := range map[string][]string{"health": {"/b0-0-5"}, "models": nil} {
 		mem := memory
 		if topic == "health" {
 			mem = []string{"/b0-4-2"}
 		}
-		want := slices.Concat([]string{"/b0-0-3"}, signIns, []string{"/b0-0-5", "/b0-3-0", "/b0-3-1"}, mem, []string{"/b0-6-0", "/b0-6-3"})
+		want := slices.Concat([]string{"/b0-0-4"}, signIns, []string{"/b0-0-6", "/b0-3-0", "/b0-3-1"}, mem, []string{"/b0-6-0", "/b0-6-3"})
 		if got := paths("", "settings", topic); !slices.Equal(got, want) {
 			t.Fatalf("%s reads what is broken and passes, the work, the sign-ins and the models, the memory, the version and the agents: %v", topic, got)
 		}
@@ -369,12 +369,12 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 			t.Fatalf("%s reads every check in its open dialog: %v", topic, got)
 		}
 		var open []string
-		for _, m := range e.ScreenMessages("", "settings", map[string]any{"topic": topic, "tab": "Models", "open": `["b0-0-8"]`}) {
+		for _, m := range e.ScreenMessages("", "settings", map[string]any{"topic": topic, "tab": "Models", "open": `["b0-0-9"]`}) {
 			var dm struct{ Path string }
 			_ = json.Unmarshal(m["updateDataModel"], &dm)
 			open = append(open, dm.Path)
 		}
-		if !slices.Contains(open, "/b0-0-8") || slices.Contains(open, "/b0-0-6") {
+		if !slices.Contains(open, "/b0-0-9") || slices.Contains(open, "/b0-0-7") {
 			t.Fatalf("%s reads the connections once opened, and no collapsed block the owner did not open: %v", topic, open)
 		}
 	}

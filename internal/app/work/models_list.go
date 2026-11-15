@@ -27,6 +27,8 @@ type modelView struct {
 	Model      string `json:"model"`
 	Kind       string `json:"kind" enum:"text|image|tts|stt|music|video|search"`
 	Agent      string `json:"agent,omitempty"`
+	// Login is the subscription login of a CLI it runs on, which the owner signs in to; empty for any other.
+	Login string `json:"login,omitempty"`
 	// Options are the fields deck adds to every call of the model, as JSON.
 	Options   string   `json:"options,omitempty"`
 	InputUSD  *float64 `json:"input_usd,omitempty"`
@@ -158,7 +160,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		return out, err
 	}
 	for _, c := range conns {
-		v := connectionView{Name: c.Name, API: c.Api, URL: c.Url, Key: "none", Local: c.Local != 0, Online: true}
+		v := connectionView{Name: c.Name, API: c.Api, Agent: c.Agent, URL: c.Url, Key: "none", Local: c.Local != 0, Online: true}
 		if c.NodeID.Valid {
 			v.Online = s.Online(c.NodeID.Int64)
 			if d, err := s.St.Q.NodeByID(ctx, c.NodeID.Int64); err == nil {
@@ -176,6 +178,8 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 			v.Where = tr(fmt.Sprintf("through node %s", v.Node))
 		case v.Node != "":
 			v.Where = tr(fmt.Sprintf("through node %s, away now", v.Node))
+		case c.Api == "cli" && c.Name != c.Agent:
+			v.Where = tr(fmt.Sprintf("another login of %s", c.Agent))
 		case c.Api == "cli":
 			v.Where = tr("the CLI on the subscription")
 		default:
@@ -191,6 +195,9 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	for _, pv := range s.Builtin {
 		_, sub := pv.(provider.Subscribed)
 		v := modelView{Name: pv.Name(), Kind: RoleText, Agent: pv.Name(), Builtin: true, Subscription: sub}
+		if l, ok := pv.(provider.Subscribed); ok {
+			v.Login = l.OnLogin()
+		}
 		s.lastCheck(ctx, act.Workspace, &v)
 		s.offStatus(ctx, act.Workspace, &v)
 		out.Models = append(out.Models, v)
@@ -200,6 +207,9 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Options: s.shownOptions(ctx, m.Options),
 			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0,
 			Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context, Tools: m.Tools}
+		if r.Connection.Api == "cli" {
+			v.Login = r.Connection.Name
+		}
 		if act.Confined() {
 			v.Spare = s.Spare(ctx, act, m)
 		}
@@ -416,7 +426,9 @@ func (s *Service) offStatus(ctx context.Context, workspace int64, v *modelView) 
 type connectionView struct {
 	Name string `json:"name"`
 	API  string `json:"api" enum:"openai|google|anthropic|raw|cli"`
-	URL  string `json:"url"`
+	// Agent is the CLI a connection of api cli is a login of.
+	Agent string `json:"agent,omitempty"`
+	URL   string `json:"url"`
 	// Key says whether deck keeps an API key of the connection, apart from the secrets of modules.
 	Key    string `json:"key" enum:"set|none"`
 	Local  bool   `json:"local"`

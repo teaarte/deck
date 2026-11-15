@@ -415,8 +415,8 @@
   "Only this command: the commands that run after it do not start; the whole chain runs when omitted": "Только эта команда: следующие за ней не запускаются; без этого идёт вся цепочка",
   "Command name, project.command": "Команда: модуль.команда",
   "Connection name: lowercase letters, digits and '-'": "Имя подключения: строчные латинские буквы, цифры и «-»",
-  "What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token; without it, by the address": "Какой это API: openai для совместимых с OpenAI (OpenRouter, Ollama, Groq, NVIDIA), google и anthropic для их собственных, raw для сервиса, которому deck передаёт ключ как bearer-токен; без него — по адресу",
-  "Base URL of the API, such as https://openrouter.ai/api/v1": "Базовый адрес API, например https://openrouter.ai/api/v1",
+  "What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token, cli for another subscription login of a CLI agent; without it, by the address": "Какой это API: openai для совместимых с OpenAI (OpenRouter, Ollama, Groq, NVIDIA), google и anthropic для их собственных, raw для сервиса, которому deck передаёт ключ как bearer-токен, cli для ещё одного входа по подписке в CLI-агент; без него — по адресу",
+  "Base URL of the API, such as https://openrouter.ai/api/v1; none for api cli": "Базовый адрес API, например https://openrouter.ai/api/v1; для api cli не нужен",
   "The models run on the owner's own hardware": "Модели работают на своём железе владельца",
   "Absolute path of the folder, on the machine of the node when one is named": "Полный путь к папке, на машине узла, когда он указан",
   "Folder name in the project; the folder's own name when omitted": "Имя папки в модуле; без него — собственное имя папки",
@@ -1162,7 +1162,7 @@
   "The model that takes its work, first, before the fallbacks there were": "Модель, которая берёт её работу первой, перед прежними запасными",
   "The address of a model API and its key, kept apart from modules. A server of a Mac on 127.0.0.1 is reached through its node.": "Адрес API моделей и ключ — deck хранит его отдельно от модулей. Сервер Mac на 127.0.0.1 доступен через узел этого Mac.",
   "No work goes to these: assign one in Who does what, or remove it. For agent work, add a text model again with the agent goose.": "На этих моделях нет работы: назначьте модель в «Кто что делает» или удалите её. Для агентской работы добавьте текстовую модель ещё раз с агентом goose.",
-  "An API on the web, a server of deck's machine, or one of a Mac through its node (deck pair --node). claude-code@Mac is Claude Code on that Mac, by its sign-in.": "API в интернете, сервер на машине deck или сервер Mac через его узел (deck pair --node). claude-code@Mac — Claude Code на том Mac, под его входом.",
+  "An API on the web, a server of deck's machine, or one of a Mac through its node (deck pair --node). claude-code@Mac is Claude Code on that Mac, by its sign-in. Another subscription of a CLI is a login of its own: Add a login on its card.": "API в интернете, сервер на машине deck или сервер Mac через его узел (deck pair --node). claude-code@Mac — Claude Code на том Mac, под его входом. Ещё одна подписка CLI — отдельный вход: «Добавить вход» на его карточке.",
   "By provider; a model's details say where it works.": "По провайдерам; в подробностях модели — где она работает.",
   "Puts a model in place of another in every work of a kind that goes to that one first, such as a model that is down, where each takes its models from; the replaced one leaves those assignments.": "Ставит модель вместо другой во всех работах этого вида, где та стоит первой, — например, вместо неработающей, — там, откуда работа берёт модели; заменённая уходит из этих назначений.",
   "you are here": "вы здесь",
@@ -1400,5 +1400,9 @@
   "Waits: this work read text from outside deck (%s), so it changes what a module runs only with your yes": "Ждёт: эта работа читала текст извне deck (%s), поэтому меняет то, что запускает модуль, только с твоего «да»",
   "Waits: this run spent the most its module allows per run; more goes only with your yes to this call": "Ждёт: этот прогон потратил предел своего модуля; дальше — только с твоего «да» этому вызову",
   "Waits: a draft or a trial run, so you answer each of its calls": "Ждёт: это черновик или проба — каждый вызов решаешь ты",
-  "no to the requests of this work": "нет — просьбам этой работы"
+  "no to the requests of this work": "нет — просьбам этой работы",
+  "Of api cli: the CLI the login is of; the login is signed in to with agent_login by the name of the connection": "Для api cli: CLI, к которому этот вход; войти в него — agent_login по имени подключения",
+  "Add a login": "Добавить вход",
+  "Another subscription of Claude Code or Codex, a login of its own: put it after the first in the fallbacks of the work, and the work goes to it once the first one's quota is spent. Sign in to it on its card; a module runs on it once it declares login on its name.": "Ещё одна подписка Claude Code или Codex — отдельный вход: поставьте его после первого в запасных модели работы, и работа перейдёт на него, когда квота первого кончится. Войдите в него на его карточке; модуль работает на нём, когда объявит право на этот вход.",
+  "another login of %s": "ещё один вход %s"
 }

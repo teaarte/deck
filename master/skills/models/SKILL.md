@@ -74,6 +74,16 @@ Then the model: `deck.connection_set` is the owner's form (give its link with th
 (connection, model as the server names it, kind) waits for the owner's button, and an assignment of its kind
 (`deck.assignment_set`).
 
+## A second subscription of a CLI
+
+Another subscription of Claude Code or Codex (the owner's second one, a friend's) is a login of its own, never a key
+in a module: the owner adds it with Add a login on the card of the CLI in Settings → Models
+(`deck.connection_set {name: "claude-code-2", api: "cli", agent: "claude-code"}`) and signs in to it on its card.
+It is a model of its name: put it after the first in the fallbacks of the work, and a new turn goes to it once the
+first's quota (5 hours or the week) is spent or nearly so; a short limit waits on the same login. A module runs on it
+only when its rights name it: `{"right": "login", "what": ["claude-code", "claude-code-2"], …}` — propose that edit
+when the owner wants a module to use both. Removing the login (`deck.connection_delete`) removes its sign-in.
+
 ## Cloud or own: by how often
 
 A rare task of a niche model — a cloud API, under `money` of the module. A task that runs often — a model of the

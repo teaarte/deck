@@ -143,14 +143,14 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 
 // agentModel is a model of models_list as the line of access reads it.
 type agentModel struct {
-	Agent, Status         string
-	Builtin, Subscription bool
+	Name, Agent, Status, Login string
+	Builtin, Subscription      bool
 }
 
-// works says a model may take an agent turn: an agent built in or of an ACP agent whose last check did not fail; a model
-// of a CLI's subscription is the CLI's, which deck checks instead.
+// works says a model may take an agent turn: an agent built in, a login of a CLI or of an ACP agent whose last check
+// did not fail; another model of a login is the login's, which deck checks instead.
 func (m agentModel) works() bool {
-	return m.Agent != "" && (m.Builtin || !m.Subscription) &&
+	return m.Agent != "" && (m.Builtin || !m.Subscription || m.Login == m.Name) &&
 		!slices.Contains([]string{health.NeedsLogin, health.Missing, health.Off, health.Error, health.Paused}, m.Status)
 }
 

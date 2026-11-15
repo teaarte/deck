@@ -29,9 +29,6 @@ func (s *Service) loginSet(ctx context.Context, act registry.Actor, in connectio
 	case in.URL != "" || in.Key != "" || in.Node != "" || in.Local:
 		return nil, registry.Invalid("a login of a CLI takes no url, key, node or local: the owner signs in to it with agent_login")
 	}
-	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && added(old) && old.Agent == in.Agent {
-		return map[string]any{"connection": in.Name, "agent": in.Agent}, nil
-	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		_, err := q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name})
 		switch {
@@ -75,6 +72,8 @@ func (s *Service) loginSet(ctx context.Context, act registry.Actor, in connectio
 	if err := s.builtinNamed(in.Agent).(provider.Logins).Forget(in.Name); err != nil {
 		return nil, err
 	}
+	// Without a sign-in the CLI refuses before any model call: the login shows at once that it needs one.
+	s.startCheck(in.Name, true)
 	return map[string]any{"connection": in.Name, "agent": in.Agent}, nil
 }
 

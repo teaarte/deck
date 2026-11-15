@@ -46,7 +46,7 @@ func waits(out *modelsView, tr func(string) string) []waitView {
 	used := map[string]bool{}
 	for _, m := range out.Models {
 		if m.Used {
-			used[m.Name], used[m.Agent] = true, true
+			used[m.Name], used[m.Agent], used[m.Login] = true, true, true
 		}
 	}
 	login := map[string]bool{}
@@ -58,6 +58,14 @@ func waits(out *modelsView, tr func(string) string) []waitView {
 				Icon: "login", Tone: "warn", Logo: a.Name, Agent: a.Name})
 		case a.Status == health.Missing && used[a.Name]:
 			w = append(w, waitView{Kind: "install", Title: fmt.Sprintf(tr("Install %s"), a.Name), Text: a.Error, Icon: "download", Tone: "warn", Logo: a.Name, Agent: a.Name})
+		}
+	}
+	// Another login of a CLI is no agent of its own: its model of its name tells it waits for a sign-in.
+	for _, m := range out.Models {
+		if m.Name == m.Login && !m.Builtin && m.Status == health.NeedsLogin && used[m.Login] && !login[m.Login] {
+			login[m.Login] = true
+			w = append(w, waitView{Kind: "sign_in", Title: fmt.Sprintf(tr("Sign in to %s"), m.Login), Text: tr("Agent turns of the modules wait for it"),
+				Icon: "login", Tone: "warn", Logo: m.Logo, Agent: m.Login})
 		}
 	}
 	type downKey struct{ model, role string }

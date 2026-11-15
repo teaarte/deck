@@ -87,7 +87,7 @@ func TestTheMasterReadsTheFieldsOfAFormOnlyTheOwnerFillsIn(t *testing.T) {
 		t.Fatalf("command_describe: %d %s", code, out)
 	}
 	if spec.Name != "deck.connection_set" || len(spec.Callers) != 1 || spec.Callers[0] != "owner" ||
-		strings.Join(spec.Input.Properties["api"].Enum, ",") != "openai,google,anthropic,raw" {
+		strings.Join(spec.Input.Properties["api"].Enum, ",") != "openai,google,anthropic,raw,cli" {
 		t.Fatalf("the master sees the fields of the connection form and the APIs to pick: %s", out)
 	}
 	if code, out := e.As(tok).Call("deck.connection_set", map[string]any{"name": "x", "api": "openai", "url": "https://x.example/v1"}); code != 403 {

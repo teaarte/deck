@@ -12,23 +12,57 @@ import (
 	"deck2/tests/harness"
 )
 
-// TestTheStartOfDeckRunsNoTurnOfACLI: a CLI spends turns of the subscription, so deck does not check it as it starts;
-// the owner's button does.
-func TestTheStartOfDeckRunsNoTurnOfACLI(t *testing.T) {
+// TestTheStartOfDeckRunsNoTurnOfACLICheckedBefore: a CLI spends turns of the subscription, so deck does not check one
+// it checked before as it starts; the owner's button does.
+func TestTheStartOfDeckRunsNoTurnOfACLICheckedBefore(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)
 	c.ChecksPass()
 	e := harness.ClockCLIEnv(t, c)
+	if err := health.Write(context.Background(), e.App.Store, health.Of{}, "provider:claude-code", health.OK, ""); err != nil {
+		t.Fatal(err)
+	}
 	e.App.Providers.Checks(context.Background(), e.Clock.Now())
 	e.Settle()
 	if n := c.Calls(); n != 0 {
-		t.Fatalf("the start of deck runs no turn of the CLI: %d calls", n)
+		t.Fatalf("the start of deck runs no turn of a CLI checked before: %d calls", n)
 	}
-	if h := e.HealthRowOf("provider:claude-code"); h != nil && h["status"] == "checking" {
+	if h := e.HealthRowOf("provider:claude-code"); h["status"] != "ok" {
 		t.Fatalf("no self-check of the CLI runs at the start: %v", h)
 	}
 	e.Must("deck.provider_check", map[string]any{"provider": "claude-code"}, nil)
 	e.WaitHealth("provider:claude-code", "ok")
+}
+
+// TestAFreshCLIWithoutALoginNeedsOneAsDeckStarts: a CLI deck never checked is checked as deck starts, so a fresh
+// install shows it needs a login; without one the CLI refuses before any model call, so nothing is spent.
+func TestAFreshCLIWithoutALoginNeedsOneAsDeckStarts(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCLI(t)
+	c.Stream(1, "nologin.jsonl")
+	e := harness.ClockCLIEnv(t, c)
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
+	e.WaitHealth("provider:claude-code", "needs_login")
+	e.Settle()
+	n := c.Calls()
+	if n == 0 {
+		t.Fatal("the self-check ran the CLI")
+	}
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
+	e.Settle()
+	e = e.Restart()
+	e.App.Providers.Checks(context.Background(), e.Clock.Now())
+	e.Settle()
+	if c.Calls() != n {
+		t.Fatalf("a CLI that needs a login is checked once, not again at the next tick or start: %d calls, then %d", n, c.Calls())
+	}
+	var calls []map[string]any
+	e.ModelCalls("", 0, &calls)
+	for _, call := range calls {
+		if call["gen_ai.usage.input_tokens"] != 0.0 || call["gen_ai.usage.output_tokens"] != 0.0 || call["cost_usd"] != nil && call["cost_usd"] != 0.0 {
+			t.Fatalf("a CLI without a login spends no model call: %v", call)
+		}
+	}
 }
 
 // TestACLIDeckLeftRedIsCheckedAsDeckStarts: a CLI that was red or in a self-check as deck stopped is checked at the

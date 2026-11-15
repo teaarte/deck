@@ -2,6 +2,8 @@ package providers
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -338,9 +340,12 @@ func nearlySpent(h db.Health) bool {
 	return h.Status == health.Paused && strings.Contains(h.Error, nearlyMark)
 }
 
-// leftRed says a provider's row is red or in a self-check deck stopped during, as deck left it: such a CLI is checked
-// at the start, so turns it holds do not wait for it forever.
-func (s *Service) leftRed(ctx context.Context, name string) bool {
+// dueAtStart says deck checks a CLI as it starts: a built-in one never checked, so a fresh install learns it needs a
+// login (the check is a turn, once, only with one), or one left red or mid-check, so turns it holds do not wait.
+func (s *Service) dueAtStart(ctx context.Context, name string) bool {
 	h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Provider(name))
+	if errors.Is(err, sql.ErrNoRows) {
+		return s.builtinNamed(name) != nil
+	}
 	return err == nil && (h.Status == health.Error || h.Status == health.Checking)
 }

@@ -50,7 +50,7 @@ func (s *Service) checksOf(name string) *checks {
 }
 
 // Checks finds the ACP agents and runs the self-check of each provider that has one at the first call, and again
-// while it is red; a CLI spends turns of the subscription, so it is checked on a button and a broken turn.
+// while it is red; a CLI spends turns, so only when never checked or left red, else on a button and a broken turn.
 func (s *Service) Checks(ctx context.Context, now time.Time) {
 	s.mu.Lock()
 	found := s.found
@@ -91,8 +91,8 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 		c := s.checksOf(pv.Name())
 		first, again := !c.started, !c.retry.IsZero() && !now.Before(c.retry)
 		s.mu.Unlock()
-		if first && cli && !s.leftRed(ctx, pv.Name()) {
-			// A CLI spends turns of the subscription: it is checked on a button, a broken turn and again while red.
+		if first && cli && !s.dueAtStart(ctx, pv.Name()) {
+			// A CLI spends turns of the subscription: once checked, it is checked on a button, a broken turn and while red.
 			continue
 		}
 		if end, paused := s.pausedTill(ctx, pv.Name()); paused {

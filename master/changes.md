@@ -556,3 +556,5 @@ and bring the modules in line.
   after a broken turn and again while red; a model at a limit is checked once, when its pause ends; the models of one
   connection are checked one at a time; the calls of a self-check are in the journal of model calls as command
   `self-check` without a process (`spend_list`), but for a check run on a node. A limit a self-check meets is a pause, not a failed check.
+- 2026-11-15: a built-in CLI (claude-code, codex) deck never checked is checked as deck starts, so a fresh install
+  shows it needs a login (without one the CLI refuses before any model call); one checked before still is not.

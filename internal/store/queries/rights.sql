@@ -15,3 +15,9 @@ ON CONFLICT (project_id, name, who, subject) DO UPDATE SET answer = excluded.ans
 
 -- name: DeleteGrant :execrows
 DELETE FROM right_grant WHERE project_id = ? AND name = ? AND who = ? AND subject = ?;
+
+
+-- name: DeleteLoginGrants :exec
+-- The answers of the modules of a workspace to the right login on a login that is removed.
+DELETE FROM right_grant WHERE name = 'login' AND subject = sqlc.arg(subject)
+  AND project_id IN (SELECT id FROM project WHERE workspace_id = sqlc.arg(workspace_id));

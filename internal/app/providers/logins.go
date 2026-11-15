@@ -29,24 +29,34 @@ func (s *Service) loginSet(ctx context.Context, act registry.Actor, in connectio
 	case in.URL != "" || in.Key != "" || in.Node != "" || in.Local:
 		return nil, registry.Invalid("a login of a CLI takes no url, key, node or local: the owner signs in to it with agent_login")
 	}
-	old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name})
-	switch {
-	case err == nil && old.Api == models.APICLI && old.Agent == in.Agent:
+	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && added(old) && old.Agent == in.Agent {
 		return map[string]any{"connection": in.Name, "agent": in.Agent}, nil
-	case err == nil:
-		return nil, registry.Invalid("connection %s is already there; name the login another way", in.Name)
-	case !errors.Is(err, sql.ErrNoRows):
-		return nil, err
 	}
-	if _, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
-		return nil, registry.Invalid("model %s is already there; a login is a model of its own name too, so name it another way", in.Name)
-	}
-	if n, err := s.St.Q.ModelInOtherWorkspace(ctx, db.ModelInOtherWorkspaceParams{Name: in.Name, WorkspaceID: act.Workspace}); err != nil {
-		return nil, err
-	} else if n > 0 {
-		return nil, registry.Invalid("another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
-	}
-	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, err := q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name})
+		switch {
+		case err == nil:
+			return registry.Invalid("connection %s is already there; name the login another way", in.Name)
+		case !errors.Is(err, sql.ErrNoRows):
+			return err
+		}
+		if _, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil {
+			return registry.Invalid("model %s is already there; a login is a model of its own name too, so name it another way", in.Name)
+		}
+		spaces, err := q.ListWorkspaces(ctx)
+		if err != nil {
+			return err
+		}
+		for _, ws := range spaces {
+			if _, err := q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: ws, Name: in.Name}); err == nil && ws != act.Workspace {
+				return registry.Invalid("another workspace has a connection %q; a login's sign-in and health go by name, so pick another", in.Name)
+			}
+		}
+		if n, err := q.ModelInOtherWorkspace(ctx, db.ModelInOtherWorkspaceParams{Name: in.Name, WorkspaceID: act.Workspace}); err != nil {
+			return err
+		} else if n > 0 {
+			return registry.Invalid("another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
+		}
 		c, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: in.Name, Api: models.APICLI, Agent: in.Agent})
 		if err != nil {
 			return err
@@ -59,6 +69,10 @@ func (s *Service) loginSet(ctx context.Context, act registry.Actor, in connectio
 		return err
 	})
 	if err != nil {
+		return nil, err
+	}
+	// A folder no login held, as of one removed while its sign-in ran, is not this new login's.
+	if err := s.builtinNamed(in.Agent).(provider.Logins).Forget(in.Name); err != nil {
 		return nil, err
 	}
 	return map[string]any{"connection": in.Name, "agent": in.Agent}, nil
@@ -96,12 +110,19 @@ func (s *Service) loginDelete(ctx context.Context, act registry.Actor, c db.Conn
 		if err := health.Clear(ctx, q, health.Of{}, health.Limit(c.Name)); err != nil {
 			return err
 		}
+		// A module's answer to this login does not hold for another one of the same name later.
+		if err := q.DeleteLoginGrants(ctx, db.DeleteLoginGrantsParams{Subject: c.Name, WorkspaceID: act.Workspace}); err != nil {
+			return err
+		}
 		_, err = q.DeleteConnection(ctx, db.DeleteConnectionParams{WorkspaceID: act.Workspace, Name: c.Name})
 		return err
 	})
 	if err != nil {
 		return nil, err
 	}
+	s.mu.Lock()
+	delete(s.check, c.Name)
+	s.mu.Unlock()
 	if cli, ok := s.builtinNamed(c.Agent).(provider.Logins); ok {
 		if err := cli.Forget(c.Name); err != nil {
 			return nil, err
@@ -109,3 +130,6 @@ func (s *Service) loginDelete(ctx context.Context, act registry.Actor, c db.Conn
 	}
 	return map[string]any{"removed": c.Name}, nil
 }
+
+// added says a connection is a login of a CLI the owner added, not the built-in one of its name.
+func added(c db.Connection) bool { return c.Api == models.APICLI && c.Agent != "" && c.Name != c.Agent }

@@ -86,7 +86,7 @@ func TestASecondLoginOfACLIIsAConnectionOfItsOwn(t *testing.T) {
 	if p := e.WaitState(second, "done", "error"); p.State != "done" || lastLogin(c) != "good-code-2" {
 		t.Fatalf("a turn assigned to the second login runs on its sign-in: %+v %q", p, lastLogin(c))
 	}
-	if env := c.Call(c.Calls()).Env["CLAUDE_CONFIG_DIR"]; !strings.Contains(env, "claude.claude-code-2") && !strings.HasPrefix(env, filepath.Join(filepath.Join(e.App.Cfg.Home, "agents", "claude"), "lock")) {
+	if env := c.Call(c.Calls()).Env["CLAUDE_CONFIG_DIR"]; !strings.Contains(env, "claude.claude-code-2") {
 		t.Fatalf("the second login runs in a home of its own: %q", env)
 	}
 
@@ -162,6 +162,7 @@ func TestRemovingASecondLoginLeavesTheFirst(t *testing.T) {
 	e.Project("plain", harness.Declare(harness.PlainManifest, bothLogins))
 	e.UseModels("plain.work", "claude-code-2", "claude-code")
 	e.Refused("deck.model_delete", map[string]any{"name": "claude-code-2"}, 422, "connection_delete")
+	e.Refused("deck.model_set", map[string]any{"connection": "claude-code", "model": "opus", "name": "claude-code-2"}, 422, "stays on its own connection")
 	e.Refused("deck.connection_delete", map[string]any{"name": "claude-code"}, 422, "deck keeps itself")
 	e.Must("deck.connection_delete", map[string]any{"name": "claude-code-2"}, nil)
 
@@ -189,6 +190,13 @@ func TestRemovingASecondLoginLeavesTheFirst(t *testing.T) {
 	id := e.Start("plain", "work", nil)
 	if p := e.WaitState(id, "done", "error"); p.State != "done" || p.Provider != "claude-code" {
 		t.Fatalf("the work goes to the first login, as before: %+v", p)
+	}
+	// A login of the same name added again is another account: what the module was given on the old one is asked again.
+	secondLogin(e, "good-code-3")
+	e.UseModels("plain.work", "claude-code-2")
+	again := e.Start("plain", "work", nil)
+	if p := e.WaitState(again, "waiting:right", "done", "error"); p.State != "waiting:right" {
+		t.Fatalf("the right on a removed login does not pass to a new one of its name: %+v", p)
 	}
 }
 

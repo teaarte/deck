@@ -34,6 +34,22 @@ func (q *Queries) DeleteGrant(ctx context.Context, arg DeleteGrantParams) (int64
 	return result.RowsAffected()
 }
 
+const deleteLoginGrants = `-- name: DeleteLoginGrants :exec
+DELETE FROM right_grant WHERE name = 'login' AND subject = ?1
+  AND project_id IN (SELECT id FROM project WHERE workspace_id = ?2)
+`
+
+type DeleteLoginGrantsParams struct {
+	Subject     string
+	WorkspaceID int64
+}
+
+// The answers of the modules of a workspace to the right login on a login that is removed.
+func (q *Queries) DeleteLoginGrants(ctx context.Context, arg DeleteLoginGrantsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteLoginGrants, arg.Subject, arg.WorkspaceID)
+	return err
+}
+
 const listGrants = `-- name: ListGrants :many
 SELECT project_id, name, who, subject, answer, print, device_id, created_at FROM right_grant WHERE project_id = ? ORDER BY name, who, subject
 `

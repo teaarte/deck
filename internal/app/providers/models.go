@@ -164,6 +164,10 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if strings.ContainsAny(in.Name, " @") {
 		return nil, registry.Invalid("a model name has no spaces or @, got %q", in.Name)
 	}
+	if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && added(old.Connection) &&
+		old.Connection.Name == in.Name && old.Connection.ID != c.ID {
+		return nil, registry.Invalid("%s is a login of %s and stays on its own connection", in.Name, old.Connection.Agent)
+	}
 	if c.Api == models.APICLI {
 		in.Agent = cmp.Or(in.Agent, c.Agent)
 	} else if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.Agent == "" && old.Connection.Api == models.APICLI {
@@ -393,7 +397,7 @@ func (s *Service) modelDelete(ctx context.Context, act registry.Actor, in modelD
 			return registry.Invalid("%d processes still run on %s; stop them or let them finish first", active, in.Name)
 		}
 		old, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name})
-		if err == nil && old.Connection.Api == models.APICLI && old.Connection.Name == in.Name {
+		if err == nil && added(old.Connection) && old.Connection.Name == in.Name {
 			return registry.Invalid("%s is a login of %s; remove it with connection_delete", in.Name, old.Connection.Agent)
 		}
 		var unasked bool

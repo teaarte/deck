@@ -3,6 +3,7 @@ package claudecode
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -62,6 +63,9 @@ func (a *Adapter) settings(req provider.Request) map[string]any {
 		return s
 	}
 	hidden := sandbox.Agent(a.Home)
+	if a.dir() != cli {
+		hidden = a.ownFolder(hidden)
+	}
 	for _, p := range sandbox.Private() {
 		if filepath.Base(p) == ".claude" {
 			// The CLI keeps the long tool output it asks the agent to read in its own folder, so only its keys close.
@@ -166,4 +170,25 @@ func writePlugin(h home.Layout, session string, skills map[string]string) (strin
 		return "", fmt.Errorf("claude-code: %w", err)
 	}
 	return dir, nil
+}
+
+// ownFolder opens to another login its own folder of deck's, where it keeps the long tool output it asks the agent to
+// read: the folders of the other CLIs and logins stay closed, and of its own only its keys.
+func (a *Adapter) ownFolder(hidden []string) []string {
+	agents := filepath.Dir(a.Home.Agents(a.dir()))
+	i := slices.IndexFunc(hidden, func(h string) bool { return strings.TrimSuffix(h, "/**") == agents })
+	if i < 0 {
+		return hidden
+	}
+	hidden = slices.Delete(hidden, i, i+1)
+	es, _ := os.ReadDir(agents)
+	for _, e := range es {
+		if e.Name() != a.dir() {
+			hidden = append(hidden, filepath.Join(agents, e.Name())+"/**")
+		}
+	}
+	for _, f := range cliKeys {
+		hidden = append(hidden, filepath.Join(a.Home.Login(a.dir()), f))
+	}
+	return hidden
 }

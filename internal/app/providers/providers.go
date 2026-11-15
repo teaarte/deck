@@ -198,7 +198,7 @@ func (s *Service) Agent(name string) provider.Provider {
 // CLI on the login of the connection for another; nil when deck does not run its CLI.
 func (s *Service) login(c db.Connection) provider.Provider {
 	pv := s.builtinNamed(c.Agent)
-	if pv == nil || c.Api != models.APICLI || c.Name == c.Agent {
+	if pv == nil || !added(c) {
 		return pv
 	}
 	if l, ok := pv.(provider.Logins); ok {
@@ -207,13 +207,13 @@ func (s *Service) login(c db.Connection) provider.Provider {
 	return nil
 }
 
-// Signer is the provider a sign-in of name goes to: a built-in CLI, on a node too, or a model of a workspace on a
-// login of a CLI, whose sign-in is that login's; nil for any other.
+// Signer is the provider a sign-in of name goes to: a built-in CLI, on a node too, or another login of a workspace by
+// the name of its connection; nil for any other, so one login is signed in to by one name.
 func (s *Service) Signer(ctx context.Context, workspace int64, name string) provider.Provider {
 	if pv := s.Agent(name); pv != nil {
 		return pv
 	}
-	if s.cliOf(ctx, workspace, name) == "" {
+	if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: workspace, Name: name}); err != nil || !added(c) {
 		return nil
 	}
 	pv, err := s.Provider(ctx, workspace, name)

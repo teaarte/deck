@@ -99,7 +99,7 @@ type connectionDeleteIn struct {
 
 func (s *Service) connectionDelete(ctx context.Context, act registry.Actor, in connectionDeleteIn) (any, error) {
 	if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && c.Api == models.APICLI {
-		if c.Name == c.Agent {
+		if !added(c) {
 			return nil, registry.Invalid("connection %s is the %s CLI, which deck keeps itself; remove its models instead", in.Name, in.Name)
 		}
 		return s.loginDelete(ctx, act, c)

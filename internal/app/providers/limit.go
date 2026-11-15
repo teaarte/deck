@@ -79,7 +79,7 @@ func (s *Service) cliOf(ctx context.Context, workspace int64, name string) strin
 func (s *Service) isLogin(ctx context.Context, name string) bool {
 	spaces, _ := s.St.Q.ListWorkspaces(ctx)
 	for _, ws := range spaces {
-		if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: ws, Name: name}); err == nil && c.Api == models.APICLI && c.Agent != c.Name {
+		if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: ws, Name: name}); err == nil && added(c) {
 			return true
 		}
 	}

@@ -232,10 +232,16 @@ func (a *Adapter) Terminal(_ int64, session string) (string, error) {
 	if sandbox.Homed() {
 		return "", errors.New("codex: a thread in the home of its project goes on only in deck")
 	}
+	if a.dir() != cli {
+		return "CODEX_HOME=" + provider.Quote(a.ownHome()) + " codex resume " + provider.Quote(strings.TrimSpace(string(b))), nil
+	}
 	return "codex resume " + provider.Quote(strings.TrimSpace(string(b))), nil
 }
 
 func (a *Adapter) sessionFile(session string) string {
+	if a.dir() != cli {
+		return filepath.Join(a.Dir, a.dir(), "sessions", filepath.Base(session))
+	}
 	return filepath.Join(a.Dir, "sessions", filepath.Base(session))
 }
 

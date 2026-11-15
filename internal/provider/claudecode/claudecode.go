@@ -107,6 +107,9 @@ func (a *Adapter) Terminal(_ int64, session string) (string, error) {
 	if sandbox.Homed() {
 		return "", errors.New("claude-code: a session in the home of its project goes on only in deck")
 	}
+	if a.dir() != cli {
+		return "CLAUDE_CONFIG_DIR=" + provider.Quote(a.Home.Login(a.dir())) + " claude --resume " + provider.Quote(session), nil
+	}
 	return "claude --resume " + provider.Quote(session), nil
 }
 

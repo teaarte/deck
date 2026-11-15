@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"deck2/internal/access"
@@ -402,6 +403,11 @@ func runs(ctx context.Context, bin, version string) error {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, bin, "-version").Output()
+	// A fork of deck beside the write may hold the new file open a moment: Linux then says text file busy.
+	for try := 1; errors.Is(err, syscall.ETXTBSY) && try < 10; try++ {
+		time.Sleep(time.Duration(try) * 50 * time.Millisecond)
+		out, err = exec.CommandContext(ctx, bin, "-version").Output()
+	}
 	if err != nil {
 		return registry.Refuse("the new binary does not run here: %v", err)
 	}

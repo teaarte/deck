@@ -562,3 +562,9 @@ and bring the modules in line.
   with no search the connection `searxng` (`http://searxng:8080`, api raw, local), its model `searxng` (kind search,
   free) and the assignment of search; a search the owner set up stays. deck without Docker sets SearXNG up by the
   master's models skill (the recipe left deck's text of no search).
+- 2026-11-15: a CLI has more than one subscription login: `deck.connection_set {name, api: "cli", agent: "claude-code"
+  | "codex"}` adds another login (such as `claude-code-2`), a connection with its own sign-in (`deck.agent_login` by
+  its name), homes, self-check, quota and pause, and a model of its name in the CLI (its default model; more by
+  `deck.model_set` on that connection), assigned and a fallback as any model; `deck.connection_delete` removes it with
+  its sign-in. The right `login` names the login (`login: claude-code-2`): a module on the first login does not run on
+  the second until it declares it too. A login runs on deck's machine, not `@<node>`.

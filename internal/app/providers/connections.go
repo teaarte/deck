@@ -16,14 +16,18 @@ import (
 
 type connectionSetIn struct {
 	Name  string `desc:"Connection name: lowercase letters, digits and '-'"`
-	API   string `json:"api" enum:"openai|google|anthropic|raw" opt:"" desc:"What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token; without it, by the address"`
-	URL   string `desc:"Base URL of the API, such as https://openrouter.ai/api/v1"`
+	API   string `json:"api" enum:"openai|google|anthropic|raw|cli" opt:"" desc:"What the API speaks: openai for OpenAI-compatible ones (OpenRouter, Ollama, Groq, NVIDIA), google and anthropic for their own, raw for a service deck passes the key to as a bearer token, cli for another subscription login of a CLI agent; without it, by the address"`
+	Agent string `opt:"" enum:"claude-code|codex" desc:"Of api cli: the CLI the login is of; the login is signed in to with agent_login by the name of the connection"`
+	URL   string `opt:"" desc:"Base URL of the API, such as https://openrouter.ai/api/v1; none for api cli"`
 	Key   string `type:"secret" opt:"" desc:"The API key; deck keeps it apart from the secrets of modules, and a connection changed without it keeps its own"`
 	Local bool   `opt:"" desc:"The models run on the owner's own hardware"`
 	Node  string `opt:"" desc:"Where it runs: empty when deck reaches the address itself; the name of a node in Devices, such as Mac, for a server of that machine on 127.0.0.1"`
 }
 
 func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in connectionSetIn) (any, error) {
+	if in.API == models.APICLI || in.Agent != "" {
+		return s.loginSet(ctx, act, in)
+	}
 	switch {
 	case !schemas.ProjectName.MatchString(in.Name):
 		return nil, registry.Invalid("connection name %q: lowercase letters, digits and '-'", in.Name)
@@ -95,7 +99,10 @@ type connectionDeleteIn struct {
 
 func (s *Service) connectionDelete(ctx context.Context, act registry.Actor, in connectionDeleteIn) (any, error) {
 	if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && c.Api == models.APICLI {
-		return nil, registry.Invalid("connection %s is the %s CLI, which deck keeps itself; remove its models instead", in.Name, in.Name)
+		if c.Name == c.Agent {
+			return nil, registry.Invalid("connection %s is the %s CLI, which deck keeps itself; remove its models instead", in.Name, in.Name)
+		}
+		return s.loginDelete(ctx, act, c)
 	}
 	var n int64
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

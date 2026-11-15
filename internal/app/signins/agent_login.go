@@ -41,12 +41,12 @@ var (
 )
 
 type agentLoginIn struct {
-	Provider string `desc:"A built-in CLI agent: claude-code or codex"`
+	Provider string `desc:"A CLI agent: claude-code, codex, another login of them by the name of its connection, or a model on one"`
 }
 
 // agentLogin starts the sign-in of a CLI agent and gives its link, once its program printed one.
 func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLoginIn) (any, error) {
-	si, ok := s.Agent(in.Provider).(provider.SignIn)
+	si, ok := s.Agent(ctx, act.Workspace, in.Provider).(provider.SignIn)
 	if !ok {
 		return nil, registry.Invalid("%s is not a CLI agent deck signs in to", in.Provider)
 	}
@@ -230,7 +230,7 @@ func lastLines(lines []string, n int) []string {
 func (s *Service) agentLoginCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("agent_login", "Sign in to agent",
-			"Starts the sign-in of a built-in CLI agent (claude-code, codex) on this machine by a link: gives the link and the code to enter there, or that the page of the link gives a code to hand in with agent_login_finish; the self-check runs once it is signed in.",
+			"Starts the sign-in of a CLI agent (claude-code, codex, another login of them by its connection) on this machine by a link: gives the link and the code to enter there, or that the page of the link gives a code to hand in with agent_login_finish; the self-check runs once it is signed in.",
 			registry.OwnerOnly, s.agentLogin).Stays(),
 		registry.Def("agent_login_finish", "Sign-in code",
 			"Hands the sign-in of a CLI agent started with agent_login the code the page of its link gave.",

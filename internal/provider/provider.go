@@ -286,6 +286,13 @@ type Modeled interface {
 	With(name, model, effort string) Provider
 }
 
+// Logins is a built-in CLI the owner signs in to more than once: Of is the CLI on another subscription login, a
+// connection of deck's settings with its own sign-in and homes; Forget removes the sign-in and homes of that login.
+type Logins interface {
+	Of(login string) Provider
+	Forget(login string) error
+}
+
 // Installed is a provider whose program may be missing from the machine: Install is the command that installs it.
 type Installed interface {
 	Installed() bool

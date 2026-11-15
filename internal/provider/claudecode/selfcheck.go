@@ -42,11 +42,11 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 		Run: a.Run, PermissionMCP: provider.Qualify("approve")}.Check(ctx, c)
 }
 
-// Login is the sign-in of the CLI by a link, into the one login every home of the CLI shares.
+// Login is the sign-in of the CLI by a link, into the one login every home of the CLI on that login shares.
 func (a *Adapter) Login(ctx context.Context, o sandbox.IO) (*sandbox.Proc, error) {
 	b := a.box(0, []string{a.Binary, "auth", "login"}, nil)
 	if sandbox.Homed() {
-		b.Home, b.Shared = a.Home.Login(cli), nil
+		b.Home, b.Shared = a.Home.Login(a.dir()), nil
 		b.Env = []string{"CLAUDE_CONFIG_DIR=" + b.Home, "DISABLE_AUTOUPDATER=1"}
 	}
 	b.Dir = b.Home

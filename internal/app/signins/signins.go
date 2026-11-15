@@ -37,8 +37,9 @@ type Service struct {
 	Browser *tools.Browser
 	MCP     *tools.MCP
 	OAuth   *tools.OAuth
-	// Agent is a built-in provider by name, nil for none; Check runs its self-check again.
-	Agent func(name string) provider.Provider
+	// Agent is the provider a sign-in of a workspace by name goes to: a built-in CLI or a model on a login of one, nil
+	// for none; Check runs its self-check again.
+	Agent func(ctx context.Context, workspace int64, name string) provider.Provider
 	Check func(name string)
 	// Emit tells the clients a topic changed that no write of the store announced, such as a sign-in from deck.
 	Emit func(events.Event)

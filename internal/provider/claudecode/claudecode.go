@@ -35,10 +35,15 @@ type Adapter struct {
 	Linger, TaskLinger time.Duration
 	// name, model and effort are of a model of deck's settings the CLI runs; empty for its own default.
 	name, model, effort string
+	// login is the subscription login of a connection of deck's settings it runs on; empty for the built-in one.
+	login string
 }
 
-// cli is the name of the CLI's homes in deck's folder.
-const cli = "claude"
+// cli is the name of the CLI's homes in deck's folder; builtin is its login deck starts with.
+const (
+	cli     = "claude"
+	builtin = "claude-code"
+)
 
 // login is the file of the CLI's sign-in in its home.
 const login = ".credentials.json"
@@ -55,7 +60,20 @@ func New(root string, sb *sandbox.Sandbox) *Adapter {
 		Linger: 90 * time.Second, TaskLinger: 30 * time.Minute}
 }
 
-func (a *Adapter) Name() string { return cmp.Or(a.name, "claude-code") }
+func (a *Adapter) Name() string { return cmp.Or(a.name, builtin) }
+
+// dir is the folder of the homes of its login in deck's folder.
+func (a *Adapter) dir() string { return provider.LoginHome(cli, builtin, a.login) }
+
+// Of is the CLI on another login, its own sign-in and homes.
+func (a *Adapter) Of(login string) provider.Provider {
+	c := *a
+	c.name, c.model, c.effort, c.login = login, "", "", login
+	return &c
+}
+
+// Forget removes the sign-in and the homes of a login other than the built-in one.
+func (a *Adapter) Forget(login string) error { return provider.Forget(a.Home, cli, builtin, login) }
 
 // Installed says deck finds the program of the CLI.
 func (a *Adapter) Installed() bool {
@@ -79,7 +97,7 @@ func (a *Adapter) With(name, model, effort string) provider.Provider {
 }
 
 // OnLogin is the subscription login the CLI runs on, never a key.
-func (a *Adapter) OnLogin() string { return "claude-code" }
+func (a *Adapter) OnLogin() string { return cmp.Or(a.login, builtin) }
 
 func (a *Adapter) QuestionTool() string { return "AskUserQuestion" }
 
@@ -96,15 +114,19 @@ func (a *Adapter) Caps() provider.Caps {
 	return provider.Caps{provider.Images, provider.StructuredOutput, provider.LiveInput}
 }
 
-// box is the box of a program of the CLI for project: its home, the one login, the hosts of the CLI and of project;
-// outside a box of its own the CLI keeps the home of the user, as it did.
+// box is the box of a program of the CLI for project: its home, its login, the hosts of the CLI and of project;
+// outside a box of its own the CLI keeps the home of the user, as it did, and another login its own folder there.
 func (a *Adapter) box(project int64, argv []string, hostsOf []string) sandbox.Box {
-	b := sandbox.Box{Kind: sandbox.KindCLI, Argv: argv, Home: a.Home.Agent(cli, project), Hosts: provider.Hosts(hostsOf, hosts...)}
+	b := sandbox.Box{Kind: sandbox.KindCLI, Argv: argv, Home: a.Home.Agent(a.dir(), project), Hosts: provider.Hosts(hostsOf, hosts...)}
 	if sandbox.Homed() {
-		at := provider.Homed(&b, a.Home, cli, project, login)
+		at := provider.Homed(&b, a.Home, a.dir(), project, login)
 		b.Env = []string{"CLAUDE_CONFIG_DIR=" + at, "DISABLE_AUTOUPDATER=1"}
 	} else if own, err := os.UserHomeDir(); err == nil {
 		b.Env = []string{"HOME=" + own}
+		if a.dir() != cli {
+			_ = os.MkdirAll(a.Home.Login(a.dir()), 0o700)
+			b.Env = append(b.Env, "CLAUDE_CONFIG_DIR="+a.Home.Login(a.dir()))
+		}
 	}
 	return b
 }
@@ -180,7 +202,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		return provider.Result{}, err
 	}
 	b := a.box(req.Project, nil, req.Hosts)
-	dir, drop, err := provider.Turn(a.Home, cli)
+	dir, drop, err := provider.Turn(a.Home, a.dir())
 	if err != nil {
 		return provider.Result{}, err
 	}
@@ -342,7 +364,7 @@ func (a *Adapter) Move(project int64, session string) error {
 	}
 	found, _ := filepath.Glob(filepath.Join(own, ".claude", "projects", "*", session+".jsonl"))
 	for _, f := range found {
-		to := filepath.Join(a.Home.Agent(cli, project), "projects", filepath.Base(filepath.Dir(f)))
+		to := filepath.Join(a.Home.Agent(a.dir(), project), "projects", filepath.Base(filepath.Dir(f)))
 		for _, p := range []string{f, strings.TrimSuffix(f, ".jsonl")} {
 			if _, err := os.Stat(p); err == nil {
 				if err := provider.Copy(p, filepath.Join(to, filepath.Base(p))); err != nil {

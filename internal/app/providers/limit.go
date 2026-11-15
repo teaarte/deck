@@ -75,6 +75,17 @@ func (s *Service) cliOf(ctx context.Context, workspace int64, name string) strin
 	return ""
 }
 
+// isLogin says name is a login of a CLI some workspace added: its connection and its own model.
+func (s *Service) isLogin(ctx context.Context, name string) bool {
+	spaces, _ := s.St.Q.ListWorkspaces(ctx)
+	for _, ws := range spaces {
+		if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: ws, Name: name}); err == nil && c.Api == models.APICLI && c.Agent != c.Name {
+			return true
+		}
+	}
+	return false
+}
+
 // scopes are the rows of limits wider than model name that hold it too.
 func (s *Service) scopes(ctx context.Context, workspace int64, name string) []scoped {
 	if cli := s.cliOf(ctx, workspace, name); cli != "" {
@@ -340,12 +351,12 @@ func nearlySpent(h db.Health) bool {
 	return h.Status == health.Paused && strings.Contains(h.Error, nearlyMark)
 }
 
-// dueAtStart says deck checks a CLI as it starts: a built-in one never checked, so a fresh install learns it needs a
-// login (the check is a turn, once, only with one), or one left red or mid-check, so turns it holds do not wait.
+// dueAtStart says deck checks a CLI as it starts: a login never checked, so a fresh one learns it needs a sign-in (a
+// turn, once, only with one), or one left red or mid-check, so turns it holds do not wait.
 func (s *Service) dueAtStart(ctx context.Context, name string) bool {
 	h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Provider(name))
 	if errors.Is(err, sql.ErrNoRows) {
-		return s.builtinNamed(name) != nil
+		return s.builtinNamed(name) != nil || s.isLogin(ctx, name)
 	}
 	return err == nil && (h.Status == health.Error || h.Status == health.Checking)
 }

@@ -11,11 +11,11 @@ import (
 )
 
 const addConnection = `-- name: AddConnection :one
-INSERT INTO connection (workspace_id, name, api, url, local, node_id)
-VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+INSERT INTO connection (workspace_id, name, api, url, local, node_id, agent)
+VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
 ON CONFLICT (workspace_id, name) DO UPDATE SET api = excluded.api, url = excluded.url, local = excluded.local,
-    node_id = excluded.node_id
-RETURNING id, workspace_id, name, api, url, key_secret, local, created_at, node_id
+    node_id = excluded.node_id, agent = excluded.agent
+RETURNING id, workspace_id, name, api, url, key_secret, local, created_at, node_id, agent
 `
 
 type AddConnectionParams struct {
@@ -25,6 +25,7 @@ type AddConnectionParams struct {
 	Url         string
 	Local       int64
 	NodeID      sql.NullInt64
+	Agent       string
 }
 
 func (q *Queries) AddConnection(ctx context.Context, arg AddConnectionParams) (Connection, error) {
@@ -35,6 +36,7 @@ func (q *Queries) AddConnection(ctx context.Context, arg AddConnectionParams) (C
 		arg.Url,
 		arg.Local,
 		arg.NodeID,
+		arg.Agent,
 	)
 	var i Connection
 	err := row.Scan(
@@ -47,6 +49,7 @@ func (q *Queries) AddConnection(ctx context.Context, arg AddConnectionParams) (C
 		&i.Local,
 		&i.CreatedAt,
 		&i.NodeID,
+		&i.Agent,
 	)
 	return i, err
 }
@@ -225,7 +228,7 @@ func (q *Queries) GetAssignment(ctx context.Context, arg GetAssignmentParams) (s
 }
 
 const getConnection = `-- name: GetConnection :one
-SELECT id, workspace_id, name, api, url, key_secret, local, created_at, node_id FROM connection WHERE workspace_id = ? AND name = ?
+SELECT id, workspace_id, name, api, url, key_secret, local, created_at, node_id, agent FROM connection WHERE workspace_id = ? AND name = ?
 `
 
 type GetConnectionParams struct {
@@ -246,12 +249,13 @@ func (q *Queries) GetConnection(ctx context.Context, arg GetConnectionParams) (C
 		&i.Local,
 		&i.CreatedAt,
 		&i.NodeID,
+		&i.Agent,
 	)
 	return i, err
 }
 
 const getModel = `-- name: GetModel :one
-SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, m.tools, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id FROM model m JOIN connection k ON k.id = m.connection_id
+SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, m.tools, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id, k.agent FROM model m JOIN connection k ON k.id = m.connection_id
 WHERE m.workspace_id = ? AND m.name = ?
 `
 
@@ -298,12 +302,13 @@ func (q *Queries) GetModel(ctx context.Context, arg GetModelParams) (GetModelRow
 		&i.Connection.Local,
 		&i.Connection.CreatedAt,
 		&i.Connection.NodeID,
+		&i.Connection.Agent,
 	)
 	return i, err
 }
 
 const getModelOf = `-- name: GetModelOf :one
-SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, m.tools, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id FROM model m JOIN connection k ON k.id = m.connection_id
+SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, m.tools, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id, k.agent FROM model m JOIN connection k ON k.id = m.connection_id
 WHERE m.connection_id = ? AND m.model = ? ORDER BY m.id LIMIT 1
 `
 
@@ -350,6 +355,7 @@ func (q *Queries) GetModelOf(ctx context.Context, arg GetModelOfParams) (GetMode
 		&i.Connection.Local,
 		&i.Connection.CreatedAt,
 		&i.Connection.NodeID,
+		&i.Connection.Agent,
 	)
 	return i, err
 }
@@ -400,7 +406,7 @@ func (q *Queries) ListAssignments(ctx context.Context, workspaceID int64) ([]Lis
 }
 
 const listConnections = `-- name: ListConnections :many
-SELECT id, workspace_id, name, api, url, key_secret, local, created_at, node_id FROM connection WHERE workspace_id = ? ORDER BY name
+SELECT id, workspace_id, name, api, url, key_secret, local, created_at, node_id, agent FROM connection WHERE workspace_id = ? ORDER BY name
 `
 
 func (q *Queries) ListConnections(ctx context.Context, workspaceID int64) ([]Connection, error) {
@@ -422,6 +428,7 @@ func (q *Queries) ListConnections(ctx context.Context, workspaceID int64) ([]Con
 			&i.Local,
 			&i.CreatedAt,
 			&i.NodeID,
+			&i.Agent,
 		); err != nil {
 			return nil, err
 		}
@@ -437,7 +444,7 @@ func (q *Queries) ListConnections(ctx context.Context, workspaceID int64) ([]Con
 }
 
 const listModels = `-- name: ListModels :many
-SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, m.tools, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id FROM model m JOIN connection k ON k.id = m.connection_id
+SELECT m.id, m.workspace_id, m.connection_id, m.name, m.model, m.kind, m.agent, m.input_usd, m.output_usd, m.call_usd, m.free, m.options, m.check_minutes, m.created_at, m.unit, m.subscription, m.tpm, m.context, m.project_id, m.tools, k.id, k.workspace_id, k.name, k.api, k.url, k.key_secret, k.local, k.created_at, k.node_id, k.agent FROM model m JOIN connection k ON k.id = m.connection_id
 WHERE m.workspace_id = ? ORDER BY m.name
 `
 
@@ -485,6 +492,7 @@ func (q *Queries) ListModels(ctx context.Context, workspaceID int64) ([]ListMode
 			&i.Connection.Local,
 			&i.Connection.CreatedAt,
 			&i.Connection.NodeID,
+			&i.Connection.Agent,
 		); err != nil {
 			return nil, err
 		}
@@ -543,7 +551,7 @@ func (q *Queries) ModelTwin(ctx context.Context, arg ModelTwinParams) (string, e
 }
 
 const nodeConnections = `-- name: NodeConnections :many
-SELECT id, workspace_id, name, api, url, key_secret, local, created_at, node_id FROM connection WHERE node_id = ? ORDER BY name
+SELECT id, workspace_id, name, api, url, key_secret, local, created_at, node_id, agent FROM connection WHERE node_id = ? ORDER BY name
 `
 
 // The connections a node serves.
@@ -566,6 +574,7 @@ func (q *Queries) NodeConnections(ctx context.Context, nodeID sql.NullInt64) ([]
 			&i.Local,
 			&i.CreatedAt,
 			&i.NodeID,
+			&i.Agent,
 		); err != nil {
 			return nil, err
 		}

@@ -39,10 +39,15 @@ type Adapter struct {
 	Linger time.Duration
 	// name, model and effort are of a model of deck's settings the app-server runs; empty for its own default.
 	name, model, effort string
+	// login is the subscription login of a connection of deck's settings it runs on; empty for the built-in one.
+	login string
 }
 
 // cli is the name of the CLI's homes in deck's folder.
 const cli = "codex"
+
+// builtin is the login of the CLI deck starts with.
+const builtin = "codex"
 
 // login is the file of the CLI's sign-in in its home.
 const login = "auth.json"
@@ -59,7 +64,20 @@ func New(home string, sb *sandbox.Sandbox) *Adapter {
 		Dir: deckhome.Layout(home).Codex(), Linger: 10 * time.Second}
 }
 
-func (a *Adapter) Name() string { return cmp.Or(a.name, "codex") }
+func (a *Adapter) Name() string { return cmp.Or(a.name, builtin) }
+
+// dir is the folder of the homes of its login in deck's folder.
+func (a *Adapter) dir() string { return provider.LoginHome(cli, builtin, a.login) }
+
+// Of is the CLI on another login, its own sign-in and homes.
+func (a *Adapter) Of(login string) provider.Provider {
+	c := *a
+	c.name, c.model, c.effort, c.login = login, "", "", login
+	return &c
+}
+
+// Forget removes the sign-in and the homes of a login other than the built-in one.
+func (a *Adapter) Forget(login string) error { return provider.Forget(a.Home, cli, builtin, login) }
 
 // Installed says deck finds the program of the CLI.
 func (a *Adapter) Installed() bool {
@@ -90,8 +108,8 @@ func (a *Adapter) With(name, model, effort string) provider.Provider {
 func (a *Adapter) QuestionTool() string { return provider.AskTool }
 
 // Caps has no output by schema: Codex takes only strict schemas, so the result goes in with result_submit.
-// OnLogin is the shared subscription login codex runs on.
-func (a *Adapter) OnLogin() string { return "codex" }
+// OnLogin is the subscription login codex runs on, shared by its homes.
+func (a *Adapter) OnLogin() string { return cmp.Or(a.login, builtin) }
 
 func (a *Adapter) Caps() provider.Caps {
 	return provider.Caps{provider.LiveInput}
@@ -176,14 +194,14 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 // of the CLI, of its models and of project; outside a box of its own the CLI keeps the home of the user, as it did.
 func (a *Adapter) box(project int64, argv []string, hostsOf []string) sandbox.Box {
 	own := slices.Clone(hosts)
-	cfg, _ := os.ReadFile(filepath.Join(a.Home.Login(cli), "config.toml"))
+	cfg, _ := os.ReadFile(filepath.Join(a.Home.Login(a.dir()), "config.toml"))
 	if !sandbox.Homed() {
-		cfg, _ = os.ReadFile(filepath.Join(codexHome(), "config.toml"))
+		cfg, _ = os.ReadFile(filepath.Join(a.ownHome(), "config.toml"))
 	}
 	own = append(own, modelHosts(string(cfg))...)
-	b := sandbox.Box{Kind: sandbox.KindCLI, Argv: argv, Home: a.Home.Agent(cli, project), Hosts: provider.Hosts(hostsOf, own...)}
+	b := sandbox.Box{Kind: sandbox.KindCLI, Argv: argv, Home: a.Home.Agent(a.dir(), project), Hosts: provider.Hosts(hostsOf, own...)}
 	if sandbox.Homed() {
-		at := provider.Homed(&b, a.Home, cli, project, login)
+		at := provider.Homed(&b, a.Home, a.dir(), project, login)
 		b.Env = []string{"CODEX_HOME=" + at}
 		if len(cfg) > 0 {
 			b.Files = map[string]string{"config.toml": string(cfg)}
@@ -191,9 +209,18 @@ func (a *Adapter) box(project int64, argv []string, hostsOf []string) sandbox.Bo
 		return b
 	}
 	if h, err := os.UserHomeDir(); err == nil {
-		b.Env = []string{"HOME=" + h, "CODEX_HOME=" + codexHome()}
+		b.Env = []string{"HOME=" + h, "CODEX_HOME=" + a.ownHome()}
 	}
 	return b
+}
+
+// ownHome is the home of the CLI outside a box of its own: the user's for the built-in login, the folder of another.
+func (a *Adapter) ownHome() string {
+	if a.dir() != cli {
+		_ = os.MkdirAll(a.Home.Login(a.dir()), 0o700)
+		return a.Home.Login(a.dir())
+	}
+	return codexHome()
 }
 
 // Terminal goes on with the thread of a deck session in the owner's own Codex.
@@ -239,7 +266,7 @@ func (a *Adapter) Move(project int64, session string) error {
 		if err != nil {
 			return err
 		}
-		if err := provider.Copy(f, filepath.Join(a.Home.Agent(cli, project), "sessions", rel)); err != nil {
+		if err := provider.Copy(f, filepath.Join(a.Home.Agent(a.dir(), project), "sessions", rel)); err != nil {
 			return err
 		}
 	}

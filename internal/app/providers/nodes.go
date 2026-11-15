@@ -60,6 +60,9 @@ func (s *Service) onNode(ctx context.Context, workspace int64, base, name string
 	if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: base}); err == nil {
 		m, c := row.Model, row.Connection
 		cfg.Spec.Agent, cfg.Spec.Model = m.Agent, m.Model
+		if c.Api == models.APICLI && c.Name != c.Agent {
+			return nil, registry.Invalid("no provider %q: login %s of %s is deck's own; a node runs the CLI on its own sign-in", base+"@"+name, c.Name, c.Agent)
+		}
 		if c.Api == models.APICLI {
 			if cfg.Spec.Effort, err = cliEffort(m.Options); err != nil {
 				return nil, err

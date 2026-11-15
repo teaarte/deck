@@ -40,12 +40,12 @@ func (a *Adapter) SelfCheck(ctx context.Context) provider.Check {
 	return provider.ShellCheck{Agent: "codex", Kind: sandbox.KindCLI, Dir: a.Dir, Run: a.Run, PermissionMCP: provider.Qualify("approve")}.Check(ctx, c)
 }
 
-// Login is the sign-in of the CLI by a link, into the one login every home of the CLI shares.
+// Login is the sign-in of the CLI by a link, into the one login every home of the CLI on that login shares.
 func (a *Adapter) Login(ctx context.Context, o sandbox.IO) (*sandbox.Proc, error) {
 	argv := []string{a.Binary, "login", "--device-auth"}
 	b := a.box(0, argv, nil)
 	if sandbox.Homed() {
-		b.Home, b.Shared = a.Home.Login(cli), nil
+		b.Home, b.Shared = a.Home.Login(a.dir()), nil
 		b.Env = []string{"CODEX_HOME=" + b.Home}
 		b.Argv = []string{a.Binary, "-c", "cli_auth_credentials_store=" + quote("file"), "login", "--device-auth"}
 	}

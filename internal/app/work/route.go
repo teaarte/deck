@@ -78,7 +78,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 			return nil, registry.NotFound("no connection %q; deck.models_list names the connections", connection)
 		}
 		if c.Api == models.APICLI {
-			return nil, registry.Invalid("connection %s is the %s CLI; its models run agent turns, not calls of a model", connection, connection)
+			return nil, registry.Invalid("connection %s is a login of the %s CLI; its models run agent turns, not calls of a model", connection, c.Agent)
 		}
 		if ask.Path != "" && c.Api != "raw" && !models.IsCall(ask.Method, ask.Path) {
 			return nil, notModel()

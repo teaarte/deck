@@ -165,7 +165,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		return nil, registry.Invalid("a model name has no spaces or @, got %q", in.Name)
 	}
 	if c.Api == models.APICLI {
-		in.Agent = cmp.Or(in.Agent, c.Name)
+		in.Agent = cmp.Or(in.Agent, c.Agent)
 	} else if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.Agent == "" && old.Connection.Api == models.APICLI {
 		return nil, registry.Invalid("%s is a model of %s; a model of connection %s takes another name, or an agent", in.Name, old.Connection.Name, c.Name)
 	}
@@ -284,9 +284,13 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 // name that is not one of a provider, an API that is not OpenAI-compatible, a model or effort its CLI does not list.
 func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connection, in modelSetIn) error {
 	cli, _ := s.builtinNamed(in.Agent).(provider.Modeled)
+	if c.Api == models.APICLI {
+		// A model of a login is checked against the list of the CLI on that login.
+		cli, _ = s.login(c).(provider.Modeled)
+	}
 	switch {
-	case c.Api == models.APICLI && in.Agent != c.Name:
-		return registry.Invalid("the models of connection %s run in %s, not %s", c.Name, c.Name, in.Agent)
+	case c.Api == models.APICLI && in.Agent != c.Agent:
+		return registry.Invalid("the models of connection %s run in %s, not %s", c.Name, c.Agent, in.Agent)
 	case cli != nil && c.Api != models.APICLI:
 		return registry.Invalid("a model of %s is on its own connection %s, not %s", in.Agent, in.Agent, c.Name)
 	case cli == nil && acp.Agents[in.Agent].Start == nil:
@@ -389,6 +393,9 @@ func (s *Service) modelDelete(ctx context.Context, act registry.Actor, in modelD
 			return registry.Invalid("%d processes still run on %s; stop them or let them finish first", active, in.Name)
 		}
 		old, err := q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name})
+		if err == nil && old.Connection.Api == models.APICLI && old.Connection.Name == in.Name {
+			return registry.Invalid("%s is a login of %s; remove it with connection_delete", in.Name, old.Connection.Agent)
+		}
 		var unasked bool
 		if err == nil {
 			if unasked, err = s.spare(ctx, q, act, old.Model); err != nil {

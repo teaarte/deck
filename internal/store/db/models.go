@@ -95,6 +95,7 @@ type Connection struct {
 	Local       int64
 	CreatedAt   string
 	NodeID      sql.NullInt64
+	Agent       string
 }
 
 type Device struct {

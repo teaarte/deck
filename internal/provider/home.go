@@ -26,6 +26,23 @@ func Homed(b *sandbox.Box, h home.Layout, cli string, project int64, login strin
 	return at
 }
 
+// LoginHome is the folder of the homes of a CLI in deck's folder on a login: cli for the built-in login, cli.login for
+// another, so the owner's first login keeps its place.
+func LoginHome(cli, builtin, login string) string {
+	if login == "" || login == builtin {
+		return cli
+	}
+	return cli + "." + login
+}
+
+// Forget removes the sign-in and the homes of a login of a CLI other than its built-in one.
+func Forget(h home.Layout, cli, builtin, login string) error {
+	if login == "" || login == builtin {
+		return fmt.Errorf("%s is the built-in login of its CLI", builtin)
+	}
+	return os.RemoveAll(h.Agents(LoginHome(cli, builtin, login)))
+}
+
 // skillsIdle is how long the skills of a session stay after the last turn of any session wrote its own.
 const skillsIdle = 7 * 24 * time.Hour
 

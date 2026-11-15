@@ -106,8 +106,8 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 		return nil, registry.Invalid("model %q runs in no agent; set it again with deck.model_set and agent %s", name, strings.Join(s.agentNames(), " or "))
 	}
 	if c.Api == models.APICLI {
-		cli, ok := s.builtinNamed(m.Agent).(provider.Modeled)
-		if !ok {
+		cli, ok := s.login(c).(provider.Modeled)
+		if !ok || m.Agent != c.Agent {
 			return nil, registry.Invalid("model %q runs in %s, which this deck does not run", name, m.Agent)
 		}
 		effort, err := cliEffort(m.Options)
@@ -192,6 +192,35 @@ func (s *Service) Agent(name string) provider.Provider {
 		return s.named(s.Ctx, name)
 	}
 	return s.builtinNamed(name)
+}
+
+// login is the CLI of a connection of api cli on its own login: the built-in provider on the built-in login, the same
+// CLI on the login of the connection for another; nil when deck does not run its CLI.
+func (s *Service) login(c db.Connection) provider.Provider {
+	pv := s.builtinNamed(c.Agent)
+	if pv == nil || c.Api != models.APICLI || c.Name == c.Agent {
+		return pv
+	}
+	if l, ok := pv.(provider.Logins); ok {
+		return l.Of(c.Name)
+	}
+	return nil
+}
+
+// Signer is the provider a sign-in of name goes to: a built-in CLI, on a node too, or a model of a workspace on a
+// login of a CLI, whose sign-in is that login's; nil for any other.
+func (s *Service) Signer(ctx context.Context, workspace int64, name string) provider.Provider {
+	if pv := s.Agent(name); pv != nil {
+		return pv
+	}
+	if s.cliOf(ctx, workspace, name) == "" {
+		return nil
+	}
+	pv, err := s.Provider(ctx, workspace, name)
+	if err != nil {
+		return nil
+	}
+	return pv
 }
 
 func (s *Service) builtinNamed(name string) provider.Provider {

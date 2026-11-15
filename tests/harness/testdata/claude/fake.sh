@@ -1,6 +1,6 @@
 #!/bin/sh
 # Fake Claude Code CLI: rejects unknown flags, records how deck started it, runs before, then replays stream.<n>,
-# stream.<model> or stream. A start without a session lists the models: it prints models, uncounted.
+# stream.login.<code of its sign-in>, stream.<model> or stream. A start without a session lists the models: it prints models, uncounted.
 d=$(dirname "$0")
 if [ "$1" = "--version" ]; then
   echo "$(cat "$d/version" 2>/dev/null || echo 2.1.281) (Claude Code)"
@@ -11,8 +11,9 @@ if [ "$1" = "auth" ] && [ "$2" = "login" ]; then
   echo "If the browser didn't open, visit: https://claude.com/cai/oauth/authorize?code=true&state=fake"
   printf 'Paste code here if prompted > '
   read -r code
-  [ "$code" = "good-code" ] || { echo "OAuth error: invalid code" >&2; exit 1; }
+  case "$code" in good-code*) ;; *) echo "OAuth error: invalid code" >&2; exit 1 ;; esac
   echo "$code" > "$d/signed-in"
+  [ -z "$CLAUDE_CONFIG_DIR" ] || echo "$code" > "$CLAUDE_CONFIG_DIR/.credentials.json"
   echo "Login successful."
   exit 0
 fi
@@ -26,6 +27,7 @@ c="$d/calls/$n"
 mkdir "$c"
 pwd > "$c/cwd"
 env > "$c/env"
+[ -z "$CLAUDE_CONFIG_DIR" ] || cat "$CLAUDE_CONFIG_DIR/.credentials.json" > "$c/login" 2>/dev/null
 : > "$c/args"
 session=""
 model=""
@@ -65,6 +67,7 @@ if [ -n "$word" ]; then echo "$word" > "$d/word"; else word=$(cat "$d/word" 2>/d
 export DECK_FAKE_FAILED="$d/failed"
 [ -f "$d/before" ] && . "$d/before"
 [ -n "$stream" ] || stream="$d/stream.$n"
+[ -f "$stream" ] || stream="$d/stream.login.$(cat "$c/login" 2>/dev/null)"
 [ -f "$stream" ] || stream="$d/stream.$model"
 [ -f "$stream" ] || stream="$d/stream"
 [ -f "$stream" ] && sed "s/{{session}}/$session/g; s/{{word}}/$word/g" "$stream"

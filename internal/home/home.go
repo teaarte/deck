@@ -86,6 +86,11 @@ func (l Layout) Agent(provider string, project int64) string {
 	return filepath.Join(string(l), "agents", provider, fmt.Sprint(project))
 }
 
+// Agents is the folder of a CLI of an agent: its sign-in, homes, lock, turns and skills.
+func (l Layout) Agents(provider string) string {
+	return filepath.Join(string(l), "agents", provider)
+}
+
 // Login is the folder of the one sign-in of the CLI of an agent, whose file the homes of the CLI share; no box
 // writes it but through that file.
 func (l Layout) Login(provider string) string {

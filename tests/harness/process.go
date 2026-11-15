@@ -99,6 +99,7 @@ type Proc struct {
 	Error       string          `json:"error"`
 	Project     string          `json:"project"`
 	Command     string          `json:"command"`
+	Provider    string          `json:"provider"`
 	Parent      int64           `json:"parent"`
 	Follows     int64           `json:"follows"`
 	Depth       int64           `json:"depth"`

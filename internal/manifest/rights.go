@@ -404,8 +404,8 @@ func (m *Manifest) badSubject(right, s string) string {
 			}
 		}
 	case Login:
-		if !slices.Contains(SubscriptionCLIs, s) {
-			return fmt.Sprintf("a login is one of %s", strings.Join(SubscriptionCLIs, ", "))
+		if !schemas.ProjectName.MatchString(s) {
+			return "a login is claude-code, codex or the name of another login of them in Settings → Models"
 		}
 	case Files:
 		if s != GPU && s != "*" && !schemas.Name.MatchString(s) {
@@ -414,9 +414,6 @@ func (m *Manifest) badSubject(right, s string) string {
 	}
 	return ""
 }
-
-// SubscriptionCLIs are the CLIs that run on the owner's subscription login, the subjects of login.
-var SubscriptionCLIs = []string{"claude-code", "codex"}
 
 // address is the host of a domain without its port, and whether the domain is an IP address or a network.
 func address(d string) (host string, literal bool) {

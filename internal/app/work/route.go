@@ -111,12 +111,12 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 		}
 	}
 	if strings.HasPrefix(asked, "@") {
-		names := make([]string, len(picks))
+		names, onNode := make([]string, len(picks)), make([]bool, len(picks))
 		for i, p := range picks {
-			names[i] = p.m.Name
+			names[i], onNode[i] = p.m.Name, p.c.NodeID.Valid
 		}
 		ordered := make([]pick, 0, len(picks))
-		for _, i := range s.byHealth(ctx, act.Workspace, names) {
+		for _, i := range s.byHealth(ctx, act.Workspace, names, onNode) {
 			ordered = append(ordered, picks[i])
 		}
 		picks = ordered
@@ -156,9 +156,9 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 // redFor is how long a model that did not answer a call stands last among the models of its role.
 const redFor = 10 * time.Minute
 
-// byHealth orders the models of a role for a call: those up in their order, then those red for less than redFor; a
-// paused one is left out until its end. With none up or red, every one goes in its order.
-func (s *Service) byHealth(ctx context.Context, workspace int64, names []string) []int {
+// byHealth orders the models of a role for a call: those up in their order, then those red for less than redFor (not
+// one a node serves: the node's row tells it); a paused one is left out. With none up or red, all go in order.
+func (s *Service) byHealth(ctx context.Context, workspace int64, names []string, onNode []bool) []int {
 	var up, red, all []int
 	now := s.Now()
 	for i, name := range names {
@@ -169,7 +169,7 @@ func (s *Service) byHealth(ctx context.Context, workspace int64, names []string)
 			up = append(up, i)
 		case h.Status == health.Paused:
 		case h.Status == health.Error:
-			if at, err := store.ParseTime(h.UpdatedAt); err == nil && now.Sub(at) < redFor {
+			if at, err := store.ParseTime(h.UpdatedAt); err == nil && now.Sub(at) < redFor && !onNode[i] {
 				red = append(red, i)
 			} else {
 				up = append(up, i)

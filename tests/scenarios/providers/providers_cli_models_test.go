@@ -1,6 +1,9 @@
 package providers
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -8,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/provider"
 	"deck2/tests/harness"
 )
 
@@ -76,7 +80,7 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 		}
 	}
 	unchecked("on model_set")
-	e.App.Providers.Checks(t.Context(), time.Now())
+	e.App.Providers.Check("claude-code")
 	e.WaitHealth("provider:claude-code", "ok")
 	unchecked("at start")
 	e.Must("deck.provider_check", map[string]any{"provider": "sonnet-low"}, nil)
@@ -144,36 +148,41 @@ func TestAModelOfClaudeCodeRunsItsTurnsOnItsModelAndEffort(t *testing.T) {
 	}
 }
 
-// TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne: opus at its limit hands the work on to sonnet, each
-// with its own --model.
+// TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne: opus at the limit of its subscription pauses every model of
+// that login, so the work goes past sonnet of the same login to the next model of another.
 func TestAClaudeCodeModelAtItsLimitHandsTheWorkOnToTheNextOne(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCLI(t)
 	c.Models("models.jsonl")
 	c.ChecksPass()
 	raw, _ := os.ReadFile(harness.Testdata("claude/ratelimit_rejected.jsonl"))
-	if err := os.WriteFile(filepath.Join(c.Dir, "stream.opus"), raw, 0o644); err != nil {
+	reset := time.Now().Add(5 * time.Hour).Unix()
+	if err := os.WriteFile(filepath.Join(c.Dir, "stream.opus"), []byte(strings.ReplaceAll(string(raw), "1790379000", fmt.Sprint(reset))), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	c.Stream(0, "ok.jsonl")
-	e := harness.New(t, harness.WithCLI(c))
+	backup := &harness.Fake{ProviderName: "backup", Script: func(context.Context, *harness.Call) provider.Result {
+		return provider.Result{Structured: json.RawMessage(`{}`), Text: "done"}
+	}}
+	e := harness.New(t, harness.WithCLI(c), harness.WithProvider(backup))
 	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "opus", "name": "opus-high", "options": `{"effort": "high"}`}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "sonnet", "name": "sonnet-low", "options": `{"effort": "low"}`}, nil)
 	p := e.Project("plain", harness.OnLogin(harness.PlainManifest))
-	e.UseModels("plain.work", "opus-high", "sonnet-low")
+	e.UseModels("plain.work", "opus-high", "sonnet-low", "backup")
 	before := c.Calls()
 	id := e.Run(p, "work")
 	if got := e.WaitState(id, "error", "done", "waiting:limit"); got.State != "error" || e.Fault(id).ErrorType != "model.limit" {
 		t.Fatalf("opus at its limit fails as the model's: %+v %+v", got, e.Fault(id))
 	}
-	next := e.Following(id)
-	var in struct{ Provider string }
-	e.Must("deck.process_get", map[string]any{"process": next}, &in)
-	if got := e.WaitState(next, "done", "error"); got.State != "done" || in.Provider != "sonnet-low" {
-		t.Fatalf("sonnet goes on with the work: %+v %+v", got, in)
+	if argOf(c, before+1, "--model") != "opus" {
+		t.Fatalf("the turn runs on its own model: %v", c.Call(before+1).Args)
 	}
-	if argOf(c, before+1, "--model") != "opus" || argOf(c, before+2, "--model") != "sonnet" || argOf(c, before+2, "--effort") != "low" {
-		t.Fatalf("each turn runs on its own model: %v %v", c.Call(before+1).Args, c.Call(before+2).Args)
+	next := e.Following(id)
+	if got := e.WaitState(next, "done", "error"); got.State != "done" || len(backup.Calls()) != 1 || c.Calls() != before+1 {
+		t.Fatalf("the work goes past sonnet of the same login to the next model: %+v, %d calls of the CLI", got, c.Calls()-before)
+	}
+	if h := e.HealthRowOf("limit:claude-code"); h == nil || h["status"] != "paused" {
+		t.Fatalf("the limit pauses the whole subscription: %v", h)
 	}
 }
 

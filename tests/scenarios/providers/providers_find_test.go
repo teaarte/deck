@@ -43,7 +43,7 @@ func TestDeckFindsACLIInTheFolderOfItsInstallerOnAShortPath(t *testing.T) {
 	a := c.Adapter(dir)
 	a.Binary, a.CI = "claude", provider.CIVersion("CLAUDE_VERSION")
 	e := harness.New(t, harness.WithHome(dir), harness.WithProvider(a))
-	e.App.Providers.Checks(context.Background(), time.Now())
+	e.App.Providers.Check("claude-code")
 	if h := e.WaitHealth("provider:claude-code", "ok"); h.Version != provider.CIVersion("CLAUDE_VERSION") {
 		t.Fatalf("the CLI deck found passes its self-check on the version CI tests: %+v", h)
 	}
@@ -89,7 +89,7 @@ func TestACLIOfAnotherVersionWarnsAndWorks(t *testing.T) {
 	a := c.Adapter(dir)
 	a.CI = "2.1.281"
 	e := harness.New(t, harness.WithHome(dir), harness.WithProvider(a))
-	e.App.Providers.Checks(context.Background(), time.Now())
+	e.App.Providers.Check("claude-code")
 	h := e.WaitHealth("provider:claude-code", "warning")
 	if h.Version != "2.1.300" || !strings.Contains(h.Error, "2.1.281") || !strings.Contains(h.Error, "2.1.300") {
 		t.Fatalf("another version warns with both: %+v", h)

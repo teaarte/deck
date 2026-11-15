@@ -1,7 +1,6 @@
 package providers
 
 import (
-	"context"
 	"strings"
 	"testing"
 	"time"
@@ -174,7 +173,7 @@ func checkedCLIEnv(t *testing.T, c *harness.FakeCLI, home string) *harness.Env {
 	t.Helper()
 	c.ChecksPass()
 	e := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)))
-	e.App.Providers.Checks(context.Background(), time.Now())
+	e.App.Providers.Check("claude-code")
 	e.WaitHealth("provider:claude-code", "ok")
 	harness.Until(t, "the CLI to start 3 times", func() bool { return c.Calls() >= 3 })
 	return e

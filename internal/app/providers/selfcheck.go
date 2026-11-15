@@ -233,7 +233,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 			status, text, verdict = health.Error, fmt.Sprintf("agents do not reach deck's MCP server, so they would start without deck's tools: %s", unreached), "adapter"
 		case res.Held == fault.ModelLimit:
 			until = s.checkLimited(ctx, ws, name, res.ResetsAt, errText(res.Err))
-			status, text = health.Paused, health.PauseText(until, "the self-check hit the usage limit; "+errText(res.Err))
+			status, text = health.Paused, health.PauseText(until, fmt.Sprintf("the self-check hit the usage limit; %s", errText(res.Err)))
 		case res.Held == fault.ModelLogin:
 			status, text = health.NeedsLogin, fmt.Sprintf("the self-check found no valid login; %s", errText(res.Err))
 		case res.Err != nil && res.Slow:

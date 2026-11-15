@@ -1,7 +1,6 @@
 package box
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -149,7 +148,7 @@ func selfCheckWith(t *testing.T, before string, files []string, status string) s
 		}
 	}
 	e := harness.ClockCLIEnv(t, c)
-	e.App.Providers.Checks(context.Background(), e.Clock.Now())
+	e.App.Providers.Check("claude-code")
 	return e.WaitHealth("provider:claude-code", status).Error
 }
 

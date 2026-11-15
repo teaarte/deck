@@ -355,7 +355,7 @@ if [ -f "$d/nomcp" ]; then
 fi`)
 	e := harness.ClockCLIEnv(t, c)
 	ctx := context.Background()
-	e.App.Providers.Checks(ctx, e.Clock.Now())
+	e.App.Providers.Check("claude-code")
 	e.WaitHealth("provider:claude-code", "ok")
 	nomcp := filepath.Join(c.Dir, "nomcp")
 	if err := os.WriteFile(nomcp, nil, 0o644); err != nil {
@@ -425,7 +425,7 @@ fi`)
 	e := harness.ClockCLIEnv(t, c)
 	e.MasterAwake()
 	ctx := context.Background()
-	e.App.Providers.Checks(ctx, e.Clock.Now())
+	e.App.Providers.Check("claude-code")
 	e.WaitHealth("provider:claude-code", "ok")
 	if err := os.WriteFile(filepath.Join(c.Dir, "nomcp"), nil, 0o644); err != nil {
 		t.Fatal(err)

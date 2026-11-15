@@ -207,7 +207,7 @@ func (s *Service) Answered(ctx context.Context, workspace int64, name string, ok
 const (
 	quotaOne    = "%s: %d percent used, resets at %s"
 	quotaTwo    = "%s: %d percent used, resets at %s; %s: %d percent used, resets at %s"
-	quotaNearly = "the %s " + nearlyMark + " %d percent used; new turns go to the next model until it resets"
+	quotaNearly = "the %s window of the subscription is %d percent used; new turns go to the next model until it resets"
 	// nearlyMark is the words that tell the pause of a window nearly used up from that of a limit.
 	nearlyMark = "window of the subscription is"
 )

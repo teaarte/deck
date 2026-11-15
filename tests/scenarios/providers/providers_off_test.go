@@ -71,7 +71,7 @@ func TestTheOwnerTurnsAProviderOffAndOnAgain(t *testing.T) {
 		c.Stream(i+4, f)
 	}
 	e := harness.New(t, harness.WithCodex(c))
-	e.App.Providers.Checks(context.Background(), time.Now())
+	e.App.Providers.Check("codex")
 	e.Until("the first self-check of codex", func() bool { a, _ := agentStatus(e, "codex"); return a == "ok" })
 	e.Must("deck.provider_switch", map[string]any{"provider": "codex", "off": true}, nil)
 	if a, m := agentStatus(e, "codex"); a != "off" || m != "off" {

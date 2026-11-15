@@ -144,7 +144,7 @@ func TestRealClaudeCodeMasterSearchesThroughDeck(t *testing.T) {
 	e.Must("deck.connection_set", map[string]any{"name": "searxng", "api": "raw", "url": search.URL, "local": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "searxng", "model": "searxng", "name": "searxng", "kind": "search", "free": true}, nil)
 	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
-	topic := e.Say(0, "Search the web: what is the code name of the 2031 release of the Quillfern project? Answer with the code name.")
+	topic := e.Say(0, "Search the web: what is the code name of the 2031 release of the Quillfern project? Answer with the code name from the results of the search; do not open pages.")
 	said := masterReplies(e, topic, 1)
 	t.Logf("master: %s", said[0].Text)
 	if !strings.Contains(strings.ToUpper(said[0].Text), "VELVET HERON") {

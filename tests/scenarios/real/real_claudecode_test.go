@@ -149,7 +149,7 @@ func TestRealClaudeCodeRepoInstructions(t *testing.T) {
 	cmd, _ := json.Marshal(map[string]any{"name": "markers", "title": "Markers", "description": "Names the marker words.",
 		"result":   map[string]any{"type": "object", "required": []string{"markers"}, "properties": map[string]any{"markers": map[string]any{"type": "string"}}},
 		"executor": map[string]any{"type": "agent", "folder": true, "prompt": prompt + " The result is those words in markers."}})
-	p := e.Project("code", harness.OnLogin(harness.Manifest(`{"commands": [`)+string(cmd)+`]}`))
+	p := e.Project("code", harness.OnLogin(harness.Manifest(`{"rights": [{"right": "files", "what": ["*"], "why": "its agent works in the owner's folders"}], "commands": [`)+string(cmd)+`]}`))
 	e.Must("deck.folder_add", map[string]any{"project": "code", "path": repo}, nil)
 	id := e.Run(p, "markers")
 	got := e.WaitState(id, "done", "error")

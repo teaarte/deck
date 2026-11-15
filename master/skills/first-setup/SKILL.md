@@ -66,7 +66,8 @@ Propose them in one `deck.assignment_set` with `assignments` (one yes of the own
 - `text`: a fast free or cheap model of a key; the agent's model only when there is no other.
 - `stt`, `tts`, `image`, `music`, `video`: a model of that kind — a cloud one of a key, or a server of the owner's
   machine by the models skill; leave a kind unassigned until a module needs it.
-- `search`: SearXNG when it runs (health says when it does not).
+- `search`: SearXNG beside deck, assigned on the first run; deck without Docker sets it up by the models skill
+  (health of `model:searxng` says when it does not answer).
 
 ## 5. A first module
 

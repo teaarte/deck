@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"deck2/internal/app/work"
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
@@ -497,8 +496,7 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 				walk(x, shown)
 			}
 		case string:
-			text := strings.ReplaceAll(v, work.SearXNGInstall, "")
-			for _, w := range word.FindAllString(object.ReplaceAllString(text, ""), -1) {
+			for _, w := range word.FindAllString(object.ReplaceAllString(v, ""), -1) {
 				if shown && !names[strings.Trim(w, ".:—-")] && !technical.MatchString(strings.Trim(w, ".:—-")) {
 					english[w+" in "+v] = true
 				}

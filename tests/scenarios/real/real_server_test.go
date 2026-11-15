@@ -134,6 +134,9 @@ func newBare(t *testing.T, images ...string) *bare {
 	}
 	b.caddy = string(caddy[1])
 	images = append(images, b.caddy)
+	if searxng := regexp.MustCompile(`image: (searxng\S*)`).FindSubmatch(spec); searxng != nil {
+		images = append(images, string(searxng[1]))
+	}
 	image, bin := build(t)
 	b.name = fmt.Sprintf("deck-server-%d", time.Now().UnixNano())
 	b.host("docker", "run", "-d", "--privileged", "--name", b.name, "-e", "DOCKER_TLS_CERTDIR=", "docker:dind")
@@ -418,8 +421,8 @@ func imagePrograms(t *testing.T) []string {
 	return slices.Compact(progs)
 }
 
-// TestServerFromScratch is deck from compose.yaml with its three lines: a link of deck pair, no token in the log, HTTPS
-// by Caddy, sign-in links, Codex passing its self-check, a script in its box that sees no other process nor deck's base.
+// TestServerFromScratch is deck from compose.yaml: pairing, HTTPS by Caddy, the CLIs asking for a login, a search
+// through SearXNG beside it with nothing set up, Codex checked, a script in its box blind to the rest.
 func TestServerFromScratch(t *testing.T) {
 	harness.Needs(t, "DECK_SERVER")
 	b := newBare(t)
@@ -461,6 +464,8 @@ func TestServerFromScratch(t *testing.T) {
 		}
 	}
 
+	b.searches(token)
+
 	b.codex("deck", "/var/lib/deck/agents/codex/login")
 	b.call(token, "deck.provider_check", map[string]any{"provider": "codex"})
 	b.health(token, "provider:codex", "ok")
@@ -471,6 +476,21 @@ func TestServerFromScratch(t *testing.T) {
 	if logs := b.compose("logs", "deck"); strings.Contains(logs, "panic") {
 		t.Fatalf("deck panicked:\n%s", logs)
 	}
+}
+
+// searches is a search of the web through deck with nothing set up: SearXNG beside it answers, once it has started.
+func (b *bare) searches(token string) {
+	b.t.Helper()
+	var found struct {
+		Search  string
+		Results []struct{ URL string }
+	}
+	// The engines SearXNG asks may answer a datacenter with nothing: its JSON answer through deck is the proof.
+	harness.Until(b.t, "a search through SearXNG beside deck", func() bool {
+		out, ok := b.try(token, "deck.web_search", map[string]any{"query": "golang"})
+		return ok && json.Unmarshal(out, &found) == nil && found.Search == "searxng"
+	})
+	b.t.Logf("a search with nothing set up through %s found %d pages: %v", found.Search, len(found.Results), found.Results[:min(len(found.Results), 3)])
 }
 
 // TestServerOnOneComputer is deck installed by install.sh with no domain: no Caddy and no port 80 or 443, deck on

@@ -31,6 +31,12 @@ func searxng(t *testing.T, failing *atomic.Int32) *harness.Service {
 }
 
 // useSearch adds a search service at url as the owner does: a connection, a model of kind search, its assignment.
+// unsearched takes away the search of SearXNG beside deck that a first run assigns.
+func unsearched(e *harness.Env) {
+	e.T.Helper()
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{}}, nil)
+}
+
 func useSearch(e *harness.Env, name, url string) {
 	e.T.Helper()
 	e.Must("deck.connection_set", map[string]any{"name": name, "api": "raw", "url": url, "local": true}, nil)
@@ -113,7 +119,8 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 func TestWithoutSearchAgentsOnlyReadPagesAndTheOwnerIsTold(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	if code, out := e.Call("deck.web_search", map[string]any{"query": "deck"}); code != 422 || !strings.Contains(string(out), "searxng/searxng") ||
+	unsearched(e)
+	if code, out := e.Call("deck.web_search", map[string]any{"query": "deck"}); code != 422 || !strings.Contains(string(out), "models skill") ||
 		!strings.Contains(string(out), "only read pages") {
 		t.Fatalf("a search with no service says how to add one: %d %s", code, out)
 	}
@@ -130,6 +137,7 @@ func TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp(t *testing.T) {
 	scout := strings.Replace(harness.AgentCommand("scout", ""), `"prompt": "Do scout."`, `"prompt": "Do scout.", "calls": ["deck.web_search"]`, 1)
 	e.Project("scout", harness.Manifest(`{"commands": [`)+scout+`]}`)
 	e.UseModels("scout.scout", "acp")
+	unsearched(e)
 	warned := func() string {
 		for _, r := range e.Health("scout") {
 			if r.Subject == "command:scout.scout" {
@@ -138,7 +146,7 @@ func TestAnAgentThatSearchesThroughDeckSaysWhenNoSearchIsSetUp(t *testing.T) {
 		}
 		return ""
 	}
-	if w := warned(); !strings.Contains(w, "only read pages") || !strings.Contains(w, "searxng/searxng") {
+	if w := warned(); !strings.Contains(w, "only read pages") || !strings.Contains(w, "models skill") {
 		t.Fatalf("without a search the health of the command says how to add one: %q", w)
 	}
 	var failing atomic.Int32
@@ -174,12 +182,13 @@ func TestATrialSearchesOnlyThroughALocalOrFreeService(t *testing.T) {
 }
 
 // TestHealthSaysHowToSetUpSearch: without a search of the workspace health says agents only read pages and how to
-// run SearXNG; the warning goes once a search is assigned.
+// get SearXNG; the warning goes once a search is assigned.
 func TestHealthSaysHowToSetUpSearch(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
+	unsearched(e)
 	row := e.WaitHealth("search", "warning")
-	if !strings.Contains(row.Error, "docker run") || !strings.Contains(row.Error, `default_lang: "en"`) || !strings.Contains(row.Error, "only read pages") {
+	if !strings.Contains(row.Error, "compose.yaml") || !strings.Contains(row.Error, "models skill") || !strings.Contains(row.Error, "only read pages") {
 		t.Fatalf("the warning says how to set up search: %s", row.Error)
 	}
 	var failing atomic.Int32

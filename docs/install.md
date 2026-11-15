@@ -1,7 +1,7 @@
 # Installing deck: the details
 
 The short way is in the [README](../README.md#install). This page has the rest: a server with a domain, what the
-container needs, behind the host's tailscale serve, a model server beside deck, Windows, moving a deck that ran without
+container needs, behind the host's tailscale serve, the search beside deck, a model server beside deck, Windows, moving a deck that ran without
 Docker, and deck without Docker.
 
 ## A server with a domain
@@ -45,6 +45,16 @@ The gateway is no proxy of deck, as any container of the host comes from it too;
 names it (`DECK_PROXY=caddy,gateway`) works, and Settings → Health says to drop `gateway`. Without Docker deck takes
 X-Forwarded-For from no address, loopback too, unless `-proxy` names it (`-proxy 127.0.0.1` behind the host's own
 proxy).
+
+## The search beside deck
+
+`compose.yaml` runs [SearXNG](https://docs.searxng.org) as the service `searxng`, with its settings (JSON answers, no
+limiter, English results) as a config of the same file and no port of its own: only deck reaches it. The first run
+gives deck the connection `searxng` (`http://searxng:8080`), its model of kind search and the assignment of search,
+unless a search was set up before; then `deck.web_search` of the agents works with nothing to set up. Your own search
+stays yours: change the assignment in Settings → Models; to go without SearXNG, remove its assignment there and the
+service in `compose.override.yaml` (`services: {searxng: {profiles: [off]}}`). deck without Docker has no such service: ask Deki to set SearXNG up (its
+models skill), or point the connection `searxng` at one you run.
 
 ## A model server beside deck
 

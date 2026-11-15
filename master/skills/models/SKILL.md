@@ -30,6 +30,24 @@ a connection — a cloud API, or a ready open-source server the owner installs a
 Music and video: a cloud API unless a ready server of the kind appears. Read the server's own page
 (`master.research`) for its install and its model names before you give the steps.
 
+## Search: SearXNG
+
+deck from `compose.yaml` has SearXNG beside it: its first run made the connection `searxng` (`http://searxng:8080`),
+the model `searxng` of kind `search` and the assignment of search. Nothing to do there; the health of
+`model:searxng` says when it does not answer (`docker compose up -d` starts it again).
+
+deck without Docker (the binary on a Mac or Linux) has the same connection with nothing at its address. The owner runs
+SearXNG with its JSON answers on, by Docker:
+
+```sh
+mkdir -p ~/searxng && printf 'use_default_settings: true\nserver:\n  secret_key: "%s"\n  limiter: false\nsearch:\n  formats: [html, json]\n  default_lang: "en"\n' "$(openssl rand -hex 32)" > ~/searxng/settings.yml && docker run -d --name searxng --restart always -p 127.0.0.1:8888:8080 -v ~/searxng:/etc/searxng searxng/searxng
+```
+
+Then the connection `searxng` takes the address `http://127.0.0.1:8888` (`deck.connection_set`, `api` raw, `local`
+— the owner's form, give its link). A deck where the owner removed it: that connection again, a model of kind
+`search` on it (`deck.model_set`, free) and the assignment of search (`deck.assignment_set`). Without Docker on the
+machine SearXNG installs by its own page (`master.research` on docs.searxng.org); `search.formats` must hold `json`.
+
 ## The owner installs it
 
 You give the steps for the owner's system (the first-setup skill finds it); the owner installs and starts the

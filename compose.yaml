@@ -1,7 +1,7 @@
 # deck: docker compose up -d, then docker compose exec deck deck pair prints a link that pairs a device; on this
 # machine deck is http://deck.localhost:7700. On a server with a domain put DECK_DOMAIN (its name) and
-# COMPOSE_PROFILES=domain in .env, and Caddy serves deck over https there. seccomp.json and deck-box.apparmor lie
-# beside it; README, "Install", says the rest.
+# COMPOSE_PROFILES=domain in .env, and Caddy serves deck over https there. SearXNG beside deck is the search of its
+# agents. seccomp.json and deck-box.apparmor lie beside it; README, "Install", says the rest.
 name: deck
 services:
   deck:
@@ -28,6 +28,14 @@ services:
       - "127.0.0.1:7701:7701"
     volumes:
       - deck:/var/lib/deck
+  searxng:
+    image: searxng/searxng:2026.11.15-2d500cb6b@sha256:932f69dca010db9880bddebb2171f05d8e1a25d04a59149ff65409993d680024
+    restart: unless-stopped
+    # Only deck reaches it, as http://searxng:8080: no port; a secret of its own at each start.
+    entrypoint: ["/bin/sh", "-c", "export SEARXNG_SECRET=$$(head -c 32 /dev/urandom | base64 | tr -dc a-zA-Z0-9); exec /usr/local/searxng/entrypoint.sh"]
+    configs:
+      - source: searxng
+        target: /etc/searxng/settings.yml
   caddy:
     image: caddy:2
     restart: unless-stopped
@@ -46,6 +54,16 @@ volumes:
   deck:
   caddy:
 configs:
+  # JSON answers for deck, no limiter or image proxy: deck alone asks it.
+  searxng:
+    content: |
+      use_default_settings: true
+      server:
+        limiter: false
+        image_proxy: false
+      search:
+        formats: [html, json]
+        default_lang: "en"
   caddyfile:
     content: |
       ${DECK_DOMAIN:-localhost} {

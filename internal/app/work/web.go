@@ -24,13 +24,10 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// SearXNGInstall is how the owner runs SearXNG on this machine with its JSON answers on and English results, for the
-// search of deck.
-const SearXNGInstall = `mkdir -p ~/searxng && printf 'use_default_settings: true\nserver:\n  secret_key: "%s"\nsearch:\n  formats: [html, json]\n  default_lang: "en"\n' "$(openssl rand -hex 32)" > ~/searxng/settings.yml && ` +
-	`docker run -d --name searxng --restart always -p 127.0.0.1:8888:8080 -v ~/searxng:/etc/searxng searxng/searxng`
+// noSearch is what the owner does when no search is assigned; searchGone, when a search does not answer.
+const noSearch = "no search is set up, so agents without their own web only read pages; deck from compose.yaml searches through the SearXNG beside it, anywhere else the master sets SearXNG up by its models skill"
 
-// noSearch is what the owner does when no search is assigned, with SearXNGInstall.
-var noSearch = fmt.Sprintf("no search is set up, so agents without their own web only read pages; run SearXNG (%s), add it in Settings → Models → Connections (api raw, url http://127.0.0.1:8888, local), as a model of kind search in Settings → Models, and assign it to search in Settings → Models", SearXNGInstall)
+const searchGone = "%s; deck from compose.yaml of this release runs SearXNG beside it (docker compose up -d), anywhere else the master sets SearXNG up by its models skill"
 
 const (
 	maxPage     = 4 << 20

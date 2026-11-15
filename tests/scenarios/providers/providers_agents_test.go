@@ -113,13 +113,14 @@ func TestTheModelsAndConnectionsTabsShowWhatRunsTheModels(t *testing.T) {
 		t.Fatalf("the agents show why one gives no version: %+v", agents)
 	}
 	conns := harness.BlockData[[]harness.ListItem](t, e.SettingsBlock("Connections", nil)["items"])
-	if len(conns) != 4 || conns[2].Title != "router" || conns[3].Title != "whisper" || fmt.Sprint(harness.Verb(t, conns[3].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
-		t.Fatalf("the connections lists the connections, the whisper of deck too, and edits each as it is: %+v", conns)
+	if len(conns) != 5 || conns[2].Title != "router" || conns[3].Title != "searxng" || conns[4].Title != "whisper" ||
+		fmt.Sprint(harness.Verb(t, conns[4].Actions, "edit")["params"].(map[string]any)["local"]) != "true" {
+		t.Fatalf("the connections lists the connections, the search and whisper of deck too, and edits each as it is: %+v", conns)
 	}
 	if conns[0].Title != "claude-code" || conns[1].Title != "codex" || len(conns[0].Actions)+len(conns[1].Actions) != 0 || conns[0].Text != "the CLI on the subscription" {
 		t.Fatalf("the connections of the CLIs are deck's own, with no edit or remove: %+v", conns[:2])
 	}
-	if conns[2].Meta != "Key set" || conns[3].Meta != "No key" || conns[2].Text != "deck reaches it itself" {
+	if conns[2].Meta != "Key set" || conns[4].Meta != "No key" || conns[2].Text != "deck reaches it itself" {
 		t.Fatalf("a connection shows where its models run and whether deck keeps a key of it, never the key: %+v", conns)
 	}
 }

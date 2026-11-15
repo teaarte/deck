@@ -7,6 +7,7 @@
   ],
   "enabledManagers": [
     "dockerfile",
+    "docker-compose",
     "gomod",
     "github-actions",
     "custom.regex"
@@ -64,6 +65,25 @@
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "sqlc-dev/sqlc",
       "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "deck's own image in compose.yaml stays latest, the release it is",
+      "matchManagers": [
+        "docker-compose"
+      ],
+      "matchPackageNames": [
+        "ghcr.io/teaarte/deck"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "SearXNG tags are a date and a commit: compare the date",
+      "matchPackageNames": [
+        "searxng/searxng"
+      ],
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)-[0-9a-f]+$"
     }
   ]
 }

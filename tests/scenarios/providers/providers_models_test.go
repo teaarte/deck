@@ -659,7 +659,7 @@ print(json.dumps({"status": status, "out": out}))
 		where = append(where, a.Role+":"+a.Project)
 	}
 	slices.Sort(where)
-	if !slices.Equal(where, []string{"image:films", "stt:", "text:"}) {
+	if !slices.Equal(where, []string{"image:films", "search:", "stt:", "text:"}) {
 		t.Fatalf("a module sees the assignments of the workspace and its own, not of other projects: %v", where)
 	}
 }

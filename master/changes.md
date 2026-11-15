@@ -558,3 +558,7 @@ and bring the modules in line.
   `self-check` without a process (`spend_list`), but for a check run on a node. A limit a self-check meets is a pause, not a failed check.
 - 2026-11-15: a built-in CLI (claude-code, codex) deck never checked is checked as deck starts, so a fresh install
   shows it needs a login (without one the CLI refuses before any model call); one checked before still is not.
+- 2026-11-15: search works out of the box: `compose.yaml` runs SearXNG beside deck, and the first run gives a workspace
+  with no search the connection `searxng` (`http://searxng:8080`, api raw, local), its model `searxng` (kind search,
+  free) and the assignment of search; a search the owner set up stays. deck without Docker sets SearXNG up by the
+  master's models skill (the recipe left deck's text of no search).

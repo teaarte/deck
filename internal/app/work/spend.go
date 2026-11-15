@@ -73,6 +73,9 @@ func (s *Service) answered(ctx context.Context, m db.Model, next string, status 
 	default:
 		text = fmt.Sprintf("%s; no model of its assignment is after it", text)
 	}
+	if m.Kind == RoleSearch && status == 0 {
+		text = fmt.Sprintf(searchGone, text)
+	}
 	subject, of := health.Model(m.Name), health.Of{Workspace: m.WorkspaceID}
 	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		if failed {

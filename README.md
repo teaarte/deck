@@ -131,7 +131,9 @@ shows as `unhealthy` in `docker compose ps`; a monitor outside the machine, such
 address, tells you when the machine itself is down.
 
 **What it holds, what you add.** The image carries deck and the programs its work runs: the CLIs of Claude Code, Codex
-and goose, Python with uv, Node, ffmpeg, git and Chromium. Models are not in it and never live in deck: you add one way
+and goose, Python with uv, Node, ffmpeg, git and Chromium. Beside it in `compose.yaml` runs
+[SearXNG](https://docs.searxng.org), the web search of the agents, set up on the first run (about 270 MB of disk; only
+deck reaches it). Models are not in it and never live in deck: you add one way
 to reach them in Settings → Models — sign in to a Claude or ChatGPT subscription, or give an OpenRouter key, or a free
 key of Groq or NVIDIA — and Deki proposes which model takes each kind of work. A model of your own hardware is a
 ready open-source server (Ollama, llama.cpp, whisper.cpp, LocalAI): a service beside deck in `compose.override.yaml`
@@ -192,8 +194,9 @@ logins of the CLIs and paired devices (a test updates each released image and th
 a copy of the volume or a snapshot (Settings → Advanced): an older deck is not tested on a database a newer one
 migrated.
 
-- **The image, from v0.2.** Just update either way above: since v0.2 the files beside `compose.yaml` changed only in
-  comments.
+- **The image, from v0.2.** Update with the install line, which downloads the new `compose.yaml`: after v0.3.1 it runs
+  SearXNG beside deck, the search the update assigns. `docker compose pull` alone leaves it out, and the health of
+  `model:searxng` says so at the first search.
 - **The image, from v0.1.** v0.1 ran agents as a user `agent` with their logins in a volume `agents`. Update the image
   first, with the old `compose.yaml`: on its first start the new image copies the logins into deck's volume. deck then
   starts no foreign program and says why; download the files of the install above, load the profile and run

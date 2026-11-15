@@ -455,8 +455,9 @@ func TestServerFromScratch(t *testing.T) {
 	if len(missing) > 0 {
 		t.Fatalf("deck's image lacks programs modules name: %s", strings.Join(missing, " "))
 	}
-	b.health(token, "provider:claude-code", "needs_login")
-	b.health(token, "provider:codex", "needs_login")
+	for _, cli := range []string{"claude-code", "codex"} {
+		t.Logf("a fresh install: provider:%s needs_login: %s", cli, b.health(token, "provider:"+cli, "needs_login"))
+	}
 	for _, agent := range []string{"claude-code", "codex"} {
 		var l struct{ URL, Code string }
 		if err := json.Unmarshal(b.call(token, "deck.agent_login", map[string]any{"provider": agent}), &l); err != nil || !strings.HasPrefix(l.URL, "https://") {

@@ -40,7 +40,7 @@ func TestTheFirstRunSearchesThroughSearXNGBesideDeck(t *testing.T) {
 		}
 	}
 	// A base migrated before, run again: the setup stays one.
-	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 88`)
+	e.SQL(`ALTER TABLE connection DROP COLUMN agent; DELETE FROM goose_db_version WHERE version_id >= 88`)
 	e = e.Restart()
 	if c, m, _, assigned := searchSetUp(e); c != 1 || m != 1 || assigned != `["searxng"]` {
 		t.Fatalf("the setup of search is made once: %d connections, %d models, %q", c, m, assigned)
@@ -58,7 +58,7 @@ func TestTheFirstRunLeavesTheSearchOfTheOwnerAlone(t *testing.T) {
 	e.Must("deck.model_delete", map[string]any{"name": "searxng"}, nil)
 	e.Must("deck.connection_delete", map[string]any{"name": "searxng"}, nil)
 	// A base of a deck before SearXNG beside it.
-	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 88`)
+	e.SQL(`ALTER TABLE connection DROP COLUMN agent; DELETE FROM goose_db_version WHERE version_id >= 88`)
 	e = e.Restart()
 	if c, m, _, assigned := searchSetUp(e); c != 0 || m != 0 || assigned != `["mine"]` {
 		t.Fatalf("an update leaves the owner's search alone: %d connections, %d models, %q", c, m, assigned)
@@ -68,7 +68,7 @@ func TestTheFirstRunLeavesTheSearchOfTheOwnerAlone(t *testing.T) {
 	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{}}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "searxng", "api": "raw", "url": "http://127.0.0.1:8888", "local": true}, nil)
 	// A base of a deck before SearXNG beside it, again.
-	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 88`)
+	e.SQL(`ALTER TABLE connection DROP COLUMN agent; DELETE FROM goose_db_version WHERE version_id >= 88`)
 	e = e.Restart()
 	if c, m, url, assigned := searchSetUp(e); c != 1 || m != 0 || url != "http://127.0.0.1:8888" || assigned != "" {
 		t.Fatalf("an update leaves the owner's connection searxng alone: %d connections, %d models, %q, %q", c, m, url, assigned)

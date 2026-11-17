@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/netip"
 	"time"
+
+	"deck2/internal/txguard"
 )
 
 // Times of the connection of a node: a ping when it has been quiet this long, and the wait for its answer.
@@ -21,26 +23,34 @@ var NodeHTTP2 = &http.HTTP2Config{SendPingTimeout: NodePing, PingTimeout: NodePi
 
 // ToDeck is the transport of a node to the deck it joins, at the address the owner gave it: HTTP/1.1, as its
 // connection upgrades to deck's calls.
-var ToDeck = func() *http.Transport {
+var ToDeck = func() http.RoundTripper {
 	var p http.Protocols
 	p.SetHTTP1(true)
-	return &http.Transport{Proxy: nil, Protocols: &p, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: NodePing}).DialContext,
-		TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: time.Minute, IdleConnTimeout: time.Minute}
+	return checked{&http.Transport{Proxy: nil, Protocols: &p, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: NodePing}).DialContext,
+		TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: time.Minute, IdleConnTimeout: time.Minute}}
 }()
 
 // FromNode is the transport of a node's calls of deck's side of the turns it runs, at deck's address: an answer may
 // wait for the owner as long as the call of a tool does.
-var FromNode = func() *http.Transport {
+var FromNode = func() http.RoundTripper {
 	var p http.Protocols
 	p.SetHTTP1(true)
 	p.SetHTTP2(true)
-	return &http.Transport{Proxy: nil, Protocols: &p, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: NodePing}).DialContext,
-		TLSHandshakeTimeout: 10 * time.Second, IdleConnTimeout: time.Minute, ForceAttemptHTTP2: true}
+	return checked{&http.Transport{Proxy: nil, Protocols: &p, DialContext: (&net.Dialer{Timeout: 10 * time.Second, KeepAlive: NodePing}).DialContext,
+		TLSHandshakeTimeout: 10 * time.Second, IdleConnTimeout: time.Minute, ForceAttemptHTTP2: true}}
 }()
+
+// NodeClient is deck's side of the connection of a node, whose requests the guard of a transaction stops first.
+type NodeClient struct{ *http.ClientConn }
+
+func (c NodeClient) RoundTrip(req *http.Request) (*http.Response, error) {
+	txguard.Check(req.Context(), "a request to a node")
+	return c.ClientConn.RoundTrip(req)
+}
 
 // NodeConn is deck's side of the connection a node opened: HTTP/2 without TLS over it, deck the client, the node
 // serving the calls deck sends.
-func NodeConn(ctx context.Context, conn net.Conn) (*http.ClientConn, error) {
+func NodeConn(ctx context.Context, conn net.Conn) (NodeClient, error) {
 	var p http.Protocols
 	p.SetUnencryptedHTTP2(true)
 	given := false
@@ -52,16 +62,18 @@ func NodeConn(ctx context.Context, conn net.Conn) (*http.ClientConn, error) {
 			given = true
 			return conn, nil
 		}}
-	return t.NewClientConn(ctx, "http", "node:80")
+	cc, err := t.NewClientConn(ctx, "http", "node:80")
+	return NodeClient{cc}, err
 }
 
 // Loopback is the transport of a node to the services of its own machine: it dials loopback addresses (DialLoopback),
 // as a node serves deck those and nothing of its network.
-var Loopback = &http.Transport{Proxy: nil, DialContext: dialLoopback, ResponseHeaderTimeout: 5 * time.Minute,
-	IdleConnTimeout: time.Minute, TLSHandshakeTimeout: 10 * time.Second}
+var Loopback http.RoundTripper = checked{&http.Transport{Proxy: nil, DialContext: dialLoopback, ResponseHeaderTimeout: 5 * time.Minute,
+	IdleConnTimeout: time.Minute, TLSHandshakeTimeout: 10 * time.Second}}
 
 // DialLoopback dials host:port when the host is a loopback address or resolves to one, and refuses the rest.
 func DialLoopback(ctx context.Context, addr string) (net.Conn, error) {
+	txguard.Check(ctx, "a dial of egress")
 	return dialLoopback(ctx, "tcp", addr)
 }
 

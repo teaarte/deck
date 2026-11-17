@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"deck2/internal/fault"
+	"deck2/internal/txguard"
 )
 
 type pinnedKey struct{}
@@ -36,6 +37,7 @@ var errUnresolved = errors.New("does not resolve")
 
 // resolve is how deck resolves a name: as its machine does.
 func resolve(ctx context.Context, host string) ([]netip.Addr, error) {
+	txguard.Check(ctx, "a lookup of egress")
 	return net.DefaultResolver.LookupNetIP(ctx, "ip", host)
 }
 
@@ -286,6 +288,7 @@ func Download(ctx context.Context, domains []string, page string) (*http.Respons
 }
 
 func fetch(ctx context.Context, client *http.Client, accept string, domains []string, page string) (*http.Response, error) {
+	txguard.Check(ctx, "a request of egress")
 	for range 6 {
 		u, err := url.Parse(page)
 		if err != nil || u.Scheme != "http" && u.Scheme != "https" || u.Hostname() == "" {

@@ -5,13 +5,23 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"deck2/internal/txguard"
 )
+
+// checked is a transport whose request the guard of a transaction stops before it leaves, in the caller's goroutine.
+type checked struct{ http.RoundTripper }
+
+func (c checked) RoundTrip(req *http.Request) (*http.Response, error) {
+	txguard.Check(req.Context(), "a request of egress")
+	return c.RoundTripper.RoundTrip(req)
+}
 
 // Direct is the transport of the services the owner named himself, the connections of models: no proxy, a bounded
 // dial and wait for the head of an answer, a body as long as it streams.
-var Direct = &http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
+var Direct http.RoundTripper = checked{&http.Transport{Proxy: nil, DialContext: (&net.Dialer{Timeout: 10 * time.Second}).DialContext,
 	TLSHandshakeTimeout: 10 * time.Second, ResponseHeaderTimeout: 5 * time.Minute, IdleConnTimeout: time.Minute,
-	ForceAttemptHTTP2: true}
+	ForceAttemptHTTP2: true}}
 
 // Outbound dials the addresses Pin gave a request and no other, on a connection of its own, since a kept one would
 // serve the next request whatever it was pinned to.
@@ -33,6 +43,7 @@ func Client(domains []string, timeout time.Duration) *http.Client {
 type pinning func(*http.Request) []string
 
 func (p pinning) RoundTrip(req *http.Request) (*http.Response, error) {
+	txguard.Check(req.Context(), "a request of egress")
 	pinned, err := Pin(req, p(req))
 	if err != nil {
 		if req.Body != nil {
@@ -46,7 +57,7 @@ func (p pinning) RoundTrip(req *http.Request) (*http.Response, error) {
 // Pinned is the client of an HTTP tool, whose request Pin bound: it follows a redirect on its host and no other. Push
 // is the client of a push to a device, at a public address.
 var (
-	Pinned = &http.Client{Transport: Outbound, Timeout: 5 * time.Minute, CheckRedirect: sameHost}
+	Pinned = &http.Client{Transport: checked{Outbound}, Timeout: 5 * time.Minute, CheckRedirect: sameHost}
 	Push   = &http.Client{Transport: pinning(func(r *http.Request) []string { return With(Anywhere, r.URL.String()) }),
 		Timeout: 15 * time.Second, CheckRedirect: noRedirect}
 )

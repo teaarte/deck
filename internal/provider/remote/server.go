@@ -459,7 +459,7 @@ func (s *Server) turn(w http.ResponseWriter, r *http.Request) {
 			}
 		}()
 	}
-	res, err := pv.Run(ctx, req)
+	res, err := provider.Run(ctx, pv, req)
 	if ctx.Err() != nil {
 		return
 	}

@@ -18,6 +18,7 @@ import (
 
 	"deck2/internal/events"
 	"deck2/internal/store/db"
+	"deck2/internal/txguard"
 )
 
 //go:embed migrations/*.sql
@@ -82,8 +83,6 @@ const (
 	FeedChange = "change"
 )
 
-type txKey struct{}
-
 // guard fails loudly when code queries through the shared connection inside a transaction, which would wait
 // forever for the connection the transaction holds, or writes through it outside one.
 type guard struct {
@@ -92,7 +91,7 @@ type guard struct {
 }
 
 func check(ctx context.Context) {
-	if ctx.Value(txKey{}) != nil {
+	if txguard.In(ctx) {
 		panic("store: query through Store.Q inside a transaction; use the transaction's queries")
 	}
 }
@@ -301,7 +300,11 @@ func (s *Store) Tx(ctx context.Context, f func(ctx context.Context, q *db.Querie
 			panic(p)
 		}
 	}()
-	if err := f(context.WithValue(ctx, txKey{}, true), s.Q.WithTx(tx)); err != nil {
+	in, end := txguard.Within(ctx)
+	defer end()
+	err = f(in, s.Q.WithTx(tx))
+	end()
+	if err != nil {
 		_ = tx.Rollback()
 		return err
 	}

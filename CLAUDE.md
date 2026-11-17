@@ -100,6 +100,8 @@ hold; look inside a package for the rest.
   opens; on macOS — a node or deck without Docker — `sandbox-exec`, the CLIs of Claude Code and Codex outside it),
   `Door` the one way out (no door, no network), `Env` the one environment, `Find`/`Path` the one search of
   programs (deck's PATH, then the login shell's, then the folders of installers).
+- `internal/txguard` — the mark of a context inside an open `Store.Tx`; `Check` at the doors (every request of
+  `egress`, `sandbox.Run`, `provider.Run`) panics in a test binary and logs in deck; a `context.Background` passes.
 - `internal/untrusted` — text deck did not write, shaped (`Cut`, `Line`, `Block`) before a prompt, an ask or a
   journal.
 - `internal/files` — the files a command input points to and tools answer with (the files service is `app/files`).
@@ -160,7 +162,8 @@ hold; look inside a package for the rest.
   function of `lint.Tabled`, whose table proves it, or it says what it does without the quantifier (`lint.Laws`).
 - Every write runs in `Store.Tx`; inside it use only the `ctx` and `q` it passes (`Store.Q` panics there).
   No network calls, git or waiting on processes inside a transaction: the store has one connection, so a
-  waiting transaction freezes all of deck. Write the intent, commit, act, then record the outcome in a new one.
+  waiting transaction freezes all of deck; `txguard` checks the doors (a test panics, deck logs), a provider's turn
+  goes through `provider.Run`, network outside `egress` calls `txguard.Check` itself. Write the intent, commit, act, then record the outcome in a new one.
   Helpers that may run inside a transaction take `*db.Queries`. Nothing is hardcoded to workspace 1:
   scope comes from the project or the actor.
 - A new restriction of the manifest is a warning on read and an error only on save: `manifest.Parse` runs on every

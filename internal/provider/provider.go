@@ -10,6 +10,7 @@ import (
 
 	"deck2/internal/fault"
 	"deck2/internal/sandbox"
+	"deck2/internal/txguard"
 )
 
 type Request struct {
@@ -233,6 +234,12 @@ type Provider interface {
 	// QuestionTool names the provider tool that asks the owner a blocking question, or is empty.
 	QuestionTool() string
 	Run(ctx context.Context, req Request) (Result, error)
+}
+
+// Run is the turn of p, which the guard of a transaction stops first; deck runs the turns of processes through it.
+func Run(ctx context.Context, p Provider, req Request) (Result, error) {
+	txguard.Check(ctx, "the turn of provider "+p.Name())
+	return p.Run(ctx, req)
 }
 
 // Check is what a self-check of a provider found; Err is nil when the adapter works.

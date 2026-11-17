@@ -54,7 +54,7 @@ type Hub struct {
 
 // link is a node connected: deck's client over its connection, since when, by which address of deck.
 type link struct {
-	cc      *http.ClientConn
+	cc      egress.NodeClient
 	since   time.Time
 	address string
 	version string

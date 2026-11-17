@@ -274,7 +274,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(
 	for retried, revived, rejoined := false, false, false; ; {
 		a.listen(true)
 		stop := r.watchCall(processID, a.proj.WorkspaceID, pv)
-		res, err := pv.Run(ctx, req)
+		res, err := provider.Run(ctx, pv, req)
 		stop()
 		a.listen(false)
 		r.setGroup(bg, processID, 0)

@@ -4,11 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"io"
+	"net"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	"deck2/internal/egress"
 	"deck2/internal/provider"
+	"deck2/internal/sandbox"
+	"deck2/internal/store/db"
 	"deck2/tests/harness"
 )
 
@@ -133,8 +140,106 @@ func TestFall11ARestartWithACronSlotInThePast(t *testing.T) {
 	}
 }
 
+// TestFall12ATransactionWaitsOnTheNetwork: a request to the network, a box or the turn of a provider opened inside a
+// transaction stops at its door, before the writer stands waiting on it; after the commit the same context passes.
 func TestFall12ATransactionWaitsOnTheNetwork(t *testing.T) {
-	t.Skip("row 12, A1: no guard stops a call to the network or a box inside a transaction; the writer stands for 30 s")
+	t.Parallel()
+	e := harness.New(t)
+	page := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) }))
+	t.Cleanup(page.Close)
+	egress.AsPublic(strings.TrimPrefix(page.URL, "http://"))
+	doors := []struct {
+		name string
+		open func(ctx context.Context)
+	}{
+		{"egress", func(ctx context.Context) {
+			if res, err := egress.Fetch(ctx, egress.With(nil, page.URL), page.URL); err == nil {
+				_ = res.Body.Close()
+			}
+		}},
+		{"a pinned request", func(ctx context.Context) {
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, page.URL, nil)
+			if req, err := egress.Pin(req, egress.With(nil, page.URL)); err == nil {
+				if res, err := egress.Pinned.Do(req); err == nil {
+					_ = res.Body.Close()
+				}
+			}
+		}},
+		{"a model's connection", func(ctx context.Context) {
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, page.URL, nil)
+			if res, err := egress.Direct.RoundTrip(req); err == nil {
+				_ = res.Body.Close()
+			}
+		}},
+		{"a client of egress", func(ctx context.Context) {
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, page.URL, nil)
+			if res, err := egress.Client(egress.With(nil, page.URL), time.Minute).Do(req); err == nil {
+				_ = res.Body.Close()
+			}
+		}},
+		{"a lookup of a name", func(ctx context.Context) {
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://localhost:1/", nil)
+			_, _ = egress.Pin(req, []string{"localhost"})
+		}},
+		{"a node's services", func(ctx context.Context) {
+			for _, t := range []http.RoundTripper{egress.Loopback, egress.ToDeck, egress.FromNode} {
+				req, _ := http.NewRequestWithContext(ctx, http.MethodGet, page.URL, nil)
+				if res, err := t.RoundTrip(req); err == nil {
+					_ = res.Body.Close()
+				}
+			}
+		}},
+		{"a dial of a node's loopback", func(ctx context.Context) {
+			if c, err := egress.DialLoopback(ctx, strings.TrimPrefix(page.URL, "http://")); err == nil {
+				_ = c.Close()
+			}
+		}},
+		{"the connection of a node", func(ctx context.Context) {
+			deck, node := net.Pipe()
+			defer node.Close()
+			go func() { _, _ = io.Copy(io.Discard, node) }()
+			cc, err := egress.NodeConn(context.WithoutCancel(ctx), deck)
+			if err != nil {
+				return
+			}
+			defer cc.Close()
+			ctx, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+			req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://node/", nil)
+			if res, err := cc.RoundTrip(req); err == nil {
+				_ = res.Body.Close()
+			}
+		}},
+		{"deck's MCP server", func(ctx context.Context) {
+			_ = e.App.Gateway.Reach(ctx, e.URL)
+		}},
+		{"sandbox", func(ctx context.Context) {
+			if p, err := e.App.Cfg.Sandbox.Run(ctx, sandbox.Box{Kind: sandbox.KindScript, Argv: []string{"true"}, Dir: t.TempDir()}, sandbox.IO{}); err == nil {
+				_ = p.Wait()
+			}
+		}},
+		{"provider", func(ctx context.Context) {
+			_, _ = provider.Run(ctx, &harness.Fake{Script: harness.Ok}, provider.Request{})
+		}},
+	}
+	for _, d := range doors {
+		var escaped context.Context
+		stopped := func() (p any) {
+			defer func() { p = recover() }()
+			// The test opens a door inside a transaction, which no code of deck may do.
+			_ = e.App.Store.Tx(t.Context(), func(ctx context.Context, _ *db.Queries) error {
+				escaped = ctx
+				d.open(ctx)
+				return nil
+			})
+			return nil
+		}()
+		if s, _ := stopped.(string); !strings.HasPrefix(s, "txguard: ") {
+			t.Errorf("%s opened inside a transaction is not stopped: %v", d.name, stopped)
+			continue
+		}
+		d.open(escaped)
+	}
 }
 
 func TestFall13AManifestChangedWhileItsMCPServerRuns(t *testing.T) {

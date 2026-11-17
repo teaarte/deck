@@ -13,6 +13,7 @@ import (
 
 	"deck2/internal/fault"
 	"deck2/internal/home"
+	"deck2/internal/txguard"
 )
 
 // The kinds of boxes.
@@ -70,6 +71,7 @@ type IO struct {
 
 // Run starts the program of b in its box; without a box that works deck starts no foreign program.
 func (s *Sandbox) Run(ctx context.Context, b Box, o IO) (*Proc, error) {
+	txguard.Check(ctx, "a box of "+b.Kind)
 	if err := s.Check(); err != nil {
 		return nil, fault.New(fault.ProgramMissing, "deck starts no program of a module without its box: "+err.Error())
 	}

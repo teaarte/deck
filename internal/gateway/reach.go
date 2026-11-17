@@ -7,11 +7,14 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"deck2/internal/txguard"
 )
 
 // Reach connects to the MCP server of deck at base as an agent turn does and checks that it lists the permission
 // tool; the session it opens may call no command.
 func (g *Gateway) Reach(ctx context.Context, base string) error {
+	txguard.Check(ctx, "a reach of deck's MCP server")
 	tok, err := g.Open(ctx, &Session{Commands: []string{}})
 	if err != nil {
 		return err

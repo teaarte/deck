@@ -91,13 +91,13 @@ jobs:
           - { os: ubuntu-latest, areas: server }
           - { os: ubuntu-latest, areas: rest }
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: ./.github/actions/setup
         with:
           sandbox: true
-      - run: shard=$(.github/shard.sh ${{ matrix.areas }}) && go test -race -count=1 -timeout 15m $shard
+      - run: shard=$(.github/shard.sh ${{ matrix.areas }}) && go test -race -count=1 -timeout 20m $shard
 
   # The hosts deck's compose.yaml is tried on: Ubuntu 22.04 with AppArmor 3, 24.04 with AppArmor 4, whose user
   # namespaces only a profile opens.

@@ -168,11 +168,20 @@ chown -R agent:agent /home/agent /var/lib/deck/work/left`)
 	b.calm()
 }
 
-// rollback goes back to the image of v by the steps of docs/install.md, "Restoring a snapshot": the base of the
-// snapshot the update kept, then the older image, which finds what it kept.
+// rollback goes back to the image of v by the steps of docs/install.md, "Restoring a snapshot": the older image on
+// the migrated base refuses and names them; the base of the snapshot the update kept, then the older image, which
+// finds what it kept.
 func (b *bare) rollback(cookie, v string) {
 	t := b.t
 	t.Helper()
+	b.compose("stop", "deck")
+	b.write("/srv/deck/compose.override.yaml", "services:\n  deck:\n    image: ghcr.io/teaarte/deck:"+v+"\n")
+	defer b.in("rm", "-f", "/srv/deck/compose.override.yaml")
+	b.compose("up", "-d", "deck")
+	harness.UntilWithin(t, 4*time.Minute, "deck of "+v+" to refuse the base a newer deck migrated", func() bool {
+		logs := b.compose("logs", "deck")
+		return strings.Contains(logs, "a newer deck") && strings.Contains(logs, "Restoring a snapshot")
+	})
 	b.compose("stop", "deck")
 	run := []string{"run", "--rm", "--no-deps", "--user", "deck", "--entrypoint"}
 	var snap string
@@ -185,8 +194,6 @@ func (b *bare) rollback(cookie, v string) {
 		t.Fatal("the update kept the base before it in backups/update-<time>.tar.gz")
 	}
 	b.compose(append(run, "sh", "deck", "-c", "cd /var/lib/deck && rm -f state/deck.db state/deck.db-wal state/deck.db-shm && tar -xzf state/backups/"+snap+" state/deck.db")...)
-	b.write("/srv/deck/compose.override.yaml", "services:\n  deck:\n    image: ghcr.io/teaarte/deck:"+v+"\n")
-	defer b.in("rm", "-f", "/srv/deck/compose.override.yaml")
 	b.compose("up", "-d")
 	var ver struct{ Version string }
 	harness.UntilWithin(t, 4*time.Minute, "deck of "+v+" to answer again on the base it had", func() bool {

@@ -12,7 +12,7 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
   tailnet: `./deck -tailscale deck` (sign-in link in the log and in health); as the owner and everyone else installs
   it: Docker + `compose.yaml` (README, "Install")
 - Tests: `go test -race -timeout 30m ./...` (one wait, `Until`, two minutes, ×4 under race or `DECK_TEST_SLOW`); the tailnet scenario only with the tag:
-  `go test -tags tailnet ./tests/scenarios/owner -run TestPhoneReachesDeckOverTheTailnet`
+  `go test -tags tailnet ./tests/scenarios/server -run TestPhoneReachesDeckOverTheTailnet`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios/real -run TestRealClaudeCode -v`
 - Real Codex end-to-end test (skipped without `codex`): `DECK_REAL_CODEX=1 go test ./tests/scenarios/real -run TestRealCodex -v`
 - The ACP agent Goose on a local Ollama: `DECK_REAL_ACP=1 go test ./tests/scenarios/real -run TestRealACPAgents -v`
@@ -138,9 +138,9 @@ hold; look inside a package for the rest.
   (`Call`/`Must`/`Refused`, `In`, `As`), the one wait `Until` (and `WaitState`, `WaitAsk`, `WaitEvent`), `Manifest` on
   the current format, `Needs` for tests of real programs, the fakes of agents, CLIs and MCP servers (`fakes`).
 - `tests/scenarios/<area>` — scenario tests through the real gateway with a fake provider, a package an area
-  (`box`, `browser`, `chat`, `egress`, `modules`, `owner`, `providers`, `real`, `runs`), a file `<area>_<topic>_test.go`;
+  (`box`, `browser`, `chat`, `egress`, `modules`, `owner`, `providers`, `real`, `runs`, `server`), a file `<area>_<topic>_test.go`;
   `tests/lint` keeps their conventions (`internal/lint/tests.go`).
-- `.github` — `ci.yml` on every push and PR (checks, tests, race shards a package of scenarios each by `shard.sh` on Linux, providers and owner in halves, `tests/linux`),
+- `.github` — `ci.yml` on every push and PR (checks, tests, race shards a package of scenarios each by `shard.sh` on Linux, providers in halves, `tests/linux`),
   `macos.yml` (race on macos-26 by the same shards, nightly and by hand; it only tells), `image.yml` (the image on its
   changes and nightly), `release.yml` (a tag only of a commit of master that ci made green);
   `renovate.json` keeps the pinned base images, CLIs, modules and actions current.

@@ -55,14 +55,10 @@ var RussianTests = []string{
 	"tests/scenarios/owner/owner_files_test.go",
 	"tests/scenarios/owner/owner_language_test.go",
 	"tests/scenarios/owner/owner_memory_test.go",
-	"tests/scenarios/owner/owner_nodes_words_test.go",
-	"tests/scenarios/owner/owner_passkeys_test.go",
 	"tests/scenarios/owner/owner_press_test.go",
 	"tests/scenarios/owner/owner_settings_test.go",
-	"tests/scenarios/owner/owner_tailnet_test.go",
 	"tests/scenarios/owner/owner_themes_test.go",
 	"tests/scenarios/owner/owner_today_test.go",
-	"tests/scenarios/owner/owner_update_test.go",
 	"tests/scenarios/owner/owner_voice_test.go",
 	"tests/scenarios/providers/providers_acp_test.go",
 	"tests/scenarios/providers/providers_assignments_test.go",
@@ -72,6 +68,10 @@ var RussianTests = []string{
 	"tests/scenarios/providers/providers_selfcheck_test.go",
 	"tests/scenarios/providers/providers_signin_test.go",
 	"tests/scenarios/runs/runs_confirm_test.go",
+	"tests/scenarios/server/server_nodes_words_test.go",
+	"tests/scenarios/server/server_passkeys_test.go",
+	"tests/scenarios/server/server_tailnet_test.go",
+	"tests/scenarios/server/server_update_test.go",
 }
 
 // cyrillic is a letter of the Cyrillic script.

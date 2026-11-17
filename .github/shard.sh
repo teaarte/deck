@@ -2,7 +2,7 @@
 # shard.sh AREA... prints the packages of a shard of the tests: the packages of scenarios of each area, for rest
 # every package no area names, for AREA/K/N the K-th of N parts of the tests of an area (every N-th by name).
 set -euo pipefail
-areas=(box chat egress modules owner providers runs)
+areas=(box chat egress modules owner providers runs server)
 for a in "$@"; do
   if [ "$a" = rest ]; then
     go list ./... | grep -vE "/tests/scenarios/($(IFS='|'; echo "${areas[*]}"))\$"

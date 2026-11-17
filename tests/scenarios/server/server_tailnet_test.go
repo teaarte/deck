@@ -1,6 +1,6 @@
 //go:build tailnet
 
-package owner
+package server
 
 import (
 	"context"

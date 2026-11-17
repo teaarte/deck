@@ -1,5 +1,5 @@
 # Every push of a branch and pull request from a fork: the checks, the tests with and without the race detector on Linux
-# a shard a package of scenarios (the two largest in halves), the tests in Linux containers; a tag needs it green
+# a shard a package of scenarios (providers in halves), the tests in Linux containers; a tag needs it green
 # (release.yml); macOS runs nightly and only tells (macos.yml).
 name: ci
 
@@ -83,11 +83,11 @@ jobs:
           - { os: ubuntu-latest, areas: chat }
           - { os: ubuntu-latest, areas: egress }
           - { os: ubuntu-latest, areas: modules }
-          - { os: ubuntu-latest, areas: owner/1/2 }
-          - { os: ubuntu-latest, areas: owner/2/2 }
+          - { os: ubuntu-latest, areas: owner }
           - { os: ubuntu-latest, areas: providers/1/2 }
           - { os: ubuntu-latest, areas: providers/2/2 }
           - { os: ubuntu-latest, areas: runs }
+          - { os: ubuntu-latest, areas: server }
           - { os: ubuntu-latest, areas: rest }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20

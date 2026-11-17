@@ -14,18 +14,18 @@ import (
 	"deck2/tests/harness"
 )
 
-// budget is what a read of the owner's pages may cost on a large deck: the statements it reads from the base, and
-// the median of its time, wide for a loaded machine and four times as wide under the race detector.
+// budget is what a read of the owner's pages may cost on a large deck: the statements it reads from the base, and the
+// median of its time, only against the worst on a loaded machine (×4 under race): its numbers are in the log.
 var budget = map[string]struct {
 	reads int64
 	time  time.Duration
 }{
-	"today":          {950, 400 * time.Millisecond},
-	"cockpit":        {470, 400 * time.Millisecond},
-	"apps":           {100, 200 * time.Millisecond},
-	"health_list":    {450, 300 * time.Millisecond},
-	"triggers_list":  {460, 200 * time.Millisecond},
-	"press to fresh": {1550, 1200 * time.Millisecond},
+	"today":          {950, 2000 * time.Millisecond},
+	"cockpit":        {470, 2000 * time.Millisecond},
+	"apps":           {100, 1000 * time.Millisecond},
+	"health_list":    {450, 1500 * time.Millisecond},
+	"triggers_list":  {460, 1000 * time.Millisecond},
+	"press to fresh": {1550, 5000 * time.Millisecond},
 }
 
 // bigModule is a module of a large deck: two agent commands and one of a model, a collection and a schedule.

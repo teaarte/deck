@@ -43,6 +43,13 @@ func agentic(role string) bool { return role == RoleAgent || role == RoleWidget 
 // Assigned are the models of a role for a command, in order: its own assignment, else its project's, else the
 // workspace's; none when nothing is assigned.
 func Assigned(ctx context.Context, q *db.Queries, workspace, project int64, command, role string) ([]string, error) {
+	return assignedBy(project, command, func(project int64, command string) (string, error) {
+		return q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: workspace, ProjectID: project, Command: command, Role: role})
+	})
+}
+
+// assignedBy is Assigned on get, the models of an assignment as JSON, sql.ErrNoRows for none.
+func assignedBy(project int64, command string, get func(project int64, command string) (string, error)) ([]string, error) {
 	type place struct {
 		project int64
 		command string
@@ -55,7 +62,7 @@ func Assigned(ctx context.Context, q *db.Queries, workspace, project int64, comm
 		}
 	}
 	for _, at := range places {
-		raw, err := q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: workspace, ProjectID: at.project, Command: at.command, Role: role})
+		raw, err := get(at.project, at.command)
 		if errors.Is(err, sql.ErrNoRows) {
 			continue
 		}

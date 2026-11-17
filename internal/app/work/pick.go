@@ -23,14 +23,14 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 	if err != nil {
 		return nil, err
 	}
-	return s.first(ctx, ws, fits, assigned), nil
+	return s.first(ctx, s.pool(ws), fits, assigned), nil
 }
 
 // first is the provider of fits a command starts on: the first, or of an assignment the first that is up, else its
 // first.
-func (s *Service) first(ctx context.Context, workspace int64, fits []provider.Provider, assigned bool) provider.Provider {
+func (s *Service) first(ctx context.Context, pl *pool, fits []provider.Provider, assigned bool) provider.Provider {
 	for _, pv := range fits {
-		if !assigned || s.Up(ctx, workspace, pv.Name()) {
+		if !assigned || pl.Up(ctx, pv.Name()) {
 			return pv
 		}
 	}
@@ -162,7 +162,7 @@ func (s *Service) fittingIn(ctx context.Context, pl *pool, projectID int64, cmd 
 		return nil, false, po.err
 	}
 	p := po.p
-	names, err := Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, cmd.Name, RoleAgent)
+	names, err := pl.Assigned(ctx, p.ID, cmd.Name, RoleAgent)
 	if err != nil {
 		return nil, false, err
 	}
@@ -328,13 +328,13 @@ var downs = []string{health.Checking, health.Paused, health.Error, health.NeedsL
 
 // why is one line of why the work does not go to the first of models, in words tr gives: the health of the first one
 // down up to using; empty when the first does the work.
-func (s *Service) why(ctx context.Context, workspace int64, models []string, using string, tr func(string) string) string {
+func (s *Service) why(ctx context.Context, pl *pool, models []string, using string, tr func(string) string) string {
 	for _, name := range models {
-		if !s.Exists(ctx, workspace, name) {
+		if !pl.Exists(ctx, name) {
 			return name + ": " + tr(noModel)
 		}
-		if !s.Up(ctx, workspace, name) {
-			h, err := s.Health(ctx, workspace, name)
+		if !pl.Up(ctx, name) {
+			h, err := pl.Health(ctx, name)
 			if _, node, ok := provider.AtNode(name); ok && (err != nil || !slices.Contains(downs, h.Status)) {
 				return name + ": " + fmt.Sprintf(tr(nodeAway), node)
 			}

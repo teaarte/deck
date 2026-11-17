@@ -11,6 +11,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/models"
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/internal/words"
 )
@@ -104,8 +105,22 @@ type workOf struct {
 	command string
 }
 
-// book reads the models of a workspace once, for many lookups of the work of commands.
-func (s *Service) book(ctx context.Context, workspace int64, tr func(string) string) *Book {
+type bookOf struct {
+	workspace int64
+	lang      string
+}
+
+// book is the book of a workspace in a language, its prices and reasons in its words: one a read of deck, and the
+// reads it makes, share; outside a read, a new one.
+func (s *Service) book(ctx context.Context, workspace int64, lang string) *Book {
+	return registry.Once(ctx, bookOf{workspace, lang}, func() *Book {
+		ws := words.In(lang)
+		return s.newBook(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) })
+	})
+}
+
+// newBook reads the models of a workspace once, for many lookups of the work of commands.
+func (s *Service) newBook(ctx context.Context, workspace int64, tr func(string) string) *Book {
 	b := &Book{models: map[string]modelView{}, tr: tr, pool: s.pool(workspace), works: map[workOf]provider.Work{}}
 	for _, pv := range s.Builtin {
 		_, sub := pv.(provider.Subscribed)
@@ -125,7 +140,7 @@ func (s *Service) book(ctx context.Context, workspace int64, tr func(string) str
 		b.add(v)
 	}
 	for n, v := range b.models {
-		s.lastCheck(ctx, workspace, &v)
+		s.lastCheck(ctx, b.pool, &v)
 		b.models[n] = v
 	}
 	return b
@@ -165,8 +180,7 @@ func (b *Book) add(v modelView) {
 // Groups give the group of a model of a workspace where models are listed, in a language, and the place of the
 // group among them.
 func (s *Service) Groups(ctx context.Context, workspace int64, lang string) func(model string) (string, int) {
-	ws := words.In(lang)
-	b := s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) })
+	b := s.book(ctx, workspace, lang)
 	return func(model string) (string, int) {
 		v, ok := b.models[model]
 		if !ok {
@@ -286,16 +300,14 @@ func (b *Book) Of(kind string) []string {
 
 // Works looks up the work of commands of a workspace on one book of its models, its prices in a language.
 func (s *Service) Works(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work {
-	ws := words.In(lang)
-	b := s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) })
+	b := s.book(ctx, workspace, lang)
 	return func(projectID int64, command string) provider.Work { return s.commandWork(ctx, b, projectID, command) }
 }
 
 // Facts say each model of a workspace in short in a language, the words naming it for its mark and the group of its
 // provider.
 func (s *Service) Facts(ctx context.Context, workspace int64, lang string) func(model string) (note, logo, group string) {
-	ws := words.In(lang)
-	b := s.book(ctx, workspace, func(p string) string { return manifest.TrText(ws, p) })
+	b := s.book(ctx, workspace, lang)
 	return func(model string) (string, string, string) {
 		return b.Note(model), b.Logo(model), b.models[model].Provider
 	}
@@ -343,11 +355,11 @@ func (s *Service) lookUpWork(ctx context.Context, b *Book, projectID int64, comm
 			left[i] = b.tr(l)
 		}
 		w.LeftOut = strings.Join(left, "; ")
-		w.Models, _ = Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, command, RoleAgent)
+		w.Models, _ = b.pool.Assigned(ctx, p.ID, command, RoleAgent)
 		if fits, assigned, err := s.fittingIn(ctx, b.pool, projectID, cmd); err == nil {
-			w.Model = s.first(ctx, p.WorkspaceID, fits, assigned).Name()
+			w.Model = s.first(ctx, b.pool, fits, assigned).Name()
 		}
-		w.Why = s.why(ctx, p.WorkspaceID, w.Models, w.Model, b.tr)
+		w.Why = s.why(ctx, b.pool, w.Models, w.Model, b.tr)
 		w.Price = b.Price(w.Model)
 		return b.Grouped(w)
 	case "model":
@@ -366,7 +378,7 @@ func (s *Service) lookUpWork(ctx context.Context, b *Book, projectID int64, comm
 // Places are the parts of the work of the projects of a workspace, by model: project.command for a command, the
 // project for the kinds of work of its scripts.
 func (s *Service) Places(ctx context.Context, workspace int64) map[string]provider.Placed {
-	return s.places(ctx, workspace, s.book(ctx, workspace, func(p string) string { return p }))
+	return s.places(ctx, workspace, s.book(ctx, workspace, registry.Lang(ctx)))
 }
 
 // places are Places on the book b of the workspace.
@@ -426,9 +438,9 @@ func (s *Service) rolesWork(ctx context.Context, b *Book, projectID int64) []pro
 
 func (s *Service) roleWork(ctx context.Context, b *Book, p db.Project, command, role string) provider.Work {
 	w := provider.Work{Role: role, Choices: append([]string{}, b.Of(role)...)}
-	w.Models, _ = Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, command, role)
+	w.Models, _ = b.pool.Assigned(ctx, p.ID, command, role)
 	for _, name := range w.Models {
-		if s.Up(ctx, p.WorkspaceID, name) {
+		if b.pool.Up(ctx, name) {
 			w.Model = name
 			break
 		}
@@ -436,7 +448,7 @@ func (s *Service) roleWork(ctx context.Context, b *Book, p db.Project, command, 
 	if w.Model == "" && len(w.Models) > 0 {
 		w.Model = w.Models[0]
 	}
-	w.Why = s.why(ctx, p.WorkspaceID, w.Models, w.Model, b.tr)
+	w.Why = s.why(ctx, b.pool, w.Models, w.Model, b.tr)
 	w.Price = b.Price(w.Model)
 	return b.Grouped(w)
 }

@@ -593,6 +593,9 @@ func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.
 		return nil, err
 	}
 	a.Changes = a.Kind == Token && !c.Reads()
+	if c.Reads() {
+		ctx = inRead(ctx)
+	}
 	return c.Handler(ctx, a, input)
 }
 

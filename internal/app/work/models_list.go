@@ -74,8 +74,8 @@ type modelView struct {
 }
 
 // lastCheck fills in the state of a model: of its last self-check in an agent, else of its last call.
-func (s *Service) lastCheck(ctx context.Context, workspace int64, v *modelView) {
-	if h, err := s.Health(ctx, workspace, v.Name); err == nil {
+func (s *Service) lastCheck(ctx context.Context, pl *pool, v *modelView) {
+	if h, err := pl.Health(ctx, v.Name); err == nil {
 		v.Status, v.Error, v.Verdict, v.Speed, v.Version = h.Status, h.Error, h.Verdict, h.Speed, h.Version
 	}
 }
@@ -216,6 +216,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 			return out, err
 		}
 	}
+	b := s.book(ctx, act.Workspace, registry.Lang(ctx))
 	for _, r := range rows {
 		if in.Project != "" && r.Project != in.Project {
 			continue
@@ -226,15 +227,14 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		v := assignmentView{Project: r.Project, Command: r.Command, Role: r.Role}
 		_ = json.Unmarshal([]byte(r.Models), &v.Models)
 		for _, name := range v.Models {
-			if s.Exists(ctx, act.Workspace, name) && s.Up(ctx, act.Workspace, name) {
+			if b.pool.Exists(ctx, name) && b.pool.Up(ctx, name) {
 				v.Using = name
 				break
 			}
 		}
-		v.Why = s.why(ctx, act.Workspace, v.Models, v.Using, tr)
+		v.Why = s.why(ctx, b.pool, v.Models, v.Using, tr)
 		out.Assignments = append(out.Assignments, v)
 	}
-	b := s.book(ctx, act.Workspace, tr)
 	used, err := s.uses(ctx, act, b, pid, registry.Lang(ctx), &out)
 	if err != nil {
 		return out, err
@@ -287,7 +287,7 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, models []db.Lis
 		if l, ok := pv.(provider.Subscribed); ok {
 			v.Login = l.OnLogin()
 		}
-		s.lastCheck(ctx, act.Workspace, &v)
+		s.lastCheck(ctx, pl, &v)
 		s.offStatus(ctx, pl, &v)
 		out = append(out, v)
 	}
@@ -302,12 +302,12 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, models []db.Lis
 		if act.Confined() {
 			v.Spare = s.Spare(ctx, act, m)
 		}
-		s.lastCheck(ctx, act.Workspace, &v)
+		s.lastCheck(ctx, pl, &v)
 		s.offStatus(ctx, pl, &v)
 		out = append(out, v)
 	}
 	for _, v := range s.onNodes(ctx, pl, out) {
-		s.lastCheck(ctx, act.Workspace, &v)
+		s.lastCheck(ctx, pl, &v)
 		out = append(out, v)
 	}
 	return out

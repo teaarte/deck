@@ -72,9 +72,9 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		got = append(got, v.String())
 	}
 	all := strings.Join(got, "\n")
-	for _, not := range []string{"internal/tools/t.go:18:", "internal/app/y/y.go:10:", "internal/app/y/y.go:11:", "q.sql:6:", "00099_x.sql:3:"} {
+	for _, not := range []string{"internal/app/z/z.go:10:", "internal/app/z/z.go:11:", "internal/app/z/z.go:14:", "internal/tools/t.go:18:", "internal/app/y/y.go:10:", "internal/app/y/y.go:11:", "q.sql:6:", "00099_x.sql:3:"} {
 		if strings.Contains(all, not) {
-			t.Errorf("a string that is no topic of an event is taken for one: %s in:\n%s", not, all)
+			t.Errorf("a line that breaks no rule is taken for a violation: %s in:\n%s", not, all)
 		}
 	}
 	for _, want := range []string{
@@ -94,6 +94,12 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		"internal/app/y/y.go:7: a topic of events written out",
 		"internal/app/y/y.go:8: a topic of events written out",
 		"internal/app/y/y.go:9: a topic of events written out",
+		"internal/app/z/z.go:4: the error of a transaction thrown away",
+		"internal/app/z/z.go:5: the error of a transaction thrown away",
+		"internal/app/z/z.go:6: the error of a transaction thrown away",
+		"internal/app/z/z.go:7: the error of a transaction thrown away",
+		"internal/app/z/z.go:8: the error of a transaction thrown away",
+		"internal/app/z/z.go:9: the error of a transaction thrown away",
 		"internal/store/queries/q.sql:2: 'now' outside the DEFAULT of a column",
 		"internal/store/migrations/00099_x.sql:5: 'now' outside the DEFAULT of a column",
 	} {

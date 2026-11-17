@@ -48,6 +48,8 @@ var rules = []rule{
 		[]string{"internal/fault/", "internal/registry/", "internal/lint/"}, deckErr},
 	{"topic", "a topic of events written out: take its constant of internal/events", []string{"internal/", "cmd/"},
 		[]string{"internal/events/"}, topicLit},
+	{"dropped", "the error of a transaction thrown away: return it, or say it where the owner sees it", []string{"internal/", "cmd/"},
+		nil, droppedTx},
 }
 
 // sqlRules are the conventions of the SQL of the store, by line.
@@ -203,6 +205,48 @@ func goStmt(f *ast.File, fset *token.FileSet) []int {
 		return true
 	})
 	return out
+}
+
+// droppedTx are the lines of a call of Tx or TxGet whose error nobody reads: its error assigned to _, a bare
+// statement, go or defer.
+func droppedTx(f *ast.File, fset *token.FileSet) []int {
+	var out []int
+	add := func(e ast.Expr) {
+		if c, ok := e.(*ast.CallExpr); ok && isTx(c.Fun) {
+			out = append(out, fset.Position(c.Pos()).Line)
+		}
+	}
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.AssignStmt:
+			last, ok := n.Lhs[len(n.Lhs)-1].(*ast.Ident)
+			if len(n.Rhs) == 1 && ok && last.Name == "_" {
+				add(n.Rhs[0])
+			}
+		case *ast.ExprStmt:
+			add(n.X)
+		case *ast.GoStmt:
+			add(n.Call)
+		case *ast.DeferStmt:
+			add(n.Call)
+		}
+		return true
+	})
+	return out
+}
+
+// isTx says a called function is Tx of a store or TxGet.
+func isTx(fun ast.Expr) bool {
+	if ix, ok := fun.(*ast.IndexExpr); ok {
+		fun = ix.X
+	}
+	switch fn := fun.(type) {
+	case *ast.SelectorExpr:
+		return fn.Sel.Name == "Tx" || fn.Sel.Name == "TxGet"
+	case *ast.Ident:
+		return fn.Name == "TxGet"
+	}
+	return false
 }
 
 // importName is the name a file imports a package by, "" when it does not.

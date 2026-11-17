@@ -21,6 +21,7 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/home"
 	"deck2/internal/registry"
+	"deck2/internal/release"
 	"deck2/internal/store"
 
 	"github.com/google/uuid"
@@ -140,6 +141,13 @@ func BeforeUpdate(h home.Layout, now func() time.Time) store.Before {
 			return err
 		}
 		slog.Info("the base is kept before it is migrated", "from", from, "to", last, "snapshot", path)
+		if p, ok := release.ReadPending(h.Update()); ok && p.Tried {
+			// The update's own snapshot, which its rollback puts back.
+			p.Base = path
+			if err := home.WriteFile(h.Update(), p.JSON()); err != nil {
+				return err
+			}
+		}
 		return home.WriteFile(h.UpdateKept(), []byte(fmt.Sprint(last)))
 	}
 }

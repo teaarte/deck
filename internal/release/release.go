@@ -185,6 +185,8 @@ type Pending struct {
 	Old     string `json:"old"`
 	Version string `json:"version"`
 	Tried   bool   `json:"tried,omitempty"`
+	// Base is the snapshot of the base the update's first start kept before it migrated it.
+	Base string `json:"base,omitempty"`
 }
 
 // ReadPending is the pending update kept at path, if there is one.

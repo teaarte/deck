@@ -260,8 +260,8 @@ func cleanEnv() error {
 	return syscall.Exec(exe, os.Args, clean)
 }
 
-// pending starts the binary before an update when the updated deck already tried to start and never served; a
-// first start of the update marks it tried.
+// pending starts the binary before an update, on the base before it, when the updated deck already tried to start
+// and never served; a first start of the update marks it tried.
 func pending(h deckhome.Layout) error {
 	p, ok := release.ReadPending(h.Update())
 	switch {
@@ -271,7 +271,12 @@ func pending(h deckhome.Layout) error {
 		p.Tried = true
 		return home.WriteFile(h.Update(), p.JSON())
 	}
-	slog.Error("the update did not start; deck goes back to the binary before it", "version", p.Version)
+	slog.Error("the update did not start; deck goes back to the binary before it", "version", p.Version, "base", p.Base)
+	if p.Base != "" {
+		if err := h.PutBack(p.Base); err != nil {
+			return fmt.Errorf("go back from the update %s to the base before it (docs/install.md, \"Restoring a snapshot\"): %w", p.Version, err)
+		}
+	}
 	os.Remove(h.Update())
 	if err := os.Rename(p.Old, p.Exe); err != nil {
 		return fmt.Errorf("go back from the update %s: %w", p.Version, err)

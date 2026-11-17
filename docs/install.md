@@ -117,6 +117,11 @@ Then name the older image in `compose.override.yaml` (create it if there is none
 line `image: ghcr.io/teaarte/deck:<older version>`, and `docker compose up -d`. The files are deck's as the user
 `deck` extracts them; as root they would be root's and deck could not open its base.
 
+A deck that updates itself as a binary (`deck.update_install`, without Docker) goes back by itself: when the new
+binary migrated the base and fell before it served, the next start puts the base of that update's own `update-`
+snapshot back, removes `deck.db-wal` and `deck.db-shm` and runs the binary before the update. What the new deck wrote
+between its migration and its fall is gone. The steps below are for an image, or for a base whose snapshot was removed.
+
 What deck wrote to its base after that update is gone; stored files and data folders stay as they are. A daily
 snapshot goes back the same way, with its whole `state/files` and `projects/*/data` too (`tar -xzf <snapshot>` in
 `/var/lib/deck`). Without Docker the same steps run in `~/.deck2` with deck stopped. Back on the newest image, remove

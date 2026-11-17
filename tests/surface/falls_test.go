@@ -1,19 +1,30 @@
 package surface
 
 import (
+	"bufio"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"flag"
+	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"deck2/internal/egress"
+	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
+	"deck2/internal/release"
 	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
@@ -114,8 +125,155 @@ func TestFall08AReplyOfTheMasterThatDidNotStart(t *testing.T) {
 	t.Skip("row 8, A6: a message whose reply did not start waits for a new message or a restart; PumpChats runs only at start")
 }
 
+// TestFall09ANewVersionFallsAfterItsMigration: an update put in place migrates the base and falls before it serves;
+// the next start goes back to the binary and the base before the update, and that deck serves.
 func TestFall09ANewVersionFallsAfterItsMigration(t *testing.T) {
-	t.Skip("row 9, A2: an update that migrated the base and fell before it served leaves the old deck unable to start on it")
+	t.Parallel()
+	e := harness.New(t)
+	h := deckhome.Layout(e.Home)
+	e.Project("kept", harness.PlainManifest)
+	var before int64
+	if err := e.SQLRow(`SELECT max(version_id) FROM goose_db_version`).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	e.Stop()
+
+	// The next deck: one migration that runs, one that fails after it.
+	migrations := filepath.Join(harness.Root, "internal", "store", "migrations")
+	overlay := map[string]string{
+		filepath.Join(migrations, "99990_next.sql"):   "-- +goose Up\nCREATE TABLE next_table (x INTEGER);\n",
+		filepath.Join(migrations, "99991_broken.sql"): "-- +goose Up\nTHIS IS NOT SQL;\n",
+	}
+	old, upd := buildDeck(t, nil), buildDeck(t, overlay)
+	dir := t.TempDir()
+	exe := filepath.Join(dir, "deck")
+	copyFile(t, upd, exe)
+	copyFile(t, old, exe+".old")
+	pending := release.Pending{Exe: exe, Old: exe + ".old", Version: "v-next"}
+	if err := os.WriteFile(h.Update(), pending.JSON(), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if out, served := startDeck(t, exe, e.Home); served {
+		t.Fatalf("the next deck falls on its broken migration:\n%s", out)
+	}
+	base := harness.OpenBase(t, h.DB())
+	var migrated int64
+	if err := base.QueryRow(`SELECT max(version_id) FROM goose_db_version`).Scan(&migrated); err != nil || migrated != 99990 {
+		t.Fatalf("the next deck migrated the base before it fell: %d %v", migrated, err)
+	}
+	base.Close()
+
+	// The service manager starts deck again.
+	if out, served := startDeck(t, exe, e.Home); !served {
+		t.Fatalf("the deck before the update serves on the base before it:\n%s", out)
+	}
+	base = harness.OpenBase(t, h.DB())
+	defer base.Close()
+	var version, kept, nextTable int64
+	if err := base.QueryRow(`SELECT max(version_id) FROM goose_db_version`).Scan(&version); err != nil || version != before {
+		t.Fatalf("the base is the one before the update, at %d: %d %v", before, version, err)
+	}
+	_ = base.QueryRow(`SELECT count(*) FROM project WHERE name = 'kept'`).Scan(&kept)
+	_ = base.QueryRow(`SELECT count(*) FROM sqlite_master WHERE name = 'next_table'`).Scan(&nextTable)
+	if kept != 1 || nextTable != 0 {
+		t.Fatalf("the base holds what it held before the update and nothing of it: kept %d, next_table %d", kept, nextTable)
+	}
+	if sum(t, exe) != sum(t, old) {
+		t.Fatal("the binary in place is the one before the update")
+	}
+	for _, gone := range []string{h.Update(), h.UpdateKept(), exe + ".old"} {
+		if _, err := os.Stat(gone); !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("%s goes with the update: %v", gone, err)
+		}
+	}
+}
+
+// buildDeck builds deck from this tree with the files of overlay added by their paths.
+func buildDeck(t *testing.T, overlay map[string]string) string {
+	t.Helper()
+	dir := t.TempDir()
+	args := []string{"build", "-o", filepath.Join(dir, "deck")}
+	if len(overlay) > 0 {
+		replace := map[string]string{}
+		for path, text := range overlay {
+			f := filepath.Join(dir, filepath.Base(path))
+			if err := os.WriteFile(f, []byte(text), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			replace[path] = f
+		}
+		b, _ := json.Marshal(map[string]any{"Replace": replace})
+		if err := os.WriteFile(filepath.Join(dir, "overlay.json"), b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		args = append(args, "-overlay", filepath.Join(dir, "overlay.json"))
+	}
+	cmd := exec.Command("go", append(args, "./cmd/deck")...)
+	cmd.Dir = harness.Root
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("build deck: %v\n%s", err, out)
+	}
+	return filepath.Join(dir, "deck")
+}
+
+// startDeck starts the binary at exe on home until it serves or ends; one that serves is stopped.
+func startDeck(t *testing.T, exe, home string) (string, bool) {
+	t.Helper()
+	// Agent CLIs that fail stand before the owner's, so a self-check never runs on the owner's accounts.
+	shims := t.TempDir()
+	for _, name := range []string{"claude", "codex"} {
+		if err := harness.WriteProgram(filepath.Join(shims, name), []byte("#!/bin/sh\nexit 1\n")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd := exec.Command(exe, "-addr", "127.0.0.1:0")
+	cmd.Env = append(os.Environ(), "DECK_HOME="+home, "PATH="+shims+string(os.PathListSeparator)+os.Getenv("PATH"))
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	var said []string
+	served := make(chan bool, 1)
+	go func() {
+		sc := bufio.NewScanner(stderr)
+		for sc.Scan() {
+			said = append(said, sc.Text())
+			if strings.Contains(sc.Text(), "deck listening") {
+				served <- true
+				_, _ = io.Copy(io.Discard, stderr)
+				return
+			}
+		}
+		close(served)
+	}()
+	ok := harness.Receive(t, "deck to serve or end", served)
+	_ = cmd.Process.Signal(syscall.SIGTERM)
+	_ = cmd.Wait()
+	return strings.Join(said, "\n"), ok
+}
+
+func copyFile(t *testing.T, from, to string) {
+	t.Helper()
+	b, err := os.ReadFile(from)
+	if err == nil {
+		err = os.WriteFile(to, b, 0o700)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func sum(t *testing.T, path string) string {
+	t.Helper()
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(b))
 }
 
 func TestFall10ABlobWithoutItsRow(t *testing.T) {

@@ -183,18 +183,18 @@ func TestCeilingStopsTheAgentAndManifestOverridesIt(t *testing.T) {
 		return e.Proc(a).Deadline != "" && e.Proc(b).Deadline != "" && len(e.Log(a)) == 1 && len(e.Log(b)) == 1
 	})
 	e.Clock.Add(59 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	if got := e.Proc(a); got.State != "running" {
 		t.Fatalf("the ceiling of a command agent is an hour: %+v", got)
 	}
 	e.Clock.Add(2 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	got := e.WaitState(a, "error")
 	if !strings.Contains(got.Error, "ceiling") || e.Proc(b).State != "running" {
 		t.Fatalf("the ceiling stops the agent; a manifest ceiling of 2 h holds: %+v %+v", got, e.Proc(b))
 	}
 	e.Clock.Add(time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.WaitState(b, "error")
 }
 
@@ -213,19 +213,19 @@ func TestCeilingAndSilenceWaitForABlockingQuestion(t *testing.T) {
 	a := e.WaitAsk()
 	e.Until("the ceiling to pause", func() bool { return e.Proc(id).Deadline == "" })
 	e.Clock.Add(2 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	if got := e.Proc(id); got.State != "running" || got.SilentSince != "" {
 		t.Fatalf("while the owner owes an answer the ceiling does not tick and the process is not silent: %+v", got)
 	}
 	e.Answer(a.ID, "the first")
 	e.Until("the ceiling to run again", func() bool { return e.Proc(id).Deadline != "" })
 	e.Clock.Add(50 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	if e.Proc(id).State != "running" {
 		t.Fatal("the time of the question does not count against the ceiling")
 	}
 	e.Clock.Add(20 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	e.WaitState(id, "error")
 }
 
@@ -244,12 +244,12 @@ func TestSilentProcessShowsSinceItsLastOutput(t *testing.T) {
 	id := e.Run(p, "job")
 	e.Until("the first output", func() bool { return len(e.Log(id)) == 1 })
 	e.Clock.Add(29 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	if e.Proc(id).SilentSince != "" {
 		t.Fatal("29 minutes without output is not silent yet")
 	}
 	e.Clock.Add(2 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	if got := e.Proc(id).SilentSince; got != harness.T0.UTC().Format("2006-01-02T15:04:05.000Z") {
 		t.Fatalf("silent since the last output at 08:00, got %q", got)
 	}
@@ -346,7 +346,6 @@ func TestLogSurvivesARestartAndTheClose(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}}
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(fake2))
-	e2.Resume()
 	e2.WaitState(id, "done")
 	if l := e2.Log(id); len(l) != 2 || l[1]["text"] != "second" {
 		t.Fatalf("a closed process keeps its log, both turns of it: %v", l)
@@ -397,7 +396,6 @@ func TestLeftoverCLIGroupIsKilledBeforeResume(t *testing.T) {
 	_ = e1.App.Close()
 
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)))
-	e2.Resume()
 	harness.Receive(t, "the kill of the CLI group a crashed deck left, before the session resumes", ours)
 	harness.Receive(t, "the kill of the group of a provider the owner removed since", removed)
 	select {
@@ -457,7 +455,7 @@ func TestCeilingDoesNotTickWhileParked(t *testing.T) {
 	e.Clock.Add(3 * time.Hour)
 	e.Answer(a.ID, "allow")
 	e.Until("the resumed turn", func() bool { return len(e.Fake.Calls()) == 2 && e.Proc(id).Deadline != "" })
-	e.Sweep()
+	e.Tick()
 	if got := e.Proc(id); got.State != "running" {
 		t.Fatalf("hours parked for an answer do not count against the ceiling: %+v", got)
 	}
@@ -485,15 +483,14 @@ func TestCeilingDoesNotCountTheTimeDeckWasDown(t *testing.T) {
 	_ = e1.App.Close()
 	clock.Add(2 * time.Hour)
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{Script: blocked}), harness.WithClock(clock))
-	e2.Resume()
 	e2.Until("the resumed ceiling and a sign of the model", func() bool { return e2.Proc(id).Deadline != "" && len(e2.Log(id)) == 2 })
 	clock.Add(49 * time.Minute)
-	e2.Sweep()
+	e2.Tick()
 	if got := e2.Proc(id); got.State != "running" {
 		t.Fatalf("the two hours deck was down do not count against the ceiling: %+v", got)
 	}
 	clock.Add(2 * time.Minute)
-	e2.Sweep()
+	e2.Tick()
 	e2.WaitState(id, "error")
 }
 
@@ -523,7 +520,7 @@ func TestCeilingRunsAgainWhenAQuestionGoesUnanswered(t *testing.T) {
 		}
 	})
 	e.Clock.Add(61 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	e.WaitState(id, "error")
 }
 
@@ -628,7 +625,7 @@ func TestCeilingWaitsForAConfirmationToo(t *testing.T) {
 	a := e.WaitAsk()
 	e.Until("the ceiling to pause", func() bool { return e.Proc(id).Deadline == "" })
 	e.Clock.Add(2 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	if got := e.Proc(id); got.State != "running" {
 		t.Fatalf("while the owner decides on a call the ceiling does not tick: %+v", got)
 	}
@@ -773,7 +770,7 @@ func TestAnAgentHearsItsCeilingNearAndTheErrorNamesWhatStillRuns(t *testing.T) {
 	kid := <-child
 	e.Until("the ceiling to run and the child to give a sign", func() bool { return e.Proc(id).Deadline != "" && len(e.Log(kid)) == 1 })
 	e.Clock.Add(51 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	if got := <-told; !strings.Contains(got, "time ceiling in 9 minutes") {
 		t.Fatalf("the agent hears its ceiling near: %q", got)
 	}
@@ -783,7 +780,7 @@ func TestAnAgentHearsItsCeilingNearAndTheErrorNamesWhatStillRuns(t *testing.T) {
 		t.Fatalf("a wait ends before the ceiling of the process that waits, not after %s", d)
 	}
 	e.Clock.Add(2 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	got := e.WaitState(id, "error")
 	if want := fmt.Sprintf("the processes it started still run: #%d child", kid); !strings.Contains(got.Error, want) {
 		t.Fatalf("the error at the ceiling names what still runs: %q", got.Error)

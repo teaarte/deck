@@ -179,7 +179,7 @@ func (d *pushDevice) subscribe(e *harness.Env, srv *httptest.Server, name string
 func (d *pushDevice) wait(e *harness.Env, n int) []map[string]string {
 	e.T.Helper()
 	e.Until("pushes", func() bool {
-		e.App.Sweep(context.Background(), time.Now())
+		e.App.Tick(context.Background(), time.Now())
 		d.mu.Lock()
 		defer d.mu.Unlock()
 		return len(d.got) >= n
@@ -251,7 +251,7 @@ func TestPushGoesToSubscribedDevices(t *testing.T) {
 	d.mu.Unlock()
 	e.Must("deck.owner_notify", map[string]any{"project": "work", "text": "once more"}, nil)
 	e.Until("the gone device to go", func() bool {
-		e.App.Sweep(context.Background(), time.Now())
+		e.App.Tick(context.Background(), time.Now())
 		return len(e.Pushed()) == 0
 	})
 }
@@ -309,14 +309,14 @@ func TestAPushThatFailsForNowIsSentAgain(t *testing.T) {
 	d.subscribe(e, flaky, "mac")
 	e.Project("work", harness.PlainManifest)
 	e.Must("deck.owner_notify", map[string]any{"project": "work", "text": "The list is updated."}, nil)
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	if n := len(d.got); n != 0 {
 		t.Fatalf("nothing arrives while the service fails: %d", n)
 	}
 	mu.Lock()
 	failing = false
 	mu.Unlock()
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	if got := d.wait(e, 1); got[0]["body"] != "The list is updated." {
 		t.Fatalf("the push that failed for now goes out at the next look: %+v", got)
 	}
@@ -424,7 +424,7 @@ func TestADeviceThatFailsHoldsBackOnlyItself(t *testing.T) {
 	e.Must("deck.owner_notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	good.wait(e, 1)
 	for range 3 {
-		e.App.Sweep(context.Background(), time.Now())
+		e.App.Tick(context.Background(), time.Now())
 	}
 	if n := len(good.wait(e, 1)); n != 1 {
 		t.Fatalf("a device that took a push does not get it again while another fails: %d pushes", n)
@@ -464,7 +464,7 @@ func TestADeviceThePushServiceRefusesIsTurnedOnAgainFromItsHealthRow(t *testing.
 	dev.subscribe(e, refusing, "MacIntel")
 	e.Project("work", harness.PlainManifest)
 	e.Must("deck.owner_notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	h := e.WaitHealth("push", "error")
 	if !strings.Contains(h.Error, "MacIntel") || !strings.Contains(h.Error, "on again on this device") {
 		t.Fatalf("the health says how to turn the pushes of the device on again: %+v", h)
@@ -527,7 +527,7 @@ func TestAPushRefusedForDecksOwnSignatureKeepsTheDevice(t *testing.T) {
 	dev.subscribe(e, refusing, "MacIntel")
 	e.Project("work", harness.PlainManifest)
 	e.Must("deck.owner_notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	if h := e.WaitHealth("push", "error"); !strings.Contains(h.Error, "BadJwtToken") {
 		t.Fatalf("the health says why the service refused: %+v", h)
 	}
@@ -552,7 +552,7 @@ func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
 		dev, _ := newPushDevice(t)
 		dev.subscribe(e, refusing, name)
 		e.Must("deck.owner_notify", map[string]any{"project": "work", "text": fmt.Sprintf("Report %d is ready", i)}, nil)
-		e.App.Sweep(context.Background(), time.Now())
+		e.App.Tick(context.Background(), time.Now())
 		if h := e.WaitHealth("push", "error"); !strings.Contains(h.Error, name) {
 			t.Fatalf("the health names the device: %+v", h)
 		}
@@ -568,7 +568,7 @@ func TestPushesThatStopTellTheOwnerOnceAndTheHealthStandsAlone(t *testing.T) {
 	e.Must("deck.owner_notify", map[string]any{"project": "work", "text": "The report is ready"}, nil)
 	// A base that refuses the note, as a full disk would.
 	e.SQL(`CREATE TRIGGER no_notes BEFORE INSERT ON feed WHEN NEW.text LIKE 'Pushes stopped%' BEGIN SELECT RAISE(FAIL, 'no notes'); END`)
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	if h := e.WaitHealth("push", "error"); !strings.Contains(h.Error, "MacIntel") || notes(e) != 0 {
 		t.Fatalf("the health of pushes is written apart from the note: %+v", h)
 	}

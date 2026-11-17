@@ -102,7 +102,7 @@ func TestUploadsNeedTheProjectAndGoWhenNoCommandTookThem(t *testing.T) {
 	}
 	kept := e.Upload("docs", "kept.txt", "text/plain", "k")
 	e.WaitState(e.Start("docs", "read", map[string]any{"doc": fmt.Sprint(kept)}), "done", "error")
-	e.App.Sweep(context.Background(), e.Clock.Add(25*time.Hour))
+	e.App.Tick(context.Background(), e.Clock.Add(25*time.Hour))
 	var uploads, all int
 	var listed []struct {
 		OwnerKind string `json:"owner_kind"`
@@ -148,7 +148,7 @@ print(json.dumps({"files": [{"path": "a.txt"}]}))
 	if len(shown) != 1 || shown[0].ID != kept[0].ID {
 		t.Fatalf("a file still moving belongs to no one: %+v", shown)
 	}
-	e.App.Sweep(context.Background(), e.Clock.Add(25*time.Hour))
+	e.App.Tick(context.Background(), e.Clock.Add(25*time.Hour))
 	e.Drained()
 	var n int
 	// The row of a file mid-move, which no list shows.
@@ -535,7 +535,7 @@ func TestAPictureWithoutALightCopyGetsOne(t *testing.T) {
 	id := e.Upload("notes", "old.png", "image/png", b.String())
 	// A cover a deck before light copies kept.
 	e.SQL(`INSERT INTO picture (project_id, slot, scheme, file_id) SELECT id, 'cover', 'light', ? FROM project WHERE name = 'notes'`, id)
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	var covers []struct{ File int64 }
 	e.Must("deck.project_covers_list", map[string]any{"project": "notes"}, &covers)
 	var m struct {

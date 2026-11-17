@@ -140,11 +140,11 @@ func TestTheJournalKeepsHalfAYear(t *testing.T) {
 	if calls == 0 || notes != 1 {
 		t.Fatalf("the calls and the line are kept: %d %d", calls, notes)
 	}
-	e.App.Sweep(context.Background(), time.Now().Add(91*24*time.Hour))
+	e.App.Tick(context.Background(), time.Now().Add(91*24*time.Hour))
 	if journal() != calls || len(e.Notes()) != 0 {
 		t.Fatalf("after 91 days the calls stay and the note goes: %d %d", journal(), len(e.Notes()))
 	}
-	e.App.Sweep(context.Background(), time.Now().Add(3*181*24*time.Hour))
+	e.App.Tick(context.Background(), time.Now().Add(3*181*24*time.Hour))
 	if n := journal(); n != 0 {
 		t.Fatalf("after 181 days the calls go: %d", n)
 	}
@@ -209,7 +209,7 @@ func TestTheSpendOfAPurgedProcessStays(t *testing.T) {
 	e.WaitState(id, "done")
 	e.Settle()
 	e.Clock.Add(25 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.Refused("deck.process_get", map[string]any{"process": id}, 404, "no process")
 	var spend []struct {
 		Project, Command string
@@ -301,7 +301,7 @@ func TestAnEmptyProcessThatWroteRecordsStays(t *testing.T) {
 	e.WaitState(idle, "done")
 	e.Settle()
 	e.Clock.Add(25 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.Refused("deck.process_get", map[string]any{"process": idle}, 404, "no process")
 	e.Must("deck.process_get", map[string]any{"process": wrote}, nil)
 }

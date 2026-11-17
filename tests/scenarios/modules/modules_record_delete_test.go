@@ -108,7 +108,7 @@ func TestARecordFolderGoesOnlyWhenNoOtherRecordHoldsIt(t *testing.T) {
 	}
 	// A folder in the outbox a crash left before deck got to it.
 	e.SQL(`INSERT INTO outbox (kind, ref, path) VALUES ('folder', ?, 'videos/shared')`, pid)
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	if !exists(filepath.Join(data, "videos", "shared", "f.txt")) {
 		t.Fatal("the outbox leaves a folder a record holds by the time it gets to it")
 	}
@@ -418,7 +418,7 @@ func TestRetentionAndCollectionDeleteTakeWhatBelongsToARecord(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(data, "videos", "new"), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	e.Sweep()
+	e.Tick()
 	e.Drained()
 	if count("videos") != 1 || count("scenes") != 1 || exists(filepath.Join(data, "videos", "old")) || !exists(filepath.Join(data, "videos", "new")) {
 		t.Fatalf("an expired record goes with its scene and folder: %d videos, %d scenes", count("videos"), count("scenes"))
@@ -447,13 +447,13 @@ func TestAFolderThatWillNotGoIsTheHealthOfTheOutbox(t *testing.T) {
 	ids := videos(e, map[string]any{"slug": "knights", "dir": "knights"})
 	e.Must("deck.record_delete", map[string]any{"record": ids["knights"]}, nil)
 	e.Drained()
-	e.App.Sweep(context.Background(), time.Now())
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	if h := e.HealthRowOf("outbox"); h == nil || h["status"] != "error" || !strings.Contains(fmt.Sprint(h["error"]), "videos/knights") {
 		t.Fatalf("the folder that will not go is red in the health of the outbox: %v", h)
 	}
 	_ = os.Chmod(filepath.Join(data, "videos", "knights"), 0o700)
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	if h := e.HealthRowOf("outbox"); h != nil {
 		t.Fatalf("once it goes the outbox is well: %v", h)
 	}
@@ -471,7 +471,7 @@ func TestTheFolderOfADeletedProjectGoesEvenAfterACrash(t *testing.T) {
 	}
 	// A project whose row went in a crash before deck removed its folder.
 	e.SQL(`DELETE FROM project WHERE id = ?`, pid)
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	if exists(dir) {
 		t.Fatal("the folder of a deleted project goes")
 	}
@@ -488,7 +488,7 @@ func TestARecordDeckCannotPlanKeepsRetentionRedInHealth(t *testing.T) {
 	// A file of the record, as a run of it leaves one.
 	e.SQL(`UPDATE file SET owner_kind = 'record', owner_id = ?`, ids["old"])
 	e.Clock.Add(31 * 24 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	n := 0
 	for _, h := range e.Health("films") {
 		if h.Subject == "retention:films" && h.Status == "error" {
@@ -516,7 +516,7 @@ func TestRetentionOfEachProjectIsRedAndReadApart(t *testing.T) {
 		e.Must("deck.record_upsert", map[string]any{"project": name, "collection": "videos", "records": harness.Jsonl(map[string]any{"slug": "nodir-" + name})}, nil)
 	}
 	e.Clock.Add(31 * 24 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	why := map[string]string{}
 	var hs []struct{ Project, Subject, Status, Error string }
 	e.Must("deck.health_list", nil, &hs)
@@ -565,7 +565,7 @@ func TestRetentionLeavesTheFrozenCallsOfTheProcessesItStops(t *testing.T) {
 	a := e.WaitAsk()
 	// Records made long ago, past their retention.
 	e.SQL(`UPDATE record SET created_at = '2000-01-01T00:00:00.000Z' WHERE project_id = ?`, pid)
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	if got := e.WaitState(watch, "stopped", "done", "error"); got.State != "stopped" {
 		t.Fatalf("the process of the expired record is stopped: %+v", got)
 	}

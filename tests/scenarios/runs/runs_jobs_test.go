@@ -107,7 +107,6 @@ func TestExternalJobSurvivesARestartAndDownloadsTheFile(t *testing.T) {
 	_ = e.App.Close()
 
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}), harness.WithClock(clock))
-	e2.Resume()
 	clock.Add(5 * time.Minute)
 	e2.App.Scheduler.Tick(context.Background())
 	var check harness.Proc

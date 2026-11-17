@@ -400,7 +400,7 @@ func TestTheDiskHealthReachesTheOpenScreens(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	stream := e.Events(t.Context())
-	e.App.Sweep(context.Background(), time.Now().Add(time.Hour))
+	e.App.Tick(context.Background(), time.Now().Add(time.Hour))
 	harness.WaitEvent(t, stream, events.Event{Topic: "health"})
 }
 

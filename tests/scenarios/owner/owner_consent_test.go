@@ -52,7 +52,7 @@ func TestConsentWarningSpeaksTheOwnersLanguage(t *testing.T) {
 				}
 			}
 			e.Clock.Add(11 * time.Minute)
-			e.Sweep()
+			e.Tick()
 			var rows []struct{ Subject, Status, Error string }
 			e.In("ru").Must("deck.health_list", nil, &rows)
 			for _, r := range rows {

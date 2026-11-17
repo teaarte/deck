@@ -342,7 +342,7 @@ func TestARunOfTheScheduleLeavesTheOwnersFactsToTheOwner(t *testing.T) {
 
 	// 03:30 of the next night, the schedule of the master's sleep.
 	e.Clock.Add(19*time.Hour + 31*time.Minute)
-	e.Tick()
+	e.Schedule()
 	e.Until("the run of the schedule", func() bool { return heard("sleep delete") != "<nil>" })
 	for _, k := range []string{"fact", "delete"} {
 		if got := heard("sleep " + k); !strings.HasPrefix(got, "true ") || !strings.Contains(got, "propose it with document_propose") {

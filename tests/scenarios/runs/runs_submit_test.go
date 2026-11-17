@@ -134,9 +134,9 @@ func TestDeckHandsTheMasterTheIncidentsAroundAProcess(t *testing.T) {
 	if got := incidents(); got["result_running"] != 0 {
 		t.Fatalf("a process that handed in its result a moment ago is no incident yet: %v", got)
 	}
-	e.App.Sweep(t.Context(), time.Now().Add(15*time.Minute))
+	e.App.Tick(t.Context(), time.Now().Add(15*time.Minute))
 	e.Until("the incident of the process that still runs", func() bool { return incidents()["result_running"] == hung })
-	e.App.Sweep(t.Context(), time.Now().Add(30*time.Minute))
+	e.App.Tick(t.Context(), time.Now().Add(30*time.Minute))
 	e.Must("deck.process_stop", map[string]any{"process": hung}, nil)
 	e.WaitState(hung, "done")
 	e.Settle()

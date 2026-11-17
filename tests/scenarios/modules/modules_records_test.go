@@ -161,14 +161,14 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 	}
 	file := filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "files", "1")
 	e.Clock.Add(29 * 24 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	var recs []map[string]any
 	e.Must("deck.records_list", map[string]any{"project": "files", "collection": "items"}, &recs)
 	if _, err := os.Stat(file); err != nil || len(recs) != 1 {
 		t.Fatalf("a record and its file stay before retention_days: %v, %d records", err, len(recs))
 	}
 	e.Clock.Add(2 * 24 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.Must("deck.records_list", map[string]any{"project": "files", "collection": "items"}, &recs)
 	var docs []map[string]any
 	e.Must("deck.documents_list", map[string]any{"project": "files"}, &docs)

@@ -272,7 +272,6 @@ func TestACallOfUnknownOutcomeIsKnownByItsIdentity(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
 	e2 := e.Restart(harness.WithProvider(second))
-	e2.Resume()
 	e2.Until("the second turn made its call", func() bool { return padded.Load() != nil })
 	if out := padded.Load().(string); !strings.Contains(out, "unknown outcome") || len(svc.Requests()) != 1 {
 		t.Fatalf("the padded call is the same call of unknown outcome: %q, %d requests", out, len(svc.Requests()))

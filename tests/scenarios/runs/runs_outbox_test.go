@@ -41,7 +41,7 @@ func TestAFileGoesOnlyWithItsRowEvenAcrossACrash(t *testing.T) {
 	e.SQL(`DELETE FROM file WHERE id = ?`, gone)
 	_ = e.App.Close()
 	e = harness.New(t, harness.WithHome(dir), harness.WithProvider(&harness.Fake{}))
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	if _, err := os.Stat(path(gone)); !os.IsNotExist(err) {
 		t.Fatalf("a file whose row deck deleted before it died goes once deck is back: %v", err)
 	}
@@ -77,7 +77,6 @@ func TestAProcessThatClosedBeforeACrashIsHeardAfterIt(t *testing.T) {
 	_ = e.App.Close()
 	for range 2 {
 		e = harness.New(t, harness.WithHome(dir), harness.WithProvider(fake))
-		e.Resume()
 		e.Until("the after trigger of the closed process", func() bool { return e.CountOf("next") >= 1 })
 		e.Settle()
 		if n := e.CountOf("next"); n != 1 {
@@ -146,7 +145,7 @@ func TestACronAcrossTheClockShifts(t *testing.T) {
 			}
 			got = append(got, next.In(oslo).Format("01-02 15:04 MST"))
 			clock.Add(next.Sub(clock.Now()))
-			e.Tick()
+			e.Schedule()
 			e.Settle()
 			if n := e.CountOf("job"); n != i+1 {
 				t.Fatalf("%s from %s: the slot %s starts one run, %d in all", c.cron, c.from, got[i], n)
@@ -197,11 +196,11 @@ func TestAFileThatWillNotGoIsInHealthUntilItGoes(t *testing.T) {
 	// The row of a file gone for good, as the trash leaves it after a day.
 	e.SQL(`DELETE FROM file WHERE id = ?`, id)
 	for range 3 {
-		e.App.Sweep(context.Background(), time.Now())
+		e.App.Tick(context.Background(), time.Now())
 	}
 	e.WaitHealth("outbox", "error")
 	_ = os.Remove(filepath.Join(stored, "in"))
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	for _, h := range e.Health() {
 		if h.Subject == "outbox" {
 			t.Fatalf("the red row goes once the file does: %+v", h)

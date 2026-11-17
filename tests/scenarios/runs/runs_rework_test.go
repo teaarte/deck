@@ -88,12 +88,12 @@ func TestWorkFolderOfAFinishedAgentGoesAfterAWeek(t *testing.T) {
 	e.WaitState(id, "done")
 	work := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "runs", fmt.Sprint(id))
 	e.Clock.Add(6 * 24 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	if _, err := os.Stat(work); err != nil {
 		t.Fatalf("the work folder stays for rework during the week: %v", err)
 	}
 	e.Clock.Add(2 * 24 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	if _, err := os.Stat(work); !os.IsNotExist(err) {
 		t.Fatalf("after a week the work folder goes: %v", err)
 	}

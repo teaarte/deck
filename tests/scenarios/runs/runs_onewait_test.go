@@ -72,7 +72,7 @@ func TestAQuestionLeftPastItsTermGoesOnWithoutTheAnswerAndFreesTheFolder(t *test
 	e.WaitState(second, "waiting:folder")
 
 	e.Clock.Add(25 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.WaitState(first, "done")
 	e.WaitState(second, "done")
 	mu.Lock()
@@ -112,12 +112,12 @@ func TestAWaitThatFailsAtItsTermEndsTheProcess(t *testing.T) {
 				t.Fatalf("the wait says its term and that its silence fails it: %+v, want until %s", w, until)
 			}
 			e.Clock.Add(c.term - time.Minute)
-			e.Sweep()
+			e.Tick()
 			if got := e.Proc(id); got.State != "waiting:"+c.reason {
 				t.Fatalf("before its term the process waits: %+v", got)
 			}
 			e.Clock.Add(2 * time.Minute)
-			e.Sweep()
+			e.Tick()
 			e.WaitState(id, "error")
 			if f := e.Fault(id); f.ErrorType != c.fault {
 				t.Fatalf("at its term the wait ends with the failure its silence names: %+v", f)
@@ -167,7 +167,7 @@ func TestEveryWaitHoldsThroughARestartAndWakesOnItsCondition(t *testing.T) {
 				return id
 			}, func(e *harness.Env) {
 				e.Clock.Add(2*time.Hour + time.Minute)
-				e.Sweep()
+				e.Tick()
 			}},
 		{"provider", ok, func(e *harness.Env) int64 {
 			redProvider(e)
@@ -177,7 +177,7 @@ func TestEveryWaitHoldsThroughARestartAndWakesOnItsCondition(t *testing.T) {
 		}, func(e *harness.Env) {
 			// The row a passed self-check of the provider writes.
 			e.SQL(`UPDATE health SET status = 'ok', verdict = '' WHERE subject = 'provider:fake'`)
-			e.Sweep()
+			e.Tick()
 		}},
 		{"slot", hang, func(e *harness.Env) int64 {
 			e.Must("deck.setting_set", map[string]any{"name": "agent_limit", "value": "1"}, nil)
@@ -218,7 +218,6 @@ func TestEveryWaitHoldsThroughARestartAndWakesOnItsCondition(t *testing.T) {
 
 			release := make(chan struct{}, 4)
 			e2 := e.Restart(harness.WithProvider(&harness.Fake{Script: held(release)}))
-			e2.Resume()
 			if got := e2.Proc(id); got.State != "waiting:"+c.reason || *got.Wait != before {
 				t.Fatalf("a restart keeps the wait as it was: %+v, was %+v", got.Wait, before)
 			}

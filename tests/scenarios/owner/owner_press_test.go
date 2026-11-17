@@ -69,7 +69,7 @@ func TestTheOwnersPressIsTheYesToTheCallItsButtonNames(t *testing.T) {
 
 	// The same apply by the schedule asks, as before.
 	e.Clock.Add(time.Hour + time.Minute)
-	e.Tick()
+	e.Schedule()
 	e.Until("the scheduled apply to ask", func() bool {
 		var as []harness.Ask
 		e.Must("deck.asks_list", nil, &as)

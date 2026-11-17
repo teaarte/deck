@@ -159,7 +159,7 @@ func TestConfirmationExpiresAndProcessIsTold(t *testing.T) {
 	e.PassState(id, "waiting:answer")
 	a := e.WaitAsk()
 	e.Clock.Add(2 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.WaitState(id, "done")
 	if !strings.Contains(e.Fake.Calls()[1].Prompt, "Expired") {
 		t.Fatalf("resume must report the expiry: %q", e.Fake.Calls()[1].Prompt)
@@ -189,7 +189,6 @@ func TestShutdownKeepsProcessForResumeAfterRestart(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}}
 	e2 := e.Restart(harness.WithProvider(fake2))
-	e2.Resume()
 	e2.WaitState(id, "done")
 	calls := fake2.Calls()
 	if len(calls) != 1 || !calls[0].Resume || calls[0].SessionID != fake.Calls()[0].SessionID || !strings.Contains(calls[0].Prompt, "restarted") {
@@ -312,10 +311,10 @@ func TestAnswerSavedBeforeRestartReachesParkedProcess(t *testing.T) {
 	fake2 := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"written": 0}`)}
 	}}
-	e2 := e.Restart(harness.WithProvider(fake2))
-	// An answer saved as deck stopped, before it reached the process.
-	e2.SQL(`UPDATE ask SET answer = 'rust', state = 'answered' WHERE id = ? AND state = 'open'`, a.ID)
-	e2.Resume()
+	e2 := e.Restart(harness.WithProvider(fake2), harness.BeforeStart(func(e2 *harness.Env) {
+		// An answer saved as deck stopped, before it reached the process.
+		e2.SQL(`UPDATE ask SET answer = 'rust', state = 'answered' WHERE id = ? AND state = 'open'`, a.ID)
+	}))
 	e2.WaitState(id, "done")
 	if calls := fake2.Calls(); len(calls) != 1 || !strings.Contains(calls[0].Prompt, "rust") {
 		t.Fatalf("the saved answer must reach the parked process after restart, got %+v", calls)

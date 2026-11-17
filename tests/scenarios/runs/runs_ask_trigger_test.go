@@ -96,7 +96,7 @@ print(json.dumps(json.load(sys.stdin)))
 	late, lateBy := ask("jobs")
 	e.Until("the module to hear yes and no", func() bool { return len(heardRuns(e, "jobs")) == 2 })
 	e.Clock.Add(25 * time.Hour)
-	e.App.Sweep(context.Background(), e.Clock.Now())
+	e.App.Tick(context.Background(), e.Clock.Now())
 
 	var runs map[int64]map[string]any
 	e.Until("the module to hear its three asks", func() bool { runs = heardRuns(e, "jobs"); return len(runs) == 3 })
@@ -113,7 +113,7 @@ print(json.dumps(json.load(sys.stdin)))
 	}
 
 	e.App.Answers.Heard(context.Background())
-	e.App.Sweep(context.Background(), e.Clock.Now())
+	e.App.Tick(context.Background(), e.Clock.Now())
 	if again := heardRuns(e, "jobs"); len(again) != 3 || runs[others] != nil {
 		t.Fatalf("an ask is heard once, and only by the module whose process asked: %+v", again)
 	}

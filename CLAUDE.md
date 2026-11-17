@@ -39,7 +39,7 @@ hold; look inside a package for the rest.
 
 - `cmd/deck` — entry point and flags.
 - `internal/app` — the wiring only: `New` builds every service from the functions of the others (a test checks none
-  is left unset), registers their commands and collects those of modules (`modules.go`), runs `Loop`/`Sweep`; background work goes through `Go(func(ctx)) bool`.
+  is left unset), registers their commands and collects those of modules (`modules.go`), runs `Start`, `Loop` and `Tick` (the harness starts and ticks deck by the same two); background work goes through `Go(func(ctx)) bool`.
   Each domain is a package `app/<area>` with a `Service` of narrow dependencies and `Commands()`; no domain imports
   `internal/app`. Who may touch what is `internal/access`. Deck's screens are data in `app/screens/shipped/` (a file a
   screen).

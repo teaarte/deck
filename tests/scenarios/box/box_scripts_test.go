@@ -236,12 +236,12 @@ func TestScriptCeilingAndFailures(t *testing.T) {
 	id := e.Start("slow", "wait", nil)
 	e.Until("the script to start", func() bool { return len(e.Log(id)) > 0 })
 	e.Clock.Add(9 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	if p := e.Proc(id); p.State != "running" {
 		t.Fatalf("a script runs until its ceiling of 10 minutes: %+v", p)
 	}
 	e.Clock.Add(2 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	if p := e.WaitState(id, "stopped", "done", "error"); p.State != "error" || !strings.Contains(p.Error, "ceiling") {
 		t.Fatalf("the ceiling stops the script: %+v", p)
 	}
@@ -605,12 +605,12 @@ func TestAScriptMayRunForHours(t *testing.T) {
 	id := e.Start("slow", "wait", nil)
 	e.Until("the script to start", func() bool { return len(e.Log(id)) > 0 })
 	e.Clock.Add(170 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	if p := e.Proc(id); p.State != "running" {
 		t.Fatalf("a script runs until its ceiling of three hours: %+v", p)
 	}
 	e.Clock.Add(11 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	if p := e.WaitState(id, "stopped", "done", "error"); p.State != "error" || !strings.Contains(p.Error, "ceiling") {
 		t.Fatalf("the ceiling stops the script: %+v", p)
 	}

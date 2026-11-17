@@ -75,7 +75,7 @@ func TestExternalCallWaitsForYesThenDeckMakesItFrozen(t *testing.T) {
 		t.Fatalf("an allowed call does not allow the next one: %s", second)
 	}
 	late := e.WaitAsk()
-	e.App.Sweep(context.Background(), e.Clock.Add(24*time.Hour+time.Minute))
+	e.App.Tick(context.Background(), e.Clock.Add(24*time.Hour+time.Minute))
 	e.WaitState(id, "done")
 	if msg := e.Fake.Calls()[2].Prompt; !strings.Contains(msg, "Expired") {
 		t.Fatalf("after 24 hours the agent gets expired: %q", msg)
@@ -126,7 +126,7 @@ func TestNoBecauseReachesTheAgentAndTheToolKeepsItsOwnTerm(t *testing.T) {
 	if !strings.Contains(fixed.Text, "hello, please") {
 		t.Fatalf("the agent gets the reason and makes a corrected call: %+v", fixed)
 	}
-	e.App.Sweep(context.Background(), e.Clock.Add(11*time.Minute))
+	e.App.Tick(context.Background(), e.Clock.Add(11*time.Minute))
 	e.WaitState(id, "done")
 	if msg := e.Fake.Calls()[2].Prompt; !strings.Contains(msg, "Expired") || len(svc.Requests()) != 0 {
 		t.Fatalf("the tool's own term of 10 minutes expires the confirmation: %q, %d requests", msg, len(svc.Requests()))
@@ -189,7 +189,7 @@ print("null" if st == 202 else json.dumps({"status": st}))
 	if p := e.WaitState(id, "done", "error"); string(p.Result) != "null" {
 		t.Fatalf("the script had nothing to report: %+v", p)
 	}
-	e.App.Sweep(context.Background(), time.Now().Add(48*time.Hour))
+	e.App.Tick(context.Background(), time.Now().Add(48*time.Hour))
 	if p := e.Proc(id); p.ID != id {
 		t.Fatalf("a process whose call waits for the owner is not cleaned up: %+v", p)
 	}
@@ -388,7 +388,7 @@ func TestAFrozenCallOutlivesAProcessAtItsCeiling(t *testing.T) {
 	})
 	e.Until("the ceiling to run", func() bool { return e.Proc(id).Deadline != "" })
 	e.Clock.Add(2 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	if got := e.WaitState(id, "error"); !strings.Contains(got.Error, "ceiling") {
 		t.Fatalf("the process ends at its ceiling: %+v", got)
 	}

@@ -66,7 +66,7 @@ func TestANewModuleWithoutCode(t *testing.T) {
     "result": {"type": "object", "properties": {"seen": {"type": "integer"}}, "required": ["seen"]}}, {`, 1)
 	p := e.Project("ideas", m)
 	e.Clock.Add(time.Hour)
-	e.Tick()
+	e.Schedule()
 	var digest harness.Proc
 	e.Until("the digest after the scheduled collection to end", func() bool {
 		for _, pr := range e.Procs() {
@@ -136,17 +136,17 @@ func TestScheduledRunDoesNotOverlapItsPrevious(t *testing.T) {
 
 	e.Project("daily", harness.TestManifest([]string{harness.AgentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
 	e.Clock.Add(time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Until("the first run", func() bool { return e.CountOf("job") == 1 })
 	e.Clock.Add(24 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	if n := e.CountOf("job"); n != 1 {
 		t.Fatalf("a trigger does not start while its previous run goes on, got %d runs", n)
 	}
 	close(release)
 	e.Settle()
 	e.Clock.Add(24 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Until("the next run once the previous finished", func() bool { return e.CountOf("job") == 2 })
 }
 
@@ -165,12 +165,12 @@ func TestEmptyResultStartsNothingAndIsPurgedAfterADay(t *testing.T) {
 		t.Fatalf("an empty result is done, collapsed and starts no after trigger: %+v, %d", got, e.CountOf("notify"))
 	}
 	e.Clock.Add(23 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	if e.Proc(id).ID != id {
 		t.Fatal("an empty process stays for a day")
 	}
 	e.Clock.Add(2 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.Refused("deck.process_get", map[string]any{"process": id}, 404, "no process")
 	if _, err := os.Stat(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "runs", fmt.Sprint(id))); !os.IsNotExist(err) {
 		t.Fatalf("the folder of a purged process goes with it: %v", err)
@@ -179,7 +179,7 @@ func TestEmptyResultStartsNothingAndIsPurgedAfterADay(t *testing.T) {
 	e.WaitState(kept, "done")
 	e.Settle()
 	e.Clock.Add(8 * 24 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	if _, err := os.Stat(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Work(), "runs", fmt.Sprint(kept))); !os.IsNotExist(err) {
 		t.Fatalf("the run folder and log of a process finished a week ago are cleared: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestMissedRunsAreSpreadAfterSleep(t *testing.T) {
 		[]string{`{"command": "a", "cron": "0 9 * * *"}`, `{"command": "b", "cron": "0 9 * * *"}`, `{"command": "c", "cron": "0 9 * * *"}`,
 			`{"command": "d", "cron": "0 9 * * *", "skip_missed": true}`}))
 	wake := e.Clock.Add(72 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Settle()
 	if n := len(e.Procs()); n != 1 {
 		t.Fatalf("after a sleep the missed runs start one at a time, got %d", n)
@@ -207,13 +207,13 @@ func TestMissedRunsAreSpreadAfterSleep(t *testing.T) {
 	}
 	for i := 2; i <= 3; i++ {
 		e.Clock.Add(time.Minute)
-		e.Tick()
+		e.Schedule()
 		e.Settle()
 		if n := len(e.Procs()); n != i {
 			t.Fatalf("slot %d: want %d runs, got %d", i, i, n)
 		}
 	}
-	e.Tick()
+	e.Schedule()
 	if e.CountOf("d") != 0 || len(e.Procs()) != 3 {
 		t.Fatal("each missed trigger runs exactly once, a skipping one not at all")
 	}
@@ -227,9 +227,9 @@ func TestPausedTriggersAndProjectsDoNotRun(t *testing.T) {
 	tr := e.Triggers()[0]
 	e.Must("deck.trigger_pause", map[string]any{"trigger": tr.ID, "paused": true}, nil)
 	e.Clock.Add(4 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Must("deck.trigger_pause", map[string]any{"trigger": tr.ID, "paused": false}, nil)
-	e.Tick()
+	e.Schedule()
 	if e.CountOf("job") != 0 {
 		t.Fatal("a paused trigger does not run, and resuming it does not catch up the pause")
 	}
@@ -240,13 +240,13 @@ func TestPausedTriggersAndProjectsDoNotRun(t *testing.T) {
 	e.Must("deck.manifest_save", map[string]any{"project": "paused", "manifest": strings.Replace(m, `"triggers": [`,
 		`"triggers": [{"command": "other", "cron": "0 9 * * *"}, `, 1)}, nil)
 	e.Clock.Add(24 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	if ts := e.Triggers(); len(e.Procs()) != 0 || len(ts) != 2 || !ts[0].Paused || !ts[1].Paused {
 		t.Fatalf("a paused project runs no trigger, also one added later: %+v", ts)
 	}
 	e.Must("deck.project_pause", map[string]any{"project": "paused", "paused": false}, nil)
 	e.Clock.Add(21 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Until("both triggers after the project goes on", func() bool { return len(e.Procs()) == 2 })
 }
 
@@ -325,7 +325,7 @@ func TestAScheduledCallTheOwnerAllowedIsTheLastRunOfItsTrigger(t *testing.T) {
 	e.Project("daily", harness.Declare(harness.TestManifest([]string{harness.AgentCommand("publish", "")}, []string{`{"command": "publish", "cron": "0 9 * * *"}`}),
 		`{"right": "send", "what": ["publish"], "why": "publishes outside"}`))
 	e.Clock.Add(time.Hour)
-	e.Tick()
+	e.Schedule()
 	a := e.WaitAsk()
 	if a.Kind != "call" || e.CountOf("publish") != 0 {
 		t.Fatalf("an external command of a schedule waits for the owner: %+v", a)
@@ -436,7 +436,7 @@ func TestScheduleShowsEveryTriggerRunsOneNowAndPausesAProject(t *testing.T) {
 		t.Fatalf("a paused project's triggers stand apart with why: %s %+v", word, paused())
 	}
 	e.Clock.Add(26 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Until("beta on its schedule", func() bool { return e.CountOf("sync") >= 1 })
 	e.Settle()
 	if n := e.CountOf("job"); n != 1 {
@@ -507,7 +507,7 @@ func TestRunNowTakesACommandOnlyTriggersCallAndTheScheduleHearsAboutRuns(t *test
 	e.WaitState(started.Process, "done")
 	harness.WaitEvent(t, stream, events.Event{Topic: "triggers"})
 	e.Clock.Add(2 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Until("the scheduled run", func() bool { return e.CountOf("digest") == 2 })
 	harness.WaitEvent(t, stream, events.Event{Topic: "triggers"})
 }
@@ -540,13 +540,13 @@ func TestAScheduledRunThatFailsToStartSaysWhy(t *testing.T) {
 		`"prompt": "Do remind."`, `"prompt_file": "prompts/remind.md"`, 1)
 	e.Project("later", text)
 	e.Clock.Add(time.Hour)
-	e.Tick()
+	e.Schedule()
 	if h := e.WaitHealth("trigger:later.remind", "error"); !strings.Contains(h.Error, "prompts/remind.md") || e.CountOf("remind") != 0 {
 		t.Fatalf("the health of the project says why it did not start: %+v", h)
 	}
 	e.Must("deck.document_save", map[string]any{"project": "later", "name": "prompts/remind.md", "kind": "prompt", "text": "Remind."}, nil)
 	e.Clock.Add(time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Until("the run once it starts", func() bool { return e.CountOf("remind") == 1 })
 	for _, h := range e.Health() {
 		if h.Subject == "trigger:later.remind" {
@@ -566,7 +566,7 @@ func TestEnablingADraftClearsWhyItsTriggersDidNotStart(t *testing.T) {
 		t.Fatalf("project_create: %d %s", code, out)
 	}
 	e.Clock.Add(time.Hour)
-	e.Tick()
+	e.Schedule()
 	if h := e.WaitHealth("trigger:later.remind", "error"); !strings.Contains(h.Error, "draft") {
 		t.Fatalf("a schedule of a draft says why it did not start: %+v", h)
 	}
@@ -589,7 +589,7 @@ func TestAHungToolIsSeenAndStopsAtItsCeiling(t *testing.T) {
 	  "tools": {"http": [{"name": "pull", "description": "Pulls the feed", "method": "GET", "url": "%s/feed"}]},
 	  "triggers": [{"command": "fetch", "cron": "0 9 * * *"}]}`, slow.URL))))
 	e.Clock.Add(time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Until("the first run", func() bool { return e.CountOf("fetch") == 1 })
 	id := e.Procs()[0].ID
 	e.Until("the call at the service", func() bool { return len(slow.Requests()) == 1 })
@@ -597,16 +597,16 @@ func TestAHungToolIsSeenAndStopsAtItsCeiling(t *testing.T) {
 		t.Fatalf("a tool call holds a ceiling: %+v", e.Proc(id))
 	}
 	e.Clock.Add(24 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	if h := e.WaitHealth("trigger:feed.fetch", "warning"); !strings.Contains(h.Error, fmt.Sprint(id)) || e.CountOf("fetch") != 1 {
 		t.Fatalf("a slot the run still going swallowed is a warning naming that run: %+v", h)
 	}
-	e.Sweep()
+	e.Tick()
 	if got := e.WaitState(id, "error"); !strings.Contains(got.Error, "ceiling") {
 		t.Fatalf("a stop at the ceiling is an error, not a stop of the owner: %+v", got)
 	}
 	e.Clock.Add(24 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Until("the next run", func() bool { return e.CountOf("fetch") == 2 })
 	for _, h := range e.Health() {
 		if h.Subject == "trigger:feed.fetch" {

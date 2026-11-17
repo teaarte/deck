@@ -98,7 +98,7 @@ func TestAShortLimitOfASubscriptionWaitsOnTheSameLogin(t *testing.T) {
 	id := e.Start("plain", "work", nil)
 	e.WaitState(id, "waiting:limit")
 	e.Clock.Add(30 * time.Second)
-	e.Sweep()
+	e.Tick()
 	if got := e.WaitState(id, "done", "error"); got.State != "done" || len(backup.Calls()) != 0 || c.Calls() != 2 || !strings.Contains(strings.Join(c.Call(2).Args, " "), "--resume") {
 		t.Fatalf("a short limit is waited out in the same session: %+v, backup %d", got, len(backup.Calls()))
 	}

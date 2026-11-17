@@ -50,7 +50,7 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	}
 
 	e.Clock.Add(2 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Settle()
 	if n := len(e.Procs()); n != 0 {
 		t.Fatalf("a draft runs on none of its triggers, got %d processes", n)
@@ -111,13 +111,13 @@ func TestDraftRunsOnlyTrialsAndNoTriggersUntilEnabled(t *testing.T) {
 	}
 	quiet.Store(true)
 	before := len(e.Procs())
-	e.Tick()
+	e.Schedule()
 	e.Settle()
 	if n := len(e.Procs()); n != before {
 		t.Fatalf("the schedule missed while a draft does not catch up: %d -> %d", before, n)
 	}
 	e.Clock.Add(24 * time.Hour)
-	e.Tick()
+	e.Schedule()
 	e.Until("the scheduled run and its after trigger", func() bool { return len(e.Procs()) == before+2 })
 	e.Settle()
 	for _, p := range e.Procs()[:2] {

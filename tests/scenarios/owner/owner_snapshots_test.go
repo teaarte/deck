@@ -31,18 +31,18 @@ func TestDailySnapshotKeepsTheNewestSeven(t *testing.T) {
 		m, _ := filepath.Glob(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", "deck-*.tar.gz"))
 		return len(m)
 	}
-	e.Sweep()
+	e.Tick()
 	if n := backups(); n != 1 {
 		t.Fatalf("the first sweep takes a snapshot: %d", n)
 	}
 	e.Clock.Add(23 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	if n := backups(); n != 1 {
 		t.Fatalf("one snapshot a day: %d", n)
 	}
 	for range 9 {
 		e.Clock.Add(24 * time.Hour)
-		e.Sweep()
+		e.Tick()
 	}
 	if n := backups(); n != 7 {
 		t.Fatalf("the newest seven stay: %d", n)
@@ -69,7 +69,7 @@ print(json.dumps({"files": [{"path": "f.txt", "record": out["ids"][0]}]}))
 		t.Fatal(err)
 	}
 	e.Must("deck.collection_delete", map[string]any{"project": "files", "collection": "items"}, nil)
-	e.Sweep()
+	e.Tick()
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("the file of a deleted record is removed: %v", err)
 	}
@@ -79,12 +79,12 @@ func TestAHandSnapshotDoesNotPutOffTheDailyCleanup(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock())
 	e.Project("docs", harness.FilesManifest())
-	e.Sweep()
+	e.Tick()
 	e.Upload("docs", "left.txt", "text/plain", "left")
 	e.Clock.Add(24*time.Hour + 30*time.Minute)
 	e.Must("deck.snapshot_create", nil, nil)
 	e.Clock.Add(time.Hour)
-	e.Sweep()
+	e.Tick()
 	var uploads int
 	var listed []struct {
 		OwnerKind string `json:"owner_kind"`
@@ -201,7 +201,7 @@ func TestSnapshotsBeforeDeletesKeepTheirOwnTurn(t *testing.T) {
 		m, _ := filepath.Glob(filepath.Join(deckhome.Layout(e.App.Cfg.Home).State(), "backups", pattern))
 		return len(m)
 	}
-	e.Sweep()
+	e.Tick()
 	for i := range 9 {
 		e.Clock.Add(time.Minute)
 		name := fmt.Sprintf("p%d", i)
@@ -280,7 +280,7 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(data[0], "kept.txt"), []byte("kept"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	e.Sweep()
+	e.Tick()
 	snaps, _ := filepath.Glob(filepath.Join(h.Backups(), "deck-*.tar.gz"))
 	if len(snaps) != 1 {
 		t.Fatalf("one unreadable file does not stop the daily snapshot: %v", snaps)
@@ -305,7 +305,7 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.Clock.Add(25 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	if row := e.WaitHealth("snapshot", "error"); row.Error == "" {
 		t.Fatalf("a snapshot that fails says why in health: %+v", row)
 	}
@@ -316,7 +316,7 @@ func TestADailySnapshotSkipsAFileItCannotReadAndSaysSo(t *testing.T) {
 	}
 	_ = os.WriteFile(filepath.Join(left, "7"), []byte("a file the owner deleted"), 0o600)
 	e.Clock.Add(time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.WaitHealth("snapshot", "ok")
 	if _, err := os.Stat(left); err == nil {
 		t.Fatal("the links a snapshot cut short by a crash left go with the next snapshot")
@@ -378,7 +378,7 @@ func TestTheBudgetOfSnapshotsKeepsTheSnapshotBeforeADelete(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock(), harness.WithConfig(func(c *app.Config) { c.SnapshotBudget = 4 << 20 }))
 	h := deckhome.Layout(e.App.Cfg.Home)
-	e.Sweep()
+	e.Tick()
 	e.Project("gone", harness.PlainManifest)
 	e.Clock.Add(time.Minute)
 	e.Must("deck.project_delete", map[string]any{"project": "gone"}, nil)
@@ -394,7 +394,7 @@ func TestTheBudgetOfSnapshotsKeepsTheSnapshotBeforeADelete(t *testing.T) {
 	}
 	for range 2 {
 		e.Clock.Add(25 * time.Hour)
-		e.Sweep()
+		e.Tick()
 		if m, _ := filepath.Glob(filepath.Join(h.Backups(), "deck-"+e.Clock.Now().UTC().Format("20060102")+"*.tar.gz")); len(m) != 1 {
 			t.Fatalf("the daily snapshot of the day: %v", m)
 		}
@@ -414,7 +414,7 @@ func TestTheBudgetOfSnapshotsKeepsTheSnapshotBeforeADelete(t *testing.T) {
 func TestTheDiskRowNamesTheBaseItsLargestTablesAndTheSnapshots(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock())
-	e.Sweep()
+	e.Tick()
 	e.App.Snapshots.CheckDisk(context.Background(), e.Clock.Now().Add(time.Hour))
 	row := e.WaitHealth("disk", "ok")
 	m := regexp.MustCompile(`^base: (\d+) MB, the largest tables in MB: (\w+ \d+, \w+ \d+, \w+ \d+); snapshots: (\d+) MB, files: \d+ MB, free: \d+ MB; modules: \d+ MB, caches of them: \d+ MB, by module in MB: master 0; runs: \d+ MB$`).FindStringSubmatch(row.Error)
@@ -439,7 +439,7 @@ func TestARunPastHalfAYearKeepsTheStartOfItsInputAndResult(t *testing.T) {
 	}
 	// The revision of the document, as old as the old run.
 	e.SQL(`UPDATE document_revision SET created_at = ?`, store.Time(e.Clock.Now().Add(-200*24*time.Hour)))
-	e.Sweep()
+	e.Tick()
 	var ps []harness.Proc
 	e.Must("deck.processes_list", map[string]any{"project": "notes"}, &ps)
 	runs := map[int64]struct{ Input, Result map[string]string }{}

@@ -147,12 +147,12 @@ func TestAModelThatGivesNoSignHandsTheTurnOnLongBeforeTheCeiling(t *testing.T) {
 	id := e.StartWork(1)
 	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 1 })
 	clock.Add(4 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	if got := e.WaitState(id, "running"); got.State != "running" {
 		t.Fatalf("a model is given its time: %+v", got)
 	}
 	clock.Add(2 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	e.WaitState(id, "error")
 	if got := e.Fault(id); got.ErrorType != "model.unavailable" || !strings.Contains(got.Error, "gave no sign for 5 minutes") {
 		t.Fatalf("a model that gave no sign is the model's failure: %+v", got)
@@ -164,7 +164,7 @@ func TestAModelThatGivesNoSignHandsTheTurnOnLongBeforeTheCeiling(t *testing.T) {
 	spoke := e.StartWork(2)
 	e.Until("the model speaks", func() bool { return len(e.Fake.Calls()) == 2 && len(e.Log(spoke)) == 1 })
 	clock.Add(time.Hour - time.Minute)
-	e.Sweep()
+	e.Tick()
 	if got := e.WaitState(spoke, "running"); got.State != "running" {
 		t.Fatalf("a model that gave a sign keeps its turn: %+v", got)
 	}
@@ -188,7 +188,7 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 	e.Until("the model takes the call", func() bool { return len(e.Fake.Calls()) == 1 })
 	e.WaitState(e.Following(e.StartWork(2)), "done")
 	e.WaitHealth("provider:fake", "paused")
-	e.Sweep()
+	e.Tick()
 	e.WaitState(id, "error")
 	if got := e.Fault(id); got.ErrorType != "model.limit" || !strings.Contains(got.Error, "fake went on a pause during the turn") {
 		t.Fatalf("a turn on a paused model leaves it as the model's limit: %+v", got)
@@ -217,7 +217,7 @@ func TestATurnOnAModelThatWentOnAPauseGoesToTheNextModel(t *testing.T) {
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		return process.ProviderHealth(ctx, q, e.App.Store.Now(), "fake", "paused", "usage limit reached")
 	})
-	e.Sweep()
+	e.Tick()
 	if got := e.WaitState(alone, "waiting:provider", "error"); got.State != "waiting:provider" {
 		t.Fatalf("with no next model the turn waits for its model: %+v %+v", got, e.Fault(alone))
 	}
@@ -282,12 +282,12 @@ func TestAProcessThatWaitsForItsModelGoesToTheModelTheOwnerAssigns(t *testing.T)
 	_ = e.App.Store.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		return process.ProviderHealth(ctx, q, e.App.Store.Now(), "fake", "paused", "usage limit reached")
 	})
-	e.Sweep()
+	e.Tick()
 	if got := e.WaitState(id, "waiting:provider", "error"); got.State != "waiting:provider" {
 		t.Fatalf("with no next model the turn waits for its model: %+v %+v", got, e.Fault(id))
 	}
 	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": "plain", "command": "work", "model": "backup"}, nil)
-	e.Sweep()
+	e.Tick()
 	e.WaitState(id, "error")
 	if got := e.Fault(id); got.ErrorType != "model.unavailable" || !strings.Contains(got.Error, "the assignment gives the work to backup") {
 		t.Fatalf("the waiting process closes as its model's failure: %+v", got)

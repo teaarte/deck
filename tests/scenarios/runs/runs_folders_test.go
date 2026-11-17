@@ -167,7 +167,6 @@ func TestFolderLockSurvivesARestart(t *testing.T) {
 	release := make(chan struct{}, 4)
 	second := &harness.Fake{Script: held(release)}
 	e2 := e.Restart(harness.WithProvider(second))
-	e2.Resume()
 	e2.Until("the one with the folder resumed", func() bool { return len(second.Calls()) == 1 })
 	if got := states(e2, []int64{a, b}); got != "running waiting:folder" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
 		t.Fatalf("after a restart the folder stays with its agent: %s, %d calls", got, len(second.Calls()))

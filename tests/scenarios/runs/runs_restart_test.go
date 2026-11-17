@@ -35,7 +35,6 @@ func TestAResumedTurnDoesNotSaveOverTheOwnersEditAfterARestart(t *testing.T) {
 	e.Must("deck.document_save", map[string]any{"project": "notes", "name": "notes.md", "kind": "doc", "text": "the owner's edit"}, nil)
 
 	e2 := e.Restart(harness.WithProvider(second))
-	e2.Resume()
 	got := harness.Receive(t, "the resumed turn to save", saved)
 	if !strings.Contains(got, "changed since you read revision 1") {
 		t.Fatalf("a whole text over the owner's edit after a restart is a conflict: %s", got)

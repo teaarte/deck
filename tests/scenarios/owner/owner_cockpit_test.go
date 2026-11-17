@@ -270,7 +270,6 @@ func TestARunCutByARestartIsInTheCockpit(t *testing.T) {
 	id := e.Start("clips", "make", map[string]any{"topic": "cats"})
 	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
 	e2 := e.Restart(harness.WithProvider(&harness.Fake{}))
-	e2.Resume()
 	var failed []cockpitRun
 	e2.Must("deck.processes_list", map[string]any{"failed": true}, &failed)
 	if len(failed) != 1 || failed[0].ID != id {
@@ -525,7 +524,7 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 
 	first := e.Run(p, "work")
 	e.WaitState(first, "waiting:answer", "done")
-	e.App.Sweep(context.Background(), clock.Add(24*time.Hour+time.Minute))
+	e.App.Tick(context.Background(), clock.Add(24*time.Hour+time.Minute))
 	second := e.Run(p, "work")
 	e.Until("the second confirmation", func() bool { return len(e.CockpitItems()) == 2 })
 	e.Run(p, "ask")

@@ -438,7 +438,7 @@ func TestTheReadsOfDeckScreensSayNoEnglishInRussian(t *testing.T) {
 		e.SQL(q)
 	}
 	e.App.Snapshots.CheckDisk(context.Background(), time.Now())
-	e.Resume()
+	e = e.Restart()
 	// Names are as they are: of models, agents, connections, secrets, modules and commands, of files and addresses.
 	names := map[string]bool{"gate-key": true}
 	var models struct {

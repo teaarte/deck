@@ -121,7 +121,6 @@ func TestAProcessWaitingForASlotStillWaitsAfterARestart(t *testing.T) {
 	release := make(chan struct{}, 4)
 	second := &harness.Fake{Script: held(release)}
 	e2 := e.Restart(harness.WithProvider(second))
-	e2.Resume()
 	e2.Until("the running one resumed", func() bool { return len(second.Calls()) == 1 })
 	if got := states(e2, []int64{a, b}); got != "running waiting:slot" || len(second.Calls()) != 1 || !second.Calls()[0].Resume {
 		t.Fatalf("after a restart the limit holds and the running one goes on: %s, %d calls", got, len(second.Calls()))
@@ -190,7 +189,6 @@ func TestAProcessLeftWaitingForAFreeSlotStartsWhenDeckStarts(t *testing.T) {
 	release := make(chan struct{}, 1)
 	second := &harness.Fake{Script: held(release)}
 	e2 := e.Restart(harness.WithProvider(second))
-	e2.Resume()
 	e2.Until("the waiting process to start on the free slot", func() bool { return e2.Proc(b).State == "running" })
 	release <- struct{}{}
 	e2.WaitState(b, "done")

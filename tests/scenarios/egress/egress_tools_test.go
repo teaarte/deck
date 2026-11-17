@@ -435,7 +435,7 @@ func TestASecretThatIsNotSetIsRedInHealth(t *testing.T) {
 	if got := rows(); got["secret:stock.pexels"] != "" {
 		t.Fatalf("a secret once set is no row of health: %v", got)
 	}
-	e.App.Sweep(context.Background(), time.Now())
+	e.App.Tick(context.Background(), time.Now())
 	e.Must("deck.secret_delete", map[string]any{"project": "stock", "name": "pexels"}, nil)
 	if got := rows(); !strings.HasPrefix(got["secret:stock.pexels"], "error ") || seen("secret:stock.pexels") {
 		t.Fatalf("a secret that goes again is a failing check not read yet: %v", got)

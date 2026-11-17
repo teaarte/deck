@@ -10,12 +10,14 @@ import (
 
 var T0 = time.Date(2026, 9, 25, 8, 0, 0, 0, time.Local)
 
+// Tick runs one turn of deck's loop at the clock of the test.
 func (e *Env) Tick() {
-	e.App.Scheduler.Tick(context.Background())
+	e.App.Tick(context.Background(), e.App.Cfg.Now())
 }
 
-func (e *Env) Sweep() {
-	e.App.Sweep(context.Background(), e.Clock.Now())
+// Schedule starts what the triggers have due, the first step of a tick alone.
+func (e *Env) Schedule() {
+	e.App.Scheduler.Tick(context.Background())
 }
 
 // Clock is the deck clock of a test: it stands still until the test moves it.

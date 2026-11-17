@@ -325,17 +325,23 @@ func (b *background) stop() {
 	b.wg.Wait()
 }
 
-// Run starts deck's work: the schedule of the saved triggers, the self-checks, the turns a stop left and the replies
-// to messages left unanswered, then the loop every interval until Stop.
-func (a *App) Run(ctx context.Context, every time.Duration) {
+// Start does what deck does as it starts, before its loop: the schedule of the saved triggers, the turns a stop left
+// and the replies to messages left unanswered. The harness of the tests starts deck by it too.
+func (a *App) Start(ctx context.Context) {
 	if err := a.Projects.Reconcile(ctx); err != nil {
 		slog.Error("reconcile triggers", "err", err)
 	}
-	a.Providers.Checks(ctx, a.Cfg.Now())
 	if err := a.Runner.ResumeInterrupted(ctx); err != nil {
 		slog.Error("resume interrupted", "err", err)
 	}
 	a.Chats.PumpChats(ctx)
+}
+
+// Run starts deck, then its loop every interval and the connections of its nodes until Stop; the self-checks of the
+// loop go first, so a resumed turn finds its provider checked.
+func (a *App) Run(ctx context.Context, every time.Duration) {
+	a.Providers.Checks(ctx, a.Cfg.Now())
+	a.Start(ctx)
 	a.bg.Go(func(ctx context.Context) { a.Loop(ctx, every) })
 	a.bg.Go(a.Owners.Nodes)
 }
@@ -356,13 +362,6 @@ func (a *App) nodeTransport(device int64) http.RoundTripper {
 		name = d.Name
 	}
 	return a.Nodes.Transport(device, name)
-}
-
-// Sweep checks every deadline against now, then pushes and runs the daily cleanup, snapshot and look for an update.
-func (a *App) Sweep(ctx context.Context, now time.Time) {
-	a.deadlines(ctx, now)
-	a.slow(ctx, now)
-	a.daily(ctx, now)
 }
 
 // deadlines are what is due by now: confirmations, ceilings, pauses, silent processes, results handed in by processes
@@ -401,17 +400,31 @@ func (a *App) daily(ctx context.Context, now time.Time) {
 
 const pushTimeout = 2 * time.Minute
 
-// Loop runs the scheduler and the deadlines by the deck clock until ctx ends, pushes, snapshots and self-checks
-// beside it; after a sleep of the machine the first tick finds every deadline that passed.
+// Tick is one turn of deck's loop at now, the self-checks aside, its slow and daily work done before it returns: the
+// turn a test steps.
+func (a *App) Tick(ctx context.Context, now time.Time) {
+	a.tick(ctx, func() time.Time { return now }, func(_ *atomic.Bool, _ time.Time, work func(context.Context, time.Time)) { work(ctx, now) })
+}
+
+// tick runs the scheduler, then the deadlines at now and the slow and daily work by run.
+func (a *App) tick(ctx context.Context, at func() time.Time, run func(*atomic.Bool, time.Time, func(context.Context, time.Time))) time.Time {
+	a.Scheduler.Tick(ctx)
+	now := at()
+	a.deadlines(ctx, now)
+	run(&a.slowRunning, now, a.slow)
+	run(&a.dailyRunning, now, a.daily)
+	return now
+}
+
+// Loop ticks by the deck clock until ctx ends, the slow and daily work beside it, then the self-checks; after a sleep
+// of the machine the first tick finds every deadline that passed.
 func (a *App) Loop(ctx context.Context, every time.Duration) {
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
-		a.Scheduler.Tick(ctx)
-		now := a.Cfg.Now()
-		a.deadlines(ctx, now)
-		a.aside(ctx, &a.slowRunning, now, a.slow)
-		a.aside(ctx, &a.dailyRunning, now, a.daily)
+		now := a.tick(ctx, a.Cfg.Now, func(running *atomic.Bool, now time.Time, work func(context.Context, time.Time)) {
+			a.aside(ctx, running, now, work)
+		})
 		a.Providers.Checks(ctx, now)
 		select {
 		case <-ctx.Done():

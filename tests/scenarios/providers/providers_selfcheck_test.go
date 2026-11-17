@@ -443,7 +443,7 @@ fi`)
 		t.Fatalf("a try again keeps the term of the first wait: %+v, was %+v", again, first)
 	}
 	e.Clock.Add(31 * time.Minute)
-	e.Sweep()
+	e.Tick()
 	if got := e.WaitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, "without deck's tools until") {
 		t.Fatalf("the process fails at the term: %+v", got)
 	}

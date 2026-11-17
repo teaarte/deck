@@ -70,7 +70,7 @@ print(json.dumps({"updated": ["a"]}))
 	}
 
 	e.Clock.Add(time.Hour + time.Minute)
-	e.Tick()
+	e.Schedule()
 	e.Until("both runs of the schedule to end", func() bool {
 		n := 0
 		for _, r := range e.Procs() {

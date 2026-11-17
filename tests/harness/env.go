@@ -86,6 +86,7 @@ type setup struct {
 	clock     *Clock
 	cfg       []func(*app.Config)
 	after     []func(*Env)
+	before    []func(*Env)
 	wait      time.Duration
 	every     bool
 	proxies   []string
@@ -128,6 +129,12 @@ func WithClock(c ...*Clock) Option {
 		s.clock = clock
 		s.cfg = append(s.cfg, func(cfg *app.Config) { cfg.Now = clock.Now })
 	}
+}
+
+// BeforeStart does f on deck's home before deck starts: what a deck that stopped left there, such as a row it wrote
+// as it died; deck then resumes it as it starts.
+func BeforeStart(f func(e *Env)) Option {
+	return func(s *setup) { s.before = append(s.before, f) }
 }
 
 // WithHome starts deck on a home folder of the test's choice, such as one a deck before left.
@@ -252,11 +259,15 @@ func New(t *testing.T, opts ...Option) *Env {
 	for _, f := range s.after {
 		f(e)
 	}
+	for _, f := range s.before {
+		f(e)
+	}
+	a.Start(context.Background())
 	return e
 }
 
 // Restart stops deck and starts it again on its home with its options and more; a provider in more takes the
-// place of the old ones. Turns the old deck held stay running, as after a crash, and resume on Resume.
+// place of the old ones. Turns the old deck held stay running, as after a crash, and resume as it starts.
 func (e *Env) Restart(more ...Option) *Env {
 	e.T.Helper()
 	e.stop(false)
@@ -279,14 +290,6 @@ func (e *Env) Restart(more ...Option) *Env {
 
 // Stop stops deck as an owner does, leaving its home to the test.
 func (e *Env) Stop() { e.stop(true) }
-
-// Resume resumes the turns a deck before left, as deck does when it starts.
-func (e *Env) Resume() {
-	e.T.Helper()
-	if err := e.App.Runner.ResumeInterrupted(context.Background()); err != nil {
-		e.T.Fatal(err)
-	}
-}
 
 // Project creates a project of a manifest and returns its id.
 func (e *Env) Project(name, manifest string) int64 {

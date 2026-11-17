@@ -59,7 +59,7 @@ func TestTheDailyCleanupRemovesCachesUntouchedForAMonth(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e.Sweep()
+	e.Tick()
 	for _, gone := range []string{"data/.cache/huggingface", "mcp/files/.npm/_npx", "data/.cache/uv/environments-v2/main-0000000000000001"} {
 		if _, err := os.Stat(filepath.Join(dir, gone)); !os.IsNotExist(err) {
 			t.Errorf("a cache untouched for 30 days goes: %s %v", gone, err)
@@ -81,7 +81,7 @@ func TestTheDailyCleanupRemovesCachesUntouchedForAMonth(t *testing.T) {
 
 	// The cleanup above changed folders by the machine's clock, past the one of the test.
 	e.Clock.Add(time.Since(now) + 32*24*time.Hour)
-	e.Sweep()
+	e.Tick()
 	if _, err := os.Stat(filepath.Join(dir, "data/.cache/uv")); !os.IsNotExist(err) {
 		t.Fatalf("uv's cache of a module whose scripts ran no more for 30 days goes whole: %v", err)
 	}

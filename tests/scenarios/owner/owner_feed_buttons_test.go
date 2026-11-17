@@ -135,7 +135,7 @@ func TestAMarkedTurnsButtonKeepsItsMarkPastADay(t *testing.T) {
 	e.SQL(`UPDATE process SET read_untrusted = 'deck.web_fetch evil', holds_valued = 1 WHERE id = ?`, writer)
 	e.Settle()
 	e.Clock.Add(25 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	var feed []struct {
 		Buttons []struct{ Params map[string]any }
 	}

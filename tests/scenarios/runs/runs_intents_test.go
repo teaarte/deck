@@ -29,7 +29,6 @@ func TestUnknownOutcomeIsNotRepeatedAfterARestartNorByACatchUpRun(t *testing.T) 
 
 	e2 := e.Restart(harness.WithProvider(&harness.Fake{}))
 
-	e2.Resume()
 	var unknown harness.Ask
 	e2.Until("the unknown outcome", func() bool {
 		_, out := e2.Call("deck.asks_list", nil)
@@ -122,7 +121,6 @@ func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
 	e2 := e.Restart(harness.WithProvider(second))
-	e2.Resume()
 	e2.WaitState(id, "waiting:answer")
 	msg := second.Calls()[0].Prompt
 	if !second.Calls()[0].Resume || !strings.Contains(msg, "Outcome unknown") || !strings.Contains(msg, "Do not make this call again") {
@@ -155,11 +153,11 @@ func TestAnAllowedCallCutOffByARestartBecomesAnUnknownOutcome(t *testing.T) {
 	second := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
-	e2 := e.Restart(harness.WithProvider(second))
-	// A deck that died after the owner's yes and before it sent the call.
-	e2.SQL(`UPDATE ask SET state = 'answered', answer = 'allow' WHERE id = ?;
+	e2 := e.Restart(harness.WithProvider(second), harness.BeforeStart(func(e2 *harness.Env) {
+		// A deck that died after the owner's yes and before it sent the call.
+		e2.SQL(`UPDATE ask SET state = 'answered', answer = 'allow' WHERE id = ?;
 UPDATE tool_call SET run = 'running' WHERE ask_id = ?`, a.ID, a.ID)
-	e2.Resume()
+	}))
 	got := e2.WaitAsk()
 	if got.ID == a.ID || got.Kind != "unknown" || !strings.Contains(got.Text, "Outcome unknown") || len(svc.Requests()) != 0 {
 		t.Fatalf("a call cut off after yes and before it was sent is an unknown outcome for the owner: %+v", got)
@@ -194,7 +192,6 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 	}()
 	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
 	e2 := e.Restart(harness.WithProvider(&harness.Fake{}))
-	e2.Resume()
 	a := e2.WaitAsk()
 	var frozen struct {
 		Caller struct {
@@ -241,7 +238,6 @@ func TestAnAllowedCallLostWithDeckIsOneUnknownOutcome(t *testing.T) {
 		return provider.Result{Structured: json.RawMessage(`{"ok": true}`)}
 	}}
 	e2 := e.Restart(harness.WithProvider(second))
-	e2.Resume()
 	e2.Until("the unknown outcome", func() bool {
 		_, out := e2.Call("deck.asks_list", nil)
 		var as []harness.Ask

@@ -413,7 +413,7 @@ func TestAScheduleOfARecordJoinsItsRunOncePerSlot(t *testing.T) {
 	}
 	e.Clock.Add(24 * time.Hour)
 	for range 3 {
-		e.Tick()
+		e.Schedule()
 		// The later ticks join no more.
 		time.Sleep(300 * time.Millisecond)
 	}

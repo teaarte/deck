@@ -23,7 +23,6 @@ func TestResumeAfterEarlyCrashStartsTheSessionAgain(t *testing.T) {
 	_ = e1.App.Close()
 
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)))
-	e2.Resume()
 	if got := e2.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
@@ -129,7 +128,6 @@ func TestNewSessionReportSurvivesRestart(t *testing.T) {
 	_ = e1.App.Close()
 
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)))
-	e2.Resume()
 	if got := e2.WaitState(id, "done", "error"); got.State != "done" {
 		t.Fatalf("want done, got %+v", got)
 	}
@@ -156,11 +154,11 @@ func TestResultSeenWhileDeckStopsIsNotTheOutcome(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 	_ = e1.App.Close()
 
-	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)))
-	if got := e2.Proc(id); got.State != "running" {
-		t.Fatalf("a turn cut by the stop of deck must stay running, got %+v", got)
-	}
-	e2.Resume()
+	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(c.Adapter(home)), harness.BeforeStart(func(e2 *harness.Env) {
+		if got := e2.Proc(id); got.State != "running" {
+			t.Fatalf("a turn cut by the stop of deck must stay running, got %+v", got)
+		}
+	}))
 	e2.WaitState(id, "done")
 	if _, ok := harness.Flag(c.Call(2).Args, "--resume"); !ok {
 		t.Fatalf("the process must continue its session after the start: %v", c.Call(2).Args)

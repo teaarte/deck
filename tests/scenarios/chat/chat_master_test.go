@@ -251,12 +251,12 @@ func TestReviewRunsOnItsSchedule(t *testing.T) {
 	e.MasterAwake()
 	e.Project("work", harness.Declared(harness.PlainManifest))
 	e.Clock.Add(2*time.Hour + 29*time.Minute)
-	e.Tick()
+	e.Schedule()
 	if n := len(e.RunsOf("master", "review")); n != 0 {
 		t.Fatalf("not before 10:30: %d", n)
 	}
 	e.Clock.Add(2 * time.Minute)
-	e.Tick()
+	e.Schedule()
 	e.Until("the review", func() bool { rs := e.RunsOf("master", "review"); return len(rs) == 1 && rs[0].State == "done" })
 	e.Until("the note of the review", func() bool {
 		for _, n := range e.Notes() {

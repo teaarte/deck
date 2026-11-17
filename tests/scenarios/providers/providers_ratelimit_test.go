@@ -33,13 +33,13 @@ func TestProviderLimitPausesAndContinuesTheSameSession(t *testing.T) {
 	id := e.Run(p, "work")
 	e.WaitState(id, "waiting:limit")
 	e.Clock.Add(time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.Settle()
 	if got := e.Proc(id); got.State != "waiting:limit" || got.Deadline != "" || got.SilentSince != "" || len(e.Fake.Calls()) != 1 {
 		t.Fatalf("before the reset the process waits, its ceiling and silence stand still: %+v, %d calls", got, len(e.Fake.Calls()))
 	}
 	e.Clock.Add(time.Hour)
-	e.Sweep()
+	e.Tick()
 	got := e.WaitState(id, "done", "error")
 	calls := e.Fake.Calls()
 	if got.State != "done" || len(calls) != 2 || !calls[1].Resume || calls[1].SessionID != calls[0].SessionID ||
@@ -79,7 +79,7 @@ func TestAnUnknownLimitRetriesOnceThenPausesDoublingUpToAnHour(t *testing.T) {
 		t.Fatalf("the first limit without a reset pauses nothing: %v", h)
 	}
 	e.Clock.Add(2 * time.Second)
-	e.Sweep()
+	e.Tick()
 	e.Until("the retry in a moment", func() bool { return len(e.Fake.Calls()) == 2 })
 	e.WaitState(id, "waiting:limit")
 	calls := 2
@@ -89,13 +89,13 @@ func TestAnUnknownLimitRetriesOnceThenPausesDoublingUpToAnHour(t *testing.T) {
 			t.Fatalf("the pause after another limit without a reset is %s: %+v", pause, h)
 		}
 		e.Clock.Add(pause - time.Second)
-		e.Sweep()
+		e.Tick()
 		e.Settle()
 		if n := len(e.Fake.Calls()); n != calls {
 			t.Fatalf("no try before the pause of %s ends: %d calls", pause, n)
 		}
 		e.Clock.Add(time.Second)
-		e.Sweep()
+		e.Tick()
 		calls++
 		e.Until("the try at the end of the pause", func() bool { return len(e.Fake.Calls()) == calls })
 		e.WaitState(id, "waiting:limit")
@@ -108,7 +108,7 @@ func TestAnUnknownLimitRetriesOnceThenPausesDoublingUpToAnHour(t *testing.T) {
 	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
 	e.WaitState(id, "stopped")
 	e.Clock.Add(2 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.Settle()
 	if n := len(e.Fake.Calls()); n != calls {
 		t.Fatalf("a stopped pause tries no more: %d calls", n)
@@ -151,7 +151,7 @@ func TestAnAnswerDuringAPauseReachesTheNextTry(t *testing.T) {
 		t.Fatalf("the answer waits for the next try: %d calls", n)
 	}
 	e.Clock.Add(time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.WaitState(id, "done", "error")
 	mu.Lock()
 	defer mu.Unlock()

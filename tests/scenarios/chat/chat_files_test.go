@@ -89,21 +89,21 @@ func TestARetriedMessageDoesNotAttachItsFilesAgain(t *testing.T) {
 func TestTheFilesOfADeletedTopicGoWithTheTopic(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Read it."} }), harness.WithClock())
-	e.Sweep()
+	e.Tick()
 	id := e.Upload("master", "plan.txt", "text/plain", "the plan")
 	topic := e.Say(0, "look", map[string]any{"files": []string{fmt.Sprint(id)}})
 	e.MasterSaid(topic, 1)
 	e.Must("deck.chat_topic_delete", map[string]any{"topic": topic}, nil)
 	path := filepath.Join(deckhome.Layout(e.App.Cfg.Home).Files(), fmt.Sprint(id))
 	e.Clock.Add(25 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("the attachment of a deleted topic stays while the topic does: %v", err)
 	}
 	e.Clock.Add(30 * 24 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	e.Clock.Add(25 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Fatalf("the attachment goes with the topic: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestTheFilesOfADeletedTopicGoWithTheTopic(t *testing.T) {
 func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Noted."} }), harness.WithClock())
-	e.Sweep()
+	e.Tick()
 	gone := e.Say(0, "drop me")
 	e.MasterSaid(gone, 1)
 	kept := e.Say(0, "keep me")
@@ -124,7 +124,7 @@ func TestADeletedTopicIsGoneAfterAMonth(t *testing.T) {
 	e.Must("deck.chat_topic_delete", map[string]any{"topic": gone}, nil)
 	e.Must("deck.chat_topic_archive", map[string]any{"topic": kept, "archived": true}, nil)
 	e.Clock.Add(31 * 24 * time.Hour)
-	e.Sweep()
+	e.Tick()
 	var n int
 	// The rows of a deleted topic, which no read shows.
 	if err := e.SQLRow(`SELECT (SELECT COUNT(*) FROM chat_message WHERE topic_id = ?) + (SELECT COUNT(*) FROM chat_topic WHERE id = ?)

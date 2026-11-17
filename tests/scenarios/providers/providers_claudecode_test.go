@@ -278,7 +278,7 @@ func TestClaudeCodeLimitPausesUntilItsReset(t *testing.T) {
 		t.Fatalf("the next try is the reset time of the refusal: %d", pp.WaitUntilMs.Int64)
 	}
 	e.Clock.Add(time.Unix(1790379000, 1).Sub(e.Clock.Now()))
-	e.Sweep()
+	e.Tick()
 	if got := e.WaitState(id, "done", "error"); got.State != "done" || !slices.Contains(c.Call(2).Args, "--resume") {
 		t.Fatalf("after the reset the session is resumed: %+v %v", got, c.Call(2).Args)
 	}

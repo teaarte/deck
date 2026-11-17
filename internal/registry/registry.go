@@ -147,6 +147,23 @@ func (c *Command) Fresh(when func(ctx context.Context, a Actor, input json.RawMe
 // Gated says a call of the command may need a right of the catalog, so the gateway decides it.
 func (c *Command) Gated() bool { return c.Gate.Needs != nil }
 
+// Traits are the command's marks beside its schemas and gate, sorted by name: flags, the fields a read gives by
+// default and those the identity of a call keeps.
+func (c *Command) Traits() []string {
+	var out []string
+	for _, t := range []struct {
+		on   bool
+		name string
+	}{{len(c.brief) > 0, "brief:" + strings.Join(c.brief, ",")}, {len(c.fields) > 0, "fields:" + strings.Join(c.fields, ",")},
+		{c.foreign, "foreign"}, {c.fresh != nil, "fresh"}, {c.page, "page"}, {c.Readable, "read"}, {c.retries, "retried"},
+		{c.stays, "stays"}, {c.untokened, "untokened"}} {
+		if t.on {
+			out = append(out, t.name)
+		}
+	}
+	return out
+}
+
 // Foreign marks a command whose input schema comes from elsewhere: it is not held to App Intents types.
 func (c *Command) Foreign() *Command {
 	c.foreign = true

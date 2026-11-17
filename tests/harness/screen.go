@@ -16,9 +16,9 @@ import (
 )
 
 // LightEnv is deck with a working week behind it: modules with many records and files, runs and a long chat.
-func LightEnv(t *testing.T) *Env {
+func LightEnv(t *testing.T, opts ...Option) *Env {
 	t.Helper()
-	e := New(t)
+	e := New(t, opts...)
 	for _, name := range []string{"notes", "clips", "jobs"} {
 		p := e.Project(name, strings.Replace(WebNotes, `"menu": ["main"]}`, `"menu": ["main"]}`, 1))
 		var recs []map[string]any

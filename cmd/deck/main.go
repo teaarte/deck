@@ -219,10 +219,10 @@ func run() (*release.Restart, error) {
 		}
 		defer node.Close()
 	}
-	// The update this deck is has served, so the binary before it goes.
+	// The update this deck is has served, so its mark goes, then the binary before it.
 	if p, ok := release.ReadPending(a.Home.Update()); ok {
-		os.Remove(p.Old)
 		os.Remove(a.Home.Update())
+		os.Remove(p.Old)
 	}
 	slog.Info("deck listening", "url", url0(origins, ln), "public", strings.Join(publics, ","), "home", home)
 	// The first device pairs by a link in the log; deck pair makes the next ones.

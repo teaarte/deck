@@ -103,8 +103,8 @@ To go back, `docker compose down` and start the old binary on `~/.deck2`, which 
 
 deck keeps its snapshots in its volume, `state/backups/`: `deck-<time>.tar.gz` daily and by hand, `deleted-<time>`
 before a module is deleted, and `update-<time>.tar.gz`, the base as it was before a newer deck migrated it on its
-first start. An older deck refuses to start on a base a newer one migrated and says so in
-`docker compose logs deck`. To go back to the older image, put back the base of the last `update-` snapshot:
+first start. An older deck (v0.3.1 and later) refuses to start on a base a newer one migrated
+and says so in `docker compose logs deck`; v0.3.0 and earlier do not check, so restore before going back to them. To go back to the older image, put back the base of the last `update-` snapshot:
 
 ```bash
 cd ~/deck && docker compose stop deck

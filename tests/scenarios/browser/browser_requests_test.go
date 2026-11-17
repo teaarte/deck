@@ -13,8 +13,8 @@ import (
 // visibleText is the text of an element a person sees: folded details are not.
 const visibleText = `((sel) => document.querySelector(sel)?.innerText ?? '')`
 
-// TestRealBrowserARequestInWords: a request of four assignments reads on Today and in the chat, on a desktop and a
-// phone, as what changes and why in the topic's language, the call only under its details.
+// TestRealBrowserARequestInWords: a request of four assignments of a Russian topic reads in an English client, on Today
+// and in the chat, on a desk and a phone, as what changes and why in the topic's language, the call under its details.
 func TestRealBrowserARequestInWords(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()
@@ -26,10 +26,13 @@ func TestRealBrowserARequestInWords(t *testing.T) {
 		for _, cmd := range []string{"r1", "r2", "r3", "r4"} {
 			places = append(places, fmt.Sprintf(`{"role": "text", "project": "films", "command": %q, "models": ["openrouter/qwen"]}`, cmd))
 		}
+		if _, bad := c.Tool(ctx, "chat_topic_lang_set", map[string]any{"lang": "ru"}); bad {
+			return provider.Result{Text: "no language"}
+		}
 		out, _ := c.Tool(ctx, "assignment_set", map[string]any{"assignments": "[" + strings.Join(places, ", ") + "]", "why": "Нужно для 4-го захода опыта."})
 		return provider.Result{Text: "Попросил модели: " + out}
 	}))
-	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "en"}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "qwen", "kind": "text", "call_usd": 0.01}, nil)
 	e.Project("films", harness.TestManifest([]string{harness.AgentCommand("r1", ""), harness.AgentCommand("r2", ""),
@@ -49,6 +52,9 @@ func TestRealBrowserARequestInWords(t *testing.T) {
 		if strings.Count(today, "→ openrouter/qwen") != 4 || !strings.Contains(today, "Назначить модели") || strings.ContainsAny(today, "{}") ||
 			strings.Contains(today, "assignment_set") {
 			t.Fatalf("Today on a %s says what changes and why in words, the call only under its details: %s", size.name, today)
+		}
+		if menu := b.eval(visibleText + `('[data-places], [data-phone-tabs]')`); !strings.Contains(menu, "Today") {
+			t.Fatalf("the client on a %s stays in the English of the settings: %s", size.name, menu)
 		}
 		b.shot("request-today-" + size.name)
 

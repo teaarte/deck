@@ -19,7 +19,8 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
   (`DECK_OLLAMA_MODEL`, default `laguna-xs-2.1:nvfp4`; a cloud model: `DECK_ACP_URL`, `DECK_ACP_MODEL`, `DECK_ACP_KEY`)
 - Script packages from PyPI and npm through deck's proxy: `DECK_REAL_PACKAGES=1 go test ./tests/scenarios/real -run TestRealScriptPackages -v`
 - Web client in a real browser (Playwright MCP; checks that `web/dist` is fresh):
-  `DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v` (`DECK_SCREENSHOTS=<dir>` keeps screenshots)
+  `DECK_REAL_BROWSER=1 go test ./tests/scenarios/browser -run TestRealBrowser -v` (`DECK_SCREENSHOTS=<dir>` keeps screenshots); the golden flows CI runs on
+  every push: `.github/golden.sh` (the list of their tests, one retry)
 - The README's screenshots on demo modules: `DECK_REAL_BROWSER=1 DECK_SCREENSHOTS=<dir> go test ./tests/scenarios/browser
   -run TestRealBrowserShowcase -v`, then `docs/screenshots/<name>.png` from `<dir>/TestRealBrowserShowcase/web-readme-<name>.png`
   (quantized to 256 colours)
@@ -140,7 +141,7 @@ hold; look inside a package for the rest.
 - `tests/scenarios/<area>` — scenario tests through the real gateway with a fake provider, a package an area
   (`box`, `browser`, `chat`, `egress`, `modules`, `owner`, `providers`, `real`, `runs`, `server`), a file `<area>_<topic>_test.go`;
   `tests/lint` keeps their conventions (`internal/lint/tests.go`).
-- `.github` — `ci.yml` on every push and PR (checks, tests, race shards a package of scenarios each by `shard.sh` on Linux, owner and providers in halves, `tests/linux`),
+- `.github` — `ci.yml` on every push and PR (checks, tests, race shards a package of scenarios each by `shard.sh` on Linux, owner and providers in halves, the golden browser flows by `golden.sh`, `tests/linux`),
   `macos.yml` (race on macos-26 by the same shards, nightly and by hand; it only tells), `image.yml` (the image on its
   changes and nightly), `release.yml` (a tag only of a commit of master that ci made green);
   `renovate.json` keeps the pinned base images, CLIs, modules and actions current.

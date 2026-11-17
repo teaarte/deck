@@ -1,6 +1,6 @@
 # Every push of a branch and pull request from a fork: the checks, the tests with and without the race detector on Linux
-# a shard a package of scenarios (owner and providers in halves), the tests in Linux containers; a tag needs it green
-# (release.yml); macOS runs nightly and only tells (macos.yml).
+# a shard a package of scenarios (owner and providers in halves), the golden flows of the web client in Chrome, the
+# tests in Linux containers; a tag needs it green (release.yml); macOS runs nightly and only tells (macos.yml).
 name: ci
 
 on:
@@ -98,6 +98,31 @@ jobs:
         with:
           sandbox: true
       - run: shard=$(.github/shard.sh ${{ matrix.areas }}) && go test -race -count=1 -timeout 20m $shard
+
+  # The golden flows of the web client in Chrome (golden.sh), a failed one tried once more; their screenshots stay.
+  golden:
+    if: ${{ !github.event.pull_request || github.event.pull_request.head.repo.full_name != github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: ./.github/actions/setup
+        with:
+          sandbox: true
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: cd web && npm ci
+      - run: DECK_SCREENSHOTS="$RUNNER_TEMP/golden" .github/golden.sh
+      - name: The screenshots of the golden flows
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: golden
+          path: ${{ runner.temp }}/golden
+          retention-days: 14
 
   # The hosts deck's compose.yaml is tried on: Ubuntu 22.04 with AppArmor 3, 24.04 with AppArmor 4, whose user
   # namespaces only a profile opens.

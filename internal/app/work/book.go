@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/models"
 	"deck2/internal/provider"
@@ -91,16 +90,23 @@ func Roles(v modelView) []string {
 }
 
 // Book is the models of a workspace by name, with what reads their price: the built-in providers and those of
-// connections.
+// connections; what it asks of the workspace it asks once, and the work of a command it looks up once.
 type Book struct {
 	models map[string]modelView
 	order  []string
 	tr     func(string) string
+	pool   *pool
+	works  map[workOf]provider.Work
+}
+
+type workOf struct {
+	project int64
+	command string
 }
 
 // book reads the models of a workspace once, for many lookups of the work of commands.
 func (s *Service) book(ctx context.Context, workspace int64, tr func(string) string) *Book {
-	b := &Book{models: map[string]modelView{}, tr: tr}
+	b := &Book{models: map[string]modelView{}, tr: tr, pool: s.pool(workspace), works: map[workOf]provider.Work{}}
 	for _, pv := range s.Builtin {
 		_, sub := pv.(provider.Subscribed)
 		b.add(modelView{Name: pv.Name(), Kind: RoleText, Agent: pv.Name(), Builtin: true, Subscription: sub})
@@ -115,7 +121,7 @@ func (s *Service) book(ctx context.Context, workspace int64, tr func(string) str
 	for _, n := range b.order {
 		base = append(base, b.models[n])
 	}
-	for _, v := range s.onNodes(ctx, workspace, base) {
+	for _, v := range s.onNodes(ctx, b.pool, base) {
 		b.add(v)
 	}
 	for n, v := range b.models {
@@ -126,8 +132,8 @@ func (s *Service) book(ctx context.Context, workspace int64, tr func(string) str
 }
 
 // onNodes are the agents of a workspace on its nodes, each as the agent of base it runs there, named name@node.
-func (s *Service) onNodes(ctx context.Context, workspace int64, base []modelView) []modelView {
-	all, _ := s.All(ctx, workspace)
+func (s *Service) onNodes(ctx context.Context, pl *pool, base []modelView) []modelView {
+	all, _ := pl.All(ctx)
 	var out []modelView
 	for _, pv := range all {
 		name := pv.Name()
@@ -309,30 +315,37 @@ func (b *Book) Agents() []string {
 // commandWork is who does the work of a command of a project by the manifest in force: an agent command's model,
 // a model command's model of its kind; nothing for the other commands.
 func (s *Service) commandWork(ctx context.Context, b *Book, projectID int64, command string) provider.Work {
-	m, err := docs.ManifestAt(ctx, s.St.Q, projectID, 0)
-	if err != nil {
+	key := workOf{projectID, command}
+	if w, ok := b.works[key]; ok {
+		return w
+	}
+	w := s.lookUpWork(ctx, b, projectID, command)
+	b.works[key] = w
+	return w
+}
+
+func (s *Service) lookUpWork(ctx context.Context, b *Book, projectID int64, command string) provider.Work {
+	po := b.pool.project(ctx, projectID)
+	if po.mErr != nil {
 		return provider.Work{}
 	}
-	cmd := m.Command(command)
+	cmd := po.m.Command(command)
 	if cmd == nil {
 		return provider.Work{}
 	}
-	p, err := s.St.Q.GetProject(ctx, projectID)
-	if err != nil {
-		return provider.Work{}
-	}
+	p := po.p
 	switch cmd.Executor.Type {
 	case "agent":
 		w := provider.Work{Role: RoleAgent}
 		var left []string
-		w.Choices, left = s.able(ctx, p, cmd, func(name string) int64 { return b.models[name].Tools })
+		w.Choices, left = s.able(ctx, b.pool, p, cmd, func(name string) int64 { return b.models[name].Tools })
 		for i, l := range left {
 			left[i] = b.tr(l)
 		}
 		w.LeftOut = strings.Join(left, "; ")
 		w.Models, _ = Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, command, RoleAgent)
-		if pv, err := s.For(ctx, projectID, cmd); err == nil {
-			w.Model = pv.Name()
+		if fits, assigned, err := s.fittingIn(ctx, b.pool, projectID, cmd); err == nil {
+			w.Model = s.first(ctx, p.WorkspaceID, fits, assigned).Name()
 		}
 		w.Why = s.why(ctx, p.WorkspaceID, w.Models, w.Model, b.tr)
 		w.Price = b.Price(w.Model)
@@ -353,6 +366,11 @@ func (s *Service) commandWork(ctx context.Context, b *Book, projectID int64, com
 // Places are the parts of the work of the projects of a workspace, by model: project.command for a command, the
 // project for the kinds of work of its scripts.
 func (s *Service) Places(ctx context.Context, workspace int64) map[string]provider.Placed {
+	return s.places(ctx, workspace, s.book(ctx, workspace, func(p string) string { return p }))
+}
+
+// places are Places on the book b of the workspace.
+func (s *Service) places(ctx context.Context, workspace int64, b *Book) map[string]provider.Placed {
 	out := map[string]provider.Placed{}
 	add := func(w provider.Work, place string) {
 		names := w.Models
@@ -370,16 +388,15 @@ func (s *Service) Places(ctx context.Context, workspace int64) map[string]provid
 		}
 	}
 	projects, _ := s.St.Q.ListWorkspaceProjects(ctx, workspace)
-	b := s.book(ctx, workspace, func(p string) string { return p })
 	for _, p := range projects {
 		for _, w := range s.rolesWork(ctx, b, p.ID) {
 			add(w, p.Name)
 		}
-		m, err := docs.ManifestAt(ctx, s.St.Q, p.ID, 0)
-		if err != nil {
+		po := b.pool.project(ctx, p.ID)
+		if po.mErr != nil {
 			continue
 		}
-		for _, c := range m.Commands {
+		for _, c := range po.m.Commands {
 			if c.Executor.Type == "agent" || c.Executor.Type == "model" {
 				if w := s.commandWork(ctx, b, p.ID, c.Name); w.Model != "" {
 					add(w, p.Name+"."+c.Name)
@@ -393,16 +410,13 @@ func (s *Service) Places(ctx context.Context, workspace int64) map[string]provid
 // rolesWork is who does each kind of work a project calls models for apart from its commands, such as the pictures
 // its scripts make, by the @roles of its manifest in force.
 func (s *Service) rolesWork(ctx context.Context, b *Book, projectID int64) []provider.Work {
-	m, err := docs.ManifestAt(ctx, s.St.Q, projectID, 0)
-	if err != nil {
+	po := b.pool.project(ctx, projectID)
+	if po.mErr != nil {
 		return nil
 	}
-	p, err := s.St.Q.GetProject(ctx, projectID)
-	if err != nil {
-		return nil
-	}
+	p := po.p
 	var out []provider.Work
-	for _, use := range m.Called() {
+	for _, use := range po.m.Called() {
 		if role, ok := strings.CutPrefix(use, "@"); ok && slices.Contains(roles, role) {
 			out = append(out, s.roleWork(ctx, b, p, "", role))
 		}

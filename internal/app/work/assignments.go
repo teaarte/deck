@@ -455,11 +455,11 @@ func (s *Service) before(ctx context.Context, workspace, project int64, command,
 // Unassigned are the commands of a manifest that miss a model, by name, with what the owner does: an agent command no
 // provider fits or that calls deck.web_search on an ACP agent without a search, a model command with nothing assigned.
 func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string {
-	out := map[string]string{}
+	out, pl := map[string]string{}, s.pool(workspace)
 	for _, c := range m.Commands {
 		if c.Executor.Type == "agent" {
 			var refused *registry.Error
-			_, fits, _, err := s.fitting(ctx, project, &c)
+			fits, _, err := s.fittingIn(ctx, pl, project, &c)
 			if errors.As(err, &refused) {
 				out[c.Name] = refused.Error()
 			} else if err == nil && c.Executor.Calls != nil && registry.Permits(c.Executor.Calls, registry.Deck("web_search")) {

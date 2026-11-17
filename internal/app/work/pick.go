@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"deck2/internal/docs"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
@@ -24,12 +23,18 @@ func (s *Service) For(ctx context.Context, projectID int64, cmd *manifest.Comman
 	if err != nil {
 		return nil, err
 	}
+	return s.first(ctx, ws, fits, assigned), nil
+}
+
+// first is the provider of fits a command starts on: the first, or of an assignment the first that is up, else its
+// first.
+func (s *Service) first(ctx context.Context, workspace int64, fits []provider.Provider, assigned bool) provider.Provider {
 	for _, pv := range fits {
-		if !assigned || s.Up(ctx, ws, pv.Name()) {
-			return pv, nil
+		if !assigned || s.Up(ctx, workspace, pv.Name()) {
+			return pv
 		}
 	}
-	return fits[0], nil
+	return fits[0]
 }
 
 // Next is the provider of a command's assignment after the one that refused its turn, the first that fits and is up;
@@ -76,7 +81,7 @@ func (s *Service) Able(ctx context.Context, p db.Project, cmd *manifest.Command)
 	for _, r := range rows {
 		limits[r.Model.Name] = r.Model.Tools
 	}
-	out, _ := s.able(ctx, p, cmd, func(name string) int64 {
+	out, _ := s.able(ctx, s.pool(p.WorkspaceID), p, cmd, func(name string) int64 {
 		if base, _, ok := provider.AtNode(name); ok {
 			name = base
 		}
@@ -87,8 +92,8 @@ func (s *Service) Able(ctx context.Context, p db.Project, cmd *manifest.Command)
 
 // able are the names of Able and why each provider with what the command requires is left out: its model takes
 // fewer tools a request than a turn of the command carries; limit is the tools limit of a model by name.
-func (s *Service) able(ctx context.Context, p db.Project, cmd *manifest.Command, limit func(string) int64) (names, left []string) {
-	all, _ := s.All(ctx, p.WorkspaceID)
+func (s *Service) able(ctx context.Context, pl *pool, p db.Project, cmd *manifest.Command, limit func(string) int64) (names, left []string) {
+	all, _ := pl.All(ctx)
 	names, deck := []string{}, -1
 	for _, pv := range all {
 		if len(pv.Caps().Missing(cmd.Requires)) > 0 {
@@ -146,30 +151,41 @@ func (s *Service) fitting(ctx context.Context, projectID int64, cmd *manifest.Co
 	if err != nil {
 		return 0, nil, false, err
 	}
+	fits, assigned, err := s.fittingIn(ctx, s.pool(p.WorkspaceID), projectID, cmd)
+	return p.WorkspaceID, fits, assigned, err
+}
+
+// fittingIn is fitting on what pl read of the workspace of the project.
+func (s *Service) fittingIn(ctx context.Context, pl *pool, projectID int64, cmd *manifest.Command) ([]provider.Provider, bool, error) {
+	po := pl.project(ctx, projectID)
+	if po.err != nil {
+		return nil, false, po.err
+	}
+	p := po.p
 	names, err := Assigned(ctx, s.St.Q, p.WorkspaceID, p.ID, cmd.Name, RoleAgent)
 	if err != nil {
-		return 0, nil, false, err
+		return nil, false, err
 	}
-	fits, assigned, err := s.choices(ctx, p, cmd, names)
+	fits, assigned, err := s.choices(ctx, pl, p, cmd, names)
 	if err != nil {
-		return 0, nil, false, err
+		return nil, false, err
 	}
 	if fits, err = s.atFolder(ctx, p, cmd, fits); err != nil {
-		return 0, nil, false, err
+		return nil, false, err
 	}
-	if fits, err = s.logins(ctx, p, fits); err != nil {
-		return 0, nil, false, err
+	if fits, err = s.logins(po, fits); err != nil {
+		return nil, false, err
 	}
-	return p.WorkspaceID, fits, assigned, nil
+	return fits, assigned, nil
 }
 
 // logins are the providers of fits an agent of p may run on: one on a subscription login only when its module declares
 // the right login on it and the owner did not say no, the turn asking them first; with none left the start is refused.
-func (s *Service) logins(ctx context.Context, p db.Project, fits []provider.Provider) ([]provider.Provider, error) {
-	m, g, err := docs.Rights(ctx, s.St.Q, p.ID)
-	if err != nil {
-		return nil, err
+func (s *Service) logins(po projectOf, fits []provider.Provider) ([]provider.Provider, error) {
+	if po.gErr != nil {
+		return nil, po.gErr
 	}
+	p, m, g := po.p, po.m, po.grants
 	var out []provider.Provider
 	var off []string
 	for _, pv := range fits {
@@ -233,23 +249,23 @@ func (s *Service) atFolder(ctx context.Context, p db.Project, cmd *manifest.Comm
 
 // choices are the providers that run and have what a command requires, at least one: those of its assignment in
 // order, else all with the suggestion of the manifest first; assigned: a chain, an assignment or free models first.
-func (s *Service) choices(ctx context.Context, p db.Project, cmd *manifest.Command, names []string) ([]provider.Provider, bool, error) {
+func (s *Service) choices(ctx context.Context, pl *pool, p db.Project, cmd *manifest.Command, names []string) ([]provider.Provider, bool, error) {
 	place, requires := p.Name+"."+cmd.Name, cmd.Requires
 	var fits []provider.Provider
 	if len(names) > 0 {
 		var why []string
 		for _, name := range names {
-			if off := s.Off(ctx, p.WorkspaceID, name); off != "" {
-				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which is %s; %s", place, name, map[string]string{health.Missing: "not installed on this machine", health.Off: "turned off in Settings → Models"}[off], s.change(ctx, p.WorkspaceID, requires)))
+			if off := pl.Off(ctx, name); off != "" {
+				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which is %s; %s", place, name, map[string]string{health.Missing: "not installed on this machine", health.Off: "turned off in Settings → Models"}[off], s.change(ctx, pl, requires)))
 				continue
 			}
 			pv, err := s.Provider(ctx, p.WorkspaceID, name)
 			if err != nil {
-				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which does not run: %v; %s", place, name, err, s.change(ctx, p.WorkspaceID, requires)))
+				why = append(why, fmt.Sprintf("deck: %s is set to model %q, which does not run: %v; %s", place, name, err, s.change(ctx, pl, requires)))
 				continue
 			}
 			if missing := pv.Caps().Missing(requires); len(missing) > 0 {
-				why = append(why, fmt.Sprintf("deck: model %s set for %s lacks %s; %s", name, place, strings.Join(missing, ", "), s.change(ctx, p.WorkspaceID, requires)))
+				why = append(why, fmt.Sprintf("deck: model %s set for %s lacks %s; %s", name, place, strings.Join(missing, ", "), s.change(ctx, pl, requires)))
 				continue
 			}
 			fits = append(fits, pv)
@@ -259,7 +275,7 @@ func (s *Service) choices(ctx context.Context, p db.Project, cmd *manifest.Comma
 		}
 		return fits, true, nil
 	}
-	all, err := s.All(ctx, p.WorkspaceID)
+	all, err := pl.All(ctx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -283,7 +299,7 @@ func (s *Service) choices(ctx context.Context, p db.Project, cmd *manifest.Comma
 		}
 	}
 	if len(fits) == 0 {
-		return nil, false, registry.Invalid("no provider fits %s, which requires %s; %s", place, strings.Join(requires, ", "), s.change(ctx, p.WorkspaceID, requires))
+		return nil, false, registry.Invalid("no provider fits %s, which requires %s; %s", place, strings.Join(requires, ", "), s.change(ctx, pl, requires))
 	}
 	chain := cmd.Provider == manifest.FreeProvider && s.Free(ctx, p.WorkspaceID, fits[0].Name())
 	return fits, chain, nil
@@ -291,8 +307,8 @@ func (s *Service) choices(ctx context.Context, p db.Project, cmd *manifest.Comma
 
 // change says where the owner changes the model of a command: the models of the workspace that have what it
 // requires, or with none of them, that one is added.
-func (s *Service) change(ctx context.Context, workspace int64, requires []string) string {
-	all, _ := s.All(ctx, workspace)
+func (s *Service) change(ctx context.Context, pl *pool, requires []string) string {
+	all, _ := pl.All(ctx)
 	var names []string
 	for _, pv := range all {
 		if len(pv.Caps().Missing(requires)) == 0 {

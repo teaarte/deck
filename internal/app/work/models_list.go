@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"deck2/internal/access"
-	"deck2/internal/docs"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
@@ -235,11 +234,11 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		v.Why = s.why(ctx, act.Workspace, v.Models, v.Using, tr)
 		out.Assignments = append(out.Assignments, v)
 	}
-	used, err := s.uses(ctx, act, pid, registry.Lang(ctx), &out)
+	b := s.book(ctx, act.Workspace, tr)
+	used, err := s.uses(ctx, act, b, pid, registry.Lang(ctx), &out)
 	if err != nil {
 		return out, err
 	}
-	b := s.book(ctx, act.Workspace, tr)
 	for _, role := range roles {
 		w := provider.Work{Choices: b.Of(role)}
 		if agentic(role) {
@@ -281,7 +280,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 // shown are the models of a workspace as the owner reads them, each with its state: the built-in providers, the
 // models of its connections and the agents of its nodes.
 func (s *Service) shown(ctx context.Context, act registry.Actor, models []db.ListModelsRow) []modelView {
-	out := []modelView{}
+	out, pl := []modelView{}, s.pool(act.Workspace)
 	for _, pv := range s.Builtin {
 		_, sub := pv.(provider.Subscribed)
 		v := modelView{Name: pv.Name(), Kind: RoleText, Agent: pv.Name(), Builtin: true, Subscription: sub}
@@ -289,7 +288,7 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, models []db.Lis
 			v.Login = l.OnLogin()
 		}
 		s.lastCheck(ctx, act.Workspace, &v)
-		s.offStatus(ctx, act.Workspace, &v)
+		s.offStatus(ctx, pl, &v)
 		out = append(out, v)
 	}
 	for _, r := range models {
@@ -304,10 +303,10 @@ func (s *Service) shown(ctx context.Context, act registry.Actor, models []db.Lis
 			v.Spare = s.Spare(ctx, act, m)
 		}
 		s.lastCheck(ctx, act.Workspace, &v)
-		s.offStatus(ctx, act.Workspace, &v)
+		s.offStatus(ctx, pl, &v)
 		out = append(out, v)
 	}
-	for _, v := range s.onNodes(ctx, act.Workspace, out) {
+	for _, v := range s.onNodes(ctx, pl, out) {
 		s.lastCheck(ctx, act.Workspace, &v)
 		out = append(out, v)
 	}
@@ -359,9 +358,9 @@ func placesOf(work []workView, tr func(string) string) map[string]placed {
 	return out
 }
 
-// uses fills in the uses of the projects the caller reaches, all of them or only pid, with the work of pid, and says
-// which models some work goes to or is assigned to.
-func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang string, out *modelsView) (map[string]bool, error) {
+// uses fills in the uses of the projects the caller reaches, all of them or only pid, with the work of pid looked up
+// in b, and says which models some work goes to or is assigned to.
+func (s *Service) uses(ctx context.Context, act registry.Actor, b *Book, pid int64, lang string, out *modelsView) (map[string]bool, error) {
 	used := map[string]bool{}
 	for _, a := range out.Assignments {
 		for _, name := range a.Models {
@@ -373,7 +372,6 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 		return nil, err
 	}
 	ws := words.In(lang)
-	b := s.book(ctx, act.Workspace, func(p string) string { return manifest.TrText(ws, p) })
 	for _, p := range projects {
 		if pid != 0 && p.ID != pid {
 			continue
@@ -382,10 +380,11 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 		for _, w := range roles {
 			out.Uses = append(out.Uses, useView{Project: p.Name, Work: w})
 		}
-		m, err := docs.ManifestAt(ctx, s.St.Q, p.ID, 0)
-		if err != nil {
+		po := b.pool.project(ctx, p.ID)
+		if po.mErr != nil {
 			continue
 		}
+		m := po.m
 		mws := manifest.Words(ws, m, lang)
 		title, _, _ := manifest.Nav(p.Name, m, mws)
 		own := func(command, role string) bool {
@@ -424,7 +423,7 @@ func (s *Service) uses(ctx context.Context, act registry.Actor, pid int64, lang 
 			out.Work = append(out.Work, workView{Kind: "default", Title: manifest.Tr(ws, RoleWidget), Work: b.Grouped(provider.Work{Role: RoleWidget, Choices: b.Agents()})})
 		}
 	}
-	for name := range s.Places(ctx, act.Workspace) {
+	for name := range s.places(ctx, act.Workspace, b) {
 		used[name] = true
 	}
 	return used, nil
@@ -438,8 +437,8 @@ func boolRank(b bool) int {
 }
 
 // offStatus marks a model whose program is not installed or that the owner turned off, in place of its last check.
-func (s *Service) offStatus(ctx context.Context, workspace int64, v *modelView) {
-	if off := s.Off(ctx, workspace, v.Name); off != "" {
+func (s *Service) offStatus(ctx context.Context, pl *pool, v *modelView) {
+	if off := pl.Off(ctx, v.Name); off != "" {
 		v.Status, v.Error, v.Verdict, v.Speed = off, "", "", 0
 	}
 }

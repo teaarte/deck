@@ -94,9 +94,8 @@ func call(e *harness.Env, name string, in map[string]any) error {
 	return nil
 }
 
-// TestTheOwnersPagesReadWithinTheirBudgetOnALargeDeck: Today, the cockpit, the apps, health and the schedule read
-// within their budgets on a deck of fifteen modules, and an answer of an ask with the reads it causes is fresh in
-// time; the budgets are four times as long under the race detector.
+// TestTheOwnersPagesReadWithinTheirBudgetOnALargeDeck: the owner's pages of a deck of fifteen modules read within
+// their budgets, and so does an answer with the reads it causes; four times as long under the race detector.
 func TestTheOwnersPagesReadWithinTheirBudgetOnALargeDeck(t *testing.T) {
 	e := bigDeck(t)
 	reads := map[string]func() error{

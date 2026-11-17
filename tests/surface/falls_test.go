@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
@@ -153,6 +154,10 @@ func TestFall09ANewVersionFallsAfterItsMigration(t *testing.T) {
 	if err := os.WriteFile(h.Update(), pending.JSON(), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	// As after a hand restore of the same update before, whose steps leave update-kept.
+	if err := os.WriteFile(h.UpdateKept(), []byte("99991"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 
 	if out, served := startDeck(t, exe, e.Home); served {
 		t.Fatalf("the next deck falls on its broken migration:\n%s", out)
@@ -228,7 +233,8 @@ func startDeck(t *testing.T, exe, home string) (string, bool) {
 		}
 	}
 	cmd := exec.Command(exe, "-addr", "127.0.0.1:0")
-	cmd.Env = append(os.Environ(), "DECK_HOME="+home, "PATH="+shims+string(os.PathListSeparator)+os.Getenv("PATH"))
+	env := slices.DeleteFunc(os.Environ(), func(v string) bool { return strings.HasPrefix(v, "DECK_") })
+	cmd.Env = append(env, "DECK_HOME="+home, "PATH="+shims+string(os.PathListSeparator)+os.Getenv("PATH"))
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
 		t.Fatal(err)
@@ -236,6 +242,7 @@ func startDeck(t *testing.T, exe, home string) (string, bool) {
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { _ = cmd.Process.Kill() })
 	var said []string
 	served := make(chan bool, 1)
 	go func() {

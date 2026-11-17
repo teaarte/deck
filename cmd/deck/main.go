@@ -277,10 +277,11 @@ func pending(h deckhome.Layout) error {
 			return fmt.Errorf("go back from the update %s to the base before it (docs/install.md, \"Restoring a snapshot\"): %w", p.Version, err)
 		}
 	}
-	os.Remove(h.Update())
-	if err := os.Rename(p.Old, p.Exe); err != nil {
+	// The binary goes back before the mark of the update, so a fall between them starts this again.
+	if err := os.Rename(p.Old, p.Exe); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return fmt.Errorf("go back from the update %s: %w", p.Version, err)
 	}
+	os.Remove(h.Update())
 	return syscall.Exec(p.Exe, os.Args, os.Environ())
 }
 

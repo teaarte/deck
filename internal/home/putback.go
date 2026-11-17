@@ -43,10 +43,22 @@ func (l Layout) PutBack(path string) error {
 	if _, err := io.Copy(t, tr); err != nil {
 		return err
 	}
+	if err := t.Sync(); err != nil {
+		return err
+	}
 	for _, f := range []string{l.DB() + "-wal", l.DB() + "-shm", l.UpdateKept()} {
 		if err := os.Remove(f); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
 	}
-	return t.Keep(l.DB())
+	if err := t.Keep(l.DB()); err != nil {
+		return err
+	}
+	// The base is in place on disk before the update that names its snapshot goes.
+	dir, err := os.Open(l.State())
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
 }

@@ -120,11 +120,13 @@ func (s *Service) write(ctx context.Context, kind string, project int64) (string
 	return path, left, nil
 }
 
-// BeforeUpdate keeps the base a start of deck migrates in backups/update-<time>.tar.gz, as a snapshot holds it; a
-// start of the same deck again, after a migration failed halfway, keeps the first one.
+// BeforeUpdate keeps the base a start of deck migrates in backups/update-<time>.tar.gz; a start of the same deck
+// again keeps the first one, but the tried start of an update put in place keeps its own and names it in the update.
 func BeforeUpdate(h home.Layout, now func() time.Time) store.Before {
 	return func(from, last int64, backup func(to string) error) error {
-		if b, err := os.ReadFile(h.UpdateKept()); err == nil && string(b) == fmt.Sprint(last) {
+		p, pending := release.ReadPending(h.Update())
+		pending = pending && p.Tried
+		if b, err := os.ReadFile(h.UpdateKept()); err == nil && string(b) == fmt.Sprint(last) && !pending {
 			return nil
 		}
 		if err := os.MkdirAll(h.Backups(), 0o700); err != nil {
@@ -141,7 +143,7 @@ func BeforeUpdate(h home.Layout, now func() time.Time) store.Before {
 			return err
 		}
 		slog.Info("the base is kept before it is migrated", "from", from, "to", last, "snapshot", path)
-		if p, ok := release.ReadPending(h.Update()); ok && p.Tried {
+		if pending {
 			// The update's own snapshot, which its rollback puts back.
 			p.Base = path
 			if err := home.WriteFile(h.Update(), p.JSON()); err != nil {

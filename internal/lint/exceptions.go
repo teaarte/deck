@@ -20,7 +20,7 @@ var exceptions = map[string][]string{
 		"cmd/deck-release/main.go:60", "internal/app/feed/push.go:66",
 		"internal/app/files/files.go:251", "internal/app/files/light.go:19", "internal/app/files/resource.go:72",
 		"internal/app/files/thumbs.go:87", "internal/app/files/thumbs.go:99", "internal/app/project/module_data.go:339",
-		"internal/app/project/module_zip.go:41", "internal/app/secrets/move.go:100", "internal/app/secrets/move.go:68", "internal/app/snapshots/snapshot.go:127",
+		"internal/app/project/module_zip.go:41", "internal/app/secrets/move.go:100", "internal/app/secrets/move.go:68", "internal/app/snapshots/snapshot.go:129",
 		"internal/app/secrets/secrets.go:124", "internal/app/secrets/secrets.go:52", "internal/app/secrets/secrets.go:77",
 		"internal/app/updates/updates.go:346", "internal/app/updates/updates.go:361",
 		"internal/app/work/option_files.go:168", "internal/auth/codes.go:68", "internal/auth/origins.go:86",
@@ -33,7 +33,7 @@ var exceptions = map[string][]string{
 	},
 	"write": {
 		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:60", "cmd/deck/main.go:281",
-		"internal/app/snapshots/snapshot.go:166", "internal/app/updates/updates.go:330", "internal/process/settle.go:125",
+		"internal/app/snapshots/snapshot.go:168", "internal/app/updates/updates.go:330", "internal/process/settle.go:125",
 		"internal/provider/codex/gen/main.go:93", "internal/provider/codex/gen/main.go:104",
 		"internal/provider/shellcheck.go:80", "internal/provider/shellcheck.go:81",
 	},

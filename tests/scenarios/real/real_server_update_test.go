@@ -168,9 +168,8 @@ chown -R agent:agent /home/agent /var/lib/deck/work/left`)
 	b.calm()
 }
 
-// rollback goes back to the image of v by the steps of docs/install.md, "Restoring a snapshot": the older image on
-// the migrated base refuses and names them; the base of the snapshot the update kept, then the older image, which
-// finds what it kept.
+// rollback goes back to the image of v by docs/install.md, "Restoring a snapshot": the older image refuses the migrated
+// base naming those steps, which put back the base the update kept, and the older image finds what it kept.
 func (b *bare) rollback(cookie, v string) {
 	t := b.t
 	t.Helper()

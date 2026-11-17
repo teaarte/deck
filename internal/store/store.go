@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/pressly/goose/v3"
@@ -28,6 +29,7 @@ type Store struct {
 	DB    *sql.DB
 	Q     *db.Queries
 	reads *sql.DB
+	read  *atomic.Int64
 	uri   string
 	// Changed hears what each committed transaction changed, once it committed.
 	Changed func(events.Event)
@@ -84,7 +86,10 @@ type txKey struct{}
 
 // guard fails loudly when code queries through the shared connection inside a transaction, which would wait
 // forever for the connection the transaction holds, or writes through it outside one.
-type guard struct{ db *sql.DB }
+type guard struct {
+	db *sql.DB
+	n  *atomic.Int64
+}
 
 func check(ctx context.Context) {
 	if ctx.Value(txKey{}) != nil {
@@ -114,21 +119,25 @@ func write(q string) bool {
 
 func (g guard) ExecContext(ctx context.Context, q string, a ...any) (sql.Result, error) {
 	checkRead(ctx, q)
+	g.n.Add(1)
 	return g.db.ExecContext(ctx, q, a...)
 }
 
 func (g guard) PrepareContext(ctx context.Context, q string) (*sql.Stmt, error) {
 	checkRead(ctx, q)
+	g.n.Add(1)
 	return g.db.PrepareContext(ctx, q)
 }
 
 func (g guard) QueryContext(ctx context.Context, q string, a ...any) (*sql.Rows, error) {
 	checkRead(ctx, q)
+	g.n.Add(1)
 	return g.db.QueryContext(ctx, q, a...)
 }
 
 func (g guard) QueryRowContext(ctx context.Context, q string, a ...any) *sql.Row {
 	checkRead(ctx, q)
+	g.n.Add(1)
 	return g.db.QueryRowContext(ctx, q, a...)
 }
 
@@ -169,7 +178,8 @@ func Open(path string, now func() time.Time, before ...Before) (*Store, error) {
 		return nil, err
 	}
 	reads.SetMaxOpenConns(4)
-	return &Store{DB: conn, Q: db.New(guard{reads}), reads: reads, uri: uri, changes: ch, Now: now}, nil
+	n := &atomic.Int64{}
+	return &Store{DB: conn, Q: db.New(guard{reads, n}), reads: reads, read: n, uri: uri, changes: ch, Now: now}, nil
 }
 
 // checkVersion refuses a base of a newer deck and runs before ahead of the migrations of a base of an older one.
@@ -202,6 +212,9 @@ func checkVersion(conn *sql.DB, up *goose.Provider, path string, before []Before
 	}
 	return nil
 }
+
+// Reads are the statements read through Q since the base opened: what a read of deck costs the base.
+func (s *Store) Reads() int64 { return s.read.Load() }
 
 func (s *Store) Close() error { return cmp.Or(s.reads.Close(), s.DB.Close()) }
 

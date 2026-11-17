@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -13,14 +14,18 @@ import (
 	"deck2/tests/harness"
 )
 
-// budget is the median a read of the owner's pages may take on a large deck, measured on the fixed reads.
-var budget = map[string]time.Duration{
-	"today":          150 * time.Millisecond,
-	"cockpit":        150 * time.Millisecond,
-	"apps":           150 * time.Millisecond,
-	"health_list":    60 * time.Millisecond,
-	"triggers_list":  60 * time.Millisecond,
-	"press to fresh": 600 * time.Millisecond,
+// budget is what a read of the owner's pages may cost on a large deck: the statements it reads from the base, and
+// the median of its time, wide for a loaded machine and four times as wide under the race detector.
+var budget = map[string]struct {
+	reads int64
+	time  time.Duration
+}{
+	"today":          {950, 400 * time.Millisecond},
+	"cockpit":        {470, 400 * time.Millisecond},
+	"apps":           {100, 200 * time.Millisecond},
+	"health_list":    {450, 300 * time.Millisecond},
+	"triggers_list":  {460, 200 * time.Millisecond},
+	"press to fresh": {1550, 1200 * time.Millisecond},
 }
 
 // bigModule is a module of a large deck: two agent commands and one of a model, a collection and a schedule.
@@ -71,19 +76,23 @@ func bigDeck(t *testing.T) *harness.Env {
 	return e
 }
 
-// median calls read n times and gives the median of their times; a failed read fails the test.
-func median(t *testing.T, n int, read func() error) time.Duration {
+// cost is what read n times costs: the fewest statements of the base one read took, and the median of their times.
+func cost(t *testing.T, e *harness.Env, n int, read func() error) (int64, time.Duration) {
 	t.Helper()
 	var ds []time.Duration
+	least := int64(-1)
 	for range n {
-		at := time.Now()
+		at, was := time.Now(), e.App.Store.Reads()
 		if err := read(); err != nil {
 			t.Fatal(err)
 		}
 		ds = append(ds, time.Since(at))
+		if r := e.App.Store.Reads() - was; least < 0 || r < least {
+			least = r
+		}
 	}
 	slices.Sort(ds)
-	return ds[len(ds)/2]
+	return least, ds[len(ds)/2]
 }
 
 // call is a read of the owner that fails with its answer.
@@ -110,27 +119,22 @@ func TestTheOwnersPagesReadWithinTheirBudgetOnALargeDeck(t *testing.T) {
 		"health_list":   func() error { return call(e, "deck.health_list", nil) },
 		"triggers_list": func() error { return call(e, "deck.triggers_list", nil) },
 	}
-	got := map[string]time.Duration{}
-	for _, name := range slices.Sorted(func(yield func(string) bool) {
-		for k := range reads {
-			if !yield(k) {
-				return
-			}
-		}
-	}) {
-		got[name] = median(t, 7, reads[name])
+	type spent struct {
+		reads int64
+		time  time.Duration
 	}
-	got["press to fresh"] = pressToFresh(t, e, 5)
+	got := map[string]spent{}
+	for _, name := range slices.Sorted(maps.Keys(reads)) {
+		r, d := cost(t, e, 7, reads[name])
+		got[name] = spent{r, d}
+	}
+	r, d := pressToFresh(t, e, 5)
+	got["press to fresh"] = spent{r, d}
 	var over []string
-	for _, name := range slices.Sorted(func(yield func(string) bool) {
-		for k := range budget {
-			if !yield(k) {
-				return
-			}
-		}
-	}) {
-		t.Logf("%-15s %6d ms (budget %d ms)", name, got[name].Milliseconds(), harness.Within(budget[name]).Milliseconds())
-		if got[name] > harness.Within(budget[name]) {
+	for _, name := range slices.Sorted(maps.Keys(budget)) {
+		b, g := budget[name], got[name]
+		t.Logf("%-15s %5d reads (budget %d), %5d ms (budget %d ms)", name, g.reads, b.reads, g.time.Milliseconds(), harness.Within(b.time).Milliseconds())
+		if g.reads > b.reads || g.time > harness.Within(b.time) {
 			over = append(over, name)
 		}
 	}
@@ -139,11 +143,12 @@ func TestTheOwnersPagesReadWithinTheirBudgetOnALargeDeck(t *testing.T) {
 	}
 }
 
-// pressToFresh answers n asks of a button as the owner and gives the median time from the press until Today and the
+// pressToFresh answers n asks of a button as the owner and gives what it costs from the press until Today and the
 // cockpit are read again with what changed: the client waits 200 ms for the events and reads each screen once.
-func pressToFresh(t *testing.T, e *harness.Env, n int) time.Duration {
+func pressToFresh(t *testing.T, e *harness.Env, n int) (int64, time.Duration) {
 	t.Helper()
 	var ds []time.Duration
+	least := int64(-1)
 	for i := range n {
 		form, _ := json.Marshal(map[string]any{"role": "text", "project": "mod1", "models": []string{fmt.Sprintf("nvidia/m%d", i)}})
 		run := e.Start("picker", "main", map[string]any{"method": "deck.assignment_set", "form": string(form)})
@@ -154,7 +159,7 @@ func pressToFresh(t *testing.T, e *harness.Env, n int) time.Duration {
 		})
 		ctx, cancel := context.WithCancel(context.Background())
 		evs := e.Events(ctx)
-		at := time.Now()
+		at, was := time.Now(), e.App.Store.Reads()
 		if code, out := e.Press(asks.Asks[0].Allow); code != 200 {
 			t.Fatalf("the press answers the ask: %d %s", code, out)
 		}
@@ -172,13 +177,7 @@ func pressToFresh(t *testing.T, e *harness.Env, n int) time.Duration {
 			}
 		}
 		cancel()
-		changed := strings.Join(slices.Sorted(func(yield func(string) bool) {
-			for k := range topics {
-				if !yield(k) {
-					return
-				}
-			}
-		}), " ")
+		changed := strings.Join(slices.Sorted(maps.Keys(topics)), " ")
 		var wg sync.WaitGroup
 		errs := make(chan error, 2)
 		for _, in := range []map[string]any{{"screen": "today", "widget": "4x3", "topic": changed}, {"screen": "cockpit", "topic": changed}} {
@@ -192,6 +191,9 @@ func pressToFresh(t *testing.T, e *harness.Env, n int) time.Duration {
 			}
 		}
 		ds = append(ds, time.Since(at))
+		if r := e.App.Store.Reads() - was; least < 0 || r < least {
+			least = r
+		}
 		e.Until("the run of the button to end", func() bool {
 			for _, p := range e.Procs() {
 				if p.ID == run {
@@ -202,5 +204,5 @@ func pressToFresh(t *testing.T, e *harness.Env, n int) time.Duration {
 		})
 	}
 	slices.Sort(ds)
-	return ds[len(ds)/2]
+	return least, ds[len(ds)/2]
 }

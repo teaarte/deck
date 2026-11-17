@@ -45,7 +45,8 @@ func bigModule(i int) string {
 // bigDeck is a deck of the size the owner's grew to: 15 modules of 45 agent and model commands, 34 models over four
 // connections, 300 records and a module whose button asks the owner.
 func bigDeck(t *testing.T) *harness.Env {
-	e := harness.New(t)
+	// The agents of models run in the fake goose, so a machine without one has them too.
+	e := harness.New(t, harness.WithACP(harness.NewACP(t), nil))
 	for _, c := range []string{"openrouter", "groq", "nvidia"} {
 		e.Must("deck.connection_set", map[string]any{"name": c, "api": "openai", "url": "https://" + c + ".example/v1"}, nil)
 		for i := range 10 {

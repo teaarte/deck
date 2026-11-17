@@ -47,7 +47,7 @@ func (r *renderer) holds(id string, b manifest.Block) (bool, error) {
 	if b.When != "" && len(r.dialogs) == 0 && r.closed(id) {
 		return false, nil
 	}
-	if b.When == "" || r.req.Topic != "" && b.Source != nil || r.req.Block != "" || r.closed(id) {
+	if b.When == "" || len(r.req.Topics) > 0 && b.Source != nil || r.req.Block != "" || r.closed(id) {
 		return true, nil
 	}
 	env := map[string]any{}
@@ -195,7 +195,8 @@ func (r *renderer) block(id string, b manifest.Block) {
 			comp[part] = map[string]any{"path": "/" + id + "-" + part}
 		}
 	}
-	if r.req.Topic != "" && (!follows(b, r.deck(), r.req.Topic) || !r.reads(b, r.req.Changed)) || !r.wanted(id) || r.folded(id, b) {
+	if len(r.req.Topics) > 0 && (!slices.ContainsFunc(r.req.Topics, func(t string) bool { return follows(b, r.deck(), t) }) || !r.reads(b, r.req.Changed)) ||
+		!r.wanted(id) || r.folded(id, b) {
 		return
 	}
 	if k.parted {

@@ -133,7 +133,7 @@ func TestTheMasterShowsABlockAndTheOwnerAnswersIt(t *testing.T) {
 	e.Refused("deck.ask_answer", map[string]any{"ask": id, "answer": "Train"}, http.StatusUnprocessableEntity, "JSON object")
 	e.Refused("deck.chat_block_show", map[string]any{"block": offerForm}, http.StatusUnprocessableEntity, "only a reply of the master")
 	e.Must("deck.ask_answer", map[string]any{"ask": id, "answer": `{"price": 120, "rush": true}`}, nil)
-	e.Refused("deck.ask_answer", map[string]any{"ask": id, "answer": `{"price": 130}`}, http.StatusConflict, "already answered")
+	e.Refused("deck.ask_answer", map[string]any{"ask": id, "answer": `{"price": 130}`}, http.StatusGone, "already answered")
 
 	e.Until("the answer where the owner waits for, as the owner's message, and the master acting on it", func() bool {
 		ms := shownIn(e, topic)
@@ -226,7 +226,7 @@ func TestTheMasterShowsABlockAndTheOwnerAnswersIt(t *testing.T) {
 	if left := waiting(e); len(left) != 0 {
 		t.Fatalf("the questions of a deleted topic wait no more: %+v", left)
 	}
-	e.Refused("deck.ask_answer", map[string]any{"ask": int64(gone.ID), "answer": "Plane"}, http.StatusConflict, "already answered")
+	e.Refused("deck.ask_answer", map[string]any{"ask": int64(gone.ID), "answer": "Plane"}, http.StatusGone, "already answered")
 }
 
 // waitingAsk is a question as asks_list, the source of what waits for the owner on Today, gives it.

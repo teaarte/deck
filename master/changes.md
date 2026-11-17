@@ -568,3 +568,6 @@ and bring the modules in line.
   `deck.model_set` on that connection), assigned and a fallback as any model; `deck.connection_delete` removes it with
   its sign-in. The right `login` names the login (`login: claude-code-2`): a module on the first login does not run on
   the second until it declares it too. A login runs on deck's machine, not `@<node>`.
+- 2026-11-17: `deck.screen_get` takes several topics in `topic`, separated by spaces, and reads the blocks any of them
+  changes in one read. An answer to an ask that is answered or expired already (`deck.ask_answer`, a question of the
+  chat taken back) is refused with HTTP 410, not 409: what it acted on is over; read it again rather than tell it.

@@ -877,6 +877,8 @@
   "{{count}} more not shown_few": "Ещё {{count}} не показаны",
   "{{count}} more not shown_many": "Ещё {{count}} не показано",
   "The screen could not be shown": "Экран не удалось показать",
+  "deck is slow to answer": "deck долго отвечает",
+  "The screen is still loading; deck answers it when it can.": "Экран ещё загружается; deck ответит, как только сможет.",
   "This screen speaks A2UI {{got}}; this client speaks {{want}}. Reload the page.": "Этот экран говорит на A2UI {{got}}, а клиент — на {{want}}. Обновите страницу.",
   "This client cannot show a {{type}} block.": "Этот клиент не умеет показывать блок {{type}}.",
   "Open in web": "Открыть в вебе",

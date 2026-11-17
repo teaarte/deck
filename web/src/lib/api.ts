@@ -14,6 +14,11 @@ export async function authed(url: string, init: RequestInit = {}): Promise<Respo
 // Answer is the JSON result of a command and, for a read, the topics after which it gives another.
 export interface Answer<T> { data: T; topics: string[] }
 
+// Refusal is a call deck refused or failed, with its HTTP status: 410 says what it acted on is over already.
+export class Refusal extends Error {
+  constructor(text: string, readonly status: number) { super(text); }
+}
+
 // invoke calls a registry command; a refusal throws the server's text in the language of the interface. A small call
 // outlives the page; one that takes a fresh passkey waits for the owner's touch, then goes again.
 export async function invoke<T = unknown>(command: string, input: Record<string, unknown> = {}): Promise<Answer<T>> {
@@ -27,7 +32,7 @@ export async function invoke<T = unknown>(command: string, input: Record<string,
     r = await send();
   }
   const text = await r.text();
-  if (!r.ok) throw new Error(text.trim() || r.statusText);
+  if (!r.ok) throw new Refusal(text.trim() || r.statusText, r.status);
   const topics = r.headers.get('Deck-Topics');
   return { data: (text ? JSON.parse(text) : null) as T, topics: topics ? topics.split(',') : [] };
 }

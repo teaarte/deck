@@ -15,6 +15,10 @@ import { Feed, type Message } from './feed';
 import { PRESS, run } from './press';
 
 const TOPICS: string[] = catalogSchema.topics;
+// SLOW is how long a first read of a screen may take before the screen says deck is slow; QUICK how long after a
+// press the changes it made are read at once.
+const SLOW = 12_000;
+const QUICK = 3_000;
 
 // rootTopics are the topics the root of a whole screen names, after which it is read again.
 const rootTopics = (msgs: Message[]): string[] | undefined =>
@@ -27,6 +31,7 @@ type Processor = MessageProcessor<ReactComponentImplementation>;
 export function useScreen(route: Route, shownNow = true) {
   const [drawn, setDrawn] = useState<{ surface: SurfaceModel<ReactComponentImplementation>; key: string }>();
   const [error, setError] = useState('');
+  const [slow, setSlow] = useState(false);
   const proc = useRef<Processor>(undefined);
   const routeRef = useRef(route);
   routeRef.current = route;
@@ -36,6 +41,7 @@ export function useScreen(route: Route, shownNow = true) {
   // missedHidden is set by a change heard while the screen was not shown; again reads it whole.
   const missedHidden = useRef(false);
   const again = useRef<() => void>(() => undefined);
+  const retry = useRef<() => void>(() => undefined);
   // A pick of the side panel reads the screen again into the same surface; another key draws another screen. A
   // screen whose picks became known after its first read keeps its key.
   const place = useRef<{ key: string; route: Route }>(undefined);
@@ -109,6 +115,12 @@ export function useScreen(route: Route, shownNow = true) {
       }
       const { reply, ...pressed } = c as Action & { reply?: string };
       const r = await run(pressed);
+      // What the press changed is read as soon as deck tells it; a press on what was over already reads it all anew.
+      if (r.gone) void load();
+      else if (!r.error) {
+        quick = Date.now() + QUICK;
+        flush();
+      }
       // The reply goes to the surface pressed, also one still shown while the next screen loads.
       if (reply) p.model.getSurface(a.surfaceId)?.dataModel.set(PRESS + reply, r);
     };
@@ -132,19 +144,25 @@ export function useScreen(route: Route, shownNow = true) {
     const load = async () => {
       const mine = ++generation;
       const ticket = feed.ticket();
+      // A first read that takes long says so, rather than a skeleton without end.
+      const late = setTimeout(() => { if (!gone && !shown && mine === generation) setSlow(true); }, SLOW);
       try {
         const msgs = await call<Message[]>('deck.screen_get', input());
         if (gone || mine !== generation) return;
         setError('');
+        setSlow(false);
         wide = ticket;
         draw(msgs, ticket);
         remember(kept(), msgs, true);
         // A change heard while the screen was first read is read again now that it is drawn.
-        missed.splice(0).forEach((x) => void reread(x));
+        flush();
       } catch (e) {
-        if (gone) return;
+        if (gone || mine !== generation) return;
+        setSlow(false);
         if (shown) notifyError(e);
         else setError((e as Error).message);
+      } finally {
+        clearTimeout(late);
       }
     };
     // readBlock reads the data of one block and those inside it; a read of a block with a when draws the screen whole.
@@ -161,18 +179,31 @@ export function useScreen(route: Route, shownNow = true) {
         if (!gone) notifyError(e);
       }
     };
-    const missed: LiveEvent[] = [];
+    // pending are the changes heard and not read yet; one read of them goes at a time, and what comes meanwhile goes
+    // after it, every topic together. Shortly after a press a change is read at once.
     const pending = new Map<string, LiveEvent>();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const reread = async (e: LiveEvent) => {
-      if (!proc.current) {
-        missed.push(e);
-        return;
-      }
+    let reading = false;
+    let quick = 0;
+    const flush = () => {
+      clearTimeout(timer);
+      timer = undefined;
+      if (reading || !proc.current || pending.size === 0) return;
+      const es = [...pending.values()];
+      pending.clear();
+      reading = true;
+      void reread(es).finally(() => {
+        reading = false;
+        flush();
+      });
+    };
+    const reread = async (es: LiveEvent[]) => {
       const mine = generation;
       const ticket = feed.ticket();
+      const projects = new Set(es.map((x) => x.project ?? ''));
+      const changed = projects.size === 1 ? [...projects][0] : '';
       try {
-        const msgs = await call<Message[]>('deck.screen_get', input({ topic: e.topic, ...(e.project ? { changed: e.project } : {}) }));
+        const msgs = await call<Message[]>('deck.screen_get', input({ topic: [...new Set(es.map((x) => x.topic))].join(' '), ...(changed ? { changed } : {}) }));
         if (gone || mine !== generation) return;
         wide = ticket;
         topics = rootTopics(msgs) ?? topics;
@@ -189,16 +220,16 @@ export function useScreen(route: Route, shownNow = true) {
         return;
       }
       pending.set(e.topic + ' ' + (e.project ?? ''), e);
-      if (timer) return;
-      timer = setTimeout(() => {
-        timer = undefined;
-        const es = [...pending.values()];
-        pending.clear();
-        es.forEach((x) => void reread(x));
-      }, 200);
+      if (reading) return;
+      if (Date.now() < quick) flush();
+      else if (!timer) timer = setTimeout(flush, 200);
     };
     const stop = events(onEvent, () => void load());
     again.current = () => void load();
+    retry.current = () => {
+      setError('');
+      void load();
+    };
     proc.current = undefined;
     setDrawn(undefined);
     // A screen read before shows at once and is read again.
@@ -234,5 +265,5 @@ export function useScreen(route: Route, shownNow = true) {
 
   // A surface of the screen before is not drawn again under the key of the next one.
   const surface = drawn?.key === key ? drawn.surface : undefined;
-  return { surface, error, key };
+  return { surface, error, slow, retry: () => retry.current(), key };
 }

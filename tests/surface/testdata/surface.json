@@ -10317,11 +10317,11 @@
             "type": "integer"
           },
           "topic": {
-            "description": "Event topic that changed",
+            "description": "Event topics that changed, separated by spaces: only the blocks they change are read",
             "type": "string"
           },
           "changed": {
-            "description": "Project the topic changed in; blocks that read no part of it are left out",
+            "description": "Project the topics changed in; blocks that read no part of it are left out",
             "type": "string"
           },
           "filter": {

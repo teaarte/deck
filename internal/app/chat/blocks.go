@@ -290,7 +290,7 @@ func (s *Service) AnswerShown(ctx context.Context, act registry.Actor, a db.Ask,
 	}
 	gone := func() (any, bool, error) {
 		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DismissShownQuestion(ctx, pl.Message) })
-		return nil, true, errors.Join(err, registry.Conflict("this question was taken back"))
+		return nil, true, errors.Join(err, registry.Gone("this question was taken back"))
 	}
 	m, err := s.St.Q.GetMessage(ctx, pl.Message)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -308,7 +308,7 @@ func (s *Service) AnswerShown(ctx context.Context, act registry.Actor, a db.Ask,
 	}
 	var b shown
 	if err := json.Unmarshal([]byte(m.Block), &b); err != nil || b.Ask != a.ID {
-		return nil, true, registry.Conflict("this question was taken back")
+		return nil, true, registry.Gone("this question was taken back")
 	}
 	kept, text, err := s.answerOf(ctx, b, answer)
 	if err != nil {

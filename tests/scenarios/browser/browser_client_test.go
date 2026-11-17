@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -171,11 +172,14 @@ type frontServer struct {
 	full, topics, answers, refused atomic.Int32
 	// streams counts the live connections open now; fail refuses every screen read.
 	streams atomic.Int32
-	// slow delays the next asks read by two seconds after deck answered it.
-	slow, delayed, fail atomic.Bool
-	mu                  sync.Mutex
-	down                bool
-	cancels             []context.CancelFunc
+	// slow delays the next asks read by two seconds after deck answered it; stall holds every whole read 15 s.
+	slow, delayed, fail, stall atomic.Bool
+	// most is the most reads by topic of one screen that went at once, joined those of several topics.
+	most, joined atomic.Int32
+	mu           sync.Mutex
+	down         bool
+	cancels      []context.CancelFunc
+	going        map[string]int32
 }
 
 // cut drops the live connections and refuses new ones until heal.
@@ -201,7 +205,7 @@ func newFront(t *testing.T, e *harness.Env) *frontServer {
 	target, _ := url.Parse(deck)
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.FlushInterval = -1
-	f := &frontServer{}
+	f := &frontServer{going: map[string]int32{}}
 	f.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/commands/notes.touch":
@@ -242,13 +246,31 @@ func newFront(t *testing.T, e *harness.Env) *frontServer {
 			return
 		}
 		body, _ := io.ReadAll(r.Body)
-		var in struct{ Screen, Topic string }
+		var in struct{ Screen, Topic, Widget string }
 		_ = json.Unmarshal(body, &in)
-		hold := in.Topic == "asks" && f.slow.CompareAndSwap(true, false)
+		hold := slices.Contains(strings.Fields(in.Topic), "asks") && f.slow.CompareAndSwap(true, false)
 		if in.Topic != "" {
 			f.topics.Add(1)
+			if len(strings.Fields(in.Topic)) > 1 {
+				f.joined.Add(1)
+			}
+			screen := in.Screen + " " + in.Widget
+			f.mu.Lock()
+			f.going[screen]++
+			if n := f.going[screen]; n > f.most.Load() {
+				f.most.Store(n)
+			}
+			f.mu.Unlock()
+			defer func() {
+				f.mu.Lock()
+				f.going[screen]--
+				f.mu.Unlock()
+			}()
 		} else {
 			f.full.Add(1)
+			if f.stall.Load() {
+				time.Sleep(15 * time.Second)
+			}
 		}
 		legacy := in.Screen == "legacy"
 		if legacy {

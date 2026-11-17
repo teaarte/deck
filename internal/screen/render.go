@@ -54,9 +54,9 @@ type Request struct {
 	Manifest *manifest.Manifest
 	Screen   *manifest.Screen
 	Record   int64
-	// Topic, when set, resolves only the blocks it changes and returns their data; with Changed, only those
+	// Topics, when set, resolve only the blocks one of them changes and return their data; with Changed, only those
 	// that read that project.
-	Topic   string
+	Topics  []string
 	Changed string
 	// Filter holds the values the owner picked, by block id and field.
 	Filter map[string]map[string]string
@@ -104,18 +104,16 @@ type Drawn struct {
 // Render resolves a stored screen into A2UI messages (createSurface, updateComponents, updateDataModel); clients only
 // draw components and send actions back.
 func Render(ctx context.Context, src Sources, req Request) (Drawn, error) {
-	if !slices.Contains(Topics, req.Topic) {
-		req.Topic = ""
-	}
-	if req.Topic != "" && changesWhen(req.Screen.All(), req.Screen.Record, req.Project.ID == 0, req.Project.Name, req.Changed, req.Topic) {
-		req.Topic = ""
-	}
-	if req.Topic == events.Projects && req.Project.ID != 0 && (req.Changed == "" || req.Changed == req.Project.Name) {
-		req.Topic = ""
+	// A topic deck does not know, or one that changes which blocks the screen shows, reads it whole.
+	if slices.ContainsFunc(req.Topics, func(t string) bool {
+		return !slices.Contains(Topics, t) || changesWhen(req.Screen.All(), req.Screen.Record, req.Project.ID == 0, req.Project.Name, req.Changed, t) ||
+			t == events.Projects && req.Project.ID != 0 && (req.Changed == "" || req.Changed == req.Project.Name)
+	}) {
+		req.Topics = nil
 	}
 	// What a widget shows depends on all its blocks, so it is read whole.
 	if req.Size[1] > 0 {
-		req.Topic, req.Block = "", ""
+		req.Topics, req.Block = nil, ""
 	}
 	// The window of a dialog is read as its dialog.
 	req.Block = strings.TrimSuffix(req.Block, "-in")
@@ -139,7 +137,7 @@ func Render(ctx context.Context, src Sources, req Request) (Drawn, error) {
 	}
 	surface := r.surface()
 	out := []map[string]any{}
-	if req.Topic == "" && req.Block == "" {
+	if len(req.Topics) == 0 && req.Block == "" {
 		out = append(out,
 			map[string]any{"version": Version, "createSurface": map[string]any{"surfaceId": surface, "catalogId": CatalogID}},
 			map[string]any{"version": Version, "updateComponents": map[string]any{"surfaceId": surface, "components": r.comps}})
@@ -149,12 +147,12 @@ func Render(ctx context.Context, src Sources, req Request) (Drawn, error) {
 		out = append(out, map[string]any{"version": Version,
 			"updateDataModel": map[string]any{"surfaceId": surface, "path": "/" + id, "value": r.data[id]}})
 	}
-	return Drawn{Messages: out, Errors: r.errs, Good: r.good, Every: req.Topic == "" && req.Block == "" && !r.skipped}, nil
+	return Drawn{Messages: out, Errors: r.errs, Good: r.good, Every: len(req.Topics) == 0 && req.Block == "" && !r.skipped}, nil
 }
 
 // Check resolves a screen on the data there is now and names each block that failed.
 func Check(ctx context.Context, src Sources, req Request) ([]string, error) {
-	req.Topic, req.Block = "", ""
+	req.Topics, req.Block = nil, ""
 	r, err := resolve(ctx, src, req, true)
 	if err != nil {
 		return nil, err

@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
+import { Refusal } from '../lib/api';
 import type { Action } from '../lib/catalog.gen';
 import i18n from '../lib/i18n';
 import { errorText } from '../lib/notify';
@@ -7,8 +8,8 @@ import { holdPress, offerUndo } from '../ui/actions/undo';
 import { act } from './act';
 
 // Reply is what the handler of a screen says of a press, at /press/<reply> of the data of its surface: why the call
-// failed, or its answer.
-export interface Reply { error?: string; result?: unknown; taken?: boolean }
+// failed, or its answer; gone says what it acted on was over already, as an ask answered, and the screen reads anew.
+export interface Reply { error?: string; result?: unknown; taken?: boolean; gone?: boolean }
 
 export const PRESS = '/press/';
 
@@ -49,6 +50,7 @@ export async function run(a: Action): Promise<Reply> {
     if (a.undo) offerUndo(a.undo, a.label ?? '');
     return { result };
   } catch (e) {
+    if (e instanceof Refusal && e.status === 410) return { gone: true };
     return { error: errorText(e) };
   }
 }

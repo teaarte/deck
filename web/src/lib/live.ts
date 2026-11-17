@@ -1,8 +1,8 @@
 import { invoke } from './api';
 import { events } from './events';
 
-// liveRead reads a command now, again 400 ms after a change of a topic its last answer named and on return to the
-// page; a new answer goes to onData, a failed read to onError, keeping what was read. It returns its stop.
+// liveRead reads a command now, again 400 ms after a change of a topic it named and on return to the page, one read
+// at a time; a new answer goes to onData, a failed read to onError, keeping what was read. It returns its stop.
 export function liveRead<T>(command: string, input: Record<string, unknown>, onData: (data: T) => void,
   onError?: (e: unknown) => void): () => void {
   let topics: string[] = [];
@@ -11,11 +11,25 @@ export function liveRead<T>(command: string, input: Record<string, unknown>, onD
   let said = '';
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // reading is set while a read goes; again says one more goes after it.
+  let reading = false;
+  let again = false;
   const later = () => {
     if (!timer) timer = setTimeout(() => { timer = undefined; read(); }, 400);
   };
   const read = () => {
-    invoke<T>(command, input).then((a) => {
+    if (reading) {
+      again = true;
+      return;
+    }
+    reading = true;
+    invoke<T>(command, input).finally(() => {
+      reading = false;
+      if (again && !stopped) {
+        again = false;
+        read();
+      }
+    }).then((a) => {
       topics = a.topics;
       if (early?.some((t) => topics.includes(t))) later();
       early = undefined;

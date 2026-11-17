@@ -19,8 +19,8 @@ type screenGetIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; deck's own screens without one"`
 	Screen  string `desc:"Screen name"`
 	Record  int64  `opt:"" desc:"Record id of a record page"`
-	Topic   string `opt:"" desc:"Event topic that changed"`
-	Changed string `opt:"" desc:"Project the topic changed in; blocks that read no part of it are left out"`
+	Topic   string `opt:"" desc:"Event topics that changed, separated by spaces: only the blocks they change are read"`
+	Changed string `opt:"" desc:"Project the topics changed in; blocks that read no part of it are left out"`
 	Filter  string `type:"json" opt:"" desc:"Values the owner picked in block filters, as JSON: block id to field to value"`
 	Params  string `type:"json" opt:"" desc:"Parameters of the screen from its address, as a JSON object of names to text: param.<name> in the screen, typed as it declares them"`
 	Lang    string `opt:"" desc:"Language of the texts of the screen, such as ru; as written without one"`
@@ -35,7 +35,7 @@ type screenGetIn struct {
 
 // screenGet resolves a screen of a project, or of deck without one, into A2UI messages.
 func (s *Service) screenGet(ctx context.Context, act registry.Actor, in screenGetIn) (any, error) {
-	req := screen.Request{Record: in.Record, Topic: in.Topic, Changed: in.Changed, Brief: act.Kind != registry.Owner && !act.Looks && in.Block == "", Dialog: in.Dialog, Tab: in.Tab, Sub: in.Sub, Block: in.Block}
+	req := screen.Request{Record: in.Record, Topics: strings.Fields(in.Topic), Changed: in.Changed, Brief: act.Kind != registry.Owner && !act.Looks && in.Block == "", Dialog: in.Dialog, Tab: in.Tab, Sub: in.Sub, Block: in.Block}
 	if strings.TrimSpace(in.Pages) != "" {
 		if err := json.Unmarshal([]byte(in.Pages), &req.Pages); err != nil {
 			return nil, registry.Invalid("pages: a JSON object of block id to a number: %v", err)

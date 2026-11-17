@@ -659,7 +659,9 @@ func (r *renderer) chat(id string, b manifest.Block) {
 	maps.Copy(parts, manifest.ChatParts)
 	for _, part := range slices.Sorted(maps.Keys(parts)) {
 		from := parts[part]
-		if t := r.req.Topic; t != "" && (!slices.Contains(readTopics(from), t) || t == events.Log && r.req.Changed != "" && r.req.Changed != master.Name) {
+		if len(r.req.Topics) > 0 && !slices.ContainsFunc(r.req.Topics, func(t string) bool {
+			return slices.Contains(readTopics(from), t) && (t != events.Log || r.req.Changed == "" || r.req.Changed == master.Name)
+		}) {
 			continue
 		}
 		path := strings.TrimSuffix(id+"-"+part, "-")

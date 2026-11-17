@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -13,8 +14,8 @@ import (
 	"deck2/tests/harness"
 )
 
-// written is what one call of an entry leaves in the base: its lines in the journal (actor tool outcome), the marks
-// of the calling process (wrote, read untrusted), the mark of the project and the rows of the feed (kind author).
+// written is what one call of an entry leaves: its journal lines (actor tool outcome; sorted, two processes land in
+// either order), the marks of the calling process (wrote, read untrusted) and of the project, the feed (kind author).
 type written struct {
 	Journal []string
 	Wrote   bool
@@ -116,7 +117,7 @@ func TestWhatEachEntryWrites(t *testing.T) {
 			id := e.Start("items", "work", nil)
 			e.Answer(e.WaitAsk().ID, "allow")
 			return e.WaitState(id, "done", "error").ID
-		}, written{Journal: []string{"tool:2 items.note waiting", "agent:2 items.note done", "agent:1 items.send done"}, Wrote: true}},
+		}, written{Journal: []string{"agent:1 items.send done", "agent:2 items.note done", "tool:2 items.note waiting"}, Wrote: true}},
 	}
 	for _, c := range cases {
 		t.Run(c.entry, func(t *testing.T) {
@@ -154,6 +155,7 @@ func writtenSince(e *harness.Env, process, journal, feed int64) written {
 		w.Journal = append(w.Journal, strings.Join([]string{a, t, o}, " "))
 	}
 	_ = rows.Close()
+	slices.Sort(w.Journal)
 	rows = e.SQLRows(`SELECT kind, author FROM feed WHERE id > ? ORDER BY id`, feed)
 	for rows.Next() {
 		var k, a string

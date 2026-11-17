@@ -475,6 +475,7 @@ type agentView struct {
 // installed says how to install it, one the workspace turned off says so.
 func (s *Service) agents(ctx context.Context, workspace int64, tr func(string) string) []agentView {
 	var out []agentView
+	pl := s.book(ctx, workspace, registry.Lang(ctx)).pool
 	for _, pv := range s.Builtin {
 		if _, ok := pv.(provider.SelfChecker); !ok {
 			continue
@@ -483,10 +484,10 @@ func (s *Service) agents(ctx context.Context, workspace int64, tr func(string) s
 		if h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Provider(pv.Name())); err == nil {
 			v.Version = h.Version
 		}
-		if h, err := s.Health(ctx, workspace, pv.Name()); err == nil {
+		if h, err := pl.Health(ctx, pv.Name()); err == nil {
 			v.Status, v.Error = h.Status, h.Error
 		}
-		if off := s.Off(ctx, workspace, pv.Name()); off != "" {
+		if off := pl.Off(ctx, pv.Name()); off != "" {
 			v.Status, v.Error = off, ""
 		}
 		if i, ok := pv.(provider.Installed); ok && v.Status == health.Missing {

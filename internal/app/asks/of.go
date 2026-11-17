@@ -20,7 +20,8 @@ func (s *Service) Of(ctx context.Context, act registry.Actor, processes []int64,
 	})
 }
 
-// buttons are those of a decision by its kind, the one place they are said for Today and the chat.
+// buttons are those of a decision by its kind, the one place they are said for Today and the chat; every answer
+// holds, so its decision steps aside from the press.
 func buttons(r askView) []map[string]any {
 	held := func(verb, answer string) map[string]any {
 		a := button(r.ID, verb, answer)
@@ -33,7 +34,7 @@ func buttons(r askView) []map[string]any {
 	}
 	switch {
 	case r.Expired:
-		return []map[string]any{primary(button(r.ID, "deny", "deny"))}
+		return []map[string]any{primary(held("deny", "deny"))}
 	case r.Kind == ask.KindQuestion:
 		a := primary(held("answer", ""))
 		delete(a["params"].(map[string]any), "answer")
@@ -73,9 +74,9 @@ func buttons(r askView) []map[string]any {
 		}
 		return out
 	case r.Kind == ask.KindSignIn && ask.Provider(db.Ask{Kind: r.Kind, Payload: string(r.Payload)}):
-		return []map[string]any{primary(button(r.ID, "retry", "retry")), button(r.ID, "new_session", "new_session")}
+		return []map[string]any{primary(held("retry", "retry")), held("new_session", "new_session")}
 	case r.Kind == ask.KindUnknown:
-		return []map[string]any{primary(button(r.ID, "retry", "retry")), button(r.ID, "mark_done", "done")}
+		return []map[string]any{primary(held("retry", "retry")), held("mark_done", "done")}
 	case r.Kind == ask.KindSignIn:
 		pl, _ := ask.Decode[ask.SignIn](r.Payload)
 		if pl.Site != "" {

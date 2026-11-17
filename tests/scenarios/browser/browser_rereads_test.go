@@ -63,9 +63,14 @@ func TestRealBrowserAScreenReadsItsChangesOneAtATime(t *testing.T) {
 	b.until("the new decision", `document.querySelector('[data-focus]')?.dataset.left === '1'`)
 	answers := front.answers.Load()
 	b.eval(`([...document.querySelector('[data-focus-card]').querySelectorAll('button')].find(x => x.innerText.startsWith('Allow once')).click(), '')`)
+	b.until("the decision aside at the press", `document.querySelector('[data-focus-done]')`)
+	if n := front.answers.Load(); n != answers {
+		t.Fatalf("a pressed answer steps aside before its call goes, while it may be taken back: %d answers", n-answers)
+	}
 	e.Until("the answer once its moment passed", func() bool { return front.answers.Load() > answers })
 	at := time.Now()
-	b.until("the decision gone", `document.querySelector('[data-focus-done]')`)
+	e.Until("the ask answered", func() bool { return len(e.CockpitItems()) == 0 })
+	b.until("the decision still gone after the read the answer causes", `document.querySelector('[data-focus-done]')`)
 	if d := time.Since(at); d > harness.Within(2*time.Second) {
 		t.Fatalf("what a press changed shows at once after deck answered it: %s", d)
 	}

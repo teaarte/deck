@@ -80,7 +80,7 @@ func TestAModuleProposesAnAssignmentOfAnotherProject(t *testing.T) {
 	ask, _ = callAsk(e, "deck.assignment_set")
 	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/qwen"}}, nil)
 	e.Until("the owner's own assignment to close the proposal for the same place", func() bool { return e.AskState(ask) == "answered" })
-	if code, out := e.In("ru").Call("deck.ask_answer", map[string]any{"ask": ask, "answer": "allow"}); code != 409 || !strings.Contains(string(out), "на этот запрос уже ответили") {
+	if code, out := e.In("ru").Call("deck.ask_answer", map[string]any{"ask": ask, "answer": "allow"}); code != 410 || !strings.Contains(string(out), "на этот запрос уже ответили") {
 		t.Fatalf("a yes to an assignment that changed meanwhile is refused in the owner's words: %d %s", code, out)
 	}
 	if got := e.Assigned("films", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {

@@ -224,7 +224,7 @@ func TestAYesDoesNotMakeAChangedToolOrAnExpiredCall(t *testing.T) {
 		e.Must("deck.asks_list", nil, &left)
 		return len(left) == 0
 	})
-	if code, body := e.Call("deck.ask_answer", map[string]any{"ask": asks[0].ID, "answer": "allow"}); code != 409 {
+	if code, body := e.Call("deck.ask_answer", map[string]any{"ask": asks[0].ID, "answer": "allow"}); code != 410 {
 		t.Fatalf("a yes to a call of a tool that changed since is refused: %d %s", code, body)
 	}
 	e.Must("deck.manifest_save", map[string]any{"project": "notes", "manifest": harness.PostManifest(svc.URL, "")}, nil)

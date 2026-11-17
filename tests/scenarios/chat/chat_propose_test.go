@@ -132,7 +132,7 @@ func TestASkillChangesOnlyByTheOwnersYes(t *testing.T) {
 	}
 	e.Must("deck.document_save", map[string]any{"name": "skills/memory/SKILL.md", "text": next + "- The owner's own line.\n"}, nil)
 	code, out := e.Call("deck.ask_answer", map[string]any{"ask": id, "answer": "allow"})
-	if code != 409 || strings.Contains(read().Text, "One more") {
+	if code != 410 || strings.Contains(read().Text, "One more") {
 		t.Fatalf("a yes to a proposal of a skill changed since does not apply: %d %s", code, out)
 	}
 	e.Until("the old proposal closed", func() bool { return of("One more") == 0 })

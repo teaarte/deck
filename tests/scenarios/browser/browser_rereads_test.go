@@ -9,9 +9,8 @@ import (
 	"deck2/tests/harness"
 )
 
-// TestRealBrowserAScreenReadsItsChangesOneAtATime: the changes heard while a screen reads go after it in one read of
-// all their topics; a press on an ask answered meanwhile reads the screen anew without a notice, and one that goes
-// through shows what it changed at once; a first read that fails or hangs says so and tries again.
+// TestRealBrowserAScreenReadsItsChangesOneAtATime: changes heard during a read go after it in one read of all their
+// topics; a press on what is over reads anew quietly, one that went shows its change at once; a stuck read says so.
 func TestRealBrowserAScreenReadsItsChangesOneAtATime(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()

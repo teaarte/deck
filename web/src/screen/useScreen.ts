@@ -192,7 +192,10 @@ export function useScreen(route: Route, shownNow = true) {
       const es = [...pending.values()];
       pending.clear();
       reading = true;
-      void reread(es).finally(() => {
+      // A read that hangs holds the next ones no longer than SLOW; a newer read wins by its ticket anyway.
+      let wait: ReturnType<typeof setTimeout> | undefined;
+      void Promise.race([reread(es), new Promise((r) => { wait = setTimeout(r, SLOW); })]).finally(() => {
+        clearTimeout(wait);
         reading = false;
         flush();
       });
@@ -232,6 +235,7 @@ export function useScreen(route: Route, shownNow = true) {
     };
     proc.current = undefined;
     setDrawn(undefined);
+    setSlow(false);
     // A screen read before shows at once and is read again.
     const before = remembered(kept());
     if (before) draw(before, feed.ticket());

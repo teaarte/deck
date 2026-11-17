@@ -17,7 +17,7 @@ function Answer({ id, act, answer, primary, label, busy, onBusy, onError }: {
     onError('');
     const r = await send();
     onBusy('');
-    if (r?.error) {
+    if (r?.error && !r.gone) {
       onError(r.error);
       settleAsks();
     } else if (r) dropAsk(id);

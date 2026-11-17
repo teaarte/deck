@@ -45,9 +45,11 @@ export function usePress(act: Action) {
     if (act.hold) holding?.(true);
     try {
       const r = await press(ctx, act, input);
-      setError(r.error ?? '');
-      if (act.hold && (r.taken || r.error)) holding?.(false);
-      if (act.hold && r.error) notifyError(r.error, label);
+      // A press on what is over already tells nothing: its screen reads anew.
+      const failed = r.gone ? '' : r.error ?? '';
+      setError(failed);
+      if (act.hold && (r.taken || failed)) holding?.(false);
+      if (act.hold && failed) notifyError(failed, label);
       if (!r.error) await told(r.result, label);
       return r;
     } finally {

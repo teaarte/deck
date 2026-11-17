@@ -49,8 +49,6 @@ export function usePress(act: Action) {
       const failed = r.gone ? '' : r.error ?? '';
       setError(failed);
       if (act.hold && (r.taken || failed)) holding?.(false);
-      // A call that went through steps its item aside at once, as one that holds does from its press.
-      if (!act.hold && act.command && !failed) holding?.(true);
       if (act.hold && failed) notifyError(failed, label);
       if (!r.error) await told(r.result, label);
       return r;

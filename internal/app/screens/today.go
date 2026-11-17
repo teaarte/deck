@@ -6,12 +6,10 @@ import (
 	"deck2/internal/events"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -42,11 +40,11 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 	ws := words.In(registry.Lang(ctx))
 	tr := func(str string, a ...any) string { return fmt.Sprintf(manifest.TrText(ws, str), a...) }
 	out := []todayLineView{}
-	var models struct{ Models []agentModel }
-	if err := s.read(ctx, act, "models_list", map[string]any{}, &models); err != nil {
+	works, err := s.AgentWorks(ctx, act)
+	if err != nil {
 		return nil, err
 	}
-	if !slices.ContainsFunc(models.Models, agentModel.works) {
+	if !works {
 		out = append(out, todayLineView{ID: "access", Kind: "access", Title: tr("No model can work as an agent yet"),
 			Text: tr("Sign in to Claude Code or Codex, or add a key of OpenRouter, Groq or NVIDIA"), Icon: "key", Tone: "warn"})
 	}
@@ -139,19 +137,6 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 		out[i].Actions = opensOf(out[i])
 	}
 	return out, nil
-}
-
-// agentModel is a model of models_list as the line of access reads it.
-type agentModel struct {
-	Name, Agent, Status, Login string
-	Builtin, Subscription      bool
-}
-
-// works says a model may take an agent turn: an agent built in, a login of a CLI or of an ACP agent whose last check
-// did not fail; another model of a login is the login's, which deck checks instead.
-func (m agentModel) works() bool {
-	return m.Agent != "" && (m.Builtin || !m.Subscription || m.Login == m.Name) &&
-		!slices.Contains([]string{health.NeedsLogin, health.Missing, health.Off, health.Error, health.Paused}, m.Status)
 }
 
 // read calls a read of deck as the caller and takes its result.

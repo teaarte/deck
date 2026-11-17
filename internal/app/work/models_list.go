@@ -192,35 +192,7 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 		}
 		out.Connections = append(out.Connections, v)
 	}
-	for _, pv := range s.Builtin {
-		_, sub := pv.(provider.Subscribed)
-		v := modelView{Name: pv.Name(), Kind: RoleText, Agent: pv.Name(), Builtin: true, Subscription: sub}
-		if l, ok := pv.(provider.Subscribed); ok {
-			v.Login = l.OnLogin()
-		}
-		s.lastCheck(ctx, act.Workspace, &v)
-		s.offStatus(ctx, act.Workspace, &v)
-		out.Models = append(out.Models, v)
-	}
-	for _, r := range models {
-		m := r.Model
-		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Options: s.shownOptions(ctx, m.Options),
-			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0,
-			Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context, Tools: m.Tools}
-		if r.Connection.Api == "cli" {
-			v.Login = r.Connection.Name
-		}
-		if act.Confined() {
-			v.Spare = s.Spare(ctx, act, m)
-		}
-		s.lastCheck(ctx, act.Workspace, &v)
-		s.offStatus(ctx, act.Workspace, &v)
-		out.Models = append(out.Models, v)
-	}
-	for _, v := range s.onNodes(ctx, act.Workspace, out.Models) {
-		s.lastCheck(ctx, act.Workspace, &v)
-		out.Models = append(out.Models, v)
-	}
+	out.Models = s.shown(ctx, act, models)
 	for i := range out.Models {
 		m := &out.Models[i]
 		m.Provider, m.Roles, m.Note, m.Logo = providerOf(*m, tr), Roles(*m), Note(*m, tr), LogoOf(*m)
@@ -304,6 +276,55 @@ func (s *Service) modelsList(ctx context.Context, act registry.Actor, in modelsL
 	}
 	out.Waits = waits(&out, tr)
 	return out, nil
+}
+
+// shown are the models of a workspace as the owner reads them, each with its state: the built-in providers, the
+// models of its connections and the agents of its nodes.
+func (s *Service) shown(ctx context.Context, act registry.Actor, models []db.ListModelsRow) []modelView {
+	out := []modelView{}
+	for _, pv := range s.Builtin {
+		_, sub := pv.(provider.Subscribed)
+		v := modelView{Name: pv.Name(), Kind: RoleText, Agent: pv.Name(), Builtin: true, Subscription: sub}
+		if l, ok := pv.(provider.Subscribed); ok {
+			v.Login = l.OnLogin()
+		}
+		s.lastCheck(ctx, act.Workspace, &v)
+		s.offStatus(ctx, act.Workspace, &v)
+		out = append(out, v)
+	}
+	for _, r := range models {
+		m := r.Model
+		v := modelView{Name: m.Name, Connection: r.Connection.Name, Model: m.Model, Kind: m.Kind, Agent: m.Agent, Options: s.shownOptions(ctx, m.Options),
+			InputUSD: nullable(m.InputUsd), OutputUSD: nullable(m.OutputUsd), CallUSD: nullable(m.CallUsd), Unit: m.Unit, Free: m.Free != 0, Local: r.Connection.Local != 0,
+			Subscription: m.Subscription != 0, TPM: m.Tpm, Context: m.Context, Tools: m.Tools}
+		if r.Connection.Api == "cli" {
+			v.Login = r.Connection.Name
+		}
+		if act.Confined() {
+			v.Spare = s.Spare(ctx, act, m)
+		}
+		s.lastCheck(ctx, act.Workspace, &v)
+		s.offStatus(ctx, act.Workspace, &v)
+		out = append(out, v)
+	}
+	for _, v := range s.onNodes(ctx, act.Workspace, out) {
+		s.lastCheck(ctx, act.Workspace, &v)
+		out = append(out, v)
+	}
+	return out
+}
+
+// AgentWorks says some model of the workspace may take an agent turn: an agent built in, a login of a CLI or of an
+// ACP agent whose last check did not fail; another model of a login is the login's, which deck checks instead.
+func (s *Service) AgentWorks(ctx context.Context, act registry.Actor) (bool, error) {
+	models, err := s.St.Q.ListModels(ctx, act.Workspace)
+	if err != nil {
+		return false, err
+	}
+	return slices.ContainsFunc(s.shown(ctx, act, models), func(m modelView) bool {
+		return m.Agent != "" && (m.Builtin || !m.Subscription || m.Login == m.Name) &&
+			!slices.Contains([]string{health.NeedsLogin, health.Missing, health.Off, health.Error, health.Paused}, m.Status)
+	}), nil
 }
 
 type placed struct {

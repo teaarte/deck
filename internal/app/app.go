@@ -217,7 +217,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Health = apphealth.Service{St: st, Image: cfg.Image != "", Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Work.Unassigned, NoSearch: a.Work.NoSearch, Missing: a.Work.Missing,
 		Works: a.Work.Works, Places: a.Work.Places, Go: a.bg.Go}
 	a.Screens = screens.Service{St: st, Now: cfg.Now, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
-		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Feed.Unread, Works: a.Work.Works,
+		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Feed.Unread, Works: a.Work.Works, AgentWorks: a.Work.AgentWorks,
 		ScreenFailed: a.Processes.Screen, ScreenDrawn: a.Processes.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language,
 		Theme: a.Themes.Current}
 	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}

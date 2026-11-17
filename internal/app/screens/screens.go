@@ -23,8 +23,9 @@ type Service struct {
 	Failing func(ctx context.Context, act registry.Actor) (map[string]int64, error)
 	Failed  func(ctx context.Context, act registry.Actor) (int64, error)
 	Unread  func(ctx context.Context, act registry.Actor) (int64, error)
-	// Works looks up the model that does the work of a command.
-	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
+	// Works looks up the model that does the work of a command; AgentWorks says some model may take an agent turn.
+	Works      func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
+	AgentWorks func(ctx context.Context, act registry.Actor) (bool, error)
 	// ScreenFailed and ScreenDrawn tell how a screen of a project drew, ScreenDrawn with the blocks that drew when it
 	// read not all of them; File is a file a media block shows.
 	ScreenFailed func(ctx context.Context, p db.Project, revision int64, name string, errs []string)

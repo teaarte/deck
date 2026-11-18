@@ -263,3 +263,12 @@ func (e *Env) AllowEach(id int64, states ...string) Proc {
 	})
 	return p
 }
+
+// HearAgain puts the close of process id back in the outbox, as a fall before its row went leaves it, and runs a
+// turn of the loop, which hears it again.
+func (e *Env) HearAgain(id int64) {
+	e.T.Helper()
+	e.SQL(`INSERT INTO outbox (kind, ref) VALUES ('closed', ?)`, id)
+	e.Tick()
+	e.Settle()
+}

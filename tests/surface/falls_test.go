@@ -70,11 +70,17 @@ func TestFall01AfterTheCommitOfACallBeforeItsMark(t *testing.T) {
 	if err := e.SQLRow(`SELECT read_untrusted FROM process WHERE id = ?`, id).Scan(&read); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.SQLRow(`SELECT count(*) FROM tool_call WHERE tool = 'pages.fetch' AND process_id = ?`, id).Scan(&lines); err != nil {
+	if err := e.SQLRow(`SELECT count(*) FROM tool_call WHERE tool = 'pages.fetch' AND process_id = ? AND outcome = 'unknown'`, id).Scan(&lines); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(read, "pages.fetch") || lines != 1 {
-		t.Fatalf("the turn is marked by the call that reached outside (%q) and the call is in the journal: %d lines", read, lines)
+		t.Fatalf("the turn is marked by the call that reached outside (%q) and the call is in the journal, unknown: %d lines", read, lines)
+	}
+	// A read of a page is no act outside deck: its unknown end asks the owner nothing.
+	for _, a := range e.Asks() {
+		if a.Kind == "unknown" {
+			t.Fatalf("no question about a read deck stopped in: %+v", a)
+		}
 	}
 }
 

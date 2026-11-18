@@ -504,7 +504,7 @@ func (g *Gateway) log(ctx context.Context, s *Session, tool string, right regist
 func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string) {
 	if l := ownLine(ctx, tool); l != nil && l.id != 0 {
 		var n int64
-		err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		err := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 			var err error
 			n, err = q.TakeToolCall(ctx, db.TakeToolCallParams{ProjectID: store.ID(project), Need: right.Right, Subject: right.Subject, Params: params,
 				Outcome: outcome, Error: errText, ID: l.id})

@@ -302,7 +302,7 @@ func (g *Gateway) made(ctx context.Context, act registry.Actor, c *registry.Comm
 }
 
 // before writes, in one Tx before a call runs, the marks of what it brings and of the data it writes and its line in
-// the journal as started, but for a read; a failed Tx refuses the call.
+// the journal as making, but for a read; a failed Tx refuses the call.
 func (g *Gateway) before(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict, right registry.Need, params string) (*line, error) {
 	l := &line{tool: c.Name}
 	read := g.brought(ctx, act, c, project, input)
@@ -325,7 +325,7 @@ func (g *Gateway) before(ctx context.Context, act registry.Actor, c *registry.Co
 			return nil
 		}
 		var err error
-		l.id, err = q.LogToolCall(ctx, g.lineOf(act, project, c.Name, right, "started", params, ""))
+		l.id, err = q.LogToolCall(ctx, g.lineOf(act, project, c.Name, right, Making, params, ""))
 		return err
 	})
 	if err != nil {
@@ -335,7 +335,7 @@ func (g *Gateway) before(ctx context.Context, act registry.Actor, c *registry.Co
 }
 
 // after writes, in one Tx, the outcome on the line of a call whose command keeps none of its own, that its run wrote,
-// and the change shown to the owner; a failed Tx leaves the line started, which Recover makes unknown.
+// and the change shown to the owner; a failed Tx leaves the line making, which Recover makes unknown.
 func (g *Gateway) after(ctx context.Context, act registry.Actor, c *registry.Command, project int64, right registry.Need, params string, l *line, err error, change *db.AddFeedParams) {
 	outcome, text := "done", ""
 	if err != nil {
@@ -599,6 +599,9 @@ type line struct {
 }
 
 type lineKey struct{}
+
+// Making is the outcome of the line of a call deck is making; an intent to act outside deck makes it started.
+const Making = "making"
 
 // ownLine is the line of the call of ctx when its command keeps its own line of tool, nil for another; the call's
 // outcome no longer goes on it.

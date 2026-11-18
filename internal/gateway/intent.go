@@ -131,6 +131,14 @@ func (g *Gateway) Recover(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	making, err := g.st.Q.MakingToolCalls(ctx)
+	if err != nil {
+		return err
+	}
+	made := map[string]int64{}
+	for _, c := range making {
+		made[fmt.Sprint(c.ProjectID.Int64, c.Tool, c.Params)] = c.ID
+	}
 	res, _ := json.Marshal(Outcome{Error: "deck stopped while making this call; it is listed for the owner as an unknown outcome"})
 	err = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		for _, r := range running {
@@ -151,6 +159,13 @@ func (g *Gateway) Recover(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
+			if id, ok := made[fmt.Sprint(a.ProjectID.Int64, f.Call.Command, string(f.Call.Input))]; ok {
+				delete(made, fmt.Sprint(a.ProjectID.Int64, f.Call.Command, string(f.Call.Input)))
+				if err := q.LoseMadeCall(ctx, db.LoseMadeCallParams{AskID: sql.NullInt64{Int64: u.ID, Valid: true}, ID: id}); err != nil {
+					return err
+				}
+				continue
+			}
 			act, right := f.Caller.actor(), ""
 			if f.Need != nil {
 				right = f.Need.Right
@@ -161,6 +176,12 @@ func (g *Gateway) Recover(ctx context.Context) error {
 			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: a.ProjectID,
 				Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Need: right, Subject: needOf(f.Need).Subject, Count: 1, Outcome: "unknown",
 				Params: Canonical(f.Call.Input), AskID: sql.NullInt64{Int64: u.ID, Valid: true}}); err != nil {
+				return err
+			}
+		}
+		// A call deck made inside itself is over with deck: its line says so, and no one is asked.
+		for _, id := range made {
+			if err := q.LoseMadeCall(ctx, db.LoseMadeCallParams{Error: "deck stopped while making this call", ID: id}); err != nil {
 				return err
 			}
 		}

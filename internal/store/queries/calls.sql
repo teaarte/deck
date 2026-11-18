@@ -5,14 +5,23 @@ VALUES (sqlc.arg(workspace_id), sqlc.arg(process_id), sqlc.arg(project_id), sqlc
 
 
 -- name: FinishToolCall :execrows
-UPDATE tool_call SET outcome = ?, external_id = ?, error = ? WHERE id = ? AND outcome = 'started';
+UPDATE tool_call SET outcome = ?, external_id = ?, error = ? WHERE id = ? AND outcome IN ('making', 'started');
 
 
 -- name: TakeToolCall :execrows
 -- A command that keeps its own line writes it on the row its call started.
 UPDATE tool_call SET project_id = sqlc.narg(project_id), need = sqlc.arg(need), subject = sqlc.arg(subject), params = sqlc.arg(params),
     outcome = sqlc.arg(outcome), error = sqlc.arg(error)
-WHERE id = sqlc.arg(id) AND outcome = 'started';
+WHERE id = sqlc.arg(id) AND outcome IN ('making', 'started');
+
+
+-- name: MakingToolCalls :many
+-- The calls deck was making inside itself when it stopped.
+SELECT * FROM tool_call WHERE outcome = 'making' ORDER BY id;
+
+
+-- name: LoseMadeCall :exec
+UPDATE tool_call SET outcome = 'unknown', error = sqlc.arg(error), ask_id = sqlc.narg(ask_id) WHERE id = sqlc.arg(id) AND outcome = 'making';
 
 
 -- name: StartedToolCalls :many
@@ -49,7 +58,7 @@ ORDER BY id DESC LIMIT sqlc.arg(lim);
 
 
 -- name: PurgeOldToolCalls :exec
-DELETE FROM tool_call WHERE created_at < CAST(sqlc.arg(before) AS TEXT) AND outcome NOT IN ('started', 'unknown') AND run != 'running'
+DELETE FROM tool_call WHERE created_at < CAST(sqlc.arg(before) AS TEXT) AND outcome NOT IN ('making', 'started', 'unknown') AND run != 'running'
   AND (ask_id IS NULL OR ask_id NOT IN (SELECT id FROM ask WHERE state = 'open'))
   AND (process_id IS NULL OR process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL));
 

@@ -11,7 +11,7 @@ import (
 )
 
 const finishToolCall = `-- name: FinishToolCall :execrows
-UPDATE tool_call SET outcome = ?, external_id = ?, error = ? WHERE id = ? AND outcome = 'started'
+UPDATE tool_call SET outcome = ?, external_id = ?, error = ? WHERE id = ? AND outcome IN ('making', 'started')
 `
 
 type FinishToolCallParams struct {
@@ -468,6 +468,68 @@ func (q *Queries) LogToolCall(ctx context.Context, arg LogToolCallParams) (int64
 	return id, err
 }
 
+const loseMadeCall = `-- name: LoseMadeCall :exec
+UPDATE tool_call SET outcome = 'unknown', error = ?1, ask_id = ?2 WHERE id = ?3 AND outcome = 'making'
+`
+
+type LoseMadeCallParams struct {
+	Error string
+	AskID sql.NullInt64
+	ID    int64
+}
+
+func (q *Queries) LoseMadeCall(ctx context.Context, arg LoseMadeCallParams) error {
+	_, err := q.db.ExecContext(ctx, loseMadeCall, arg.Error, arg.AskID, arg.ID)
+	return err
+}
+
+const makingToolCalls = `-- name: MakingToolCalls :many
+SELECT id, workspace_id, project_id, process_id, actor, caller, tool, need, outcome, params, external_id, error, ask_id, run, result, created_at, subject, count FROM tool_call WHERE outcome = 'making' ORDER BY id
+`
+
+// The calls deck was making inside itself when it stopped.
+func (q *Queries) MakingToolCalls(ctx context.Context) ([]ToolCall, error) {
+	rows, err := q.db.QueryContext(ctx, makingToolCalls)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ToolCall
+	for rows.Next() {
+		var i ToolCall
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.ProjectID,
+			&i.ProcessID,
+			&i.Actor,
+			&i.Caller,
+			&i.Tool,
+			&i.Need,
+			&i.Outcome,
+			&i.Params,
+			&i.ExternalID,
+			&i.Error,
+			&i.AskID,
+			&i.Run,
+			&i.Result,
+			&i.CreatedAt,
+			&i.Subject,
+			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markToolCallUnknown = `-- name: MarkToolCallUnknown :execrows
 UPDATE tool_call SET outcome = 'unknown', ask_id = ?1 WHERE id = ?2 AND outcome = 'started'
 `
@@ -486,7 +548,7 @@ func (q *Queries) MarkToolCallUnknown(ctx context.Context, arg MarkToolCallUnkno
 }
 
 const purgeOldToolCalls = `-- name: PurgeOldToolCalls :exec
-DELETE FROM tool_call WHERE created_at < CAST(?1 AS TEXT) AND outcome NOT IN ('started', 'unknown') AND run != 'running'
+DELETE FROM tool_call WHERE created_at < CAST(?1 AS TEXT) AND outcome NOT IN ('making', 'started', 'unknown') AND run != 'running'
   AND (ask_id IS NULL OR ask_id NOT IN (SELECT id FROM ask WHERE state = 'open'))
   AND (process_id IS NULL OR process_id NOT IN (SELECT id FROM process WHERE finished_at IS NULL))
 `
@@ -568,7 +630,7 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 const takeToolCall = `-- name: TakeToolCall :execrows
 UPDATE tool_call SET project_id = ?1, need = ?2, subject = ?3, params = ?4,
     outcome = ?5, error = ?6
-WHERE id = ?7 AND outcome = 'started'
+WHERE id = ?7 AND outcome IN ('making', 'started')
 `
 
 type TakeToolCallParams struct {

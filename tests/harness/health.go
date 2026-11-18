@@ -110,3 +110,20 @@ func (e *Env) WaitNote(contains string) Note {
 	})
 	return got
 }
+
+// WaitHealthAfterTicks runs turns of deck's loop until the health of subject is status, and returns it.
+func (e *Env) WaitHealthAfterTicks(subject, status string) HealthRow {
+	e.T.Helper()
+	var got HealthRow
+	e.Until("health of "+subject+" to be "+status+" after turns of the loop", func() bool {
+		e.Tick()
+		for _, h := range e.Health() {
+			if h.Subject == subject && h.Status == status {
+				got = h
+				return true
+			}
+		}
+		return false
+	})
+	return got
+}

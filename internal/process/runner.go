@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -362,17 +363,27 @@ func unheardCall(ctx context.Context, q *db.Queries, processID int64) bool {
 	return false
 }
 
-// closed announces a process that reached a final state, then takes it off the outbox; its log stays until deck
-// clears old runs.
+// closed announces a process that reached a final state and takes it off the outbox once every hook wrote what
+// follows; a hook that failed leaves it there with one more try, heard again on the next drain.
 func (r *Runner) closed(ctx context.Context, processID int64) {
-	// A process deck could not read stays in the outbox, heard on the next drain.
-	if err := r.hear(ctx, processID, func(h Hook, p db.Process) { h.Closed(ctx, p) }); err != nil {
-		slog.Error("hear a closed process", "process", processID, "err", err)
+	heard := r.hear(ctx, processID, func(h Hook, p db.Process) error { return h.Closed(ctx, p) })
+	r.again(ctx, processID)
+	if ctx.Err() != nil {
+		// A deck that stops hears it on its next start, the try not counted.
 		return
 	}
-	r.again(ctx, processID)
-	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteClosedOutbox(ctx, processID) }); err != nil {
-		slog.Error("outbox", "process", processID, "err", err)
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if heard == nil {
+			return q.DeleteClosedOutbox(ctx, processID)
+		}
+		_, err := q.FailClosedOutbox(ctx, db.FailClosedOutboxParams{Error: heard.Error(), Ref: processID})
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		return err
+	})
+	if err := errors.Join(heard, err); err != nil {
+		slog.Error("hear a closed process", "process", processID, "err", err)
 	}
 }
 

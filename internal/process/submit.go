@@ -34,7 +34,7 @@ func (r *Runner) keep(ctx context.Context, processID int64, raw json.RawMessage)
 	}
 	go func() {
 		defer r.wg.Done()
-		if err := r.hear(ctx, processID, func(h Hook, p db.Process) { h.Submitted(ctx, p) }); err != nil {
+		if err := r.hear(ctx, processID, func(h Hook, p db.Process) error { return h.Submitted(ctx, p) }); err != nil {
 			slog.Error("hear a result handed in", "process", processID, "err", err)
 		}
 	}()

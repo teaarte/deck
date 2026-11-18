@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -20,7 +21,9 @@ import (
 )
 
 func (r *Runner) turnText(ctx context.Context, processID int64, text string) {
-	_ = r.hear(ctx, processID, func(h Hook, p db.Process) { h.Turn(ctx, p, text) })
+	if err := r.hear(ctx, processID, func(h Hook, p db.Process) error { return h.Turn(ctx, p, text) }); err != nil {
+		slog.Error("hear the text of a turn", "process", processID, "err", err)
+	}
 }
 
 // logLine is a line of the process log: an event in the words of ACP session/update.

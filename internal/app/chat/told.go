@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"slices"
 	"strings"
 
@@ -51,16 +50,16 @@ func (s *Service) workTopic(ctx context.Context, p db.Process) (int64, int64) {
 
 // tell writes once into the topic a work was started from how it ended or what it waits for; the notes the work
 // wrote itself are read then, so the owner is not called twice for one thing.
-func (s *Service) tell(ctx context.Context, p db.Process) {
+func (s *Service) tell(ctx context.Context, p db.Process) error {
 	topic, ws := s.workTopic(ctx, p)
 	if topic == 0 {
-		return
+		return nil
 	}
 	// A continued work tells again how its run ended; a wait is told once for each thing it asks.
 	text, key := untrusted.Cut(p.Result, maxChatText), endKey(p)
 	switch {
 	case !p.FinishedAt.Valid && !process.Waits(p, process.WaitAnswer):
-		return
+		return nil
 	case p.State == process.StateError || p.State == process.StateInterrupted:
 		text = p.Error
 		if fs, err := s.St.Q.ListFollowers(ctx, store.ID(p.ID)); err == nil && len(fs) > 0 {
@@ -70,7 +69,7 @@ func (s *Service) tell(ctx context.Context, p db.Process) {
 	case !p.FinishedAt.Valid:
 		asks, _ := s.St.Q.ListOpenAsksOfProcess(ctx, p.ID)
 		if len(asks) == 0 {
-			return
+			return nil
 		}
 		last := slices.MaxFunc(asks, func(a, b db.Ask) int { return cmp.Compare(a.ID, b.ID) })
 		text, key = "", fmt.Sprintf("deck:%d:ask:%d", p.ID, last.ID)
@@ -82,7 +81,7 @@ func (s *Service) tell(ctx context.Context, p db.Process) {
 		}
 	}
 	state, _ := json.Marshal(toldState{State: p.State, ErrorType: p.ErrorType})
-	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if _, err := q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: ws, RetryKey: key}); !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
@@ -98,9 +97,6 @@ func (s *Service) tell(ctx context.Context, p db.Process) {
 		}
 		return q.ReadNotesOfProcess(ctx, db.ReadNotesOfProcessParams{ProcessID: store.ID(p.ID), Now: store.Time(s.Now())})
 	})
-	if err != nil {
-		slog.Error("tell the topic of a work", "process", p.ID, "err", err)
-	}
 }
 
 // stillAsks says the ask a message of a waiting work told of is still open.

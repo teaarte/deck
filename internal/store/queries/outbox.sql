@@ -10,6 +10,14 @@ DELETE FROM outbox WHERE id = ?;
 DELETE FROM outbox WHERE kind = 'closed' AND ref = ?;
 
 
+-- name: FailClosedOutbox :one
+UPDATE outbox SET tries = tries + 1, error = ? WHERE kind = 'closed' AND ref = ? RETURNING tries;
+
+
+-- name: ListStuckOutbox :many
+SELECT * FROM outbox WHERE tries >= ? ORDER BY id;
+
+
 -- name: FailOutbox :one
 UPDATE outbox SET tries = tries + 1, error = ? WHERE id = ? RETURNING tries;
 

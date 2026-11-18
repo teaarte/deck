@@ -2,7 +2,9 @@ package asks
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -25,31 +27,37 @@ type answers struct {
 	s *Service
 }
 
-func (h answers) Closed(ctx context.Context, p db.Process) {
+func (h answers) Closed(ctx context.Context, p db.Process) error {
 	if p.State != process.StateDone || p.Result != process.Empty || p.Kind != process.KindAgent {
-		return
+		return nil
 	}
 	last, err := h.s.St.Q.LastAskOfProcess(ctx, store.ID(p.ID))
-	if err != nil || last.Kind != ask.KindQuestion || last.State != ask.StateAnswered {
-		return
+	if errors.Is(err, sql.ErrNoRows) || err == nil && (last.Kind != ask.KindQuestion || last.State != ask.StateAnswered) {
+		return nil
 	}
-	h.s.unheard(ctx, p, last, "it ended without doing anything after it")
+	if err != nil {
+		return err
+	}
+	return h.s.unheard(ctx, p, last, "it ended without doing anything after it")
 }
 
 // unheard tells the master on its next turn an answer of the owner p did not act on, and the owner's feed that the
-// master has it; the answer counts as delivered.
-func (s *Service) unheard(ctx context.Context, p db.Process, a db.Ask, why string) {
+// master has it; the answer counts as delivered. A project or master that is gone has no one to tell.
+func (s *Service) unheard(ctx context.Context, p db.Process, a db.Ask, why string) error {
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
-	if err != nil || proj.Builtin == 1 || p.Trial == 1 {
-		return
+	if errors.Is(err, sql.ErrNoRows) || err == nil && (proj.Builtin == 1 || p.Trial == 1) {
+		return nil
+	}
+	if err != nil {
+		return err
 	}
 	mp, err := access.Master(ctx, s.St.Q, proj.WorkspaceID)
 	if err != nil {
-		return
+		return nil
 	}
 	who := fmt.Sprintf("process #%d (%s.%s)", p.ID, proj.Name, p.Command)
 	answer := answered(a.Answer)
-	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+	return s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		// A close heard again after a crash tells the master once.
 		if n, err := q.TellUnheard(ctx, db.TellUnheardParams{ID: a.ID, Now: store.Time(s.Now())}); err != nil || n == 0 {
 			return err

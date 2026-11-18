@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"strings"
 
 	"deck2/internal/ask"
@@ -39,13 +38,13 @@ func topicOf(p db.Process) (int64, error) {
 }
 
 // Turn keeps the final text of a reply turn as the master's message in its topic, over the block it showed last.
-func (h replies) Turn(ctx context.Context, p db.Process, text string) {
+func (h replies) Turn(ctx context.Context, p db.Process, text string) error {
 	s := h.s
 	topic := s.replyOf(ctx, p)
 	if topic == 0 || strings.TrimSpace(text) == "" {
-		return
+		return nil
 	}
-	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		block, err := q.FillShownText(ctx, db.FillShownTextParams{Text: strings.TrimSpace(text), TopicID: topic, ProcessID: p.ID, Since: p.StartedAt})
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
@@ -71,20 +70,23 @@ func (h replies) Turn(ctx context.Context, p db.Process, text string) {
 		}
 		return q.SeeChat(ctx, db.SeeChatParams{Seen: seen, TopicID: topic, SessionID: p.SessionID})
 	})
-	if err != nil {
-		slog.Error("chat reply", "process", p.ID, "err", err)
-	}
 }
 
 // replies keeps the master's replies in their topics and goes on with the messages a topic got while its
 // reply ran, once the reply closes or parks.
 type replies struct{ s *Service }
 
-func (h replies) Closed(ctx context.Context, p db.Process) { h.goOn(ctx, p); h.s.tell(ctx, p) }
+func (h replies) Closed(ctx context.Context, p db.Process) error {
+	h.goOn(ctx, p)
+	return h.s.tell(ctx, p)
+}
 
-func (h replies) Parked(ctx context.Context, p db.Process) { h.goOn(ctx, p); h.s.tell(ctx, p) }
+func (h replies) Parked(ctx context.Context, p db.Process) error {
+	h.goOn(ctx, p)
+	return h.s.tell(ctx, p)
+}
 
-func (h replies) Submitted(context.Context, db.Process) {}
+func (h replies) Submitted(context.Context, db.Process) error { return nil }
 
 func (h replies) goOn(ctx context.Context, p db.Process) {
 	if topic := h.s.replyOf(ctx, p); topic != 0 {

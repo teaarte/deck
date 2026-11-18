@@ -35,7 +35,7 @@ type Service struct {
 	// Works looks up the model that does the work of a command, on the models of a workspace, prices in a language.
 	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
 	// Incident hands the master what went wrong around a process, such as a step after it that did not start.
-	Incident func(ctx context.Context, p db.Process, kind, text string)
+	Incident func(ctx context.Context, p db.Process, kind, text string) error
 }
 
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 
@@ -108,7 +109,9 @@ func (r *Runner) park(ctx context.Context, processID int64) {
 	if err := r.Deliver(ctx, processID); err != nil {
 		r.finish(ctx, processID, StateError, "", false, fault.Wrap("resume after answer", err))
 	}
-	_ = r.hear(ctx, processID, func(h Hook, p db.Process) { h.Parked(ctx, p) })
+	if err := r.hear(ctx, processID, func(h Hook, p db.Process) error { return h.Parked(ctx, p) }); err != nil {
+		slog.Error("hear a parked process", "process", processID, "err", err)
+	}
 }
 
 // parkIn moves a running process to wait for the owner's answer in a transaction; its ceiling stops. The wait is on

@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -198,8 +199,60 @@ func TestFall05BetweenTheFinishOfAProcessAndItsHooks(t *testing.T) {
 	}
 }
 
+// TestFall06AHookFailsToWrite: a hook whose write fails keeps the closed process in the outbox, heard again on each
+// turn of the loop and red in health from the third try; once the write goes through it is there once.
 func TestFall06AHookFailsToWrite(t *testing.T) {
-	t.Skip("row 6, A4: the row of the outbox is deleted whatever its hooks return, so a hook that failed loses its consequence")
+	t.Parallel()
+	var replies, from atomic.Int64
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() != "work" {
+			if replies.Add(1) > 1 {
+				return provider.Result{Text: "ok"}
+			}
+			return harness.HandOver(ctx, c, &from)
+		}
+		return provider.Result{Text: "Counted: 3 records."}
+	}))
+	// The message deck writes into the topic of a work fails, as on a full disk.
+	e.SQL(`CREATE TRIGGER full_disk BEFORE INSERT ON chat_message WHEN NEW.role = 'deck' BEGIN SELECT RAISE(ABORT, 'database or disk is full'); END`)
+	topic := e.Say(0, "count the records")
+	var work int64
+	e.Until("the work closed", func() bool {
+		for _, p := range e.RunsOf("master", "work") {
+			if p.State == "done" {
+				work = p.ID
+			}
+		}
+		return work != 0
+	})
+	e.Settle()
+	h := e.WaitHealthAfterTicks("outbox", "error")
+	if want := fmt.Sprintf("process #%d", work); !strings.Contains(h.Error, want) || !strings.Contains(h.Error, "database or disk is full") {
+		t.Fatalf("the health of the outbox names the process and the failure: %+v", h)
+	}
+	e.SQL(`DROP TRIGGER full_disk`)
+	e.Tick()
+	done := e.Told(topic, "done", "")
+	if done.Process != work {
+		t.Fatalf("the topic is told of its work: %+v", done)
+	}
+	e.HearAgain(work)
+	var view struct{ Messages []harness.ToldMessage }
+	e.ChatRead(map[string]any{"topic": fmt.Sprint(topic)}, &view)
+	told := 0
+	for _, m := range view.Messages {
+		if m.Role == "deck" {
+			told++
+		}
+	}
+	if told != 1 {
+		t.Fatalf("the consequence is there once: %d messages of deck", told)
+	}
+	for _, h := range e.Health() {
+		if h.Subject == "outbox" {
+			t.Fatalf("the health row goes once the consequence is written: %+v", h)
+		}
+	}
 }
 
 func TestFall07ARetryOfAChatAcrossARestart(t *testing.T) {

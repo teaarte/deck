@@ -162,7 +162,9 @@ func (s *Service) LateAnswer(ctx context.Context, q db.Ask) {
 	p, err := s.St.Q.GetProcess(ctx, q.ProcessID.Int64)
 	a, aerr := s.St.Q.GetAsk(ctx, q.ID)
 	if err == nil && aerr == nil && p.FinishedAt.Valid && a.Kind == ask.KindQuestion && a.State == ask.StateAnswered && !a.DeliveredAt.Valid {
-		s.unheard(ctx, p, a, "it had finished before the answer came")
+		if err := s.unheard(ctx, p, a, "it had finished before the answer came"); err != nil {
+			slog.Error("hand the master an answer", "ask", a.ID, "err", err)
+		}
 	}
 }
 

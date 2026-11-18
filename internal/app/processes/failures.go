@@ -37,27 +37,31 @@ type failures struct {
 	s *Service
 }
 
-func (h failures) Closed(ctx context.Context, p db.Process) {
-	h.s.toMaster(ctx, p)
+func (h failures) Closed(ctx context.Context, p db.Process) error {
+	err := h.s.toMaster(ctx, p)
 	if p.SubmittedAt.Valid && p.State != process.StateDone {
-		h.s.Incident(ctx, p, process.IncidentNotDone, fmt.Sprintf("process #%d of %s handed in its result, then closed as %s: %s",
-			p.ID, p.Command, p.State, untrusted.Cut(p.Error, 300)))
+		err = errors.Join(err, h.s.Incident(ctx, p, process.IncidentNotDone, fmt.Sprintf("process #%d of %s handed in its result, then closed as %s: %s",
+			p.ID, p.Command, p.State, untrusted.Cut(p.Error, 300))))
 	}
+	return err
 }
 
 // Incident hands what deck noticed went wrong around a process of a project to the master, once a process and kind;
 // deck mends none itself.
-func (s *Service) Incident(ctx context.Context, p db.Process, kind, text string) {
+func (s *Service) Incident(ctx context.Context, p db.Process, kind, text string) error {
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
-	if err != nil || p.Trial == 1 || proj.Builtin == 1 {
-		return
+	if errors.Is(err, sql.ErrNoRows) || err == nil && (p.Trial == 1 || proj.Builtin == 1) {
+		return nil
+	}
+	if err != nil {
+		return err
 	}
 	note := text
 	if kind == process.IncidentAfter {
 		// deck noted a trigger it did not start already.
 		note = ""
 	}
-	s.handOver(ctx, proj, manifest.OnIncident, fmt.Sprintf("%s%d.%s", incidentPrefix, p.ID, kind), 0,
+	return s.handOver(ctx, proj, manifest.OnIncident, fmt.Sprintf("%s%d.%s", incidentPrefix, p.ID, kind), 0,
 		map[string]any{"process": p.ID, "incident": kind, "text": text}, note, nil)
 }
 
@@ -69,37 +73,45 @@ func (s *Service) Due(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, p := range ps {
-		s.Incident(ctx, p, process.IncidentRunning, fmt.Sprintf("process #%d of %s handed in its result at %s and still runs",
-			p.ID, p.Command, p.SubmittedAt.String))
+		if err := s.Incident(ctx, p, process.IncidentRunning, fmt.Sprintf("process #%d of %s handed in its result at %s and still runs",
+			p.ID, p.Command, p.SubmittedAt.String)); err != nil {
+			slog.Error("hand the master a process running with its result in", "process", p.ID, "err", err)
+		}
 	}
 }
 
 // toMaster hands a failed process of a project to the master with the type of its failure, once a day per command
 // and type: a script only on its third failure in a row, never a process of the master.
-func (s *Service) toMaster(ctx context.Context, p db.Process) {
+func (s *Service) toMaster(ctx context.Context, p db.Process) error {
 	if p.Trial == 1 {
-		return
+		return nil
 	}
 	failed := p.State == process.StateError || p.State == process.StateDone && p.NotBySchema == 1
 	// A failure of deck or of a model is the owner's in health, and a model's goes on another model by itself.
 	if whose := fault.Whose(p.ErrorType); !failed || whose == fault.OfDeck || whose == fault.OfModel {
-		return
+		return nil
 	}
 	if p.Kind == process.KindScript && p.State == process.StateError {
 		states, err := s.St.Q.RecentOutcomes(ctx, db.RecentOutcomesParams{ProjectID: p.ProjectID, Command: p.Command})
-		if err != nil || len(states) < 3 || states[0] != process.StateError || states[1] != process.StateError || states[2] != process.StateError {
-			return
+		if err != nil {
+			return err
+		}
+		if len(states) < 3 || states[0] != process.StateError || states[1] != process.StateError || states[2] != process.StateError {
+			return nil
 		}
 	}
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
 	if err != nil {
-		return
+		return err
 	}
 	key := fmt.Sprintf("%s%d.%s.%s", masterErrorPrefix, proj.ID, p.Command, p.ErrorType)
 	input := map[string]any{"process": p.ID, "type": p.ErrorType, "whose": fault.Whose(p.ErrorType)}
 	// The master's own failure goes to the owner's feed instead.
 	// A failed process the master does not take stays among the failures of the cockpit, which the owner sees.
-	s.handOver(ctx, proj, manifest.OnFailure, key, 24*time.Hour, input, "", func(ctx context.Context, q *db.Queries) error {
+	return s.handOver(ctx, proj, manifest.OnFailure, key, 24*time.Hour, input, "", func(ctx context.Context, q *db.Queries) error {
 		return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: p.ProjectID,
 			Text: fmt.Sprintf("The master's command %s failed: %s", p.Command, untrusted.Cut(p.Error, 500))})
 	})
@@ -132,10 +144,21 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 		if err != nil {
 			slog.Error("write health", "err", err)
 		}
-		if !s.firstTime(ctx, p, screenErrorPrefix+key) {
+		// The mark follows the hand-over, as in handOver: a fall between them hands it over again, never loses it.
+		mark := db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: screenErrorPrefix + key, Value: store.Time(s.Now())}
+		_, err = s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: mark.Name})
+		if err == nil {
 			continue
 		}
-		s.handOver(ctx, p, manifest.OnFailure, masterErrorPrefix+key, 0, map[string]any{"project": p.Name, "screen": name, "error": e}, "", nil)
+		if errors.Is(err, sql.ErrNoRows) {
+			err = s.handOver(ctx, p, manifest.OnFailure, masterErrorPrefix+key, 0, map[string]any{"project": p.Name, "screen": name, "error": e}, "", nil)
+		}
+		if err == nil {
+			err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.SetMark(ctx, mark) })
+		}
+		if err != nil {
+			slog.Error("hand the master a block that failed", "project", p.Name, "screen", name, "err", err)
+		}
 	}
 }
 
@@ -155,83 +178,64 @@ func (s *Service) ScreenDrawn(ctx context.Context, p db.Project, name string, go
 	})
 }
 
-// firstTime marks key of a project and says whether it was not marked yet.
-func (s *Service) firstTime(ctx context.Context, p db.Project, key string) bool {
-	first := false
-	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if _, err := q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: key}); err == nil {
-			return nil
-		}
-		first = true
-		return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: key, Value: store.Time(s.Now())})
-	})
-	return first
-}
-
 // handOver gives an error of a project to the master's command for on, once in every while under key (forever with
-// every zero); the master's own goes to own, one the master does not take to the owner's feed as note, if given.
+// every zero); the master's own goes to own, one the master does not take (nor starts) to the owner's feed as note.
 func (s *Service) handOver(ctx context.Context, proj db.Project, on, key string, every time.Duration, input map[string]any,
-	note string, own func(context.Context, *db.Queries) error) {
+	note string, own func(context.Context, *db.Queries) error) error {
 	isOwn := proj.Builtin == 1
 	if _, err := docs.Manifest(ctx, s.St.Q, proj); err != nil {
-		return
+		return nil
 	}
 	now := s.Now()
-	if last, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: proj.WorkspaceID, Name: key}); err == nil {
+	last, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: proj.WorkspaceID, Name: key})
+	if err == nil {
 		if t, err := store.ParseTime(last); err == nil && (every == 0 || now.Sub(t) < every) {
-			return
+			return nil
 		}
+	} else if !errors.Is(err, sql.ErrNoRows) {
+		return err
 	}
 	mark := func(ctx context.Context, q *db.Queries) error {
 		return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: proj.WorkspaceID, ProjectID: store.ID(proj.ID), Name: key, Value: store.Time(now)})
 	}
 	if isOwn {
-		_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			if err := mark(ctx, q); err != nil || own == nil {
 				return err
 			}
 			return own(ctx, q)
 		})
-		return
 	}
-	untaken := func(why string) {
+	untaken := func(why string) error {
 		if note == "" {
-			return
+			return nil
 		}
-		err := s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		return s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 			if err := mark(ctx, q); err != nil {
 				return err
 			}
 			return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(now), ProjectID: proj.ID,
 				Text: fmt.Sprintf("%s; the master did not take it: %s", note, why)})
 		})
-		if err != nil {
-			slog.Error("tell the owner what the master did not take", "project", proj.Name, "err", err)
-		}
 	}
 	mp, err := access.Master(ctx, s.St.Q, proj.WorkspaceID)
 	if err != nil {
-		untaken("there is no master")
-		return
+		return untaken("there is no master")
 	}
 	mm, err := docs.Manifest(ctx, s.St.Q, mp)
 	switch {
 	case err != nil:
-		untaken(fmt.Sprintf("its manifest does not read: %v", err))
-		return
+		return untaken(fmt.Sprintf("its manifest does not read: %v", err))
 	case mp.Paused == 1:
-		untaken("it is paused")
-		return
+		return untaken("it is paused")
 	case mm.Command(mm.EventCommand(on)) == nil:
-		untaken(fmt.Sprintf("it has no command for %s", on))
-		return
+		return untaken(fmt.Sprintf("it has no command for %s", on))
 	}
 	// The mark follows the start, so a crash between them may hand the error over twice but never loses it; the key
 	// keeps two failures at once to one run.
 	if _, err := s.Runner.Start(context.WithoutCancel(ctx), mp.ID, mm, mm.EventCommand(on), input, process.Origin{Key: key}); err != nil {
 		slog.Error("hand an error to the master", "project", proj.Name, "input", input, "err", err)
-		untaken(fmt.Sprintf("it did not start: %v", err))
-		return
+		return untaken(fmt.Sprintf("it did not start: %v", err))
 	}
-	_ = s.St.Tx(context.WithoutCancel(ctx), mark)
+	return s.St.Tx(context.WithoutCancel(ctx), mark)
 }

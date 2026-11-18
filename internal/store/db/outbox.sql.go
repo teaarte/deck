@@ -41,6 +41,22 @@ func (q *Queries) DeleteOutbox(ctx context.Context, id int64) error {
 	return err
 }
 
+const failClosedOutbox = `-- name: FailClosedOutbox :one
+UPDATE outbox SET tries = tries + 1, error = ? WHERE kind = 'closed' AND ref = ? RETURNING tries
+`
+
+type FailClosedOutboxParams struct {
+	Error string
+	Ref   int64
+}
+
+func (q *Queries) FailClosedOutbox(ctx context.Context, arg FailClosedOutboxParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, failClosedOutbox, arg.Error, arg.Ref)
+	var tries int64
+	err := row.Scan(&tries)
+	return tries, err
+}
+
 const failOutbox = `-- name: FailOutbox :one
 UPDATE outbox SET tries = tries + 1, error = ? WHERE id = ? RETURNING tries
 `
@@ -63,6 +79,41 @@ SELECT id, kind, ref, tries, error, created_at, path FROM outbox WHERE kind = ? 
 
 func (q *Queries) ListOutbox(ctx context.Context, kind string) ([]Outbox, error) {
 	rows, err := q.db.QueryContext(ctx, listOutbox, kind)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Outbox
+	for rows.Next() {
+		var i Outbox
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Ref,
+			&i.Tries,
+			&i.Error,
+			&i.CreatedAt,
+			&i.Path,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listStuckOutbox = `-- name: ListStuckOutbox :many
+SELECT id, kind, ref, tries, error, created_at, path FROM outbox WHERE tries >= ? ORDER BY id
+`
+
+func (q *Queries) ListStuckOutbox(ctx context.Context, tries int64) ([]Outbox, error) {
+	rows, err := q.db.QueryContext(ctx, listStuckOutbox, tries)
 	if err != nil {
 		return nil, err
 	}

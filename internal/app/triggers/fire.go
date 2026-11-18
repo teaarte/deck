@@ -2,7 +2,9 @@ package triggers
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -49,33 +51,41 @@ type following struct {
 	s *Service
 }
 
-func (h following) Closed(ctx context.Context, p db.Process) {
+func (h following) Closed(ctx context.Context, p db.Process) error {
 	if p.State == process.StateDone && p.NotBySchema == 0 && p.Result != process.Empty && p.Alone == 0 {
-		h.s.after(ctx, p)
+		return h.s.after(ctx, p)
 	}
+	return nil
 }
 
-func (h following) Submitted(ctx context.Context, p db.Process) {
+func (h following) Submitted(ctx context.Context, p db.Process) error {
 	if p.Result != process.Empty && p.Alone == 0 {
-		h.s.after(ctx, p)
+		return h.s.after(ctx, p)
 	}
+	return nil
 }
 
-// after starts the commands that run when a command of the same project finishes, with its record when they take one.
-func (s *Service) after(ctx context.Context, done db.Process) {
+// after starts the commands that run when a command of the same project finishes, with its record when they take one;
+// one that did not start is a note and an incident, and the error is of what deck could not read or write.
+func (s *Service) after(ctx context.Context, done db.Process) error {
 	p, err := s.St.Q.GetProject(ctx, done.ProjectID)
-	if err != nil || p.Paused == 1 {
-		return
+	if errors.Is(err, sql.ErrNoRows) || err == nil && p.Paused == 1 {
+		return nil
+	}
+	if err != nil {
+		return err
 	}
 	m, err := docs.Manifest(ctx, s.St.Q, p)
 	if err != nil {
+		// A manifest that does not read is the project's health.
 		slog.Error("after triggers", "project", p.Name, "err", err)
-		return
+		return nil
 	}
 	rows, err := s.St.Q.ListProjectTriggers(ctx, p.ID)
 	if err != nil {
-		return
+		return err
 	}
+	var errs []error
 	for _, t := range m.Triggers {
 		if t.After != done.Command {
 			continue
@@ -93,12 +103,12 @@ func (s *Service) after(ctx context.Context, done db.Process) {
 		if _, err := s.Start(ctx, row, input, done.ID); err != nil {
 			slog.Error("after trigger", "project", p.Name, "command", t.Command, "after", done.ID, "err", err)
 			text := fmt.Sprintf("deck did not start %s after process #%d of %s: %v", t.Command, done.ID, done.Command, err)
-			_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			errs = append(errs, s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 				return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: text})
-			})
-			s.Incident(ctx, done, process.IncidentAfter, text)
+			}), s.Incident(ctx, done, process.IncidentAfter, text))
 		}
 	}
+	return errors.Join(errs...)
 }
 
 // recordOf is the record a finished process worked on: the record of its input, else the one record it created.

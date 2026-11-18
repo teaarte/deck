@@ -20,12 +20,11 @@ func (s *Service) Follow(bus *events.Bus) {
 }
 
 // Drain removes the stored files and folders committed writes deleted, as the outbox lists them, waiting while a
-// snapshot copies; what is stuck three tries is the health of the outbox until nothing is.
+// snapshot copies; a row of any kind stuck three tries is the health of the outbox until none is.
 func (s *Service) Drain(ctx context.Context) {
 	s.draining.Lock()
 	defer s.draining.Unlock()
 	defer s.Hold()()
-	var stuck []string
 	for _, kind := range []string{"file", "project", "folder"} {
 		rows, err := s.St.Q.ListOutbox(ctx, kind)
 		if err != nil {
@@ -37,19 +36,24 @@ func (s *Service) Drain(ctx context.Context) {
 				_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DeleteOutbox(ctx, r.ID) })
 				continue
 			}
-			tries, _ := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
+			_, _ = store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
 				return q.FailOutbox(ctx, db.FailOutboxParams{Error: err.Error(), ID: r.ID})
 			})
-			if tries >= 3 {
-				stuck = append(stuck, stuckText(r, err))
-			}
 		}
 	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		rows, err := q.ListStuckOutbox(ctx, stuckTries)
+		if err != nil {
+			return err
+		}
+		var stuck []string
+		for _, r := range rows {
+			stuck = append(stuck, stuckText(r))
+		}
 		if len(stuck) == 0 {
 			return health.Clear(ctx, q, health.Of{}, health.Outbox)
 		}
-		_, err := health.Set(ctx, q, s.Now(), health.Of{}, health.Outbox, health.Error, strings.Join(stuck, "; ")+"; deck tries again on each round")
+		_, err = health.Set(ctx, q, s.Now(), health.Of{}, health.Outbox, health.Error, strings.Join(stuck, "; ")+"; deck tries again on each round")
 		return err
 	})
 	if err != nil && ctx.Err() == nil {
@@ -57,15 +61,20 @@ func (s *Service) Drain(ctx context.Context) {
 	}
 }
 
-// stuckText says what deck could not remove.
-func stuckText(r db.Outbox, err error) string {
+// stuckTries is how many tries make a row of the outbox stuck.
+const stuckTries = 3
+
+// stuckText says what deck could not do for a row of the outbox, with its last error.
+func stuckText(r db.Outbox) string {
 	switch r.Kind {
 	case "file":
-		return fmt.Sprintf("deck could not remove stored file %d: %v", r.Ref, err)
+		return fmt.Sprintf("deck could not remove stored file %d: %s", r.Ref, r.Error)
 	case "project":
-		return fmt.Sprintf("deck could not remove the folder of deleted project %d: %v", r.Ref, err)
+		return fmt.Sprintf("deck could not remove the folder of deleted project %d: %s", r.Ref, r.Error)
+	case "closed":
+		return fmt.Sprintf("deck could not write what follows the end of process #%d: %s", r.Ref, r.Error)
 	}
-	return fmt.Sprintf("deck could not delete the folder %s of a deleted record of project %d from the data folder: %v", r.Path, r.Ref, err)
+	return fmt.Sprintf("deck could not delete the folder %s of a deleted record of project %d from the data folder: %s", r.Path, r.Ref, r.Error)
 }
 
 // remove removes what a row of the outbox names; a record's folder that no record holds now, through the data folder

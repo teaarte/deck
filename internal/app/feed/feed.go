@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/events"
+	"deck2/internal/health"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -34,6 +35,10 @@ type Service struct {
 	// Invoke calls a command, as the undo of a change does; Call calls one for another caller, decided by the gateway.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	Call   func(ctx context.Context, act registry.Actor, name string, input []byte) (any, error)
+	// FailedRuns are the open failed runs of a project, of every one for ""; FailingChecks its failing checks of
+	// health the owner has not read.
+	FailedRuns    func(ctx context.Context, act registry.Actor, project string) ([]process.FailedRun, error)
+	FailingChecks func(ctx context.Context, act registry.Actor, project string) ([]health.FailingCheck, error)
 	// Waiting are how many things wait for the owner, by project, as the menu counts them.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
 	// Hidden says the owner's pushes show only the module they are of; Lang is the language a push of a process
@@ -273,38 +278,12 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 // failures are the open failures as lines of the feed: the failed runs as the schedule lists them and the failing
 // checks of health not read.
 func (s *Service) failures(ctx context.Context, act registry.Actor, in feedListIn) ([]feedView, error) {
-	var runs []struct {
-		ID          int64  `json:"id"`
-		Project     string `json:"project"`
-		Command     string `json:"command"`
-		Title       string `json:"title"`
-		RecordTitle string `json:"record_title"`
-		Error       string `json:"error"`
-		ErrorType   string `json:"error_type"`
-		FinishedAt  string `json:"finished_at"`
-		Retry       bool   `json:"retry"`
-		Repeats     int64  `json:"repeats"`
-	}
-	if err := s.read(ctx, act, "processes_list", map[string]any{"project": in.Project, "failed": true, "brief": true}, &runs); err != nil {
+	runs, err := s.FailedRuns(ctx, act, in.Project)
+	if err != nil {
 		return nil, err
 	}
-	var checks []struct {
-		Subject   string   `json:"subject"`
-		Kind      string   `json:"kind"`
-		Project   string   `json:"project"`
-		Status    string   `json:"status"`
-		Error     string   `json:"error"`
-		UpdatedAt string   `json:"updated_at"`
-		Seen      bool     `json:"seen"`
-		SelfCheck bool     `json:"self_check"`
-		Role      string   `json:"role"`
-		Command   string   `json:"command"`
-		Model     string   `json:"model"`
-		Choices   []string `json:"choices"`
-		Groups    []string `json:"choice_groups"`
-		Trigger   int64    `json:"trigger"`
-	}
-	if err := s.read(ctx, act, "health_list", map[string]any{"project": in.Project}, &checks); err != nil {
+	checks, err := s.FailingChecks(ctx, act, in.Project)
+	if err != nil {
 		return nil, err
 	}
 	var out []feedView
@@ -319,15 +298,12 @@ func (s *Service) failures(ctx context.Context, act registry.Actor, in feedListI
 	}
 	ws := words.In(registry.Lang(ctx))
 	for _, c := range checks {
-		if c.Status != "error" || c.Seen {
-			continue
-		}
 		h := fnv.New32a()
 		h.Write([]byte(c.Project + "\x00" + c.Subject))
 		out = append(out, feedView{ID: -(int64(1)<<40 + int64(h.Sum32())), Kind: FeedFailure, Project: c.Project, Author: "deck",
 			Text: manifest.TrText(ws, failingCheck(c.Kind, c.Subject)), Buttons: []Button{}, CreatedAt: c.UpdatedAt,
 			Error: c.Error, Check: c.Subject, DeckScreen: true, SelfCheck: c.SelfCheck, Role: c.Role, Command: c.Command,
-			Model: c.Model, Choices: c.Choices, ChoiceGroups: c.Groups, Trigger: c.Trigger,
+			Model: c.Model, Choices: c.Choices, ChoiceGroups: c.ChoiceGroups, Trigger: c.Trigger,
 			Open: map[string]any{"verb": "open", "screen": "settings", "params": map[string]any{"tab": "Health"}}})
 	}
 	return out, nil
@@ -349,20 +325,6 @@ func failingCheck(kind, subject string) string {
 		return fmt.Sprintf("The secret %s is not set", name)
 	}
 	return fmt.Sprintf("The check %s fails", subject)
-}
-
-// read calls a read of deck as the caller and takes its rows.
-func (s *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
-	raw, _ := json.Marshal(input)
-	got, err := s.Invoke(ctx, act, registry.Deck(name), raw)
-	if err != nil {
-		return err
-	}
-	b, err := json.Marshal(got)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(b, out)
 }
 
 type feedUndoIn struct {

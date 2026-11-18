@@ -168,3 +168,13 @@ func Screen(project, name string) string { return OfScreen + ":" + project + "."
 
 // Manifest is the subject of the manifest of a project.
 func Manifest(project string) string { return OfProject + ":" + project }
+
+// FailingCheck is a failing check the owner has not read, as the owner's feed lists it, with the work it stands for:
+// the model of a command or its cron trigger, and the choices of that work.
+type FailingCheck struct {
+	Subject, Kind, Project, Error, UpdatedAt string
+	SelfCheck                                bool
+	Role, Command, Model                     string
+	Choices, ChoiceGroups                    []string
+	Trigger                                  int64
+}

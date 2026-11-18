@@ -211,7 +211,8 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}
 	a.Feed = feed.Service{St: st, Now: cfg.Now,
-		Home: h, Invoke: a.Registry.Invoke, Call: a.Gateway.CallAs, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.Gives, Reads: a.Chats.LangOf}
+		Home: h, Invoke: a.Registry.Invoke, Call: a.Gateway.CallAs, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.Gives, Reads: a.Chats.LangOf,
+		FailedRuns: a.Processes.FailedRuns, FailingChecks: a.Health.FailingChecks}
 	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
 		Works: a.Work.Works, Waits: a.Gateway.Waits}
 	a.Health = apphealth.Service{St: st, Image: cfg.Image != "", Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Work.Unassigned, NoSearch: a.Work.NoSearch, Missing: a.Work.Missing,

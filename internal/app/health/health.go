@@ -227,3 +227,18 @@ func (s *Service) seen(ctx context.Context, act registry.Actor, in healthMarkSee
 	}
 	return map[string]any{"ok": true}, nil
 }
+
+// FailingChecks are the failing checks of a project the owner has not read, of every project and the machine for "".
+func (s *Service) FailingChecks(ctx context.Context, act registry.Actor, project string) ([]health.FailingCheck, error) {
+	vs, err := s.shown(ctx, act, healthListIn{Project: project})
+	var out []health.FailingCheck
+	for _, v := range vs {
+		if v.Status != health.Error || v.Seen {
+			continue
+		}
+		out = append(out, health.FailingCheck{Subject: v.Subject, Kind: string(v.Kind), Project: v.Project, Error: v.Error,
+			UpdatedAt: v.UpdatedAt, SelfCheck: v.SelfCheck, Role: v.Role, Command: v.Command, Model: v.Model, Choices: v.Choices,
+			ChoiceGroups: v.ChoiceGroups, Trigger: v.Trigger})
+	}
+	return out, err
+}

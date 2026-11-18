@@ -299,3 +299,15 @@ func (s *Service) cockpitCommands() []*registry.Command {
 			registry.OwnerOnly, s.processDismiss).Stays(),
 	}
 }
+
+// FailedRuns are the open failures of a project, of every project the actor sees for "", as processes_list with
+// failed lists them.
+func (s *Service) FailedRuns(ctx context.Context, act registry.Actor, project string) ([]process.FailedRun, error) {
+	vs, err := s.processesList(ctx, act, processesListIn{Project: project, Failed: true, Brief: true})
+	out := make([]process.FailedRun, 0, len(vs))
+	for _, v := range vs {
+		out = append(out, process.FailedRun{ID: v.ID, Project: v.Project, Command: v.Command, Title: v.Title, RecordTitle: v.RecordTitle,
+			Error: v.Error, ErrorType: v.ErrorType, FinishedAt: v.FinishedAt, Retry: v.Retry, Repeats: v.Repeats})
+	}
+	return out, err
+}

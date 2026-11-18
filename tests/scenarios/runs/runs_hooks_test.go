@@ -78,3 +78,48 @@ func TestAnAnswerHeardTwiceReachesTheMasterOnce(t *testing.T) {
 		t.Fatalf("an answer heard twice is one note of the master: %d %v", master, err)
 	}
 }
+
+// TestAHookThatFailedIsHeardAgainWithoutRepeatingTheOthers: while the mark of an incident fails, the process is heard
+// on each turn of the loop; its step after starts once, the note of a refused one is written once.
+func TestAHookThatFailedIsHeardAgainWithoutRepeatingTheOthers(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "" {
+			return harness.MasterScript(ctx, c)
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}))
+	e.MasterAwake()
+	e.UseModels("master.on_incident", "quiet")
+	// A step after whose script is missing does not start.
+	missing := `{"name": "refused", "title": "Refused", "description": "Labels.", "input": ` + harness.ProcessField + `,
+     "executor": {"type": "script", "script": "label"}}`
+	m := harness.TestManifest([]string{harness.AgentCommand("job", ""), harness.AgentCommand("next", harness.ProcessField), missing},
+		[]string{`{"command": "next", "after": "job"}`, `{"command": "refused", "after": "job"}`})
+	p := e.Project("chain", strings.Replace(m, `"triggers": [`, `"scripts": [{"name": "label", "file": "scripts/label.py", "runtime": "python"}], "triggers": [`, 1))
+	// The mark of an incident fails to write, as on a full disk.
+	e.SQL(`CREATE TRIGGER full_disk BEFORE INSERT ON mark WHEN NEW.name LIKE 'processes:incident:%' BEGIN SELECT RAISE(ABORT, 'database or disk is full'); END`)
+	id := e.Run(p, "job")
+	e.WaitState(id, "done")
+	e.WaitHealthAfterTicks("outbox", "error")
+	// The disk has room again.
+	e.SQL(`DROP TRIGGER full_disk`)
+	e.Tick()
+	e.Settle()
+	if n := e.CountOf("next"); n != 1 {
+		t.Fatalf("the step after that started starts once: %d", n)
+	}
+	var notes, repeats int
+	// The note of a step after that did not start, with how many times deck wrote it.
+	if err := e.SQLRow(`SELECT count(*), coalesce(max(repeats), 0) FROM feed WHERE text LIKE 'deck did not start refused%'`).Scan(&notes, &repeats); err != nil || notes != 1 || repeats != 1 {
+		t.Fatalf("the refused step is one note written once: %d notes, %d repeats, %v", notes, repeats, err)
+	}
+	for _, h := range e.Health() {
+		if h.Subject == "outbox" {
+			t.Fatalf("the outbox is clear once the mark goes through: %+v", h)
+		}
+	}
+	if len(e.RunsOf("master", "on_incident")) == 0 {
+		t.Fatal("the master gets the incident of the refused step")
+	}
+}

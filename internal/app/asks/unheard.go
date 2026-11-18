@@ -13,6 +13,7 @@ import (
 	"deck2/internal/access"
 	"deck2/internal/ask"
 	"deck2/internal/process"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -52,8 +53,10 @@ func (s *Service) unheard(ctx context.Context, p db.Process, a db.Ask, why strin
 		return err
 	}
 	mp, err := access.Master(ctx, s.St.Q, proj.WorkspaceID)
-	if err != nil {
+	if none := new(registry.Error); errors.As(err, &none) {
 		return nil
+	} else if err != nil {
+		return err
 	}
 	who := fmt.Sprintf("process #%d (%s.%s)", p.ID, proj.Name, p.Command)
 	answer := answered(a.Answer)

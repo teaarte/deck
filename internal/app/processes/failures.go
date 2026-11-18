@@ -16,6 +16,7 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -144,7 +145,8 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 		if err != nil {
 			slog.Error("write health", "err", err)
 		}
-		// The mark follows the hand-over, as in handOver: a fall between them hands it over again, never loses it.
+		// Its own mark keeps a block the master did not take from going to it on every draw; it follows the hand-over,
+		// so a fall between them hands it over again rather than lose it.
 		mark := db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: screenErrorPrefix + key, Value: store.Time(s.Now())}
 		_, err = s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: mark.Name})
 		if err == nil {
@@ -219,8 +221,10 @@ func (s *Service) handOver(ctx context.Context, proj db.Project, on, key string,
 		})
 	}
 	mp, err := access.Master(ctx, s.St.Q, proj.WorkspaceID)
-	if err != nil {
+	if none := new(registry.Error); errors.As(err, &none) {
 		return untaken("there is no master")
+	} else if err != nil {
+		return err
 	}
 	mm, err := docs.Manifest(ctx, s.St.Q, mp)
 	switch {

@@ -32,28 +32,34 @@ type toldState struct {
 
 // workTopic is the topic a process of the built-in master other than a reply was started from, or 0; only the
 // master's topic is a topic of the chat.
-func (s *Service) workTopic(ctx context.Context, p db.Process) (int64, int64) {
+func (s *Service) workTopic(ctx context.Context, p db.Process) (int64, int64, error) {
 	topic, err := topicOf(p)
-	if err != nil || topic == 0 || s.replyOf(ctx, p) != 0 {
-		return 0, 0
+	if err != nil || topic == 0 {
+		return 0, 0, nil
+	}
+	if reply, err := s.replyIn(ctx, p); err != nil || reply != 0 {
+		return 0, 0, err
 	}
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
-	if err != nil || proj.Builtin == 0 {
-		return 0, 0
+	if errors.Is(err, sql.ErrNoRows) || err == nil && proj.Builtin == 0 {
+		return 0, 0, nil
+	}
+	if err != nil {
+		return 0, 0, err
 	}
 	t, err := s.St.Q.GetTopic(ctx, topic)
-	if err != nil || t.WorkspaceID != proj.WorkspaceID {
-		return 0, 0
+	if errors.Is(err, sql.ErrNoRows) || err == nil && t.WorkspaceID != proj.WorkspaceID {
+		return 0, 0, nil
 	}
-	return t.ID, proj.WorkspaceID
+	return t.ID, proj.WorkspaceID, err
 }
 
 // tell writes once into the topic a work was started from how it ended or what it waits for; the notes the work
 // wrote itself are read then, so the owner is not called twice for one thing.
 func (s *Service) tell(ctx context.Context, p db.Process) error {
-	topic, ws := s.workTopic(ctx, p)
-	if topic == 0 {
-		return nil
+	topic, ws, err := s.workTopic(ctx, p)
+	if err != nil || topic == 0 {
+		return err
 	}
 	// A continued work tells again how its run ended; a wait is told once for each thing it asks.
 	text, key := untrusted.Cut(p.Result, maxChatText), endKey(p)

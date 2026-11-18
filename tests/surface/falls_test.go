@@ -230,6 +230,7 @@ func TestFall06AHookFailsToWrite(t *testing.T) {
 	if want := fmt.Sprintf("process #%d", work); !strings.Contains(h.Error, want) || !strings.Contains(h.Error, "database or disk is full") {
 		t.Fatalf("the health of the outbox names the process and the failure: %+v", h)
 	}
+	// The disk has room again.
 	e.SQL(`DROP TRIGGER full_disk`)
 	e.Tick()
 	done := e.Told(topic, "done", "")

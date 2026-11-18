@@ -235,6 +235,22 @@ func (q *Queries) HandChangeLine(ctx context.Context, arg HandChangeLineParams) 
 	return err
 }
 
+const hasDeckNote = `-- name: HasDeckNote :one
+SELECT EXISTS (SELECT 1 FROM feed WHERE project_id = ? AND author = 'deck' AND kind = 'note' AND for_master = 0 AND text = ?)
+`
+
+type HasDeckNoteParams struct {
+	ProjectID int64
+	Text      string
+}
+
+func (q *Queries) HasDeckNote(ctx context.Context, arg HasDeckNoteParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasDeckNote, arg.ProjectID, arg.Text)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const joinCauseNote = `-- name: JoinCauseNote :exec
 UPDATE feed SET repeats = repeats + 1, created_at = ?1,
     parts = CASE WHEN text = ?2 AND project_id = ?3 OR EXISTS (SELECT 1 FROM json_each(parts) j

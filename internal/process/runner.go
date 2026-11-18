@@ -372,18 +372,21 @@ func (r *Runner) closed(ctx context.Context, processID int64) {
 		// A deck that stops hears it on its next start, the try not counted.
 		return
 	}
+	var tries int64
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if heard == nil {
 			return q.DeleteClosedOutbox(ctx, processID)
 		}
-		_, err := q.FailClosedOutbox(ctx, db.FailClosedOutboxParams{Error: heard.Error(), Ref: processID})
+		var err error
+		tries, err = q.FailClosedOutbox(ctx, db.FailClosedOutboxParams{Error: heard.Error(), Ref: processID})
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil
 		}
 		return err
 	})
-	if err := errors.Join(heard, err); err != nil {
-		slog.Error("hear a closed process", "process", processID, "err", err)
+	// The health of the outbox tells the rest of the tries.
+	if err != nil || heard != nil && (tries <= 1 || tries == StuckTries) {
+		slog.Error("hear a closed process", "process", processID, "tries", tries, "err", errors.Join(heard, err))
 	}
 }
 

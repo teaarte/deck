@@ -10,6 +10,7 @@ import (
 
 	"deck2/internal/events"
 	"deck2/internal/health"
+	"deck2/internal/process"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -42,7 +43,7 @@ func (s *Service) Drain(ctx context.Context) {
 		}
 	}
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		rows, err := q.ListStuckOutbox(ctx, stuckTries)
+		rows, err := q.ListStuckOutbox(ctx, process.StuckTries)
 		if err != nil {
 			return err
 		}
@@ -60,9 +61,6 @@ func (s *Service) Drain(ctx context.Context) {
 		slog.Error("health of the outbox", "err", err)
 	}
 }
-
-// stuckTries is how many tries make a row of the outbox stuck.
-const stuckTries = 3
 
 // stuckText says what deck could not do for a row of the outbox, with its last error.
 func stuckText(r db.Outbox) string {

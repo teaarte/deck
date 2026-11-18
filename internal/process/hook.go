@@ -30,6 +30,10 @@ func (NoHook) Submitted(context.Context, db.Process) error    { return nil }
 func (NoHook) Parked(context.Context, db.Process) error       { return nil }
 func (NoHook) Turn(context.Context, db.Process, string) error { return nil }
 
+// StuckTries is how many tries make a row of the outbox stuck, the hooks of a closed process too: the health of the
+// outbox lists it.
+const StuckTries = 3
+
 // hear calls every hook with the process, the others after one that failed, and returns their errors.
 func (r *Runner) hear(ctx context.Context, processID int64, f func(Hook, db.Process) error) error {
 	if len(r.deps.Hooks) == 0 {

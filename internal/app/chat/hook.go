@@ -15,17 +15,27 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// replyOf is the topic of a reply process of the built-in master, or 0 for any other process.
+// replyOf is the topic of a reply process of the built-in master, or 0 for any other process or a read that failed.
 func (s *Service) replyOf(ctx context.Context, p db.Process) int64 {
+	topic, _ := s.replyIn(ctx, p)
+	return topic
+}
+
+// replyIn is replyOf with the error of a read that failed, for the hooks that write what follows a reply.
+func (s *Service) replyIn(ctx context.Context, p db.Process) (int64, error) {
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
-	if err != nil || proj.Builtin == 0 {
-		return 0
+	if errors.Is(err, sql.ErrNoRows) || err == nil && proj.Builtin == 0 {
+		return 0, nil
 	}
-	if m, err := docs.Manifest(ctx, s.St.Q, proj); err != nil || p.Command != m.EventCommand(manifest.OnMessage) {
-		return 0
+	if err != nil {
+		return 0, err
+	}
+	m, err := docs.Manifest(ctx, s.St.Q, proj)
+	if err != nil || p.Command != m.EventCommand(manifest.OnMessage) {
+		return 0, err
 	}
 	topic, _ := topicOf(p)
-	return topic
+	return topic, nil
 }
 
 // topicOf is the chat topic the input of a process names, 0 for none.
@@ -40,9 +50,9 @@ func topicOf(p db.Process) (int64, error) {
 // Turn keeps the final text of a reply turn as the master's message in its topic, over the block it showed last.
 func (h replies) Turn(ctx context.Context, p db.Process, text string) error {
 	s := h.s
-	topic := s.replyOf(ctx, p)
-	if topic == 0 || strings.TrimSpace(text) == "" {
-		return nil
+	topic, err := s.replyIn(ctx, p)
+	if err != nil || topic == 0 || strings.TrimSpace(text) == "" {
+		return err
 	}
 	return s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		block, err := q.FillShownText(ctx, db.FillShownTextParams{Text: strings.TrimSpace(text), TopicID: topic, ProcessID: p.ID, Since: p.StartedAt})

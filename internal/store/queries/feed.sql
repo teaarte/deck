@@ -41,6 +41,9 @@ UPDATE feed SET repeats = repeats + 1, created_at = sqlc.arg(created_at),
         THEN parts ELSE json_insert(parts, '$[#]', json_object('project_id', sqlc.arg(project_id), 'author', CAST(sqlc.arg(author) AS TEXT), 'text', sqlc.arg(text))) END
 WHERE id = sqlc.arg(id);
 
+-- name: HasDeckNote :one
+SELECT EXISTS (SELECT 1 FROM feed WHERE project_id = ? AND author = 'deck' AND kind = 'note' AND for_master = 0 AND text = ?);
+
 -- name: RepeatDeckNote :many
 UPDATE feed SET repeats = repeats + 1, created_at = sqlc.arg(created_at)
 WHERE project_id = sqlc.arg(project_id) AND author = 'deck' AND kind = 'note' AND for_master = 0 AND read_at IS NULL

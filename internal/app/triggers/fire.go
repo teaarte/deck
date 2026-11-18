@@ -103,7 +103,11 @@ func (s *Service) after(ctx context.Context, done db.Process) error {
 		if _, err := s.Start(ctx, row, input, done.ID); err != nil {
 			slog.Error("after trigger", "project", p.Name, "command", t.Command, "after", done.ID, "err", err)
 			text := fmt.Sprintf("deck did not start %s after process #%d of %s: %v", t.Command, done.ID, done.Command, err)
+			// The process is heard again until every hook wrote, so the note names it and is written once.
 			errs = append(errs, s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+				if noted, err := q.HasDeckNote(ctx, db.HasDeckNoteParams{ProjectID: p.ID, Text: text}); err != nil || noted {
+					return err
+				}
 				return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: text})
 			}), s.Incident(ctx, done, process.IncidentAfter, text))
 		}

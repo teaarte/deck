@@ -209,9 +209,13 @@ func ReadRuns(ctx context.Context, q *db.Queries, act registry.Actor, p db.Proje
 	return Reads(ctx, q, act, p, p.Name+":runs")
 }
 
-// Master is the built-in project master of a workspace.
+// Master is the built-in project master of a workspace; a workspace without one is a *registry.Error, a read that
+// failed its own error.
 func Master(ctx context.Context, q *db.Queries, workspace int64) (db.Project, error) {
 	p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: master.Name})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return db.Project{}, err
+	}
 	if err != nil || p.Builtin == 0 {
 		return db.Project{}, registry.Invalid("this workspace has no built-in project master")
 	}

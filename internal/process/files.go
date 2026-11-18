@@ -48,7 +48,12 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		return f.File != 0
 	})
 	if len(res.Files) == 0 {
-		err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return rebind(ctx, q, projectID, processID, given) })
+		err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			if err := keptBy(ctx, q, projectID, processID); err != nil {
+				return err
+			}
+			return rebind(ctx, q, projectID, processID, given)
+		})
 		return result, err
 	}
 	srcs := make([]string, len(res.Files))
@@ -67,6 +72,9 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 	}
 	var rows []db.File
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := keptBy(ctx, q, projectID, processID); err != nil {
+			return err
+		}
 		for i, f := range res.Files {
 			if _, _, err := fileOwner(ctx, q, projectID, processID, f); err != nil {
 				return fault.New(fault.ResultInvalid, err.Error())
@@ -118,6 +126,17 @@ func (r *Runner) keepFiles(ctx context.Context, projectID, processID int64, resu
 		ids[f.Path] = rows[i].ID
 	}
 	return named(result, ids), nil
+}
+
+// keptBy marks the data of the module a process keeps files in as holding untrusted text when the process read some,
+// before the files are its.
+func keptBy(ctx context.Context, q *db.Queries, projectID, processID int64) error {
+	p, err := q.GetProcess(ctx, processID)
+	if err != nil || p.ReadUntrusted == "" {
+		return err
+	}
+	return q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{
+		Untrusted: untrusted.Cut(fmt.Sprintf("the files of process %d, which read %s", p.ID, p.ReadUntrusted), 300), ID: projectID})
 }
 
 // named puts the ids the files of a result were kept under into it: into each entry of files, and as digits in place

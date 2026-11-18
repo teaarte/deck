@@ -132,8 +132,33 @@ func TestFall03BetweenAnOutsideCallAndItsOutcome(t *testing.T) {
 	}
 }
 
+// TestFall04AMarkedTurnLeavesFilesInTheDataFolder: the files a turn that read from outside keeps in its module mark
+// the data of that module.
 func TestFall04AMarkedTurnLeavesFilesInTheDataFolder(t *testing.T) {
-	t.Skip("row 4, A5: the files a marked turn keeps in the data folder do not mark its module")
+	t.Parallel()
+	agent := &harness.Fake{}
+	e := harness.New(t, harness.WithProvider(agent))
+	e.Project("notes", harness.TestManifest([]string{harness.AgentCommand("work", "")}, nil))
+	agent.Script = func(ctx context.Context, c *harness.Call) provider.Result {
+		// The turn read a page before, as after a fetch.
+		e.SQL(`UPDATE process SET read_untrusted = 'a page' WHERE command = 'work' AND state = 'running'`)
+		if err := os.WriteFile(filepath.Join(c.Req.Cwd, "..", "results", "note.txt"), []byte("from the page"), 0o600); err != nil {
+			t.Error(err)
+		}
+		return provider.Result{Structured: json.RawMessage(`{"files": [{"path": "note.txt"}]}`)}
+	}
+	id := e.WaitState(e.Start("notes", "work", nil), "done").ID
+	var files int
+	var mark string
+	if err := e.SQLRow(`SELECT count(*) FROM file WHERE process_id = ?`, id).Scan(&files); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.SQLRow(`SELECT untrusted FROM project WHERE name = 'notes'`).Scan(&mark); err != nil {
+		t.Fatal(err)
+	}
+	if files != 1 || !strings.Contains(mark, "a page") {
+		t.Fatalf("the file the marked turn kept (%d) marks its module: %q", files, mark)
+	}
 }
 
 // TestFall05BetweenTheFinishOfAProcessAndItsHooks: a process deck closed just before it fell is heard after the

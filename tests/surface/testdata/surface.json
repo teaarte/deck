@@ -1029,7 +1029,7 @@
             "type": "string"
           },
           "outcome": {
-            "description": "Only this outcome: done, rejected, waiting, expired, unknown, started, or reached for the hosts the programs of a box reached",
+            "description": "Only this outcome: done, rejected, waiting, expired, unknown, making, started, or reached for the hosts the programs of a box reached",
             "type": "string"
           },
           "limit": {

@@ -35,7 +35,7 @@ type Service struct {
 
 type callsListIn struct {
 	Project string `type:"project" opt:"" desc:"Project name; without it an agent of a project gets its own, the owner and the master every project"`
-	Outcome string `opt:"" desc:"Only this outcome: done, rejected, waiting, expired, unknown, started, or reached for the hosts the programs of a box reached"`
+	Outcome string `opt:"" desc:"Only this outcome: done, rejected, waiting, expired, unknown, making, started, or reached for the hosts the programs of a box reached"`
 	Limit   int64  `opt:"" desc:"At most this many, 200 by default"`
 	Process int64  `opt:"" desc:"Only the calls of this process"`
 }

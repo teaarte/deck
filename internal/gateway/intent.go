@@ -115,8 +115,8 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 	})
 }
 
-// Recover runs on start: actions left without an answer get an unknown outcome; a call deck was making for
-// the owner is settled when its action is among them, else it becomes an unknown outcome itself.
+// Recover runs on start: actions left without an answer, decisions of the owner deck was making and lines of calls
+// left making get an unknown outcome; the first two ask the owner, a decision once with its action.
 func (g *Gateway) Recover(ctx context.Context) error {
 	calls, err := g.st.Q.StartedToolCalls(ctx)
 	if err != nil {
@@ -135,9 +135,10 @@ func (g *Gateway) Recover(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	made := map[string]int64{}
+	made := map[string][]int64{}
 	for _, c := range making {
-		made[fmt.Sprint(c.ProjectID.Int64, c.Tool, c.Params)] = c.ID
+		k := fmt.Sprint(c.ProjectID.Int64, c.Tool, c.Params)
+		made[k] = append(made[k], c.ID)
 	}
 	res, _ := json.Marshal(Outcome{Error: "deck stopped while making this call; it is listed for the owner as an unknown outcome"})
 	err = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -159,8 +160,9 @@ func (g *Gateway) Recover(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			if id, ok := made[fmt.Sprint(a.ProjectID.Int64, f.Call.Command, string(f.Call.Input))]; ok {
-				delete(made, fmt.Sprint(a.ProjectID.Int64, f.Call.Command, string(f.Call.Input)))
+			if k := fmt.Sprint(a.ProjectID.Int64, f.Call.Command, string(f.Call.Input)); len(made[k]) > 0 {
+				id := made[k][0]
+				made[k] = made[k][1:]
 				if err := q.LoseMadeCall(ctx, db.LoseMadeCallParams{AskID: sql.NullInt64{Int64: u.ID, Valid: true}, ID: id}); err != nil {
 					return err
 				}
@@ -180,9 +182,11 @@ func (g *Gateway) Recover(ctx context.Context) error {
 			}
 		}
 		// A call deck made inside itself is over with deck: its line says so, and no one is asked.
-		for _, id := range made {
-			if err := q.LoseMadeCall(ctx, db.LoseMadeCallParams{Error: "deck stopped while making this call", ID: id}); err != nil {
-				return err
+		for _, ids := range made {
+			for _, id := range ids {
+				if err := q.LoseMadeCall(ctx, db.LoseMadeCallParams{Error: "deck stopped while making this call", ID: id}); err != nil {
+					return err
+				}
 			}
 		}
 		return nil

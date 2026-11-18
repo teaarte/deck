@@ -589,7 +589,7 @@ func reasonOf(input json.RawMessage) string {
 	return strings.TrimSpace(in.Reason)
 }
 
-// line is the line of a call in the journal: before writes it started, and a command that keeps its own line, as a
+// line is the line of a call in the journal: before writes it making, and a command that keeps its own line, as a
 // tool that sends keeps its intent, writes that on it.
 type line struct {
 	id     int64

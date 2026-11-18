@@ -575,6 +575,7 @@ and bring the modules in line.
 - 2026-11-18: A call of a turn that brings text from outside (a tool, an MCP server, a browser, a page) marks the
   turn before it runs, whatever it answers: an error of the other side marks it too. A call that is not a read has its
   line in the journal from its start, `making` (an intent to act outside deck makes it `started`); a deck that stopped
-  before its outcome leaves the line `unknown`, and asks the owner only about a call that left deck.
+  before its outcome leaves the line `unknown`; it asks the owner about an intent to act outside deck and a call the
+  owner allowed, as before.
 - 2026-11-18: The files a process that read text from outside deck keeps (by its result or left in its results
   folder) mark the data of its module as holding text from outside, as its writes of records do.

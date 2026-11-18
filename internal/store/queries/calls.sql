@@ -8,6 +8,13 @@ VALUES (sqlc.arg(workspace_id), sqlc.arg(process_id), sqlc.arg(project_id), sqlc
 UPDATE tool_call SET outcome = ?, external_id = ?, error = ? WHERE id = ? AND outcome = 'started';
 
 
+-- name: TakeToolCall :execrows
+-- A command that keeps its own line writes it on the row its call started.
+UPDATE tool_call SET project_id = sqlc.narg(project_id), need = sqlc.arg(need), subject = sqlc.arg(subject), params = sqlc.arg(params),
+    outcome = sqlc.arg(outcome), error = sqlc.arg(error)
+WHERE id = sqlc.arg(id) AND outcome = 'started';
+
+
 -- name: StartedToolCalls :many
 SELECT * FROM tool_call WHERE outcome = 'started' ORDER BY id;
 
@@ -22,7 +29,7 @@ UPDATE tool_call SET outcome = 'unknown', ask_id = sqlc.narg(ask_id) WHERE id = 
 
 -- name: ListUnresolvedCalls :many
 SELECT t.* FROM tool_call t LEFT JOIN ask a ON a.id = t.ask_id
-WHERE t.project_id IS sqlc.arg(project_id) AND t.tool = sqlc.arg(tool)
+WHERE t.project_id IS sqlc.arg(project_id) AND t.tool = sqlc.arg(tool) AND t.id != sqlc.arg(self)
   AND (t.outcome = 'started' OR t.outcome = 'unknown' AND a.state = 'open' AND a.id != sqlc.arg(retrying))
 ORDER BY t.id;
 

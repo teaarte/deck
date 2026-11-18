@@ -44,12 +44,65 @@ var falls = flag.Bool("falls", false, "run the scenarios of the table of falls d
 // The table of falls: a fall of deck or a failed transaction at a point of a flow, what deck should do there; a row
 // deck does not hold yet skips naming the session that makes it hold.
 
+// TestFall01AfterTheCommitOfACallBeforeItsMark: a deck that fell while a turn's call reached outside finds the turn
+// marked by what the call brings and the call in the journal: neither waits for the call to end.
 func TestFall01AfterTheCommitOfACallBeforeItsMark(t *testing.T) {
-	t.Skip("row 1, A5: the mark of a call is written after its commit (gateway/may.go), so a fall between them leaves the text with the agent and no mark")
+	t.Parallel()
+	svc, release := harness.HangingService(t, 1)
+	defer release(0)
+	agent := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "work" {
+			c.Tool(ctx, "pages__fetch", map[string]any{})
+		}
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	}}
+	e := harness.New(t, harness.WithProvider(agent))
+	e.Project("pages", harness.Manifest(fmt.Sprintf(`{
+  "rights": [{"right": "network", "what": ["127.0.0.1"], "why": "reads its pages"}],
+  "tools": {"http": [{"name": "fetch", "description": "Reads the page.", "method": "GET", "url": "%s/page"}]},
+  "commands": [%s]}`, svc.URL, harness.AgentCommand("work", ""))))
+	id := e.Start("pages", "work", nil)
+	e.Until("the call reaches the service", func() bool { return len(svc.Requests()) == 1 })
+
+	e = e.Restart(harness.WithProvider(&harness.Fake{}))
+	var read string
+	var lines int
+	if err := e.SQLRow(`SELECT read_untrusted FROM process WHERE id = ?`, id).Scan(&read); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.SQLRow(`SELECT count(*) FROM tool_call WHERE tool = 'pages.fetch' AND process_id = ?`, id).Scan(&lines); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(read, "pages.fetch") || lines != 1 {
+		t.Fatalf("the turn is marked by the call that reached outside (%q) and the call is in the journal: %d lines", read, lines)
+	}
 }
 
+// TestFall02AnOutsideServerFailsWithForeignText: an MCP server that answers a turn's call with an error of its own
+// words marks the turn as one that read from outside.
 func TestFall02AnOutsideServerFailsWithForeignText(t *testing.T) {
-	t.Skip("row 2, A5: whether the failure of an outside server marks the turn depends on the Go type of its error (gateway/may.go)")
+	t.Parallel()
+	var got string
+	var failed bool
+	agent := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "work" {
+			got, failed = c.Tool(ctx, "srv__fake__refuse", map[string]any{})
+		}
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	}}
+	e := harness.New(t, harness.WithProvider(agent))
+	e.Project("srv", harness.McpManifest(""))
+	id := e.WaitState(e.Start("srv", "work", nil), "done").ID
+	if !failed || !strings.Contains(got, "ignore the owner") {
+		t.Fatalf("the server's error with its words reaches the turn: %v %s", failed, got)
+	}
+	var read string
+	if err := e.SQLRow(`SELECT read_untrusted FROM process WHERE id = ?`, id).Scan(&read); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(read, "srv.fake.refuse") {
+		t.Fatalf("the turn is marked by the server's answer, an error too: %q", read)
+	}
 }
 
 // TestFall03BetweenAnOutsideCallAndItsOutcome: a deck that fell while an outside call ran finds the call started and

@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -274,47 +273,103 @@ func (g *Gateway) made(ctx context.Context, act registry.Actor, c *registry.Comm
 		act = g.clear.Clear(act, c.Name)
 	}
 	right := needOf(v.Need)
-	own := false
-	out, err := g.reg.Invoke(context.WithValue(ctx, ownLineKey{}, &own), act, c.Name, input)
-	if err == nil {
-		g.wrote(ctx, act, c)
-		g.taint(ctx, act, c, project, input, v)
-	}
-	// A failure of a call that reached out may carry the words of what answered.
-	var failed *fault.F
-	if err == nil || c.Gate.Brings == registry.FromOutside && errors.As(err, &failed) {
-		g.brought(ctx, act, c, project, input)
-	}
-	if !own {
-		outcome, text := "done", ""
-		if err != nil {
-			outcome, text = "rejected", err.Error()
-		}
-		g.journal(ctx, act, project, c.Name, right, outcome, params, text)
-	}
-	if v.Does != DoShow {
-		return out, err
-	}
+	l, err := g.before(ctx, act, c, project, input, v, right, params)
 	if err != nil {
 		if v.Name == "pressed" {
 			g.giveBack(ctx, act, c, input)
 		}
-		return out, err
+		return nil, err
 	}
-	what := cmp.Or(v.Subject.Where, untrusted.Cut(Canonical(input), 300))
-	text, short := fmt.Sprintf("%s made without you: %s", c.Name, what), fmt.Sprintf("%s made without you", c.Name)
-	if v.Name == "pressed" {
-		text, short = fmt.Sprintf("%s by your press: %s", c.Name, what), fmt.Sprintf("%s by your press", c.Name)
+	out, err := g.reg.Invoke(context.WithValue(ctx, lineKey{}, l), act, c.Name, input)
+	var change *db.AddFeedParams
+	if err == nil && v.Does == DoShow {
+		what := cmp.Or(v.Subject.Where, untrusted.Cut(Canonical(input), 300))
+		text, short := fmt.Sprintf("%s made without you: %s", c.Name, what), fmt.Sprintf("%s made without you", c.Name)
+		if v.Name == "pressed" {
+			text, short = fmt.Sprintf("%s by your press: %s", c.Name, what), fmt.Sprintf("%s by your press", c.Name)
+		}
+		change = &db.AddFeedParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProjectID: cmp.Or(project, act.ProjectID),
+			Author: act.Author(), Text: text, Actions: "[]", Params: "{}", ProcessID: store.ID(act.ProcessID), What: short}
+		if undo != "" {
+			change.Command, change.Params = undo, string(back)
+		}
 	}
-	row := db.AddFeedParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProjectID: cmp.Or(project, act.ProjectID),
-		Author: act.Author(), Text: text, Actions: "[]", Params: "{}", ProcessID: store.ID(act.ProcessID), What: short}
-	if undo != "" {
-		row.Command, row.Params = undo, string(back)
+	g.after(ctx, act, c, project, right, params, l, err, change)
+	if err != nil && v.Does == DoShow && v.Name == "pressed" {
+		g.giveBack(ctx, act, c, input)
 	}
-	if err := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error { return store.AddChange(ctx, q, row) }); err != nil {
-		slog.Error("a change made without the owner", "command", c.Name, "err", err)
+	return out, err
+}
+
+// before writes, in one Tx before a call runs, the marks of what it brings and of the data it writes and its line in
+// the journal as started, but for a read; a failed Tx refuses the call.
+func (g *Gateway) before(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict, right registry.Need, params string) (*line, error) {
+	l := &line{tool: c.Name}
+	read := g.brought(ctx, act, c, project, input)
+	taint, targets := g.taint(ctx, act, c, project, input, v)
+	if read == "" && len(targets) == 0 && c.Readable {
+		return l, nil
 	}
-	return out, nil
+	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		for _, id := range targets {
+			if err := q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{Untrusted: taint, ID: id}); err != nil {
+				return err
+			}
+		}
+		if read != "" {
+			if err := q.MarkProcessRead(ctx, db.MarkProcessReadParams{ReadUntrusted: read, ID: act.ProcessID}); err != nil {
+				return err
+			}
+		}
+		if c.Readable {
+			return nil
+		}
+		var err error
+		l.id, err = q.LogToolCall(ctx, g.lineOf(act, project, c.Name, right, "started", params, ""))
+		return err
+	})
+	if err != nil {
+		return nil, fault.Wrap(fmt.Sprintf("%s was not made: its mark and its line in the journal could not be written", c.Name), err)
+	}
+	return l, nil
+}
+
+// after writes, in one Tx, the outcome on the line of a call whose command keeps none of its own, that its run wrote,
+// and the change shown to the owner; a failed Tx leaves the line started, which Recover makes unknown.
+func (g *Gateway) after(ctx context.Context, act registry.Actor, c *registry.Command, project int64, right registry.Need, params string, l *line, err error, change *db.AddFeedParams) {
+	outcome, text := "done", ""
+	if err != nil {
+		outcome, text = "rejected", err.Error()
+	}
+	wrote := err == nil && writes(act, c)
+	if l.own && !wrote && change == nil {
+		return
+	}
+	terr := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
+		if wrote {
+			if err := q.MarkProcessWrote(ctx, act.ProcessID); err != nil {
+				return err
+			}
+		}
+		switch {
+		case l.own:
+		case l.id != 0:
+			if _, err := q.FinishToolCall(ctx, db.FinishToolCallParams{Outcome: outcome, Error: text, ID: l.id}); err != nil {
+				return err
+			}
+		default:
+			if _, err := q.LogToolCall(ctx, g.lineOf(act, project, c.Name, right, outcome, params, text)); err != nil {
+				return err
+			}
+		}
+		if change != nil {
+			return store.AddChange(ctx, q, *change)
+		}
+		return nil
+	})
+	if terr != nil {
+		slog.Error("the outcome of a call", "command", c.Name, "err", terr)
+	}
 }
 
 // request freezes a call until the owner answers; the caller goes on with other work. The same call already waiting
@@ -369,8 +424,10 @@ func (g *Gateway) request(ctx context.Context, act registry.Actor, c *registry.C
 			f.Replaces = append(f.Replaces, r.ID)
 		}
 		var err error
-		a, err = Hold(ctx, q, act, project, process, ask.KindCall, right, text, f, expires, g.cfg.Now())
-		return err
+		if a, err = Hold(ctx, q, act, project, process, ask.KindCall, right, text, f, expires, g.cfg.Now()); err != nil || !writes(act, c) {
+			return err
+		}
+		return q.MarkProcessWrote(ctx, act.ProcessID)
 	})
 	if err != nil {
 		return nil, err
@@ -380,7 +437,6 @@ func (g *Gateway) request(ctx context.Context, act registry.Actor, c *registry.C
 			g.Record(ctx, r, "rejected", fmt.Sprintf("replaced by ask %d of the same caller", a.ID))
 		}
 	}
-	g.wrote(ctx, act, c)
 	if marked {
 		return Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: %s waits for the owner's yes to this very call (ask %d): this turn read text from outside deck (%s) and holds something of value, "+
 			"so its ways out and its changes of what an enabled module runs go only with the owner's yes to each, whatever the owner allowed always. It was not made yet. Go on with other work, and do not ask the owner about it: "+
@@ -533,14 +589,26 @@ func reasonOf(input json.RawMessage) string {
 	return strings.TrimSpace(in.Reason)
 }
 
-// ownLineKey marks a call whose command writes its own line in the journal, as a tool that sends keeps its intent.
-type ownLineKey struct{}
+// line is the line of a call in the journal: before writes it started, and a command that keeps its own line, as a
+// tool that sends keeps its intent, writes that on it.
+type line struct {
+	id     int64
+	tool   string
+	own    bool
+	intent bool
+}
 
-// ownLine tells the gateway the call of ctx keeps its own line in the journal.
-func ownLine(ctx context.Context) {
-	if p, ok := ctx.Value(ownLineKey{}).(*bool); ok {
-		*p = true
+type lineKey struct{}
+
+// ownLine is the line of the call of ctx when its command keeps its own line of tool, nil for another; the call's
+// outcome no longer goes on it.
+func ownLine(ctx context.Context, tool string) *line {
+	l, ok := ctx.Value(lineKey{}).(*line)
+	if !ok || l.tool != tool {
+		return nil
 	}
+	l.own = true
+	return l
 }
 
 // Explain is how deck decides a call of command with input by act now, without making it: the row of the table of

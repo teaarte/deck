@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -126,13 +127,24 @@ func TestUnknownOutcomeIsNotRepeatedOnResume(t *testing.T) {
 	if !second.Calls()[0].Resume || !strings.Contains(msg, "Outcome unknown") || !strings.Contains(msg, "Do not make this call again") {
 		t.Fatalf("the resumed agent is told the outcome is unknown: %q", msg)
 	}
-	if !strings.Contains(again, "unknown outcome") || len(svc.Requests()) != 1 {
+	// The call reached outside before deck fell, so the turn is marked: its repeat waits for the owner's once.
+	if !strings.Contains(again, `"waiting"`) || len(svc.Requests()) != 1 {
 		t.Fatalf("the resumed agent cannot repeat the call: %q, %d requests", again, len(svc.Requests()))
 	}
-	e2.Answer(e2.WaitAsk().ID, "done")
+	for _, a := range e2.Asks() {
+		if a.Kind == "call" {
+			e2.Answer(a.ID, "deny")
+		}
+	}
+	for _, a := range e2.Asks() {
+		if a.Kind == "unknown" {
+			e2.Answer(a.ID, "done")
+		}
+	}
 	e2.WaitState(id, "done")
-	if msg := second.Calls()[1].Prompt; !strings.Contains(msg, "counts it as done") || len(svc.Requests()) != 1 {
-		t.Fatalf("the owner's done reaches the agent and nothing is repeated: %q", msg)
+	told := slices.ContainsFunc(second.Calls()[1:], func(r provider.Request) bool { return strings.Contains(r.Prompt, "counts it as done") })
+	if !told || len(svc.Requests()) != 1 {
+		t.Fatalf("the owner's done reaches the agent and nothing is repeated: %d requests", len(svc.Requests()))
 	}
 }
 

@@ -273,8 +273,22 @@ func TestACallOfUnknownOutcomeIsKnownByItsIdentity(t *testing.T) {
 	}}
 	e2 := e.Restart(harness.WithProvider(second))
 	e2.Until("the second turn made its call", func() bool { return padded.Load() != nil })
-	if out := padded.Load().(string); !strings.Contains(out, "unknown outcome") || len(svc.Requests()) != 1 {
-		t.Fatalf("the padded call is the same call of unknown outcome: %q, %d requests", out, len(svc.Requests()))
+	// The first call reached outside before deck fell, so the turn is marked and its way out waits for the owner's once.
+	if out := padded.Load().(string); !strings.Contains(out, `"waiting"`) || len(svc.Requests()) != 1 {
+		t.Fatalf("the padded call of the marked turn waits for the owner: %q, %d requests", out, len(svc.Requests()))
+	}
+	asked := 0
+	for _, a := range e2.Asks() {
+		if a.Kind == "call" {
+			asked++
+			e2.Refused("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"}, 403, "unknown outcome")
+		}
+	}
+	if asked != 1 {
+		t.Fatalf("one question of the padded call: %d", asked)
+	}
+	if n := len(svc.Requests()); n != 1 {
+		t.Fatalf("the padded call is the same call of unknown outcome, not made again: %d requests", n)
 	}
 }
 

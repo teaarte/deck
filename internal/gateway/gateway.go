@@ -499,23 +499,42 @@ func (g *Gateway) log(ctx context.Context, s *Session, tool string, right regist
 	g.journal(ctx, s.actor(), s.ProjectID, tool, right, outcome, params, "")
 }
 
-// Journal writes a call to the journal for a command that writes its own line: one the owner made past the gateway,
-// such as a delete from a screen, or a read of the web with the address it read.
+// Journal writes a call to the journal for a command that writes its own line, on the line before wrote if any: one
+// the owner made past the gateway, such as a delete from a screen, or a read of the web with the address it read.
 func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string) {
-	ownLine(ctx)
+	if l := ownLine(ctx, tool); l != nil && l.id != 0 {
+		var n int64
+		err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			var err error
+			n, err = q.TakeToolCall(ctx, db.TakeToolCallParams{ProjectID: store.ID(project), Need: right.Right, Subject: right.Subject, Params: params,
+				Outcome: outcome, Error: errText, ID: l.id})
+			return err
+		})
+		if err != nil {
+			slog.Error("journal", "tool", tool, "err", err)
+		}
+		if err != nil || n == 1 {
+			return
+		}
+	}
 	g.journal(ctx, act, project, tool, right, outcome, params, errText)
 }
 
 // journal writes a line of a call with the right it needs and the subject of that right.
 func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string) {
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(),
-			Caller: frozenCaller(act), Tool: tool, Need: right.Right, Subject: right.Subject, Count: 1, Outcome: outcome, Params: params, Error: errText})
+		_, err := q.LogToolCall(ctx, g.lineOf(act, project, tool, right, outcome, params, errText))
 		return err
 	})
 	if err != nil {
 		slog.Error("journal", "tool", tool, "err", err)
 	}
+}
+
+// lineOf is the line of a call of tool by act in the journal.
+func (g *Gateway) lineOf(act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string) db.LogToolCallParams {
+	return db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(),
+		Caller: frozenCaller(act), Tool: tool, Need: right.Right, Subject: right.Subject, Count: 1, Outcome: outcome, Params: params, Error: errText}
 }
 
 // Command looks a registry command up for callers that need its declaration.

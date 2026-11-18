@@ -572,3 +572,6 @@ and bring the modules in line.
   changes in one read. An answer to an ask that is answered or expired already (`deck.ask_answer`, a question of the
   chat taken back, or one deck closed itself because what it asked about changed) is refused with HTTP 410, not 409:
   what it acted on is over; read it again rather than tell it.
+- 2026-11-18: A call of a turn that brings text from outside (a tool, an MCP server, a browser, a page) marks the
+  turn before it runs, whatever it answers: an error of the other side marks it too. A call that is not a read has its
+  line in the journal from its start, `started`; a deck that stopped before its outcome lists it as an unknown outcome.

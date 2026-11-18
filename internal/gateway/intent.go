@@ -19,7 +19,10 @@ import (
 // Intent writes the start of an action outside deck with its parameters before it happens. An identical call, by the
 // one identity of a call, still being made or whose outcome is unknown, is refused; the owner repeats it.
 func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64, tool string, params json.RawMessage) (int64, error) {
-	ownLine(ctx)
+	var self int64
+	if l := ownLine(ctx, tool); l != nil && !l.intent {
+		self, l.intent = l.id, true
+	}
 	same := Canonical
 	if c, err := g.reg.Lookup(ctx, act.Workspace, tool); err == nil {
 		same = func(raw json.RawMessage) string { return c.Same(raw) }
@@ -28,7 +31,7 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 	var id int64
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		retrying, _ := ctx.Value(retryingKey{}).(int64)
-		open, err := q.ListUnresolvedCalls(ctx, db.ListUnresolvedCallsParams{Retrying: retrying, ProjectID: store.ID(project), Tool: tool})
+		open, err := q.ListUnresolvedCalls(ctx, db.ListUnresolvedCallsParams{Retrying: retrying, ProjectID: store.ID(project), Tool: tool, Self: self})
 		if err != nil {
 			return err
 		}
@@ -41,6 +44,14 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 			}
 			return registry.Refuse("an identical call of %s is being made now; wait for its outcome instead of repeating it", tool)
 		}
+		if self != 0 {
+			n, err := q.TakeToolCall(ctx, db.TakeToolCallParams{ProjectID: store.ID(project), Need: manifest.Send, Subject: sent(tool), Params: Canonical(params),
+				Outcome: "started", ID: self})
+			if err != nil || n == 1 {
+				id = self
+				return err
+			}
+		}
 		id, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(), Caller: frozenCaller(act), Tool: tool,
 			Need: manifest.Send, Subject: sent(tool), Count: 1, Outcome: "started", Params: Canonical(params)})
 		return err
@@ -50,8 +61,7 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 
 // Refused writes a call that would have left deck but was refused before its intent.
 func (g *Gateway) Refused(ctx context.Context, act registry.Actor, project int64, tool string, params json.RawMessage, err error) {
-	ownLine(ctx)
-	g.journal(ctx, act, project, tool, registry.Need{Right: manifest.Send, Subject: sent(tool)}, "rejected", Canonical(params), err.Error())
+	g.Journal(ctx, act, project, tool, registry.Need{Right: manifest.Send, Subject: sent(tool)}, "rejected", Canonical(params), err.Error())
 }
 
 // Finish records the outcome of an action whose intent is id: done when the other side answered, rejected

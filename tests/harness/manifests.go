@@ -287,7 +287,7 @@ func McpManifest(extra string) string {
      "input": {"type": "object", "properties": {"url": {"type": "string"}}, "required": ["url"]},
      "executor": {"type": "tool", "tool": "fake.reach"}}],
   "tools": {"mcp": {"servers": {"fake": {"command": %q, "env": {"DECK_FAKE_MCP": "project"},
-    "toolFilter": ["lookup", "send", "picture", "vanish", "peek", "reach"], "right": {"lookup": "network", "picture": "network", "peek": "network", "reach": "network"}}}}},
+    "toolFilter": ["lookup", "send", "picture", "vanish", "refuse", "peek", "reach"], "right": {"refuse": "network", "lookup": "network", "picture": "network", "peek": "network", "reach": "network"}}}}},
   "rights": [{"right": "send", "what": ["fake.send", "fake.vanish"], "why": "sends messages"}]%s}`, self, extra))
 }
 

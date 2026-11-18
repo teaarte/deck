@@ -78,16 +78,11 @@ func (g *Gateway) giveBack(ctx context.Context, act registry.Actor, c *registry.
 	})
 }
 
-// wrote marks the run of act as one that did more than read, so a run of the schedule that just read is not counted
-// as done.
-func (g *Gateway) wrote(ctx context.Context, act registry.Actor, c *registry.Command) {
+// writes says a call of c marks the run of act as one that did more than read, so a run of the schedule that just
+// read is not counted as done.
+func writes(act registry.Actor, c *registry.Command) bool {
 	// The own call of a tool run of a command that needs no right only reads.
-	if act.ProcessID == 0 || c != nil && (c.Readable || act.Run == "tool" && !c.Gated()) {
-		return
-	}
-	_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		return q.MarkProcessWrote(ctx, act.ProcessID)
-	})
+	return act.ProcessID != 0 && !(c.Readable || act.Run == "tool" && !c.Gated())
 }
 
 // Itself is the need of a command of deck a module or the master proposes to the owner: send on the command itself;

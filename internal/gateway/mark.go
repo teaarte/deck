@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"slices"
 	"strconv"
 	"strings"
@@ -72,65 +71,45 @@ func (g *Gateway) marked(ctx context.Context, act registry.Actor) bool {
 // once.
 func Marked(p db.Process) bool { return p.ReadUntrusted != "" && p.HoldsValued == 1 }
 
-// brought marks the process of act by what the call of c gave it: an answer from outside always, the data of a
-// module, process or topic when theirs holds untrusted text.
-func (g *Gateway) brought(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) {
+// brought is what the call of c gives the process of act that marks it, empty for nothing: an answer from outside
+// always, the data of a module, process or topic when theirs holds untrusted text.
+func (g *Gateway) brought(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage) string {
 	if act.ProcessID == 0 || act.Kind == registry.Owner || c.Gate.Brings == "" || c.Gate.Brings == registry.FromDeck {
-		return
+		return ""
 	}
-	from := ""
 	switch c.Gate.Brings {
 	case registry.FromOutside:
-		from = c.Name + " " + untrusted.Cut(Canonical(input), 200)
+		return c.Name + " " + untrusted.Cut(Canonical(input), 200)
 	case registry.FromData:
-		from = g.dataFrom(ctx, act, c, project, input)
+		return g.dataFrom(ctx, act, c, project, input)
 	}
-	if from == "" {
-		return
-	}
-	err := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		return q.MarkProcessRead(ctx, db.MarkProcessReadParams{ReadUntrusted: from, ID: act.ProcessID})
-	})
-	if err != nil {
-		slog.Error("mark a process", "process", act.ProcessID, "err", err)
-	}
+	return ""
 }
 
-// taint marks the data of the module a call of c writes as holding untrusted text when its caller is a process that
-// read some, or an automation token the owner does not vouch for; a call the owner's answer let through marks nothing.
-func (g *Gateway) taint(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict) {
+// taint is the mark a call of c puts on the data of the modules it writes, with them: by a process that read untrusted
+// text or a token the owner does not vouch for; none for a call the owner's answer let through.
+func (g *Gateway) taint(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict) (string, []int64) {
 	if c.Readable || act.Kind == registry.Owner || v.Name == "cleared" {
-		return
+		return "", nil
 	}
 	from := ""
 	switch {
 	case act.Token != 0:
 		t, err := g.st.Q.GetToken(ctx, act.Token)
 		if err != nil || t.Trusted == 1 {
-			return
+			return "", nil
 		}
 		from = fmt.Sprintf("automation token %s", t.Name)
 	case act.ProcessID != 0:
 		p, err := g.st.Q.GetProcess(ctx, act.ProcessID)
 		if err != nil || p.ReadUntrusted == "" {
-			return
+			return "", nil
 		}
 		from = fmt.Sprintf("process %d, which read %s", p.ID, p.ReadUntrusted)
 	default:
-		return
+		return "", nil
 	}
-	targets := g.written(ctx, act.Workspace, c, project, input)
-	err := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		for _, id := range targets {
-			if err := q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{Untrusted: untrusted.Cut(fmt.Sprintf("the call %s of %s", c.Name, from), 300), ID: id}); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		slog.Error("mark the data of a module", "command", c.Name, "err", err)
-	}
+	return untrusted.Cut(fmt.Sprintf("the call %s of %s", c.Name, from), 300), g.written(ctx, act.Workspace, c, project, input)
 }
 
 // written are the modules whose data a call of c writes: those its input names or of the processes it names, else its

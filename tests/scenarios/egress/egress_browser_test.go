@@ -86,9 +86,11 @@ func TestBrowserReadsAnySiteWithAStarAndSendsOnlyOwnFiles(t *testing.T) {
 	egress.AsPublic("198.51.100.7:443")
 	// A turn that read a page acts by the owner's once: the uploads come in a turn of their own.
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://198.51.100.7/x"), harness.Nav("https://jobs.example/apply"))), "done")
-	e.WaitState(e.Start("web", "browse", harness.Steps(
-		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"/etc/passwd"}}},
-		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/cv.pdf"}}})), "done")
+	// A browser's call marks its turn whatever it answers, so each upload is a turn of its own.
+	for _, path := range []string{"/etc/passwd", "results/cv.pdf"} {
+		e.WaitState(e.Start("web", "browse", harness.Steps(
+			harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{path}}})), "done")
+	}
 	got := ag.Last(4)
 	if got[0].IsErr || got[1].IsErr {
 		t.Fatalf("\"*\" in read opens any site: %+v", got)
@@ -108,10 +110,11 @@ func TestBrowserSendsNoFileALinkPointsOutOfTheFolder(t *testing.T) {
 	e.Grant("web", "send", "jobs.example")
 	// A turn that read a page acts by the owner's once: the uploads come in a turn of their own.
 	e.WaitState(e.Start("web", "browse", harness.Steps(harness.Nav("https://jobs.example/apply"))), "done")
-	e.WaitState(e.Start("web", "browse", harness.Steps(
-		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/cv-link.pdf"}}},
-		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/out/secret.pdf"}}},
-		harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{"results/cv.pdf"}}})), "done")
+	// A browser's call marks its turn whatever it answers, so each upload is a turn of its own.
+	for _, path := range []string{"results/cv-link.pdf", "results/out/secret.pdf", "results/cv.pdf"} {
+		e.WaitState(e.Start("web", "browse", harness.Steps(
+			harness.Step{Tool: "browser_file_upload", Args: map[string]any{"paths": []string{path}}})), "done")
+	}
 	got := ag.Last(3)
 	for _, c := range got[:2] {
 		if !c.IsErr || !strings.Contains(c.Out, "not a file in the folder") {

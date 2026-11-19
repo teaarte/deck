@@ -100,8 +100,8 @@ func (s *Service) unstart(topic int64, err error, live bool) {
 	}
 }
 
-// PumpChats starts the replies to the owner's messages none took: those a stop of deck left and those whose reply did
-// not start, once their time to try again came.
+// PumpChats starts the replies to the owner's messages none took and no open reply will: those a stop of deck left
+// and those whose reply did not start, once their time to try again came.
 func (s *Service) PumpChats(ctx context.Context, now time.Time) {
 	ids, err := s.St.Q.ListTopicsWithPending(ctx)
 	if err != nil {
@@ -115,13 +115,17 @@ func (s *Service) PumpChats(ctx context.Context, now time.Time) {
 		if failed && now.Before(u.next) {
 			continue
 		}
+		// A reply that works, or waits for other than the owner, takes the messages by its hook as it closes or parks.
+		if open, err := s.St.Q.OpenTopicProcess(ctx, id); err == nil && !process.Waits(open, process.WaitAnswer) {
+			continue
+		}
 		s.pump(ctx, id)
 	}
 }
 
 // reply hands the waiting messages of a topic to the master: into its parked reply, or a new reply process
 // that resumes the topic's session of its provider or starts one with a retelling.
-func (s *Service) reply(ctx context.Context, topicID int64) error {
+func (s *Service) reply(ctx context.Context, topicID int64) (err error) {
 	s.start.Lock()
 	defer s.start.Unlock()
 	t, err := s.St.Q.GetTopic(ctx, topicID)
@@ -208,7 +212,15 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 	if cmd == nil {
 		return registry.Invalid("project master has no trigger on %s", manifest.OnMessage)
 	}
-	// The owner's choice for a reply that broke off (chat_retry) goes first, then the model of the topic.
+	// The owner's choice for a reply that broke off (chat_retry) goes first, then the model of the topic; a start it
+	// fails, but for a stop of deck, drops it, so the next try goes on the topic's own.
+	if t.AgainProvider != "" {
+		defer func() {
+			if err != nil && ctx.Err() == nil {
+				s.dropAgain(t)
+			}
+		}()
+	}
 	provider := t.AgainProvider
 	if provider == "" && t.Model != "" {
 		if !slices.Contains(s.Able(ctx, p, cmd), t.Model) {
@@ -268,6 +280,16 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 		return err
 	}
 	return s.takeMessages(ctx, t, id, o.Session, sign, told, last)
+}
+
+// dropAgain forgets the choice of chat_retry of a topic.
+func (s *Service) dropAgain(t db.ChatTopic) {
+	err := s.St.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
+		return q.SetTopicAgain(ctx, db.SetTopicAgainParams{ID: t.ID})
+	})
+	if err != nil {
+		slog.Error("drop the choice of a retry", "topic", t.ID, "err", err)
+	}
 }
 
 // takeMessages gives the waiting messages up to through, and chat_retry's choice, to the reply process, keeps the sign

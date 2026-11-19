@@ -214,6 +214,18 @@ func (q *Queries) DeleteWaitingMessage(ctx context.Context, id int64) (int64, er
 	return result.RowsAffected()
 }
 
+const dropIdleTopicAgain = `-- name: DropIdleTopicAgain :exec
+UPDATE chat_topic SET again_provider = '', again_note = '', again_follows = 0
+WHERE chat_topic.id = ?1 AND again_provider != ''
+  AND NOT EXISTS (SELECT 1 FROM chat_message m WHERE m.topic_id = chat_topic.id AND m.role = 'owner' AND m.process_id = 0)
+`
+
+// The choice of chat_retry goes with the messages it was for: once none of the owner's waits, it is gone.
+func (q *Queries) DropIdleTopicAgain(ctx context.Context, topic int64) error {
+	_, err := q.db.ExecContext(ctx, dropIdleTopicAgain, topic)
+	return err
+}
+
 const fillShownText = `-- name: FillShownText :one
 UPDATE chat_message SET text = ?1 WHERE id = (SELECT MAX(m.id) FROM chat_message m
   WHERE m.topic_id = ?2 AND m.process_id = ?3 AND m.block != '' AND m.text = '' AND m.created_at >= ?4)

@@ -326,6 +326,9 @@ func (s *Service) chatMessageDelete(ctx context.Context, act registry.Actor, in 
 		if n, err := q.DeleteWaitingMessage(ctx, m.ID); err != nil || n == 0 {
 			return cmp.Or(err, registry.Conflict("the master has taken this message; it stays"))
 		}
+		if err := q.DropIdleTopicAgain(ctx, m.TopicID); err != nil {
+			return err
+		}
 		return q.DeleteFilesOf(ctx, db.DeleteFilesOfParams{OwnerKind: FileOwner, OwnerID: m.ID})
 	})
 	if err != nil {

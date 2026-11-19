@@ -82,7 +82,7 @@ func (s *Service) CheckManifests(ctx context.Context) {
 	for _, p := range ps {
 		if !seen[p.WorkspaceID] {
 			seen[p.WorkspaceID] = true
-			s.tellRights(ctx, p.WorkspaceID)
+			s.TellRights(ctx, p.WorkspaceID)
 		}
 	}
 }

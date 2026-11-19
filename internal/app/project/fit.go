@@ -242,3 +242,55 @@ func misfitsOf(c *manifest.Collection, rows []row, fixedKey bool, fix string) st
 	return fmt.Sprintf("collection %q: %d of %d records do not fit the new schema or key; %s. First problems:\n%s",
 		c.Name, bad, len(rows), fix, strings.Join(problems, "\n"))
 }
+
+// checkData verifies what a manifest declares it reads of other modules: modules there are, their collections, never
+// the master's data or memory, every project only for its models and runs; a service of its own named like no module.
+func checkData(ctx context.Context, q *db.Queries, at db.Project, m *manifest.Manifest) error {
+	if at.Builtin == 1 {
+		return nil
+	}
+	workspace, name := at.WorkspaceID, at.Name
+	for _, subject := range m.Services() {
+		tool, _, _ := strings.Cut(subject, ".")
+		if tool == name {
+			continue
+		}
+		if _, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: tool}); err == nil {
+			return registry.Invalid("rights: data on %s: its tool or server is named like module %q, whose data it would read as its own; rename the tool or server", subject, tool)
+		}
+	}
+	for _, subject := range m.Others() {
+		project, rest, _ := strings.Cut(subject, ":")
+		project, document, _ := strings.Cut(project, "/")
+		project, collection, _ := strings.Cut(project, ".")
+		switch {
+		case project == "*" && rest != "":
+			continue
+		case project == "*":
+			return registry.Invalid(`rights: data on * is every module's data, which only the master reads; name the modules, or *:models and *:runs`)
+		case project == name:
+			return registry.Invalid("rights: data on %s: a module reads its own data without a right", subject)
+		}
+		p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: project})
+		if err != nil {
+			return registry.Invalid("rights: data on %s: no module %q", subject, project)
+		}
+		if p.Builtin == 1 {
+			return registry.Invalid("rights: data on %s: module %s keeps the owner's memory and topics; no module reads it", subject, p.Name)
+		}
+		if strings.HasPrefix(document, docs.MemoryDir) {
+			return registry.Invalid("rights: data on %s: the memory of %s is for its own agents and the master only", subject, project)
+		}
+		if collection == "" {
+			continue
+		}
+		other, err := docs.Manifest(ctx, q, p)
+		if err != nil {
+			return registry.Invalid("rights: data on %s: module %q has an invalid manifest: %v", subject, project, err)
+		}
+		if other.Collection(collection) == nil {
+			return registry.Invalid("rights: data on %s: module %q has no collection %q", subject, project, collection)
+		}
+	}
+	return nil
+}

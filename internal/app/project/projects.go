@@ -218,7 +218,7 @@ func (s *Service) createProject(ctx context.Context, act registry.Actor, name st
 			return err
 		}
 		if status == store.ProjectEnabled {
-			if err := s.grantDeclared(ctx, q, act, p, pm.m); err != nil {
+			if err := s.GrantDeclared(ctx, q, act, p, pm.m); err != nil {
 				return err
 			}
 		}

@@ -1,5 +1,5 @@
 // Package project keeps the projects of a workspace: their lifecycle (drafts and their trial runs, import and
-// delete), and their manifests with the checks, migrations and rights of a save and the commands they give.
+// delete), and their manifests with the checks and migrations of a save and the commands they give.
 package project
 
 import (
@@ -55,9 +55,16 @@ type Service struct {
 	DropSecrets func(workspace int64, project string) error
 	// Theme is the theme a workspace wears.
 	Theme func(ctx context.Context, workspace int64) string
+	// Ungranted are the rights a manifest declares the owner has not answered, in deck's words.
+	Ungranted func(ctx context.Context, p db.Project, m *manifest.Manifest) []string
+	// GrantDeclared answers always to the declared rights whose always takes no passkey, Grant to those give says.
+	GrantDeclared func(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest) error
+	Grant         func(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest, give func(registry.Need) bool) error
+	// TellRights tells the master once what format 17 did to the rights of its modules.
+	TellRights func(ctx context.Context, workspace int64)
 }
 
 // Commands are the commands of projects.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.projectsCommands(), s.importCommands(), s.startersCommands(), s.draftsCommands(), s.projectDeleteCommands(), s.manifestCommands(), s.saveCheckCommands(), s.moduleZipCommands(), s.draftCommands(), s.dataCommands(), s.rightsCommands(), s.reportCommands())
+	return slices.Concat(s.projectsCommands(), s.importCommands(), s.startersCommands(), s.draftsCommands(), s.projectDeleteCommands(), s.manifestCommands(), s.saveCheckCommands(), s.moduleZipCommands(), s.draftCommands(), s.dataCommands())
 }

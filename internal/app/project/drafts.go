@@ -41,7 +41,7 @@ func (s *Service) projectEnable(ctx context.Context, act registry.Actor, in proj
 			}
 			return err
 		}
-		if err := s.grantDeclared(ctx, q, act, p, m); err != nil {
+		if err := s.GrantDeclared(ctx, q, act, p, m); err != nil {
 			return err
 		}
 		rows, err := q.ListProjectTriggers(ctx, p.ID)
@@ -61,7 +61,7 @@ func (s *Service) projectEnable(ctx context.Context, act registry.Actor, in proj
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"project": p.Name, "status": store.ProjectEnabled, "rights": s.ungranted(ctx, p, m)}, nil
+	return map[string]any{"project": p.Name, "status": store.ProjectEnabled, "rights": s.Ungranted(ctx, p, m)}, nil
 }
 
 type commandTryIn struct {

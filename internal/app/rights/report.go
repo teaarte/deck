@@ -1,4 +1,4 @@
-package project
+package rights
 
 import (
 	"cmp"

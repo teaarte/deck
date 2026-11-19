@@ -82,7 +82,7 @@ func (s *Service) check(ctx context.Context, act registry.Actor, in manifestChec
 		out.Screens = append(out.Screens, s.CheckScreens(ctx, act, p, pm.m)...)
 		out.Warnings = append(append(out.Warnings, s.unassigned(ctx, p, pm.m)...), s.unpaged(ctx, p, pm.m)...)
 		out.Enable = p.Status != store.ProjectEnabled
-		out.Ungranted = append(out.Ungranted, s.ungranted(ctx, p, pm.m)...)
+		out.Ungranted = append(out.Ungranted, s.Ungranted(ctx, p, pm.m)...)
 	}
 	out.Warnings = append(out.Warnings, s.untold(ctx, p, pm.m)...)
 	unused, untranslated := s.words(ctx, p, pm.m)

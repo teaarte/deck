@@ -1,4 +1,4 @@
-package project
+package rights
 
 import (
 	"cmp"
@@ -179,14 +179,14 @@ func (s *Service) printOf(ctx context.Context, p db.Project, n registry.Need) st
 	return ""
 }
 
-// grantDeclared answers always to every right m declares whose always takes no fresh passkey, but those the owner
+// GrantDeclared answers always to every right m declares whose always takes no fresh passkey, but those the owner
 // answered already: what enabling a module gives it; the rest the owner answers when first used or in its rights.
-func (s *Service) grantDeclared(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest) error {
-	return s.grant(ctx, q, act, p, m, func(n registry.Need) bool { return !m.Keyed(n) })
+func (s *Service) GrantDeclared(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest) error {
+	return s.Grant(ctx, q, act, p, m, func(n registry.Need) bool { return !m.Keyed(n) })
 }
 
-// grant answers always to the rights m declares that give says, but those the owner answered already.
-func (s *Service) grant(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest, give func(registry.Need) bool) error {
+// Grant answers always to the rights m declares that give says, but those the owner answered already.
+func (s *Service) Grant(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest, give func(registry.Need) bool) error {
 	gs, err := q.ListGrants(ctx, p.ID)
 	if err != nil {
 		return err
@@ -206,9 +206,9 @@ func (s *Service) grant(ctx context.Context, q *db.Queries, act registry.Actor, 
 	return nil
 }
 
-// ungranted are the rights m declares the owner has not answered, in deck's words: what the module asks for when it
+// Ungranted are the rights m declares the owner has not answered, in deck's words: what the module asks for when it
 // first needs it, or the owner grants in its settings.
-func (s *Service) ungranted(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
+func (s *Service) Ungranted(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
 	gs, err := s.St.Q.ListGrants(ctx, p.ID)
 	if err != nil {
 		return nil
@@ -222,61 +222,9 @@ func (s *Service) ungranted(ctx context.Context, p db.Project, m *manifest.Manif
 	return out
 }
 
-// checkData verifies what a manifest declares it reads of other modules: modules there are, their collections, never
-// the master's data or memory, every project only for its models and runs; a service of its own named like no module.
-func checkData(ctx context.Context, q *db.Queries, at db.Project, m *manifest.Manifest) error {
-	if at.Builtin == 1 {
-		return nil
-	}
-	workspace, name := at.WorkspaceID, at.Name
-	for _, subject := range m.Services() {
-		tool, _, _ := strings.Cut(subject, ".")
-		if tool == name {
-			continue
-		}
-		if _, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: tool}); err == nil {
-			return registry.Invalid("rights: data on %s: its tool or server is named like module %q, whose data it would read as its own; rename the tool or server", subject, tool)
-		}
-	}
-	for _, subject := range m.Others() {
-		project, rest, _ := strings.Cut(subject, ":")
-		project, document, _ := strings.Cut(project, "/")
-		project, collection, _ := strings.Cut(project, ".")
-		switch {
-		case project == "*" && rest != "":
-			continue
-		case project == "*":
-			return registry.Invalid(`rights: data on * is every module's data, which only the master reads; name the modules, or *:models and *:runs`)
-		case project == name:
-			return registry.Invalid("rights: data on %s: a module reads its own data without a right", subject)
-		}
-		p, err := q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: project})
-		if err != nil {
-			return registry.Invalid("rights: data on %s: no module %q", subject, project)
-		}
-		if p.Builtin == 1 {
-			return registry.Invalid("rights: data on %s: module %s keeps the owner's memory and topics; no module reads it", subject, p.Name)
-		}
-		if strings.HasPrefix(document, docs.MemoryDir) {
-			return registry.Invalid("rights: data on %s: the memory of %s is for its own agents and the master only", subject, project)
-		}
-		if collection == "" {
-			continue
-		}
-		other, err := docs.Manifest(ctx, q, p)
-		if err != nil {
-			return registry.Invalid("rights: data on %s: module %q has an invalid manifest: %v", subject, project, err)
-		}
-		if other.Collection(collection) == nil {
-			return registry.Invalid("rights: data on %s: module %q has no collection %q", subject, project, collection)
-		}
-	}
-	return nil
-}
-
-// tellRights writes once in the feed of the master of a workspace what format 17 did to the rights of its modules and
+// TellRights writes once in the feed of the master of a workspace what format 17 did to the rights of its modules and
 // migration 86 to its automation tokens.
-func (s *Service) tellRights(ctx context.Context, workspace int64) {
+func (s *Service) TellRights(ctx context.Context, workspace int64) {
 	for _, mark := range []string{store.Rights17, store.RightsTokens} {
 		s.tell(ctx, workspace, mark)
 	}

@@ -24,6 +24,7 @@ import (
 	"deck2/internal/app/project"
 	"deck2/internal/app/providers"
 	"deck2/internal/app/records"
+	"deck2/internal/app/rights"
 	"deck2/internal/app/screens"
 	"deck2/internal/app/secrets"
 	"deck2/internal/app/settings"
@@ -88,6 +89,7 @@ type App struct {
 	Answers   asks.Service
 	Signins   signins.Service
 	Projects  project.Service
+	Rights    rights.Service
 	Records   records.Service
 	Health    apphealth.Service
 	Processes processes.Service
@@ -241,7 +243,9 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Gateway: a.Gateway, Scheduler: a.Scheduler, Scripts: a.Scripts, LogPath: a.Runner.LogPath, StopServer: a.Host.Stop, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
 		PrepareLater: a.Documents.PrepareLater, Noted: a.Feed.Noted, CheckScreens: a.Screens.CheckScreens,
 		Unassigned: a.Models.Unassigned, Missing: a.missingPrograms, Secret: a.Secrets.Has, DropSecrets: a.Secrets.Drop,
-		Theme: a.Themes.Current, Saw: a.Runner.Saw, Seen: a.Runner.Seen}
+		Theme: a.Themes.Current, Saw: a.Runner.Saw, Seen: a.Runner.Seen,
+		Ungranted: a.Rights.Ungranted, GrantDeclared: a.Rights.GrantDeclared, Grant: a.Rights.Grant, TellRights: a.Rights.TellRights}
+	a.Rights = rights.Service{St: st, Now: cfg.Now, Registry: a.Registry, StopServer: a.Host.Stop}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Asks.OnLateAnswer(a.Answers.LateAnswer)

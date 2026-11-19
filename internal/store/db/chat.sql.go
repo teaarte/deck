@@ -157,7 +157,7 @@ func (q *Queries) CountMessagesAfter(ctx context.Context, arg CountMessagesAfter
 }
 
 const createTopic = `-- name: CreateTopic :one
-INSERT INTO chat_topic (workspace_id, title) VALUES (?, ?) RETURNING id, workspace_id, title, archived, deleted_at, created_at, updated_at, model, lang
+INSERT INTO chat_topic (workspace_id, title) VALUES (?, ?) RETURNING id, workspace_id, title, archived, deleted_at, created_at, updated_at, model, lang, again_provider, again_note, again_follows
 `
 
 type CreateTopicParams struct {
@@ -178,6 +178,9 @@ func (q *Queries) CreateTopic(ctx context.Context, arg CreateTopicParams) (ChatT
 		&i.UpdatedAt,
 		&i.Model,
 		&i.Lang,
+		&i.AgainProvider,
+		&i.AgainNote,
+		&i.AgainFollows,
 	)
 	return i, err
 }
@@ -313,7 +316,7 @@ func (q *Queries) GetMessage(ctx context.Context, id int64) (ChatMessage, error)
 }
 
 const getTopic = `-- name: GetTopic :one
-SELECT id, workspace_id, title, archived, deleted_at, created_at, updated_at, model, lang FROM chat_topic WHERE id = ? AND deleted_at IS NULL
+SELECT id, workspace_id, title, archived, deleted_at, created_at, updated_at, model, lang, again_provider, again_note, again_follows FROM chat_topic WHERE id = ? AND deleted_at IS NULL
 `
 
 func (q *Queries) GetTopic(ctx context.Context, id int64) (ChatTopic, error) {
@@ -329,6 +332,9 @@ func (q *Queries) GetTopic(ctx context.Context, id int64) (ChatTopic, error) {
 		&i.UpdatedAt,
 		&i.Model,
 		&i.Lang,
+		&i.AgainProvider,
+		&i.AgainNote,
+		&i.AgainFollows,
 	)
 	return i, err
 }
@@ -943,6 +949,28 @@ UPDATE project SET builtin = 1 WHERE id = ?
 
 func (q *Queries) SetProjectBuiltin(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, setProjectBuiltin, id)
+	return err
+}
+
+const setTopicAgain = `-- name: SetTopicAgain :exec
+UPDATE chat_topic SET again_provider = ?1, again_note = ?2, again_follows = ?3
+WHERE id = ?4
+`
+
+type SetTopicAgainParams struct {
+	Provider string
+	Note     string
+	Follows  int64
+	ID       int64
+}
+
+func (q *Queries) SetTopicAgain(ctx context.Context, arg SetTopicAgainParams) error {
+	_, err := q.db.ExecContext(ctx, setTopicAgain,
+		arg.Provider,
+		arg.Note,
+		arg.Follows,
+		arg.ID,
+	)
 	return err
 }
 

@@ -150,28 +150,23 @@ func (r *Runner) report(ctx context.Context, processID int64) string {
 	return b.String()
 }
 
-// Recover settles, as deck starts and before its first tick, what only a deck that stopped leaves: no turn lives yet.
-//
-//	what deck left                       Recover
-//	a group of processes of a turn       killed (reap)
-//	a folder lock of a closed process    dropped
-//	a call started, its outcome unknown  unknown (gateway Recover)
-//	a running tool, model or script      interrupted, by fault.DeckRestart
-//	a running agent with a session       resumed with what it was not told
-//	a running agent without a session    interrupted
-//
-// What else waits — consequences of closed processes, answers that reached parked ones, held turns, owner's messages
-// without a reply — the tick does, the first one right after Recover.
+// Recover settles what only a stop of deck leaves, as deck starts and no turn lives yet: its table is the comment of
+// each step. What else waits — closed, parked, held, unanswered — the tick redoes, the first right after it.
 func (r *Runner) Recover(ctx context.Context) error {
+	// A group of processes of a turn: killed.
 	if err := r.reap(ctx); err != nil {
 		return err
 	}
+	// A folder lock of a closed process: dropped.
 	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DropStaleFolderLocks(ctx) }); err != nil {
 		return err
 	}
+	// A call started whose outcome no one heard: unknown.
 	if err := r.gw.Recover(ctx); err != nil {
 		return err
 	}
+	// A running tool, model or script: interrupted; an agent: resumed in its session with what it was not told, else
+	// interrupted.
 	ps, err := r.st.Q.ListProcessesByState(ctx, StateRunning)
 	if err != nil {
 		return err

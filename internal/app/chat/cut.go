@@ -126,12 +126,6 @@ func (s *Service) replyCommand(ctx context.Context, masterID int64) (*manifest.C
 	return nil, registry.Invalid("project master has no trigger on %s", manifest.OnMessage)
 }
 
-// again is a reply that goes once more on another provider, told what the broken one it follows did.
-type again struct {
-	provider, note string
-	follows        int64
-}
-
 type chatRetryIn struct {
 	Message  int64  `desc:"Id of the owner's message whose reply broke off"`
 	Provider string `desc:"Provider to answer on, for this reply only"`
@@ -168,33 +162,20 @@ func (s *Service) chatRetry(ctx context.Context, act registry.Actor, in chatRetr
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		n, err := q.ReleaseMessages(ctx, db.ReleaseMessagesParams{TopicID: t.ID, ProcessID: p.ID})
 		if err == nil && n == 0 {
-			err = registry.Conflict("the messages of this reply went to another one already")
+			return registry.Conflict("the messages of this reply went to another one already")
 		}
-		return err
+		if err != nil {
+			return err
+		}
+		// The next reply goes with the owner's choice even after a restart; the reply that takes the messages clears it.
+		return q.SetTopicAgain(ctx, db.SetTopicAgainParams{Provider: in.Provider, Note: strings.TrimSpace(note), Follows: p.ID, ID: t.ID})
 	})
-	if err == nil {
-		s.mu.Lock()
-		if s.again == nil {
-			s.again = map[int64]again{}
-		}
-		s.again[t.ID] = again{provider: in.Provider, note: strings.TrimSpace(note), follows: p.ID}
-		s.mu.Unlock()
-	}
 	s.start.Unlock()
 	if err != nil {
 		return nil, err
 	}
 	s.Go(func(context.Context) { s.pump(context.WithoutCancel(ctx), t.ID) })
 	return map[string]any{"topic": t.ID, "provider": in.Provider}, nil
-}
-
-// againOf takes the provider and note a topic's next reply goes with, once.
-func (s *Service) againOf(topic int64) again {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	a := s.again[topic]
-	delete(s.again, topic)
-	return a
 }
 
 func (s *Service) cutCommands() []*registry.Command {

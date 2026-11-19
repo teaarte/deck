@@ -74,15 +74,18 @@ type ChatSession struct {
 }
 
 type ChatTopic struct {
-	ID          int64
-	WorkspaceID int64
-	Title       string
-	Archived    int64
-	DeletedAt   sql.NullString
-	CreatedAt   string
-	UpdatedAt   string
-	Model       string
-	Lang        string
+	ID            int64
+	WorkspaceID   int64
+	Title         string
+	Archived      int64
+	DeletedAt     sql.NullString
+	CreatedAt     string
+	UpdatedAt     string
+	Model         string
+	Lang          string
+	AgainProvider string
+	AgainNote     string
+	AgainFollows  int64
 }
 
 type Connection struct {

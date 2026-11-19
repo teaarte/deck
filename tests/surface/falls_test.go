@@ -261,7 +261,6 @@ func TestFall06AHookFailsToWrite(t *testing.T) {
 // TestFall07ARetryOfAChatAcrossARestart: deck stops right after the owner answered a broken reply again on another
 // provider; the reply after the restart goes on that provider, told what the broken one did, and follows it.
 func TestFall07ARetryOfAChatAcrossARestart(t *testing.T) {
-	skip(t, "row 7, A6: chat_retry keeps its provider, notes and Follows in memory, so after a restart the reply runs on the default model")
 	t.Parallel()
 	var mu sync.Mutex
 	told := ""

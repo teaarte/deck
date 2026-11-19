@@ -22,9 +22,8 @@ const (
 	ceilingWarning = 10 * time.Minute
 )
 
-// Due stops processes at their ceiling, takes turns from silent or down models, hears the closed ones, delivers what
-// reached the parked ones, ends the waits past their term, wakes the held ones, marks the silent ones and purges the
-// empty results kept long enough.
+// Due stops processes at their ceiling, takes turns from silent or down models, hears the closed ones, delivers to the
+// parked ones, ends waits past their term, wakes the held ones, marks the silent ones and purges old empty results.
 func (r *Runner) Due(ctx context.Context, now time.Time) {
 	r.stopAtCeiling(ctx, now)
 	r.watchTurns(ctx, now)

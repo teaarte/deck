@@ -38,7 +38,8 @@ const (
 	summaryDue = 20
 )
 
-// Service keeps the chat. For is the provider a command runs on; Runner starts and goes on with the replies.
+// Service keeps the chat; the owner's messages and choices are in the base, in memory only what a restart may lose,
+// each such field saying what a restart does to it.
 type Service struct {
 	St *store.Store
 	// Emit tells deck's observers of a change no write of the store tells.
@@ -63,12 +64,12 @@ type Service struct {
 	// Decisions are what processes wait for the owner to decide but their questions, each with its buttons.
 	Decisions func(ctx context.Context, act registry.Actor, processes []int64, lang string) (any, error)
 
-	mu    sync.Mutex
+	mu sync.Mutex
+	// queue runs the replies of a topic one at a time; a restart ends them, and the tick pumps the topics again.
 	queue chatQueue
-	// unstarted is why the reply of a topic did not start, until one does; again, the provider and note its next
-	// reply goes with after one broke off.
+	// unstarted is why the reply of a topic did not start and when the tick tries again; after a restart the first
+	// tick tries at once and the reason shows again if it fails.
 	unstarted map[int64]unstarted
-	again     map[int64]again
 	// start keeps a reply starting apart from a topic or message being deleted, and the notes of deck a reply is told
 	// from the reply of another topic.
 	start sync.Mutex

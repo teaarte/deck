@@ -95,6 +95,8 @@ type Deps struct {
 	Registry *registry.Registry
 }
 
+// Gateway is deck's MCP server of processes and the HTTP entry of scripts. In memory it keeps sessions and what a
+// restart may lose, each such field saying what a restart does to it; calls and asks are in the base.
 type Gateway struct {
 	cfg  Config
 	st   *store.Store
@@ -103,13 +105,17 @@ type Gateway struct {
 	// clear is the one clearance of the registry: the gateway holds it to let a gated call through.
 	clear registry.Clearance
 
-	mu       sync.Mutex
+	mu sync.Mutex
+	// sessions are the MCP sessions of live turns and scripts; a restart ends them with their turns.
 	sessions map[string]*entry
-	// waiting counts the calls of each process that wait for the owner, which pause its ceiling.
-	owed    map[int64]int
+	// owed counts the calls of each process that wait for the owner, which pause its ceiling; a restart ends the calls,
+	// and Recover sets the ceiling of a resumed agent from its last output.
+	owed map[int64]int
+	// tokens are the MCP servers of automation tokens; a restart makes them again at their next request.
 	tokens  map[int64]*automationEntry
 	handler http.Handler
-	spend   spend
+	// spend lets one call of a run held to its run_usd go at a time; a restart ends the calls it held apart.
+	spend spend
 }
 
 type entry struct {

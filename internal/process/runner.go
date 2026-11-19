@@ -104,8 +104,8 @@ type Config struct {
 	AgentSlots func(ctx context.Context, workspace int64) int
 }
 
-// Runner owns process lifecycles. A process stops in waiting_answer when the agent is blocked on the
-// owner; answers that arrive later are delivered in one resume message.
+// Runner owns process lifecycles; its state is in the base. In memory it keeps handles and what a restart may lose,
+// each such field saying what a restart does to it.
 type Runner struct {
 	st      *store.Store
 	gw      *gateway.Gateway
@@ -123,17 +123,19 @@ type Runner struct {
 	stopped bool
 	// waking is a Wake under way; wakeAgain asks it for one more look.
 	waking, wakeAgain bool
-	// Below only what a restart rebuilds or may lose; what a turn read is in the base (process_read).
+	// live are the turns this deck runs; a restart ends them and Recover resumes or interrupts their rows.
 	live map[int64]*liveTurn
-	// marked is when the output time of each open process was last written.
+	// marked is when the output time of each open process was last written; after a restart the next output writes it.
 	marked map[int64]time.Time
-	// stderrCut says the log of an open process keeps no more of its stderr.
+	// stderrCut says the log of an open process keeps no more of its stderr; after a restart the cut line comes again.
 	stderrCut map[int64]bool
-	// slots counts the agent turns of each workspace that hold a slot, taken or handed over.
+	// slots counts the agent turns of each workspace that hold a slot, taken or handed over; a restart starts at none.
 	slots map[int64]int
-	// hearing are the processes this deck closes and hears itself, which a drain of the outbox leaves alone.
+	// hearing are the processes this deck closes and hears itself, which a drain of the outbox leaves alone; after a
+	// restart the outbox has them all.
 	hearing map[int64]bool
-	// warned is the deadline each agent process was told it nears, negative while the telling is under way.
+	// warned is the deadline each agent process was told it nears, negative while the telling is under way; after a
+	// restart an agent near its ceiling is told again.
 	warned map[int64]int64
 }
 

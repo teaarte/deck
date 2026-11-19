@@ -208,21 +208,22 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 	if cmd == nil {
 		return registry.Invalid("project master has no trigger on %s", manifest.OnMessage)
 	}
-	next := s.againOf(topicID)
-	if next.provider == "" && t.Model != "" {
+	// The owner's choice for a reply that broke off (chat_retry) goes first, then the model of the topic.
+	provider := t.AgainProvider
+	if provider == "" && t.Model != "" {
 		if !slices.Contains(s.Able(ctx, p, cmd), t.Model) {
 			return fmt.Errorf("the model %s of this topic does not run the master's replies now; pick another one at the top of the chat", t.Model)
 		}
-		next.provider = t.Model
+		provider = t.Model
 	}
 	pv, err := s.For(ctx, p.ID, cmd)
-	if next.provider != "" {
-		pv, err = s.Named(ctx, p.ID, next.provider)
+	if provider != "" {
+		pv, err = s.Named(ctx, p.ID, provider)
 	}
 	if err != nil {
 		return err
 	}
-	o := process.Origin{Session: uuid.NewString(), Files: files, Owners: true, Provider: next.provider, Follows: next.follows, Read: read, Carries: noted}
+	o := process.Origin{Session: uuid.NewString(), Files: files, Owners: true, Provider: provider, Follows: t.AgainFollows, Read: read, Carries: noted}
 	sign := ""
 	sess, err := s.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
 	switch {
@@ -233,7 +234,7 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 			return err
 		}
 		o.Carries = append(o.Carries, mem...)
-		o.Message = strings.TrimSpace(next.note + "\n\n" + o.Message)
+		o.Message = strings.TrimSpace(t.AgainNote + "\n\n" + o.Message)
 	case errors.Is(err, sql.ErrNoRows):
 		// A new session is told everything before the first waiting message, and the memory of now.
 		if _, _, sign, _, err = s.masterMemory(ctx, p, topicID, nil, false); err != nil {
@@ -257,7 +258,7 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 	if err != nil {
 		return err
 	}
-	o.Note = strings.TrimSpace(retell + "\n\n" + next.note + "\n\n" + news)
+	o.Note = strings.TrimSpace(retell + "\n\n" + t.AgainNote + "\n\n" + news)
 	id, err := s.Runner.Start(ctx, p.ID, m, reply, map[string]any{"topic": topicID}, o)
 	if err != nil {
 		if id != 0 {
@@ -269,10 +270,15 @@ func (s *Service) reply(ctx context.Context, topicID int64) error {
 	return s.takeMessages(ctx, t, id, o.Session, sign, told, last)
 }
 
-// takeMessages gives the waiting messages up to through to the reply process, keeps the sign of the memory its
-// session was given, when it was given one, and drops the notes of deck the turn was told, up to told.
+// takeMessages gives the waiting messages up to through, and chat_retry's choice, to the reply process, keeps the sign
+// of the memory its session was given, if any, and drops the notes of deck the turn was told, up to told.
 func (s *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID int64, session, sign string, told, through int64) error {
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if t.AgainProvider != "" {
+			if err := q.SetTopicAgain(ctx, db.SetTopicAgainParams{ID: t.ID}); err != nil {
+				return err
+			}
+		}
 		if told > 0 {
 			if err := q.DeleteMasterNotes(ctx, db.DeleteMasterNotesParams{WorkspaceID: t.WorkspaceID, Through: told}); err != nil {
 				return err

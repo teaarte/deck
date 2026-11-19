@@ -26,6 +26,7 @@ var layers = [][]string{
 	{"internal/gateway", "internal/models", "internal/provider/acp", "internal/provider/claudecode", "internal/provider/codex",
 		"internal/screen", "internal/access"},
 	{"internal/process", "internal/tools", "internal/provider/remote"},
+	// The domains: one imports no other, so a call across two is a field of a Service app.New wires.
 	{domains + "*"},
 	{"internal/app"},
 	{"internal/api"},

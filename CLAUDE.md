@@ -43,7 +43,11 @@ hold; look inside a package for the rest.
   is left unset), registers their commands and collects those of modules (`modules.go`), runs `Start`, `Loop` and `Tick` (the harness starts and ticks deck by the same two); background work goes through `Go(func(ctx)) bool`.
   Each domain is a package `app/<area>` with a `Service` of narrow dependencies and `Commands()`; no domain imports
   `internal/app`. Who may touch what is `internal/access`. Deck's screens are data in `app/screens/shipped/` (a file a
-  screen).
+  screen). `app/models` — connections, models, assignments and their list, the route and the call of a model (they
+  import `internal/gateway`, so they cannot sit by the proxy in its layer); `app/web` — `web_search`, `web_fetch`;
+  `app/project` — a project, its manifest and save checks, its import as a draft and its readiness; `app/rights` — the
+  rights of modules, the owner's answers and their report; `app/modules` — a module as a folder, a .zip, a starter, its
+  data.
 - `internal/words` — `ru.json`, the one dictionary of deck's words — of screens, of commands, of the client and of the
   sentences deck writes, phrases with verbs too (`manifest.TrText`); `words.In(lang)`. One phrase a meaning (`lint.Words`).
 - `internal/registry` — every input (API, MCP, triggers) calls commands through it; input schemas are limited to
@@ -65,7 +69,7 @@ hold; look inside a package for the rest.
   one reader of an object schema (`ObjectOf`), one reference to a secret (`SecretRef`), defaults in one step of
   `Parse`.
 - `internal/docs` — documents with revisions, skill files, the manifest reader and the owner's answers to its rights
-  (`Rights`, `Grant`, the table `right_grant`); `Ship` lays out what deck ships (master, skills) with a merge of others' edits and removal.
+  (`Rights`, `Grant`, the table `right_grant`, a row a subject `RightRows`); `Ship` lays out what deck ships (master, skills) with a merge of others' edits and removal.
 - `internal/process` — the runner of processes: turns of agents, scripts, tools and models, slots, resume, the
   deadlines (`Due`), the hand-on of a refused or silent turn to the next model (`handon.go`, `watch.go`), what a
   process left (`left.go`); what it needs from deck is `Deps`.

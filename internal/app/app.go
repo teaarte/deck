@@ -198,7 +198,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Tools: func(ctx context.Context, p db.Project, cmd *manifest.Command) int {
 			return a.Gateway.Count(ctx, &gateway.Session{ProjectID: p.ID, Workspace: p.WorkspaceID, Master: p.Builtin == 1, Commands: cmd.Executor.Calls})
 		}}
-	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver,
+	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver, Await: a.Bus.Await,
 		Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start, Lang: a.Chats.LangOf,
 		Shown: func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, bool, error) {
 			return a.Chats.AnswerShown(ctx, act, q, answer)
@@ -213,7 +213,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Feed = feed.Service{St: st, Now: cfg.Now,
 		Home: h, Invoke: a.Registry.Invoke, Call: a.Gateway.CallAs, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.Gives, Reads: a.Chats.LangOf,
 		FailedRuns: a.Processes.FailedRuns, FailingChecks: a.Health.FailingChecks}
-	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup,
+	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup, Await: a.Bus.Await,
 		Works: a.Work.Works, Waits: a.Gateway.Waits}
 	a.Health = apphealth.Service{St: st, Image: cfg.Image != "", Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Work.Unassigned, NoSearch: a.Work.NoSearch, Missing: a.Work.Missing,
 		Works: a.Work.Works, Places: a.Work.Places, Go: a.bg.Go}

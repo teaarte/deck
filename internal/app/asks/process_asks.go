@@ -10,6 +10,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/ask"
+	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -77,23 +78,25 @@ func (s *Service) pressAsks(ctx context.Context, act registry.Actor, in processA
 		out, _, err := s.asksOf(ctx, act, p.ID, p.ProjectID, registry.Lang(ctx))
 		return out, err
 	}
-	until, quiet, seen := time.After(processAsksWait), time.Now(), 0
-	for {
-		out, ended, err := s.asksOf(ctx, act, p.ID, p.ProjectID, registry.Lang(ctx))
-		if len(out) != seen {
-			quiet, seen = time.Now(), len(out)
+	until, quiet, seen := time.Now().Add(processAsksWait), time.Now(), 0
+	var out []pressAsk
+	err = s.Await(ctx, act.Workspace, []string{events.Asks, events.Processes}, func() (bool, time.Duration, error) {
+		var ended bool
+		var err error
+		now := time.Now()
+		if out, ended, err = s.asksOf(ctx, act, p.ID, p.ProjectID, registry.Lang(ctx)); len(out) != seen {
+			quiet, seen = now, len(out)
 		}
-		if err != nil || ended || seen > 0 && time.Since(quiet) > processAsksQuiet {
-			return out, err
+		if err != nil || ended || !now.Before(until) || seen > 0 && now.Sub(quiet) > processAsksQuiet {
+			return true, 0, err
 		}
-		select {
-		case <-ctx.Done():
-			return out, ctx.Err()
-		case <-until:
-			return out, nil
-		case <-time.After(100 * time.Millisecond):
+		// Asks that stay as they are for the quiet window are all the run makes before it waits.
+		if seen > 0 {
+			return false, min(quiet.Add(processAsksQuiet+time.Millisecond).Sub(now), until.Sub(now)), nil
 		}
-	}
+		return false, until.Sub(now), nil
+	})
+	return out, err
 }
 
 // pressAsk is a call a pressed button's run waits to make, with the buttons that allow and deny it.

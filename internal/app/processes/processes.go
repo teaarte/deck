@@ -45,6 +45,8 @@ type Service struct {
 	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
 	// Waits is why a request of a frozen call waits for the owner, by the row of the table of decisions.
 	Waits func(ctx context.Context, payload string) (string, []any)
+	// Await waits for a change of topics in a workspace (events.Bus.Await).
+	Await func(ctx context.Context, workspace int64, topics []string, check func() (bool, time.Duration, error)) error
 }
 
 // Commands are the commands of processes.
@@ -346,27 +348,48 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 			until = end
 		}
 	}
-	for lent := false; time.Now().Before(until); {
+	var release func()
+	defer func() {
+		if release != nil {
+			release()
+		}
+	}()
+	first := true
+	err = s.Await(ctx, act.Workspace, []string{events.Processes}, func() (bool, time.Duration, error) {
+		if !first {
+			if p, err = s.St.Q.GetProcess(ctx, in.Process); errors.Is(err, sql.ErrNoRows) {
+				return true, 0, registry.NotFound("no process %d", in.Process)
+			} else if err != nil {
+				return true, 0, err
+			}
+		}
+		first = false
+		now := time.Now()
+		if !now.Before(until) {
+			return true, 0, nil
+		}
 		// A wait goes on through the process another model took the work over to.
-		if next, soon := s.handedOn(ctx, p); in.Wait > 0 && next != 0 {
+		next, soon := s.handedOn(ctx, p)
+		for ; in.Wait > 0 && next != 0; next, soon = s.handedOn(ctx, p) {
+			if p, err = s.St.Q.GetProcess(ctx, next); err != nil {
+				return true, 0, err
+			}
 			in.Process = next
-		} else if !soon && (p.FinishedAt.Valid || process.Waits(p, process.WaitAnswer) || process.Waits(p, process.WaitSignIn)) {
-			break
 		}
-		if !lent && act.ProcessID != 0 && act.ProcessID != p.ID {
-			lent = true
-			defer s.Runner.Lend(ctx, act.ProcessID)()
+		if !soon && (p.FinishedAt.Valid || process.Waits(p, process.WaitAnswer) || process.Waits(p, process.WaitSignIn)) {
+			return true, 0, nil
 		}
-		select {
-		case <-ctx.Done():
-			return processView{}, ctx.Err()
-		case <-time.After(250 * time.Millisecond):
+		if release == nil && act.ProcessID != 0 && act.ProcessID != p.ID {
+			release = s.Runner.Lend(ctx, act.ProcessID)
 		}
-		if p, err = s.St.Q.GetProcess(ctx, in.Process); errors.Is(err, sql.ErrNoRows) {
-			return processView{}, registry.NotFound("no process %d", in.Process)
-		} else if err != nil {
-			return processView{}, err
+		// A process that may hand on is looked at again once its grace may be over.
+		if soon {
+			return false, min(handOnGrace, until.Sub(now)), nil
 		}
+		return false, until.Sub(now), nil
+	})
+	if err != nil {
+		return processView{}, err
 	}
 	project, _ := s.St.Q.GetProject(ctx, p.ProjectID)
 	v := procView(p, project.Name)

@@ -40,6 +40,8 @@ type Service struct {
 	// consentAt is when Consent last measured the requests.
 	consentMu sync.Mutex
 	consentAt time.Time
+	// Await waits for a change of topics in a workspace (events.Bus.Await).
+	Await func(ctx context.Context, workspace int64, topics []string, check func() (bool, time.Duration, error)) error
 }
 
 // Commands are the commands of asks.

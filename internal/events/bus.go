@@ -1,8 +1,11 @@
 package events
 
 import (
+	"context"
+	"slices"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // Event says something changed: clients re-read what the topic names. Project, when set, is the project it
@@ -74,6 +77,32 @@ func (b *Bus) Emit(e Event) {
 	b.mu.Unlock()
 	for _, w := range watchers {
 		w(e)
+	}
+}
+
+// Await calls check now and again after each event of one of topics in workspace or once the wait check named passed,
+// until it says done or fails or ctx ends; it follows the bus before the first check, so it misses no later change.
+func (b *Bus) Await(ctx context.Context, workspace int64, topics []string, check func() (done bool, again time.Duration, err error)) error {
+	sub, cancel := b.Subscribe(workspace)
+	defer cancel()
+	for {
+		done, again, err := check()
+		if done || err != nil {
+			return err
+		}
+		timer := time.NewTimer(again)
+		for woke := false; !woke; {
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+				woke = true
+			case <-sub.Ready():
+				woke = slices.ContainsFunc(sub.Take(), func(e Event) bool { return slices.Contains(topics, e.Topic) })
+			}
+		}
+		timer.Stop()
 	}
 }
 

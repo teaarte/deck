@@ -1,6 +1,6 @@
-// Package work keeps who does what of the work of deck: the models assigned to each kind of work, where a call of a
+// Package models keeps who does what of the work of deck: the models assigned to each kind of work, where a call of a
 // model goes and what it cost, the calls of models, the web of agents and speech to text.
-package work
+package models
 
 import (
 	"context"

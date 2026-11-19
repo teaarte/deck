@@ -1,4 +1,4 @@
-package work
+package models
 
 import (
 	"bytes"

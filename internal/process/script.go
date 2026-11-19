@@ -15,9 +15,9 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
+	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/script"
-	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )

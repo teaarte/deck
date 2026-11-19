@@ -390,7 +390,7 @@ func newFreezer(t *testing.T, to string) *freezer {
 }
 
 func (f *freezer) URL() string { return "http://" + f.ln.Addr().String() }
-func (f *freezer) stall()     { f.once.Do(func() { close(f.frozen) }) }
+func (f *freezer) stall()      { f.once.Do(func() { close(f.frozen) }) }
 
 // TestANodeGoneSilentBeforeItsAnswerHandsTheCallOn: the machine of a node falls asleep with a call on it and its
 // connection stays open; deck's pings find it gone and the call goes to the next model rather than failing.

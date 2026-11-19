@@ -499,7 +499,7 @@ func (g *Gateway) opened(ctx context.Context, q *db.Queries, c *registry.Command
 	for _, o := range open {
 		old, err := ask.Decode[Frozen](o.Payload)
 		if o.Kind != ask.KindCall || o.State != ask.StateOpen || err != nil || old.Call.Command != f.Call.Command || old.As != f.As ||
-			old.Caller.Kind != f.Caller.Kind || old.Caller.Token != f.Caller.Token {
+			old.Who.Kind != f.Who.Kind || old.Who.Token != f.Who.Token {
 			continue
 		}
 		if c.Same(old.Call.Input) == same && old.Tool == f.Tool {
@@ -535,11 +535,11 @@ func (g *Gateway) keep(ctx context.Context, owner registry.Actor, a db.Ask, f Fr
 			return docs.Grant(ctx, q, owner, a.ProjectID.Int64, *f.Need, kept, g.cfg.Now())
 		})
 	}
-	if add == nil || f.Caller.Process == 0 {
+	if add == nil || f.Who.Process == 0 {
 		return nil
 	}
 	return g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		p, err := q.GetProcess(ctx, f.Caller.Process)
+		p, err := q.GetProcess(ctx, f.Who.Process)
 		if err != nil {
 			return err
 		}
@@ -651,8 +651,10 @@ func (g *Gateway) Waits(ctx context.Context, payload string) (string, []any) {
 	}
 	if f.As != AsTurn {
 		// A row that would not ask, such as one the owner answered meanwhile, says nothing.
-		if v, err := g.Explain(ctx, f.Caller.actor(), f.Call.Command, f.Call.Input); err == nil {
-			row = v.Name
+		if act, err := g.who(ctx, g.st.Q, f.Who); err == nil {
+			if v, err := g.Explain(ctx, act, f.Call.Command, f.Call.Input); err == nil {
+				row = v.Name
+			}
 		}
 	}
 	says := waitsSays[row]

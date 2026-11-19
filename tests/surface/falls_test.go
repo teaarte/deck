@@ -657,7 +657,6 @@ func TestFall15AHandOnCutBetweenItsTwoProcesses(t *testing.T) {
 // TestFall16ACallOfAToolAnsweredByTheOwner: the call of a process that waited for the owner's yes runs, once answered,
 // as the same caller: its line in the journal names the run it came from.
 func TestFall16ACallOfAToolAnsweredByTheOwner(t *testing.T) {
-	skip(t, "row 16, A7: a call answered by the owner runs as a live turn's: Caller.actor() loses Run, Trial and Why (journal: tool:2 waits, agent:2 runs)")
 	t.Parallel()
 	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { _, _ = w.Write([]byte(`{"id": "n1"}`)) })
 	agent := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {

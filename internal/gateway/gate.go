@@ -6,9 +6,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"deck2/internal/ask"
+	"deck2/internal/docs"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -22,40 +24,77 @@ type Waiting struct {
 	Link string `json:"link"`
 }
 
-// Caller is the actor of a frozen call, stored so deck can make the call later on its behalf.
-type Caller struct {
-	Kind      string         `json:"kind"`
-	Workspace int64          `json:"workspace"`
-	Project   int64          `json:"project,omitempty"`
-	Process   int64          `json:"process,omitempty"`
-	Trigger   int64          `json:"trigger,omitempty"`
-	Token     int64          `json:"token,omitempty"`
-	Commands  []string       `json:"commands,omitempty"`
-	Scope     registry.Scope `json:"scope,omitempty"`
+// Ref names the caller of a frozen call, so deck derives the caller again, by who, when it makes the call later: a
+// process, a token or a trigger with the process whose finish fired it; otherwise its kind in its project.
+type Ref struct {
+	Kind      string `json:"kind"`
+	Workspace int64  `json:"workspace"`
+	Project   int64  `json:"project,omitempty"`
+	// Process is the calling process, or for a trigger the process whose finish fired it.
+	Process int64 `json:"process,omitempty"`
+	Trigger int64 `json:"trigger,omitempty"`
+	Token   int64 `json:"token,omitempty"`
 }
 
-// freeze keeps the actor of a call.
-func freeze(a registry.Actor) Caller {
-	return Caller{Kind: a.Kind, Workspace: a.Workspace, Project: a.ProjectID, Process: a.ProcessID, Trigger: a.TriggerID, Token: a.Token,
-		Commands: a.Commands, Scope: a.Scope}
+// RefOf is the reference to the actor of a call.
+func RefOf(a registry.Actor) Ref {
+	return Ref{Kind: a.Kind, Workspace: a.Workspace, Project: a.ProjectID, Process: a.ProcessID, Trigger: a.TriggerID, Token: a.Token}
 }
 
-// frozenCaller is the actor of a call as the journal keeps it.
-func frozenCaller(a registry.Actor) string {
-	b, _ := json.Marshal(freeze(a))
+func (r Ref) String() string {
+	b, _ := json.Marshal(r)
 	return string(b)
 }
 
-// Author is who made the call, as rows of deck name an actor.
-func (c Caller) Author() string { return c.actor().Author() }
+// refOf reads a reference as the journal keeps it; a line of an earlier deck keeps the same fields beside others.
+func refOf(raw string) (Ref, error) {
+	var r Ref
+	err := json.Unmarshal([]byte(raw), &r)
+	return r, err
+}
 
-func (c Caller) actor() registry.Actor {
-	kind := c.Kind
-	if c.Token != 0 {
-		kind = registry.Token
+// who derives the caller a reference names now: a process by registry.ProcessOf with the calls of its command, a token
+// by its rights now, a trigger by its row; one gone gives an error and its kind and ids alone, a name for the journal.
+func (g *Gateway) who(ctx context.Context, q *db.Queries, r Ref) (registry.Actor, error) {
+	bare := registry.Actor{Kind: r.Kind, Workspace: r.Workspace, ProjectID: r.Project, ProcessID: r.Process, TriggerID: r.Trigger,
+		Confirmed: r.Trigger != 0, Token: r.Token}
+	switch {
+	case r.Token != 0 || r.Kind == registry.Token:
+		bare.Kind = registry.Token
+		act, err := g.cfg.Token(ctx, q, r.Token)
+		if err != nil {
+			return bare, fmt.Errorf("the automation token %d that asked: %w", r.Token, err)
+		}
+		return act, nil
+	case r.Trigger != 0:
+		t, err := q.GetTrigger(ctx, r.Trigger)
+		if err != nil {
+			return bare, fmt.Errorf("the trigger %d that asked is gone: %w", r.Trigger, err)
+		}
+		bare.ProjectID = t.ProjectID
+		return bare, nil
+	case r.Process != 0:
+		p, err := q.GetProcess(ctx, r.Process)
+		if err != nil {
+			return bare, fmt.Errorf("the process %d that asked is gone: %w", r.Process, err)
+		}
+		proj, err := q.GetProject(ctx, p.ProjectID)
+		if err != nil {
+			return bare, fmt.Errorf("the module of process %d: %w", r.Process, err)
+		}
+		act := registry.ProcessOf(p, proj)
+		if p.Kind == registry.Agent {
+			m, err := docs.ManifestAt(ctx, q, p.ProjectID, p.ManifestRevision)
+			if err != nil {
+				return act, fmt.Errorf("the manifest of process %d: %w", r.Process, err)
+			}
+			if c := m.Command(p.Command); c != nil {
+				act.Commands = c.Executor.Calls
+			}
+		}
+		return act, nil
 	}
-	return registry.Actor{Kind: kind, Workspace: c.Workspace, ProjectID: c.Project, ProcessID: c.Process,
-		TriggerID: c.Trigger, Confirmed: c.Trigger != 0, Token: c.Token, Commands: c.Commands, Scope: c.Scope}
+	return bare, nil
 }
 
 // Frozen is a call with its parameters as they were when the owner was asked about it.
@@ -64,7 +103,8 @@ type Frozen struct {
 		Command string          `json:"command"`
 		Input   json.RawMessage `json:"input"`
 	} `json:"call"`
-	Caller Caller `json:"caller"`
+	// Who is the caller, by reference.
+	Who Ref `json:"who"`
 	// As is AsOwner for a call the owner's yes makes as the owner, AsTurn for one the agent's turn makes itself, else
 	// empty: deck makes it as the caller.
 	As string `json:"as,omitempty"`
@@ -87,6 +127,23 @@ type Frozen struct {
 	Read string `json:"read,omitempty"`
 }
 
+// UnmarshalJSON reads a frozen call; one asked before v0.3.2 names its caller by "caller", read until v0.3.3.
+func (f *Frozen) UnmarshalJSON(b []byte) error {
+	type plain Frozen
+	var v struct {
+		plain
+		Old *Ref `json:"caller"`
+	}
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	*f = Frozen(v.plain)
+	if f.Who.Kind == "" && v.Old != nil {
+		f.Who = *v.Old
+	}
+	return nil
+}
+
 // What a frozen call is made as.
 const (
 	// AsOwner makes a frozen call as the owner who allows it.
@@ -100,7 +157,7 @@ const (
 // Freeze is a call of the actor as it is now.
 func Freeze(act registry.Actor, command string, input json.RawMessage) Frozen {
 	var f Frozen
-	f.Call.Command, f.Call.Input, f.Caller = command, json.RawMessage(Canonical(input)), freeze(act)
+	f.Call.Command, f.Call.Input, f.Who = command, json.RawMessage(Canonical(input)), RefOf(act)
 	return f
 }
 
@@ -117,7 +174,7 @@ func Hold(ctx context.Context, q *db.Queries, act registry.Actor, project, proce
 		return a, err
 	}
 	_, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(now), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project),
-		Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Need: right, Subject: needOf(f.Need).Subject, Count: 1, Outcome: "waiting", Params: Canonical(f.Call.Input),
+		Actor: act.Author(), Who: RefOf(act).String(), Tool: f.Call.Command, Need: right, Subject: needOf(f.Need).Subject, Count: 1, Outcome: "waiting", Params: Canonical(f.Call.Input),
 		AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
 	return a, err
 }
@@ -184,7 +241,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 		}
 		return nil, g.asks.Answer(ctx, a.ID, answer)
 	}
-	if f.Tool != g.print(ctx, f.Caller.Workspace, f.Caller.Project, f.Call.Command, f.Call.Input) {
+	if f.Tool != g.print(ctx, f.Who.Workspace, f.Who.Project, f.Call.Command, f.Call.Input) {
 		return nil, ErrChanged
 	}
 	n, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
@@ -209,13 +266,17 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 		reopen()
 		return nil, err
 	}
-	act := g.clear.Clear(f.Caller.actor(), f.Call.Command)
-	if f.As == AsOwner {
-		act = owner
-		act.ProjectID = a.ProjectID.Int64
+	act, err := owner, error(nil)
+	act.ProjectID = a.ProjectID.Int64
+	if f.As != AsOwner {
+		act, err = g.who(ctx, g.st.Q, f.Who)
+		act.Why = f.Reason
 	}
-	run := context.WithValue(context.WithValue(context.WithoutCancel(ctx), retryingKey{}, a.ID), approvedKey{}, f.Tool)
-	out, err := g.call(run, act, f.Call.Command, f.Call.Input)
+	var out any
+	if err == nil {
+		run := context.WithValue(context.WithValue(context.WithoutCancel(ctx), retryingKey{}, a.ID), approvedKey{}, f.Tool)
+		out, err = g.call(run, g.clear.Clear(act, f.Call.Command), f.Call.Command, f.Call.Input)
+	}
 	if err != nil && f.As == AsOwner {
 		reopen()
 		return nil, err
@@ -239,7 +300,8 @@ func (g *Gateway) Record(ctx context.Context, a db.Ask, outcome, why string) {
 	if err != nil {
 		return
 	}
-	g.journal(ctx, f.Caller.actor(), a.ProjectID.Int64, f.Call.Command, needOf(f.Need), outcome, string(f.Call.Input), why)
+	act, _ := g.who(ctx, g.st.Q, f.Who)
+	g.journal(ctx, act, a.ProjectID.Int64, f.Call.Command, needOf(f.Need), outcome, string(f.Call.Input), why)
 }
 
 // TurnMakes says the payload of a request is a call the agent's turn makes itself, a tool of its provider.

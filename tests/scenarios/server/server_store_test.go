@@ -104,7 +104,7 @@ func TestADeckOfAnOlderLayoutDoesNotStart(t *testing.T) {
 }
 
 // TestAReadWhileATransactionIsOpenDoesNotWait: reads go past the one writer, so a long transaction (a snapshot,
-// a manifest saved) holds no screen, and a read of another context inside a transaction does not freeze deck.
+// a manifest saved) holds no screen, and a read of another context inside a transaction does not stall deck.
 func TestAReadWhileATransactionIsOpenDoesNotWait(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)

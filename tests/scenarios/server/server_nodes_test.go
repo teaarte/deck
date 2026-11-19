@@ -390,7 +390,7 @@ func newFreezer(t *testing.T, to string) *freezer {
 }
 
 func (f *freezer) URL() string { return "http://" + f.ln.Addr().String() }
-func (f *freezer) freeze()     { f.once.Do(func() { close(f.frozen) }) }
+func (f *freezer) stall()     { f.once.Do(func() { close(f.frozen) }) }
 
 // TestANodeGoneSilentBeforeItsAnswerHandsTheCallOn: the machine of a node falls asleep with a call on it and its
 // connection stays open; deck's pings find it gone and the call goes to the next model rather than failing.
@@ -400,7 +400,7 @@ func TestANodeGoneSilentBeforeItsAnswerHandsTheCallOn(t *testing.T) {
 	var f *freezer
 	local := harness.NewModels(t, map[string]func(int, map[string]any) (int, string, string){
 		"/v1/chat/completions": func(int, map[string]any) (int, string, string) {
-			f.freeze()
+			f.stall()
 			time.Sleep(time.Minute)
 			return 200, "application/json", harness.ChatText("from the node")
 		},

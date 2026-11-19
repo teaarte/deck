@@ -579,3 +579,7 @@ and bring the modules in line.
   owner allowed, as before.
 - 2026-11-18: The files a process that read text from outside deck keeps (by its result or left in its results
   folder) mark the data of its module as holding text from outside, as its writes of records do.
+- 2026-11-19: A call that waited for the owner's yes is made, once allowed, as its caller is then: a script, tool or
+  model process as itself (its journal line names it, not an agent), a trial as a trial, a token with the rights it
+  has now (a token revoked meanwhile gets the call refused), an agent with the calls its command lists. `call_explain`
+  of a process and a button on a note act as the process that wrote it.

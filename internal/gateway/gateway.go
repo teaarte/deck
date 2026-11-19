@@ -70,6 +70,8 @@ type Config struct {
 	Go func(func(context.Context)) bool
 	// MarkedWeb says the owner lets the master read the web by its right of always on a turn that read untrusted text.
 	MarkedWeb func(ctx context.Context, workspace int64) bool
+	// Token is the actor of an automation token now, by its id; a revoked token fails.
+	Token func(ctx context.Context, q *db.Queries, id int64) (registry.Actor, error)
 }
 
 // Deps are what the gateway works with.
@@ -525,7 +527,7 @@ func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64
 // lineOf is the line of a call of tool by act in the journal.
 func (g *Gateway) lineOf(act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string) db.LogToolCallParams {
 	return db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(),
-		Caller: frozenCaller(act), Tool: tool, Need: right.Right, Subject: right.Subject, Count: 1, Outcome: outcome, Params: params, Error: errText}
+		Who: RefOf(act).String(), Tool: tool, Need: right.Right, Subject: right.Subject, Count: 1, Outcome: outcome, Params: params, Error: errText}
 }
 
 // Command looks a registry command up for callers that need its declaration.

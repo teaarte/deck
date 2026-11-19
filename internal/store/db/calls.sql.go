@@ -47,7 +47,7 @@ func (q *Queries) GetToolCall(ctx context.Context, id int64) (ToolCall, error) {
 		&i.ProjectID,
 		&i.ProcessID,
 		&i.Actor,
-		&i.Caller,
+		&i.Who,
 		&i.Tool,
 		&i.Need,
 		&i.Outcome,
@@ -88,7 +88,7 @@ func (q *Queries) ListProjectCallsSince(ctx context.Context, arg ListProjectCall
 			&i.ProjectID,
 			&i.ProcessID,
 			&i.Actor,
-			&i.Caller,
+			&i.Who,
 			&i.Tool,
 			&i.Need,
 			&i.Outcome,
@@ -182,7 +182,7 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID sql.NullInt64) ([
 			&i.ProjectID,
 			&i.ProcessID,
 			&i.Actor,
-			&i.Caller,
+			&i.Who,
 			&i.Tool,
 			&i.Need,
 			&i.Outcome,
@@ -243,7 +243,7 @@ func (q *Queries) ListUnresolvedCalls(ctx context.Context, arg ListUnresolvedCal
 			&i.ProjectID,
 			&i.ProcessID,
 			&i.Actor,
-			&i.Caller,
+			&i.Who,
 			&i.Tool,
 			&i.Need,
 			&i.Outcome,
@@ -355,7 +355,7 @@ func (q *Queries) ListWorkspaceToolCalls(ctx context.Context, arg ListWorkspaceT
 			&i.ProjectID,
 			&i.ProcessID,
 			&i.Actor,
-			&i.Caller,
+			&i.Who,
 			&i.Tool,
 			&i.Need,
 			&i.Outcome,
@@ -434,7 +434,7 @@ type LogToolCallParams struct {
 	ProcessID   sql.NullInt64
 	ProjectID   sql.NullInt64
 	Actor       string
-	Caller      string
+	Who         string
 	Tool        string
 	Need        string
 	Subject     string
@@ -452,7 +452,7 @@ func (q *Queries) LogToolCall(ctx context.Context, arg LogToolCallParams) (int64
 		arg.ProcessID,
 		arg.ProjectID,
 		arg.Actor,
-		arg.Caller,
+		arg.Who,
 		arg.Tool,
 		arg.Need,
 		arg.Subject,
@@ -503,7 +503,7 @@ func (q *Queries) MakingToolCalls(ctx context.Context) ([]ToolCall, error) {
 			&i.ProjectID,
 			&i.ProcessID,
 			&i.Actor,
-			&i.Caller,
+			&i.Who,
 			&i.Tool,
 			&i.Need,
 			&i.Outcome,
@@ -600,7 +600,7 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 			&i.ProjectID,
 			&i.ProcessID,
 			&i.Actor,
-			&i.Caller,
+			&i.Who,
 			&i.Tool,
 			&i.Need,
 			&i.Outcome,

@@ -117,7 +117,7 @@ func TestWhatEachEntryWrites(t *testing.T) {
 			id := e.Start("items", "work", nil)
 			e.Answer(e.WaitAsk().ID, "allow")
 			return e.WaitState(id, "done", "error").ID
-		}, written{Journal: []string{"agent:1 items.send done", "agent:2 items.note done", "tool:2 items.note waiting"}, Wrote: true}},
+		}, written{Journal: []string{"agent:1 items.send done", "tool:2 items.note done", "tool:2 items.note waiting"}, Wrote: true}},
 	}
 	for _, c := range cases {
 		t.Run(c.entry, func(t *testing.T) {

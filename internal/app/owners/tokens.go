@@ -70,11 +70,25 @@ func (s *Service) Automation(ctx context.Context, raw string) (registry.Actor, e
 	if err != nil {
 		return registry.Actor{}, errors.New("unknown or revoked automation token")
 	}
+	return actorOf(ctx, s.St.Q, t)
+}
+
+// TokenOf is the actor of an automation token by its id, with what its rights reach now; a revoked token fails.
+func TokenOf(ctx context.Context, q *db.Queries, id int64) (registry.Actor, error) {
+	t, err := q.GetToken(ctx, id)
+	if err != nil || t.RevokedAt.Valid {
+		return registry.Actor{}, errors.New("unknown or revoked automation token")
+	}
+	return actorOf(ctx, q, t)
+}
+
+// actorOf is the actor a token acts as, inside the modules its rights reach.
+func actorOf(ctx context.Context, q *db.Queries, t db.AutomationToken) (registry.Actor, error) {
 	var cmds []string
 	if err := json.Unmarshal([]byte(t.Commands), &cmds); err != nil {
 		return registry.Actor{}, err
 	}
-	ps, err := s.St.Q.ListWorkspaceProjects(ctx, t.WorkspaceID)
+	ps, err := q.ListWorkspaceProjects(ctx, t.WorkspaceID)
 	if err != nil {
 		return registry.Actor{}, err
 	}

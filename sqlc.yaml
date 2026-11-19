@@ -7,3 +7,7 @@ sql:
       go:
         package: db
         out: internal/store/db
+overrides:
+  go:
+    rename:
+      caller: Who

@@ -458,7 +458,7 @@ type ToolCall struct {
 	ProjectID   sql.NullInt64
 	ProcessID   sql.NullInt64
 	Actor       string
-	Caller      string
+	Who         string
 	Tool        string
 	Need        string
 	Outcome     string

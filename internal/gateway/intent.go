@@ -52,7 +52,7 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 				return err
 			}
 		}
-		id, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(), Caller: frozenCaller(act), Tool: tool,
+		id, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(), Who: RefOf(act).String(), Tool: tool,
 			Need: manifest.Send, Subject: sent(tool), Count: 1, Outcome: "started", Params: Canonical(params)})
 		return err
 	})
@@ -97,15 +97,14 @@ func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
 		if err != nil || c.Outcome != "started" {
 			return err
 		}
-		var caller Caller
-		if err := json.Unmarshal([]byte(c.Caller), &caller); err != nil {
+		who, err := refOf(c.Who)
+		if err != nil {
 			return fmt.Errorf("the caller of tool call %d: %w", id, err)
 		}
-		act := caller.actor()
 		text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped or lost the connection while making this call; "+
 			"check the other side, then retry it or count it as done.", c.Tool, untrusted.Cut(c.Params, 500))
-		f := Freeze(act, c.Tool, json.RawMessage(c.Params))
-		f.Tool = tool
+		var f Frozen
+		f.Call.Command, f.Call.Input, f.Who, f.Tool = c.Tool, json.RawMessage(Canonical(json.RawMessage(c.Params))), who, tool
 		a, err := ask.ForProject(ctx, q, c.WorkspaceID, c.ProjectID.Int64, c.ProcessID.Int64, ask.KindUnknown, text, f.String(), time.Time{})
 		if err != nil {
 			return err
@@ -168,7 +167,8 @@ func (g *Gateway) Recover(ctx context.Context) error {
 				}
 				continue
 			}
-			act, right := f.Caller.actor(), ""
+			act, _ := g.who(ctx, q, f.Who)
+			right := ""
 			if f.Need != nil {
 				right = f.Need.Right
 			}
@@ -176,7 +176,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 				act = registry.Actor{Kind: registry.Owner, Workspace: a.WorkspaceID, ProjectID: a.ProjectID.Int64}
 			}
 			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: a.ProjectID,
-				Actor: act.Author(), Caller: frozenCaller(act), Tool: f.Call.Command, Need: right, Subject: needOf(f.Need).Subject, Count: 1, Outcome: "unknown",
+				Actor: act.Author(), Who: RefOf(act).String(), Tool: f.Call.Command, Need: right, Subject: needOf(f.Need).Subject, Count: 1, Outcome: "unknown",
 				Params: Canonical(f.Call.Input), AskID: sql.NullInt64{Int64: u.ID, Valid: true}}); err != nil {
 				return err
 			}

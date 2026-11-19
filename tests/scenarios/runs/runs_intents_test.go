@@ -206,15 +206,14 @@ func TestUnknownOutcomeKeepsItsCaller(t *testing.T) {
 	e2 := e.Restart(harness.WithProvider(&harness.Fake{}))
 	a := e2.WaitAsk()
 	var frozen struct {
-		Caller struct {
-			Kind     string
-			Token    int64
-			Commands []string
+		Who struct {
+			Kind  string
+			Token int64
 		}
 	}
 	stored, _ := e2.App.Store.Q.GetAsk(context.Background(), a.ID)
 	_ = json.Unmarshal([]byte(stored.Payload), &frozen)
-	if a.Kind != "unknown" || frozen.Caller.Kind != "token" || frozen.Caller.Token != tid || len(frozen.Caller.Commands) != 1 {
+	if a.Kind != "unknown" || frozen.Who.Kind != "token" || frozen.Who.Token != tid {
 		t.Fatalf("the unknown outcome is the token's, not the owner's: %+v %s", a, a.Payload)
 	}
 }

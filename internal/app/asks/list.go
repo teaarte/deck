@@ -252,9 +252,9 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		}
 	case ask.KindCall, ask.KindUnknown:
 		f, _ := ask.Decode[gateway.Frozen](q.Payload)
-		r.Who, r.What, r.Where, r.Command = s.callerWho(ctx, f.Caller), f.Call.Command, f.Target, f.Call.Command
-		if f.Caller.Process != 0 {
-			r.By = s.processName(ctx, f.Caller.Process)
+		r.Who, r.What, r.Where, r.Command = s.callerWho(ctx, f.Who), f.Call.Command, f.Target, f.Call.Command
+		if f.Who.Process != 0 {
+			r.By = s.processName(ctx, f.Who.Process)
 		}
 		r.Payload = json.RawMessage(cmp.Or(string(f.Call.Input), "null"))
 		r.Why = cmp.Or(f.Reason, r.Why)
@@ -345,7 +345,7 @@ func (s *Service) processWho(ctx context.Context, id int64) string {
 }
 
 // callerWho says in words who made a frozen call: a process as processWho, a token, a trigger, the master or the owner.
-func (s *Service) callerWho(ctx context.Context, c gateway.Caller) string {
+func (s *Service) callerWho(ctx context.Context, c gateway.Ref) string {
 	if c.Process != 0 && c.Token == 0 && c.Kind != registry.Token {
 		return s.processWho(ctx, c.Process)
 	}
@@ -353,7 +353,7 @@ func (s *Service) callerWho(ctx context.Context, c gateway.Caller) string {
 }
 
 // callerName says who made a frozen call: a process, a token, a trigger, the master or the owner.
-func (s *Service) callerName(ctx context.Context, c gateway.Caller) string {
+func (s *Service) callerName(ctx context.Context, c gateway.Ref) string {
 	switch {
 	case c.Token != 0 || c.Kind == registry.Token:
 		return fmt.Sprintf("token #%d", c.Token)

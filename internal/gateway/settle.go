@@ -30,14 +30,14 @@ func (g *Gateway) Freshness(ctx context.Context, a db.Ask, probe bool) int {
 	if err != nil {
 		return AsAsked
 	}
-	c, err := g.reg.Lookup(ctx, f.Caller.Workspace, f.Call.Command)
+	c, err := g.reg.Lookup(ctx, f.Who.Workspace, f.Call.Command)
 	if err != nil {
 		return AsAsked
 	}
 	if c.Gate.Subject == nil || f.As == AsTurn || f.As == AsStart {
 		return AsAsked
 	}
-	s := c.Gate.Subject(ctx, registry.At{Workspace: f.Caller.Workspace, Project: f.Caller.Project, Look: probe}, f.Call.Input)
+	s := c.Gate.Subject(ctx, registry.At{Workspace: f.Who.Workspace, Project: f.Who.Project, Look: probe}, f.Call.Input)
 	switch {
 	case s.InForce:
 		return InForce

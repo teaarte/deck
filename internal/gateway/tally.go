@@ -85,7 +85,7 @@ func (t *tally) flush() {
 	err := t.g.st.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		for _, host := range slices.Sorted(maps.Keys(hosts)) {
 			_, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(t.g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID),
-				ProjectID: store.ID(t.project), Actor: act.Author(), Caller: frozenCaller(act), Tool: manifest.Network, Need: manifest.Network, Subject: host,
+				ProjectID: store.ID(t.project), Actor: act.Author(), Who: RefOf(act).String(), Tool: manifest.Network, Need: manifest.Network, Subject: host,
 				Count: hosts[host], Outcome: Reached, Params: fmt.Sprintf(`{"who": %q}`, t.who)})
 			if err != nil {
 				return err

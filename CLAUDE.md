@@ -43,8 +43,9 @@ hold; look inside a package for the rest.
   is left unset), registers their commands and collects those of modules (`modules.go`), runs `Start`, `Loop` and `Tick` (the harness starts and ticks deck by the same two); background work goes through `Go(func(ctx)) bool`.
   Each domain is a package `app/<area>` with a `Service` of narrow dependencies and `Commands()`; no domain imports
   `internal/app`. Who may touch what is `internal/access`. Deck's screens are data in `app/screens/shipped/` (a file a
-  screen). `app/models` — connections, models, assignments and their list, the route and the call of a model (they
-  import `internal/gateway`, so they cannot sit by the proxy in its layer); `app/web` — `web_search`, `web_fetch`;
+  screen). `app/models` — the assignments and the list of models, the route and the call of a model (they
+  import `internal/gateway` and `internal/process`, so they cannot sit by the proxy in its layer; connections and
+  models are set in `app/providers`); `app/web` — `web_search`, `web_fetch`;
   `app/project` — a project, its manifest and save checks, its import as a draft and its readiness; `app/rights` — the
   rights of modules, the owner's answers and their report; `app/modules` — a module as a folder, a .zip, a starter, its
   data.

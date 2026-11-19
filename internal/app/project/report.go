@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"deck2/internal/access"
+	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
@@ -127,9 +128,9 @@ func (s *Service) rightsReport(ctx context.Context, act registry.Actor, in right
 		case outside:
 			r.Group, r.Says = tr("Read text from outside deck"), tr("Turns that read text from outside deck")
 		case manifest.Money:
-			r.Group, r.Says = groupOf(tr, r.Right), tr("Paid model calls")
+			r.Group, r.Says = docs.RightGroup(tr, r.Right), tr("Paid model calls")
 		default:
-			r.Group, r.Says = groupOf(tr, r.Right), manifest.Says(tr, r.Right, "", []string{r.Subject})
+			r.Group, r.Says = docs.RightGroup(tr, r.Right), manifest.Says(tr, r.Right, "", []string{r.Subject})
 		}
 		unit := map[string]string{manifest.Network: "requests: %d", manifest.Login: "turns: %d", outside: "turns: %d"}[r.Right]
 		parts := []string{fmt.Sprintf(tr(cmp.Or(unit, "calls: %d")), r.Count)}
@@ -153,14 +154,6 @@ func (s *Service) rightsReport(ctx context.Context, act registry.Actor, in right
 		return cmp.Or(order(a.Right)-order(b.Right), cmp.Compare(b.Count, a.Count), strings.Compare(a.Subject, b.Subject))
 	})
 	return out, nil
-}
-
-// groupOf is a right of the catalog as the heading of its lines, in the owner's words.
-func groupOf(tr func(string) string, right string) string {
-	if r, ok := manifest.RightOf(right); ok {
-		return tr(r.Title)
-	}
-	return right
 }
 
 func (s *Service) reportCommands() []*registry.Command {

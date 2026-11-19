@@ -63,7 +63,7 @@ func (s *Service) draftOf(ctx context.Context, act registry.Actor, in projectDra
 		return out, err
 	}
 	var given, asks int
-	for _, v := range rows(p, ms[p.ID], gs, func(t string) string { return t }, nil) {
+	for _, v := range docs.RightRows(p, ms[p.ID], gs, func(t string) string { return t }, nil) {
 		switch {
 		case !v.Declared:
 		case v.Answer == manifest.Always || !v.Key && v.Answer == "":

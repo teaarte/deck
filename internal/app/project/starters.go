@@ -138,10 +138,10 @@ func (s *Service) projectNeeds(ctx context.Context, act registry.Actor, in proje
 		return nil, err
 	}
 	ws := words.In(registry.Lang(ctx))
-	return s.needs(ctx, p, ms[p.ID], rows(p, ms[p.ID], gs, func(t string) string { return manifest.Tr(ws, t) }, nil), ws), nil
+	return s.needs(ctx, p, ms[p.ID], docs.RightRows(p, ms[p.ID], gs, func(t string) string { return manifest.Tr(ws, t) }, nil), ws), nil
 }
 
-func (s *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest, rights []rightView, ws map[string]string) []needView {
+func (s *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest, rights []docs.RightRow, ws map[string]string) []needView {
 	out := []needView{}
 	for _, r := range rights {
 		if r.Declared {

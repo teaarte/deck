@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -149,20 +150,28 @@ func (r *Runner) report(ctx context.Context, processID int64) string {
 	return b.String()
 }
 
-// ResumeInterrupted kills provider groups a crashed deck left alive, continues processes left running with
-// the answers they had not received, delivers answers that reached parked processes and hands out free slots.
-func (r *Runner) ResumeInterrupted(ctx context.Context) error {
+// Recover settles, as deck starts and before its first tick, what only a deck that stopped leaves: no turn lives yet.
+//
+//	what deck left                       Recover
+//	a group of processes of a turn       killed (reap)
+//	a folder lock of a closed process    dropped
+//	a call started, its outcome unknown  unknown (gateway Recover)
+//	a running tool, model or script      interrupted, by fault.DeckRestart
+//	a running agent with a session       resumed with what it was not told
+//	a running agent without a session    interrupted
+//
+// What else waits — consequences of closed processes, answers that reached parked ones, held turns, owner's messages
+// without a reply — the tick does, the first one right after Recover.
+func (r *Runner) Recover(ctx context.Context) error {
 	if err := r.reap(ctx); err != nil {
 		return err
 	}
-	// No turn lives yet, so a lock of a closed process is one an earlier deck left.
 	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return q.DropStaleFolderLocks(ctx) }); err != nil {
 		return err
 	}
 	if err := r.gw.Recover(ctx); err != nil {
 		return err
 	}
-	r.DrainClosed(ctx)
 	ps, err := r.st.Q.ListProcessesByState(ctx, StateRunning)
 	if err != nil {
 		return err
@@ -204,17 +213,24 @@ func (r *Runner) ResumeInterrupted(ctx context.Context) error {
 			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.Of(err))
 		}
 	}
+	return errors.Join(failed...)
+}
+
+// deliverParked delivers what reached the processes that wait for the owner's answer or login: the answer whose own
+// delivery failed or that came while deck was down. A claim of the wait keeps it to one delivery.
+func (r *Runner) deliverParked(ctx context.Context) {
 	for _, reason := range []string{WaitAnswer, WaitSignIn} {
 		parked, err := r.st.Q.ListWaitingFor(ctx, reason)
 		if err != nil {
-			return err
+			slog.Error("parked processes", "err", err)
+			return
 		}
 		for _, p := range parked {
-			_ = r.Deliver(ctx, p.ID)
+			if err := r.Deliver(ctx, p.ID); err != nil && ctx.Err() == nil {
+				slog.Error("deliver", "process", p.ID, "err", err)
+			}
 		}
 	}
-	r.Wake(ctx)
-	return errors.Join(failed...)
 }
 
 func (r *Runner) reap(ctx context.Context) error {

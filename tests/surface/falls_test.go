@@ -18,12 +18,14 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
 
 	"deck2/internal/egress"
+	"deck2/internal/fault"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/release"
@@ -256,12 +258,76 @@ func TestFall06AHookFailsToWrite(t *testing.T) {
 	}
 }
 
+// TestFall07ARetryOfAChatAcrossARestart: deck stops right after the owner answered a broken reply again on another
+// provider; the reply after the restart goes on that provider, told what the broken one did, and follows it.
 func TestFall07ARetryOfAChatAcrossARestart(t *testing.T) {
-	t.Skip("row 7, A6: chat_retry keeps its provider, notes and Follows in memory, so after a restart the reply runs on the default model")
+	skip(t, "row 7, A6: chat_retry keeps its provider, notes and Follows in memory, so after a restart the reply runs on the default model")
+	t.Parallel()
+	var mu sync.Mutex
+	told := ""
+	main := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		return provider.Fail(fault.TaskFailed, "it broke")
+	}}
+	other := &harness.Fake{ProviderName: "other", Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		mu.Lock()
+		told = c.Req.Prompt
+		mu.Unlock()
+		return provider.Result{Text: "Done on other."}
+	}}
+	e := harness.New(t, harness.WithProvider(main, other))
+	e.Must("deck.assignment_set", map[string]any{"role": "agent", "project": "master", "command": "reply", "models": []string{"fake", "other"}}, nil)
+	topic := e.Say(0, "write half a task")
+	var m harness.ChatMessage
+	e.Until("the reply to break off", func() bool {
+		m = e.ChatMessages(topic)[0]
+		return m.Reply != nil && m.Reply.Cut != nil && len(m.Reply.Cut.Retry) == 1
+	})
+	broken := m.Process
+	retry := m.Reply.Cut.Retry[0]
+	// deck stops as the retry commits: nothing it starts beside the call runs any more.
+	e.App.Stop()
+	e.Must(retry.Command, retry.Params, nil)
+	e = e.Restart()
+	if said := e.MasterSaid(topic, 1); said[0].Text != "Done on other." {
+		t.Fatalf("the reply after the restart goes on the provider the owner picked: %+v", said)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(told, "This continues process") || !strings.Contains(told, "write half a task") {
+		t.Fatalf("the other provider is told what the broken reply did: %s", told)
+	}
+	var follows int64
+	if err := e.SQLRow(`SELECT follows_id FROM process WHERE provider = 'other'`).Scan(&follows); err != nil || follows != broken {
+		t.Fatalf("the reply follows the broken one: %d %v, want %d", follows, err, broken)
+	}
 }
 
+// TestFall08AReplyOfTheMasterThatDidNotStart: a reply that could not start starts by a tick of deck once its cause
+// is gone, with no new message and no restart.
 func TestFall08AReplyOfTheMasterThatDidNotStart(t *testing.T) {
-	t.Skip("row 8, A6: a message whose reply did not start waits for a new message or a restart; PumpChats runs only at start")
+	t.Parallel()
+	e := harness.New(t, harness.WithClock(), harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		return provider.Result{Text: "Hi."}
+	}))
+	// An assignment to a model since removed, which deck.assignment_set refuses.
+	e.SQL(`INSERT INTO assignment (workspace_id, project_id, command, role, models)
+		SELECT 1, id, 'reply', 'agent', '["gone"]' FROM project WHERE name = 'master'`)
+	topic := e.Say(0, "hello")
+	e.Until("the reply that did not start", func() bool {
+		ms := e.ChatMessages(topic)
+		return len(ms) == 1 && ms[0].Reply != nil && strings.Contains(ms[0].Reply.Error, "gone")
+	})
+	e.SQL(`DELETE FROM assignment WHERE command = 'reply'`)
+	e.Until("the reply to start by a tick", func() bool {
+		e.Clock.Add(time.Minute)
+		e.Tick()
+		for _, m := range e.ChatMessages(topic) {
+			if m.Role == "master" && m.Text == "Hi." {
+				return true
+			}
+		}
+		return false
+	})
 }
 
 // TestFall09ANewVersionFallsAfterItsMigration: an update put in place migrates the base and falls before it serves;

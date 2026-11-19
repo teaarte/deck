@@ -279,9 +279,6 @@ func TestScriptInterruptedByARestartIsNotResumed(t *testing.T) {
 	e1.Until("the script to start", func() bool { return len(e1.Log(id)) > 0 })
 	_ = e1.App.Close()
 	e2 := harness.New(t, harness.WithHome(home), harness.WithProvider(&harness.Fake{}))
-	if err := e2.App.Runner.ResumeInterrupted(t.Context()); err != nil {
-		t.Fatal(err)
-	}
 	if p := e2.Proc(id); p.State != "interrupted" {
 		t.Fatalf("a script cut by a restart is interrupted: %+v", p)
 	}

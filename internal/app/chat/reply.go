@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -58,34 +59,62 @@ func (s *Service) pump(ctx context.Context, topic int64) {
 	s.mu.Unlock()
 }
 
+// unstarted is why the reply of a topic did not start, how many tries in a row did not, and when the tick tries again.
+type unstarted struct {
+	why   string
+	tries int
+	next  time.Time
+}
+
+// retryAfter is how long the tick waits to try a reply that did not start again: twice as long after each try, up to
+// retryMost.
+func retryAfter(tries int) time.Duration {
+	return min(retryFirst<<min(tries-1, 10), retryMost)
+}
+
+const (
+	retryFirst = 30 * time.Second
+	retryMost  = 15 * time.Minute
+)
+
 // unstart keeps why the reply of a topic did not start, so its messages show it, and forgets it once one does.
 func (s *Service) unstart(topic int64, err error, live bool) {
 	s.mu.Lock()
-	was := s.unstarted[topic]
+	was := s.unstarted[topic].why
 	switch {
 	case err == nil:
 		delete(s.unstarted, topic)
 	case live:
 		if s.unstarted == nil {
-			s.unstarted = map[int64]string{}
+			s.unstarted = map[int64]unstarted{}
 		}
-		s.unstarted[topic] = err.Error()
+		u := s.unstarted[topic]
+		u.why, u.tries = err.Error(), u.tries+1
+		u.next = s.Now().Add(retryAfter(u.tries))
+		s.unstarted[topic] = u
 	}
-	now := s.unstarted[topic]
+	now := s.unstarted[topic].why
 	s.mu.Unlock()
 	if t, err := s.St.Q.GetTopic(context.Background(), topic); was != now && err == nil {
 		s.Emit(events.Event{Workspace: t.WorkspaceID, Topic: events.Chat})
 	}
 }
 
-// PumpChats starts the replies to messages that a stop of deck left without one.
-func (s *Service) PumpChats(ctx context.Context) {
+// PumpChats starts the replies to the owner's messages none took: those a stop of deck left and those whose reply did
+// not start, once their time to try again came.
+func (s *Service) PumpChats(ctx context.Context, now time.Time) {
 	ids, err := s.St.Q.ListTopicsWithPending(ctx)
 	if err != nil {
 		slog.Error("chat topics with messages", "err", err)
 		return
 	}
 	for _, id := range ids {
+		s.mu.Lock()
+		u, failed := s.unstarted[id]
+		s.mu.Unlock()
+		if failed && now.Before(u.next) {
+			continue
+		}
 		s.pump(ctx, id)
 	}
 }

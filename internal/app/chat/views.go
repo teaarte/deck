@@ -242,7 +242,7 @@ func (s *Service) messages(ctx context.Context, topic int64, rows []db.ChatMessa
 		}
 	}
 	s.mu.Lock()
-	unstarted := s.unstarted[topic]
+	unstarted := s.unstarted[topic].why
 	s.mu.Unlock()
 	last := lastOf(rows)
 	out := make([]messageView, 0, len(rows))

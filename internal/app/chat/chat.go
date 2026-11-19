@@ -54,7 +54,7 @@ type Service struct {
 	Able func(ctx context.Context, p db.Project, cmd *manifest.Command) []string
 	// Facts say each model in short in a language, the words naming it for its mark and the group of its provider.
 	Facts func(ctx context.Context, workspace int64, lang string) func(model string) (note, logo, group string)
-	// Go runs work beside the calls unless deck stops; the replies it leaves go at the next start.
+	// Go runs work beside the calls unless deck stops; the replies it leaves go at the next tick.
 	Go func(func(context.Context)) bool
 	// Language is the language of the interface the workspace picked: auto, en or ru.
 	Language func(ctx context.Context, workspace int64) string
@@ -67,7 +67,7 @@ type Service struct {
 	queue chatQueue
 	// unstarted is why the reply of a topic did not start, until one does; again, the provider and note its next
 	// reply goes with after one broke off.
-	unstarted map[int64]string
+	unstarted map[int64]unstarted
 	again     map[int64]again
 	// start keeps a reply starting apart from a topic or message being deleted, and the notes of deck a reply is told
 	// from the reply of another topic.

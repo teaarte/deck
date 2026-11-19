@@ -326,16 +326,23 @@ func (b *background) stop() {
 	b.wg.Wait()
 }
 
-// Start does what deck does as it starts, before its loop: the schedule of the saved triggers, the turns a stop left
-// and the replies to messages left unanswered. The harness of the tests starts deck by it too.
+// Start does what deck does as it starts, before its loop: the schedule of the saved triggers, what only a stop
+// leaves (process.Runner.Recover), then what the tick redoes. The harness of the tests starts deck by it too.
 func (a *App) Start(ctx context.Context) {
 	if err := a.Projects.Reconcile(ctx); err != nil {
 		slog.Error("reconcile triggers", "err", err)
 	}
-	if err := a.Runner.ResumeInterrupted(ctx); err != nil {
-		slog.Error("resume interrupted", "err", err)
+	if err := a.Runner.Recover(ctx); err != nil {
+		slog.Error("recover", "err", err)
 	}
-	a.Chats.PumpChats(ctx)
+	a.redo(ctx, a.Cfg.Now())
+}
+
+// redo is what the tick does again until it holds: the consequences of closed processes, the answers that reached
+// parked ones, the held turns and the deadlines of processes, then the replies to the owner's messages none took.
+func (a *App) redo(ctx context.Context, now time.Time) {
+	a.Runner.Due(ctx, now)
+	a.Chats.PumpChats(ctx, now)
 }
 
 // Run starts deck, then its loop every interval and the connections of its nodes until Stop; the self-checks of the
@@ -365,13 +372,13 @@ func (a *App) nodeTransport(device int64) http.RoundTripper {
 	return a.Nodes.Transport(device, name)
 }
 
-// deadlines are what is due by now: confirmations, ceilings, pauses, silent processes, results handed in by processes
-// that still run, empty results kept long enough, files whose rows are gone, the disk.
+// deadlines are what is due by now: confirmations, what the tick redoes, results handed in by processes that still
+// run, files whose rows are gone, the disk.
 func (a *App) deadlines(ctx context.Context, now time.Time) {
 	a.Answers.ExpireAsks(ctx, now)
 	a.Answers.Settle(ctx)
 	a.Answers.Heard(ctx)
-	a.Runner.Due(ctx, now)
+	a.redo(ctx, now)
 	a.Processes.Due(ctx, now)
 	a.Files.Drain(ctx)
 	a.Snapshots.CheckDisk(ctx, now)

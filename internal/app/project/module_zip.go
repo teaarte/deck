@@ -25,7 +25,7 @@ const maxZipEntries = 2000
 
 // readUpload reads the text files of an uploaded .zip of a module folder, with the name of its folder; one
 // folder around them all is that folder. An entry that leaves the folder refuses the whole file.
-func (s *Service) readUpload(ctx context.Context, act registry.Actor, ref string) (files []folderFile, skipped []string, name string, err error) {
+func (s *Service) readUpload(ctx context.Context, act registry.Actor, ref string) (files []docs.File, skipped []string, name string, err error) {
 	missing := registry.NotFound("no uploaded file %s", ref)
 	id, err := strconv.ParseInt(ref, 10, 64)
 	if err != nil {
@@ -66,7 +66,7 @@ func withData(r io.ReaderAt, size int64) bool {
 
 // readZip reads the text files of a .zip of a module folder; what it cannot take is in skipped, and name is its one
 // top folder, or the file name without one.
-func readZip(fileName string, r io.ReaderAt, size int64) (files []folderFile, skipped []string, name string, err error) {
+func readZip(fileName string, r io.ReaderAt, size int64) (files []docs.File, skipped []string, name string, err error) {
 	zr, err := zip.NewReader(r, size)
 	if err != nil {
 		return nil, nil, "", registry.Invalid("%s is not a .zip: %v", fileName, err)
@@ -118,13 +118,13 @@ func readZip(fileName string, r io.ReaderAt, size int64) (files []folderFile, sk
 		if total += len(b); total > maxFolder {
 			return nil, nil, "", registry.Invalid("%s holds more than 32 MB of text", fileName)
 		}
-		files = append(files, folderFile{path: p, text: string(b)})
+		files = append(files, docs.File{Name: p, Text: string(b)})
 	}
 	name = strings.TrimSuffix(fileName, filepath.Ext(fileName))
 	if top := oneFolder(files); top != "" {
 		name = top
 		for i := range files {
-			files[i].path = strings.TrimPrefix(files[i].path, top+"/")
+			files[i].Name = strings.TrimPrefix(files[i].Name, top+"/")
 		}
 	}
 	return files, skipped, name, nil
@@ -141,10 +141,10 @@ func hidden(p string) bool {
 }
 
 // oneFolder is the folder all the files are in when there is no manifest beside it.
-func oneFolder(files []folderFile) string {
+func oneFolder(files []docs.File) string {
 	top := ""
 	for _, f := range files {
-		dir, _, ok := strings.Cut(f.path, "/")
+		dir, _, ok := strings.Cut(f.Name, "/")
 		if !ok || top != "" && dir != top {
 			return ""
 		}

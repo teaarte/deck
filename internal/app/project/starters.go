@@ -22,7 +22,7 @@ import (
 )
 
 // starter is the files of a module deck offers on its first run, by the name of its folder.
-func starter(name string) ([]folderFile, error) {
+func starter(name string) ([]docs.File, error) {
 	if d, err := fs.Stat(starters.FS, name); !fs.ValidPath(name) || strings.Contains(name, "/") || err != nil || !d.IsDir() {
 		return nil, registry.NotFound("no starter module %q; deck.starters_list names them", name)
 	}
@@ -30,12 +30,7 @@ func starter(name string) ([]folderFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	shipped, err := docs.Files(sub, "", func(string) string { return "" })
-	files := make([]folderFile, 0, len(shipped))
-	for _, f := range shipped {
-		files = append(files, folderFile{path: f.Name, text: f.Text})
-	}
-	return files, err
+	return docs.Files(sub, "", func(string) string { return "" })
 }
 
 // starterRow is a module deck offers on its first run; Status and Revision are of its draft once it is imported.
@@ -96,11 +91,11 @@ func (s *Service) startersList(ctx context.Context, act registry.Actor, in start
 		}
 		var ws map[string]string
 		for _, f := range files {
-			switch f.path {
+			switch f.Name {
 			case docs.PromptName:
-				row.Description = docs.Description(f.text)
+				row.Description = docs.Description(f.Text)
 			case docs.ManifestName:
-				if m, err := manifest.Parse([]byte(f.text)); err == nil {
+				if m, err := manifest.Parse([]byte(f.Text)); err == nil {
 					ws = m.I18n[registry.Lang(ctx)]
 					row.Title, row.Icon = cmp.Or(manifest.Tr(ws, m.Title), name), m.Icon
 				}

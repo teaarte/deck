@@ -82,7 +82,7 @@ func (s *Service) projectImport(ctx context.Context, act registry.Actor, in proj
 		return nil, registry.Invalid("give folder, file or starter, one of them")
 	}
 	var (
-		files      []folderFile
+		files      []docs.File
 		skipped    []string
 		from, name string
 	)
@@ -139,16 +139,16 @@ func (s *Service) projectImport(ctx context.Context, act registry.Actor, in proj
 }
 
 // importFiles creates a draft from the files of a module; from is the folder they came from, or the file in words.
-func (s *Service) importFiles(ctx context.Context, act registry.Actor, name, from string, files []folderFile) (any, error) {
+func (s *Service) importFiles(ctx context.Context, act registry.Actor, name, from string, files []docs.File) (any, error) {
 	var raw, prompt string
 	total := 0
 	for _, f := range files {
-		total += len(f.text)
-		switch f.path {
+		total += len(f.Text)
+		switch f.Name {
 		case docs.ManifestName:
-			raw = f.text
+			raw = f.Text
 		case docs.PromptName:
-			prompt = f.text
+			prompt = f.Text
 		}
 	}
 	if total > maxFolder {
@@ -170,12 +170,12 @@ func (s *Service) importFiles(ctx context.Context, act registry.Actor, name, fro
 			}
 		}
 		for _, f := range files {
-			if f.path == docs.ManifestName || f.path == docs.PromptName {
+			if f.Name == docs.ManifestName || f.Name == docs.PromptName {
 				continue
 			}
-			ref := docs.Ref{Scope: docs.ProjectScope(p), Name: f.path}
-			if _, _, _, err := docs.Save(ctx, q, ref, moduleKind(pm.m, f.path), f.text, act.Author(), reason); err != nil {
-				return registry.Invalid("%s: %v", f.path, err)
+			ref := docs.Ref{Scope: docs.ProjectScope(p), Name: f.Name}
+			if _, _, _, err := docs.Save(ctx, q, ref, moduleKind(pm.m, f.Name), f.Text, act.Author(), reason); err != nil {
+				return registry.Invalid("%s: %v", f.Name, err)
 			}
 		}
 		return nil
@@ -191,14 +191,9 @@ func (s *Service) importFiles(ctx context.Context, act registry.Actor, name, fro
 	return out, nil
 }
 
-// folderFile is a text file read from a folder on disk, by its path relative to the folder.
-type folderFile struct {
-	path, text string
-}
-
 // readFolder reads the text files of the folder rel of top, never through a link out of top, and leaves hidden
 // entries out; what it cannot take, symbolic links included, is in skipped.
-func readFolder(top, rel string) (files []folderFile, skipped []string, err error) {
+func readFolder(top, rel string) (files []docs.File, skipped []string, err error) {
 	root, err := os.OpenRoot(top)
 	if err != nil {
 		return nil, nil, err
@@ -245,7 +240,7 @@ func readFolder(top, rel string) (files []folderFile, skipped []string, err erro
 			skipped = append(skipped, rel+": not text")
 			return nil
 		}
-		files = append(files, folderFile{path: filepath.ToSlash(rel), text: string(b)})
+		files = append(files, docs.File{Name: filepath.ToSlash(rel), Text: string(b)})
 		return nil
 	})
 	return files, skipped, err

@@ -24,7 +24,7 @@ func TestChangesNameTheFormat(t *testing.T) {
 }
 
 // TestChangesGoInOrder: the master reads the lines after the last one it remembers, so no line is dated before the
-// line above it.
+// line above it, and each since 2026-11-10 ends with what a module does about it.
 func TestChangesGoInOrder(t *testing.T) {
 	vs, err := lint.Changes("../..")
 	if err != nil {
@@ -47,6 +47,8 @@ func TestChangesCheckCatchesItsOwnWays(t *testing.T) {
 	want := []string{
 		"master/changes.md:6: 2026-11-02 comes after 2026-11-03: a new line goes at the end with today's date",
 		"master/changes.md:8: a line without its date: start it with - YYYY-MM-DD",
+		"master/changes.md:11: a line since 2026-11-10 ends with what a module does: Modules: <what to look for and what to put instead>, or Modules: nothing.",
+		"master/changes.md:12: a line since 2026-11-10 ends with what a module does: Modules: <what to look for and what to put instead>, or Modules: nothing.",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("got:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

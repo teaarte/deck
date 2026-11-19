@@ -1,7 +1,8 @@
 # What changed in deck for modules
 
 Newest last. Remember in your memory the last line you read; after an update of deck read only the lines after it
-and bring the modules in line.
+and bring the modules in line. Since 2026-11-10 each line ends with `Modules:` — what to look for in a manifest, its
+scripts and prompts and what to put instead — or `Modules: nothing.`
 
 - 2026-10-31, format 14: deck's commands are named `<entity>_<verb>` — `_get` one, `<plural>_list` many, `_delete`,
   `_revoke`; a plural only before `_list` (`record_upsert`, `setting_set`). There are no aliases: the migration
@@ -270,44 +271,58 @@ and bring the modules in line.
   object); the answer comes as the owner's next message of the topic. The chat's own answer command is gone. The
   owner's own message in the topic closes its open options and forms. A reply asks by these blocks, not by its
   question tool.
+  Modules: nothing; the master's own replies ask by these blocks.
 - 2026-11-10: `version_get` of a build from source that does not know its commit gives `unknown`, why and how to
   build one that knows it, beside `version` `dev`; the image `deck:local` of `install.sh` knows its commit in a git
   worktree too.
+  Modules: nothing.
 - 2026-11-10: `manifest_check`, `manifest_save` and an import warn of an agent command that may change records,
   documents or files (it works in a folder, or its `calls` are all commands or name `record_upsert`, `record_update`,
   `record_delete`, `document_save`, `document_delete`, `file_upload` or `file_delete`) whose result schema has no
   `changes`; the save and the import still take it.
+  Modules: an agent command that may change records, documents or files gets `changes` in its `result` schema;
+  `manifest_check` names each one without.
 - 2026-11-10: a model has `tools`, the most tools one request of it takes (`model_set` with `tools`, `models_list`);
   deck learns it from an answer of its API that says so, as Groq does past 128. A request with more tools goes to the
   next model, and agent work whose turns have more is not offered the model: the work of `models_list` gives
   `left_out`, why such models are not among its `choices`.
+  Modules: nothing.
 - 2026-11-10: `health_list` names the kinds of its rows by what deck writes: `kind` takes `node` and `https`, and no
   longer `browser`; `status` no longer lists `missing`, which no health row has.
+  Modules: a screen or script that filters `health_list` by `kind` `browser` or `status` `missing`: drop that filter.
 - 2026-11-11: One wait is one question. A question of a process that names one of its own requests still waiting for
   the owner (`ask 315`, the same in Russian, its link) is refused: deck brings the request's outcome itself, end the turn or
   go on. A question asked again with the same text while it is open waits on the open one. A held call that sets every
   place of an earlier held call of the same process and command (`assignment_set`) replaces it: the earlier closes
   answered `replaced:<id>` (its caller hears so, `on: ask` hears `expired`), and the owner sees `Replaces request
   <id>` on the later.
+  Modules: a prompt that tells an agent to ask the owner about its own request still waiting, or to ask the same
+  question again: drop it; deck brings the outcome.
 - 2026-11-11: A reply of the master reads the topic it answers as the owner sees it: `chat_get` and `chat_turn_get`
   with `topic` set to that topic, or without one, give its messages, the work over them and what waits, and
   `screen_capture` of `#/deck/chat` draws it. Any other topic is refused; the list of topics stays the owner's.
+  Modules: nothing.
 - 2026-11-11: when deck ships a new text of a document you edited (a prompt, a skill), a line you added beside a line
   deck changed stays; only the same lines changed by both are a conflict with a note.
+  Modules: nothing.
 - 2026-11-11: A turn of any agent that repeats the same call of any tool with the same answer, its input differing at
   most in numbers the answer echoes, is warned at the third call (an agent that takes live input hears it, the journal
   shows it) and stopped as a loop at the sixth (`agent.loop`, in health and the feed). The key of a box's door and a
   script's token are masked (`[secret]`) in everything its programs print.
+  Modules: nothing; the line of 2026-11-11 on one guard of loops below is what holds.
 - 2026-11-11: files the owner attaches to a chat message or to a message of a process are in the box of the turn at the
   path deck names with the message, in an input folder the turn reads and does not write; the paths named in earlier
   turns of the same session and in the process a turn continues stay readable. A turn on a node gets them as a turn
   starts there: files given while it runs, or with an answer to its question, come with its next turn.
+  Modules: nothing.
 - 2026-11-11: one language rule. A chat topic has a language (`lang`): the master's reply marks the one the owner's
   latest message is written in with `deck.chat_topic_lang_set` when it differs from the one deck gives, and the last
   message decides. What comes of a topic — the reply, works and commands started from it, their requests and
   questions, deck's words of its work in the chat, the feed and pushes of those processes — is in its language; without
   a topic, in the language of the settings. Every agent's prompt says the language deck gives; prompts and skills keep
   no languages of their own.
+  Modules: a prompt or skill that names a language to write in ("answer in Russian"): drop it, deck gives the
+  language; a text a script writes is English with its translation in `i18n`.
 - 2026-11-11: a request is plain for the owner. A call that may wait for the owner's yes takes `why` (a field every
   command that is not internal now has; any other command takes it and drops it; `reason` of deck's own commands, such
   as document_propose and a manifest_save that widens rights, stands for it): one short sentence in the language deck
@@ -316,10 +331,13 @@ and bring the modules in line.
   a line a place in the owner's words (`change` of asks_list); JSON, diffs and command names go under the details.
   A call that changes nothing — the same models, a text already in force — makes no request and answers
   `unchanged`. deck's message of a work that waits for a request says its why.
+  Modules: a prompt of an agent command whose calls may wait for the owner's yes tells the agent to pass `why`, one
+  short sentence; without it the call is refused.
 - 2026-11-11: a process paused on a model's usage limit (`rate_limited`) and the model's health wait until the reset
   the model API told: Retry-After, X-RateLimit-Reset (OpenRouter puts it in the metadata of its error, in unix
   milliseconds), a reset as a duration (Groq), Gemini's retryDelay; without one, a limit a minute waits a minute, not an
   hour; a limit a day waits until 00:00 UTC. Work whose assignment has another model still goes on there at once.
+  Modules: nothing.
 - 2026-11-11: the tools of `records_list`, `record_get`, `record_upsert`, `record_update`, `document_get`,
   `document_save` and `process_get` tell an agent the shape of their answer and an example input where the schema
   leaves it open; the tool of a module's command adds its `result` schema without titles and descriptions (past 500
@@ -327,11 +345,15 @@ and bring the modules in line.
   required one. `manifest_check`, `manifest_save` and an import warn of an agent command whose `calls` name a command of
   the module (`<project>.<name>`) an agent may call without a `result` schema; the save and the import still take it. A prompt of an
   agent command says what each of its calls answers and gives one to three inputs (module-conventions).
+  Modules: a command of the module an agent calls gets a `result` schema (`manifest_check` names each one without),
+  and the prompt of an agent command says what each call answers with one to three inputs.
 - 2026-11-11: the master has no `domains`: in its box its shell reaches only its model and deck (on a Mac without
-  Docker Claude Code and Codex still run outside the box); it searches with `web_search` and reads pages with `web_fetch`. Both write a line of the gateway journal (`calls_list`, `params`):
-  `web_fetch` the address asked and, after a redirect, the one read (`read`); `web_search` the query, the service and
-  the address of each result. A widening of `domains.read` reads "reaches and may send data to: <host>": the door
+  Docker Claude Code and Codex still run outside the box); it searches with `web_search` and reads pages with
+  `web_fetch`. Both write a line of the gateway journal (`params` of the owner's `calls_list`): `web_fetch` the
+  address asked and, after a redirect, the one read (`read`); `web_search` the query, the service and the address of
+  each result. A widening of `domains.read` reads "reaches and may send data to: <host>": the door
   sees the host, not the method.
+  Modules: nothing.
 - 2026-11-11: a process waits in one state, `waiting`, instead of seven (for an answer, a login, a usage limit, a
   provider, a slot, a folder, the run before): `process_get` and
   `processes_list` give its `wait` — `reason` (`answer`, `sign_in`, `limit`, `provider`, `slot`, `folder`, `run`),
@@ -340,32 +362,41 @@ and bring the modules in line.
   confirmation (`confirm_hours`, a day): then the agent is told the owner did not answer and finishes with what it has.
   A lost login waits a week, a red provider a day, and then the process fails (`model.login`, `model.unavailable`); a
   turn without deck's tools waits for its provider an hour (`deck.tools`) instead of three tries.
+  Modules: a screen, script or prompt that reads `paused_until` or a waiting state other than `waiting`: read `state`
+  `waiting` and its `wait` (`reason`, `on`, `until`).
 - 2026-11-11: one guard of loops: the same call of a tool with the same answer six times in a row stops the turn as
   `agent.loop`, as before, but nothing warns at the third any more — neither the agent nor the answer of a read;
   `process_get` without `wait` answers at once each time instead of waiting a minute on its own after the first look,
   and its `hint` no longer counts the seconds, so six such looks in a row stop the turn as a loop; a script failing
   three times in a row no longer writes a warning of its own (the failed list counts it, the master hears it as
   before).
+  Modules: a prompt that waits for a process by calling `process_get` again and again: call it once with `wait`.
 - 2026-11-11: `"*"` and any name in `domains` reach only public addresses by the IANA special-purpose registries:
   `0.0.0.0/8` (OrbStack's `host.docker.internal` is 0.250.250.254), `198.18.0.0/15` (OrbStack's machines),
   `192.0.0.0/24`, the documentation ranges, `240.0.0.0/4`, Teredo, IPv6 outside `2000::/3` and the same in NAT64,
   6to4 and mapped forms are refused; a service there is reached only by naming its IP, network or IP:port.
+  Modules: a `network` right that names a host of a private or special address by its name: name its IP, network or
+  IP:port.
 - 2026-11-11: a box on Linux needs bubblewrap 0.8 or later: a program in it makes no user namespace of its own
   (`unshare -U` is refused), so it mounts nothing; an older bubblewrap is a red row `sandbox` in health. Chrome
   there runs without its own sandbox (the box is it): a script that starts Chrome itself passes `--no-sandbox`. A
   host with AppArmor loads `deck-box.apparmor` of this version again (README, "Install").
+  Modules: a script that starts Chrome itself passes `--no-sandbox`.
 - 2026-11-11: a process that waits for a folder names who holds it: `process_get` and `processes_list` give `held_by`
   (the process that holds the folder), `held_ask` (what that one waits for the owner to answer) and `held_until` (the
   term of its wait); its word says what the holder waits for, and Today and the process screen have an Answer button
   to that question. A caller that may not read the holder's module learns only that another module holds the folder.
+  Modules: nothing.
 - 2026-11-11: deck keeps its base in `state/backups/update-<time>.tar.gz` before a start migrates it; `snapshots_list`
   lists it beside the others. An older deck refuses to start on a base a newer one migrated. The installer takes the
   files beside `compose.yaml` of the release its image is.
+  Modules: nothing.
 - 2026-11-11: a button an agent or a script puts in the feed with `owner_notify` whose command is not `internal` asks
   the owner first: `feed_list` gives it `confirm: true` and the title of the command as its label, whatever the
   caller set, and the confirmation shows its params (until a later version makes such a press the call of its
   writer). A confirmation of a tool call in `asks_list` gives `change` as the call's fields a line each, where it
   reaches (`to`, `cc`, `url`, …) first, each value cut on its own.
+  Modules: nothing; a button of `owner_notify` whose command is not `internal` asks the owner first.
 - 2026-11-11: a model's answer deck cannot read (not JSON by the schema, no picture) fails as the model's,
   `model.unavailable` (HTTP 502), no longer as deck's own `deck.internal` (500), and the next model assigned takes the
   call; `cost_usd` of a file is what all the models of the call cost. A video request a service took without a job id,
@@ -374,35 +405,47 @@ and bring the modules in line.
   page `web_fetch` reads that answers an error status is `network` (502). A failed `tts` keeps the type of its
   failure (a refusal of the service as before, a bad answer `model.unavailable`) with the hint about a voice in its
   details; it is no longer always `input.invalid` (422).
+  Modules: a script or prompt that tells failures apart by `deck.internal` (500) of a model's answer or of
+  `web_search`, or by `input.invalid` of `tts`: read `model.unavailable` (502) and `network`.
 - 2026-11-11: limits of a program's output: a blank line of stderr is no line of the process log, and past 8 MB of
   the log its stderr is dropped with one line that says so (what the agent says and does stays); a picture of the data
   folder past 25 million pixels gets no light copy, a media block shows it itself; the container of deck's compose runs
   at most 4096 processes.
+  Modules: nothing.
 - 2026-11-11: `file_delete` and `file_restore` move a file of a data folder only inside that folder: a path that
   goes through a link, or a folder swapped for a link meanwhile, is refused (`conflict`, read the folder again);
   nothing of deck's own folder goes into the trash of a project or comes out of it. On macOS a program in a box
   writes inside the folders it may write, but no longer removes, renames or replaces those folders themselves.
+  Modules: nothing.
 - 2026-11-11: deck reads a file of a folder a box writes only as a regular file inside that folder and up to a limit:
   `.claude/settings*.json` of a repo (1 MB), a screenshot of the browser (32 MB); a link out of the folder, a pipe or a
   device is not read (a snapshot skips it and names it); `project_import` skips such a file as not a regular one.
+  Modules: a module folder with links or devices in it: `project_import` skips them; keep regular files only.
 - 2026-11-11: in a retelling of a chat topic (a turn after another provider, the messages after a summary) only the
   owner's text stands as written; what deck told of a work and what the master said is one quoted line each, so a
   line of a work's result never reads as a message of the owner.
+  Modules: nothing.
 - 2026-11-11: a custom block makes no frame by a node either: inserting or adopting any node with an
   `iframe`/`frame`/`object`/`embed` in it is refused, wherever the node was made (an XML document too), and the guard
   calls only the builtins it took before the block ran. The card of a module before enabling says that its custom
   blocks see the data their screens give them and may carry it out of deck. Files shared to deck go only into the
   forms of the share screen, and a page of another site shares nothing.
+  Modules: a custom block that inserts an `iframe`, `frame`, `object` or `embed`: draw it without one.
 - 2026-11-11: what a process read of a document is kept in deck's base, so a whole text it saves after deck restarted
   is refused over the owner's edit as before the restart; a button drawn before a restart still allows its calls,
   for a week after deck drew it (then: press it again).
+  Modules: nothing.
 - 2026-11-12: a field of a card puts the phrases its expression writes through the module's `i18n`, as a column of a
   table does. The starter free-models is written in English with its Russian in `i18n`: its scripts write their
   notes in English, its agents in the language deck gives.
+  Modules: a phrase the expression of a card field writes gets its translation in `i18n`; a script that writes its
+  notes in a language other than English writes them in English, translated in `i18n`.
 - 2026-11-12: a run that ended more than 180 days ago keeps only the start of its input and result: `process_get`
   gives each as `{"cut": "<its first 500 characters>"}` once it was longer than 1000; revisions of documents stay
   whole. An incident the master does not take (paused, no `on_incident`, a start that fails) is a note of deck in the
   owner's feed.
+  Modules: a script or screen that reads the input or result of a run that ended over 180 days ago takes `{"cut": …}`
+  too.
 - 2026-11-12, format 17: a module declares in `rights` what it may ask the owner for, each with `why` — the seven
   rights of deck's catalog: `network` (hosts, `"who": "agent"` for the shells of its agents), `login` (`claude-code`,
   `codex`), `data` (another module, `module.collection`, `module/document`, `module:models`, `*:runs`, its own tool
@@ -419,6 +462,8 @@ and bring the modules in line.
   grants it. What a draft may do is read with `deck.rights_list`, the old read of it gone; the owner answers with `deck.right_set`;
   `manifest_check` and `manifest_save` list `ungranted` instead of `widens`. Stored manifests moved to format 17 and
   keep as always what the owner had granted; an imported module of an older format is raised to it.
+  Modules: a prompt or skill that names `domains`, `allowed_external`, `reads`, `models`, `gpu`, `class` or `classes`:
+  name the right of `rights` instead; stored manifests moved already, and `manifest_check` refuses the old fields.
 - 2026-11-13: one question at first use. Every call deck decides goes by one table, whose row `deck.call_explain`
   names for a call by whom (`in_deck`, `owner`, `cleared`, `refused`, `draft`, `draft_tool`, `undeclared`, `denied`,
   `always`, `for_work`, `pressed`, `in_force`, `ask`). The owner answers a request once, for the work of its process,
@@ -429,11 +474,13 @@ and bring the modules in line.
   `sign_in`; the kinds `confirm` and `login` are gone. Enabling a module gives in advance `network` of its programs,
   `data` and `files`; `login`, `money`, `send`, `modules` and the network of its agents are asked when first used: a
   turn waits for the answer before it starts (`waiting`, reason `right`), a script's call through `$DECK_MODELS` is
-  refused and the owner is asked once. `command_describe` says `needs_right` instead of `class`, `calls_list` gives
+  refused and the owner is asked once. `command_describe` says `needs_right` instead of `class`, the owner's `calls_list` gives
   `need` (the right a call needed) instead of `class`, a button of a custom block says `stays` for a command that
   needs no right. A button a module's agent writes on a note whose command needs a right calls `deck.feed_press`:
   the call of the module, which asks the owner with what it sends. In deck's box Claude Code runs without its auto
   mode, its tools bounded by the box, and Codex asks no approvals; outside a box both run as before.
+  Modules: a screen, script or prompt that reads `class` of `command_describe`, or the kinds `confirm` and `login` of
+  an ask: read `needs_right`, `call` and `sign_in`.
 - 2026-11-13: deck marks what a turn read. An agent's or the master's turn that read text from outside deck — a page
   (`deck.web_fetch`, `deck.web_search`), an answer of an HTTP tool, an MCP server or the browser, data of a module
   that holds such text, a work's result that did, files given with a message, what an automation token wrote — and
@@ -451,6 +498,8 @@ and bring the modules in line.
   (its data folder is its results), so it reads page after page by its right; a call of it is `network` on the hosts
   its module's programs hold. The master's reader is `master.research`; the setting `master_web` (`ask`, `always`)
   lets the master read pages marked by its right of always.
+  Modules: a command whose turn reads pages and then sends, spends or edits the module asks the owner each time: split
+  the reading off into a reader (`calls` only `deck.web_search` and `deck.web_fetch`, no folder).
 - 2026-11-13: an answer that trusts for long takes the owner's passkey touched within five minutes: always to `login`,
   `money`, `send`, `modules`, the network of agents, `network` on `*` and `data` of other modules (not a module's own
   services, `:models`, `:runs`); enabling a draft (`project_enable`), `token_create`, `pair_link`, `project_trust`,
@@ -460,90 +509,115 @@ and bring the modules in line.
   `network` of programs on named hosts, `files`, `data` of its own services and `:models`/`:runs`; `network` on `*`
   and the data of other modules the owner grants in Access → Rights. `rights_list` says `key` (the owner's always to
   the row takes a passkey) instead of `at_use`.
+  Modules: nothing.
 - 2026-11-13: an automation token reaches modules by rights of the catalog: `token_create` takes `commands` (deck's
   alone, `deck.*` every one), `data` (modules whose data deck's reads give it) and `modules` (a module whole: its
   commands and deck's commands acting in it; `module.command`: that command alone); `*` is every module but the
   master, and lets the token write documents of the workspace (skills); others only read them. A token reads nothing without a module named (`project is required`) and changes only modules named whole;
   `tokens_list` gives `data` and `modules`. Tokens of before keep what they named: the commands of a module move to
   `modules`, and one that called deck's commands reaches the modules it named whole, or every module when it named none.
+  Modules: nothing; a token of before keeps what it named.
 - 2026-11-13: a right `money` takes `run_usd`, the most one run (a process) spends by the owner's always, in US
   dollars by deck's prices: past it an agent's call waits for the owner's yes to that very call (no always or for
   this work is offered) and a script's call is refused (403); a new run starts from nothing; without `run_usd` always
   has no cap. `run_usd` on another right is refused on save. `call_explain` names the row `over`.
+  Modules: a `money` right may take `run_usd`, the cap of one run; without it the owner's always has no cap.
 - 2026-11-13: the format of manifests stays 17 and is frozen again: a new field of a module comes only with one taken
   out. The skill module-builder is shorter (about 6,400 words, at most 8,000): the rules of each field and block are
   in the `description` of `manifest_format_get`, which the skill no longer repeats; read it first. An edit of the
   skill that adds words takes as many out.
+  Modules: nothing; the rules of each field are in the `description` of `manifest_format_get`.
 - 2026-11-13: the mark of a turn is of its process, not only of a call it makes now: a button of a note a marked turn
   wrote (`feed_press`) waits for the owner's yes to that very call when it reaches outside, whatever the module holds
   always; the turn's own calls of models through deck are no way out.
+  Modules: nothing.
 - 2026-11-13: a marked turn (it read text from outside deck and holds something of value) calls a script or tool
   command of a module that holds a way out always (`network` of programs, `send`, `money`, `modules`), or an agent
   command of one holding the network of its agents' shells, only by the owner's yes to that very call: the program
   would carry the turn's words out. A clean turn calls them as before; a press naming the call stays a yes.
+  Modules: nothing.
 - 2026-11-13: an HTTP tool or MCP server of a module is its own service and never another module: `data` on
   `<tool>` or `<server>.<tool>` reads nothing of a module of that name, and a manifest whose tool or server with
   such a `data` right is named like another module of the workspace is refused on save (rename it).
-- 2026-11-13: an HTTP tool of POST, PUT, PATCH or DELETE whose `"right"` names `data` still sends a request body with
-  the owner's key: enabling the module no longer gives it, the owner's always to it takes the passkey, `rights_list`
-  says it sends the body by its author's word (`exit: true`), and a marked turn calls it only by the owner's once.
-  A tool that only reads by GET stays as it was.
+  Modules: a tool or MCP server with a `data` right named like another module of the workspace: rename it, a save
+  refuses it.
 - 2026-11-13: what deck puts into a turn carries the mark of where it came from: a turn whose memory, lessons or
   skills of the workspace come from a module marked as holding text from outside starts marked, and so does a
   continuation of a marked process, a process sent back by a marked turn's remark and the master's turn told a note
   that quotes a marked process. A write that names no module — the owner's memory, a skill or document of the
   workspace — marks project master, which `project_trust` clears.
+  Modules: nothing.
 - 2026-11-14: under `run_usd` a paid call of a model deck cannot price (the API sent no cost, the model has no price in
   deck's settings) counts as past the cap: the next call of that run waits for the owner (an agent) or is refused (a
   script). A model of the owner's machine, a free one and a subscription are not money.
+  Modules: a model a module calls under `run_usd` gets a price in deck's settings, or the run waits for the owner
+  after its first call.
 - 2026-11-14: calls of models of one run under `run_usd` go one at a time, each counted with what the ones before it
   cost: a script's parallel calls wait for each other, and the run spends no more than when it calls in a row.
+  Modules: nothing.
 - 2026-11-14: the owner's no or revoke to `network` or `files` of a module stops its running MCP servers at once; the
   next call of their tools starts them in the box of what the module holds then.
+  Modules: nothing.
 - 2026-11-14: where text from outside came from (`untrusted` of `projects_list`, `read` of a process and of a chat
   topic) is said in the owner's language; a module's mark reads "the call <command> of <who>" and the data "the data
   of <module>, written by <who>".
-- 2026-11-14: an HTTP tool of POST, PUT, PATCH or DELETE carries a request body its caller writes whatever right its
-  author names, `network` too: a marked turn calls it only by the owner's once; a GET stays free on a named host.
+  Modules: nothing.
+- 2026-11-14: an HTTP tool of POST, PUT, PATCH or DELETE carries a request body its caller writes, whatever right its
+  author names (this line holds the one of 2026-11-13 on such tools): a marked turn calls it only by the owner's
+  once; one whose `"right"` names `data` sends the body with the owner's key, so enabling the module does not give it,
+  the owner's always to it takes the passkey and `rights_list` says it sends the body by its author's word
+  (`exit: true`). A GET stays as it was, free on a named host.
+  Modules: an HTTP tool that only reads is a GET, free on a named host.
 - 2026-11-14: a script of `"runtime": "python"` runs by `uv run --script` on deck's one python (3.11 in the image), so
   its PEP 723 block gives it its packages; uv downloads no python (`UV_PYTHON_DOWNLOADS=never`), and a script whose
   `requires-python` that python does not meet fails as `program.missing` naming both versions. The file of a script
   stays under `work/projects/<id>/scripts/` by its path in the module (a trial's under `drafts/`), so all runs of it
   share one uv environment.
+  Modules: a script of `"runtime": "exec"` whose first line is `#!/usr/bin/env -S uv run --script` gets `"runtime":
+  "python"` (`manifest_check` names it); a `requires-python` above 3.11 is lowered to it.
 - 2026-11-14: the daily cleanup removes a cache of a module untouched for 30 days: each folder of `$DECK_DATA/.cache`
   and of the `.cache` and `.npm` of its MCP servers' homes whole, uv's by the last run of a script of the module, and
   uv's environments of a script beyond one a file. An export of a module carries no caches, by the rule of snapshots
   (folders starting with a dot or named like a cache, `node_modules`, `hf`, `venv`, `site-packages`). The disk row
   names the folder of every module and its caches.
+  Modules: a script that keeps what it must not lose in `$DECK_DATA/.cache` keeps it in its data folder.
 - 2026-11-14: `deck.project_report` says what a module did in a period (`days`, 1 is today) by the rights of the catalog,
   a line a subject: the hosts its programs and agents reached with how many requests (a tunnel of HTTPS counts once),
   the calls that needed a right (made and `refused`), turns on a login, paid model calls (`usd`) and turns that read
-  text from outside deck (right `outside`). The door writes the hosts a box reached to the journal: `calls_list` lines
-  of outcome `reached` with `subject` (the host) and `count`, at the end of a run and on the way. `rights_list` gives
+  text from outside deck (right `outside`). The door writes the hosts a box reached to the journal, the owner's
+  `calls_list`: lines of outcome `reached` with `subject` (the host) and `count`, at the end of a run and on the way;
+  the master reads them summed up by `project_report`. `rights_list` gives
   `used` (the last use), `module` and `title` (the right in the owner's words); an open process gives `opens` (`hosts`
   of its box, `login` of its CLI).
+  Modules: nothing.
 - 2026-11-14: one screen of rights: Settings → Rights lists the rights of every module under its module or, with
   `params.by` `right`, under the right, each with its answer (`state` of `rights_list`), when last used and a revoke at
   one tap; `params.project` narrows it to one module; a right of the master is deck's own, without buttons. The rights table of a module's settings and the list of rights on the page
   of a draft are gone: the draft's card says how many rights enabling gives and how many ask first, with a button to
   Rights. A module's report is the screen `rights-report` (`project`, `period`). An open process gives `marks` (its
   hosts and login as labels) and a chat topic `opens`; the head of Today says how many runs hold the network or a login.
+  Modules: a screen of a module that links to the rights of its settings links `deck/settings` with `tab` `Rights` and
+  `project`.
 - 2026-11-14: `asks_list` gives `waits`, why a request waits for the owner in the owner's words (by the row of the
   table of decisions), and with `by_work` puts the open requests of one process in one item with `parts`, each with its
   own buttons, and buttons for all (verbs `allow_all`, `deny_all`, `allow_work_all`); `ask_answer` takes `also`, other
   requests of the same process answered the same (allow, allow_work or deny). `process_get` gives `why_waits` and
   `waits_ask` of a process whose request is open. New verbs `rights` and `report`; a list item of deck's screens has `parts`.
+  Modules: nothing.
 - 2026-11-14: weights of models never live in deck: a model is a connection to a ready open-source server or a cloud
   API. `manifest_get`, `manifest_check`, `manifest_save` and an import warn, and still take the module, of `files: gpu`
   with a package that loads weights (torch, diffusers, transformers, …) in a script's PEP 723 header, of mlx, CUDA or
   onnxruntime-gpu in a header, of a script that downloads from Hugging Face or `network` on huggingface.co, and of a
   script of `runtime: node` (a script is Python; node only starts a ready JS engine). `files: gpu` is for rendering
   and video.
+  Modules: a script that loads weights or downloads them from Hugging Face, or runs on node: call a model of a
+  connection instead (`manifest_check` names it).
 - 2026-11-14: the master has the skills `models` (a model is a ready open-source server or a cloud API: a server by
   kind, its install on a Mac or Linux, its connection through a node or a local address, cloud or own by how often,
   a model tried through the cloud) and `first-setup` (three ways to reach models and the assignments of each kind). A
   `files: gpu` right is for rendering and video on Linux; on a Mac the box lets every program use the graphics card.
   The master reads `spend_list` and `spend_days_list`, to count how often a module calls a paid model.
+  Modules: nothing.
 - 2026-11-14: a usage limit pauses what its answer speaks of: OpenRouter's `free-models-per-*` pauses every free model
   of that connection (health row `limit:<connection>:free`), a limit of a CLI's subscription every way to it, on a node
   too (`limit:<connection>`), any other the model. A limit without a reset is tried again once in two seconds (a CLI,
@@ -552,34 +626,43 @@ and bring the modules in line.
   last for ten minutes; a 429 makes a model paused, not red. The row `limit:<cli>` shows the windows of the
   subscription (5 hours, week: share used, reset); at 98 % new turns go to the next model until the window resets, a
   limit that resets within a minute is waited out on the same login.
+  Modules: nothing.
 - 2026-11-14: self-checks spend less and show what they spend: a CLI is not checked as deck starts, only on the button,
   after a broken turn and again while red; a model at a limit is checked once, when its pause ends; the models of one
   connection are checked one at a time; the calls of a self-check are in the journal of model calls as command
   `self-check` without a process (`spend_list`), but for a check run on a node. A limit a self-check meets is a pause, not a failed check.
+  Modules: nothing.
 - 2026-11-15: a built-in CLI (claude-code, codex) deck never checked is checked as deck starts, so a fresh install
   shows it needs a login (without one the CLI refuses before any model call); one checked before still is not.
+  Modules: nothing.
 - 2026-11-15: search works out of the box: `compose.yaml` runs SearXNG beside deck, and the first run gives a workspace
   with no search the connection `searxng` (`http://searxng:8080`, api raw, local), its model `searxng` (kind search,
   free) and the assignment of search; a search the owner set up stays. deck without Docker sets SearXNG up by the
   master's models skill (the recipe left deck's text of no search).
+  Modules: nothing.
 - 2026-11-15: a CLI has more than one subscription login: `deck.connection_set {name, api: "cli", agent: "claude-code"
   | "codex"}` adds another login (such as `claude-code-2`), a connection with its own sign-in (`deck.agent_login` by
   its name), homes, self-check, quota and pause, and a model of its name in the CLI (its default model; more by
   `deck.model_set` on that connection), assigned and a fallback as any model; `deck.connection_delete` removes it with
   its sign-in. The right `login` names the login (`login: claude-code-2`): a module on the first login does not run on
   the second until it declares it too. A login runs on deck's machine, not `@<node>`.
+  Modules: a module that runs on another login declares `login` on its name too (`login: claude-code-2`).
 - 2026-11-17: `deck.screen_get` takes several topics in `topic`, separated by spaces, and reads the blocks any of them
   changes in one read. An answer to an ask that is answered or expired already (`deck.ask_answer`, a question of the
   chat taken back, or one deck closed itself because what it asked about changed) is refused with HTTP 410, not 409:
   what it acted on is over; read it again rather than tell it.
+  Modules: a script that tells an ask answered already by 409: read 410.
 - 2026-11-18: A call of a turn that brings text from outside (a tool, an MCP server, a browser, a page) marks the
   turn before it runs, whatever it answers: an error of the other side marks it too. A call that is not a read has its
   line in the journal from its start, `making` (an intent to act outside deck makes it `started`); a deck that stopped
   before its outcome leaves the line `unknown`; it asks the owner about an intent to act outside deck and a call the
   owner allowed, as before.
+  Modules: nothing.
 - 2026-11-18: The files a process that read text from outside deck keeps (by its result or left in its results
   folder) mark the data of its module as holding text from outside, as its writes of records do.
+  Modules: nothing.
 - 2026-11-19: A call that waited for the owner's yes is made, once allowed, as its caller is then: a script, tool or
   model process as itself (its journal line names it, not an agent), a trial as a trial, a token with the rights it
   has now (a token revoked meanwhile gets the call refused), an agent with the calls its command lists. `call_explain`
   of a process and a button on a note act as the process that wrote it.
+  Modules: nothing.

@@ -3,7 +3,9 @@ package feed
 import (
 	"cmp"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -159,10 +161,18 @@ func (s *Service) feedPress(ctx context.Context, act registry.Actor, in feedPres
 	}
 	b := buttons[in.Button]
 	input, _ := json.Marshal(b.Params)
-	writer := registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID, ProcessID: f.ProcessID.Int64,
-		Why: fmt.Sprintf("You pressed %q on its note", b.Label)}
+	writer := registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID}
 	if f.Author == registry.Master {
 		writer.Kind = registry.Master
 	}
+	if f.ProcessID.Valid {
+		switch w, err := s.St.Q.GetProcess(ctx, f.ProcessID.Int64); {
+		case err == nil:
+			writer = registry.ProcessOf(w, p)
+		case !errors.Is(err, sql.ErrNoRows):
+			return nil, err
+		}
+	}
+	writer.Why = fmt.Sprintf("You pressed %q on its note", b.Label)
 	return s.Call(ctx, writer, p.Name+"."+b.Command, input)
 }

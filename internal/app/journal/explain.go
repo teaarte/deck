@@ -40,10 +40,7 @@ func (s *Service) callExplain(ctx context.Context, act registry.Actor, in callEx
 		if err != nil || proj.WorkspaceID != act.Workspace {
 			return explainView{}, registry.NotFound("no process %d", in.Process)
 		}
-		who = registry.Actor{Kind: registry.Agent, Workspace: act.Workspace, ProjectID: p.ProjectID, ProcessID: p.ID, Trial: p.Trial == 1}
-		if proj.Builtin == 1 {
-			who.Kind = registry.Master
-		}
+		who = registry.ProcessOf(p, proj)
 	case in.Project != "":
 		p, err := access.Project(ctx, s.St.Q, act, in.Project)
 		if err != nil {

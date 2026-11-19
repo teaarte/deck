@@ -52,7 +52,7 @@ func NotEnglish(where, text, advice string) string {
 func foreignWord(line string) bool {
 	run := 0
 	for _, r := range line {
-		if unicode.IsLetter(r) && !unicode.Is(unicode.Latin, r) {
+		if notLatin(r) {
 			if run++; run == 2 {
 				return true
 			}
@@ -62,3 +62,6 @@ func foreignWord(line string) bool {
 	}
 	return false
 }
+
+// notLatin says a rune is a letter of a script other than Latin.
+func notLatin(r rune) bool { return unicode.IsLetter(r) && !unicode.Is(unicode.Latin, r) }

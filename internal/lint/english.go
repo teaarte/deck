@@ -46,6 +46,7 @@ var RussianTests = []string{
 	"tests/scenarios/chat/chat_waits_test.go",
 	"tests/scenarios/modules/modules_blocks_test.go",
 	"tests/scenarios/modules/modules_buttons_test.go",
+	"tests/scenarios/modules/modules_language_test.go",
 	"tests/scenarios/modules/modules_manifest_test.go",
 	"tests/scenarios/modules/modules_ship_test.go",
 	"tests/scenarios/modules/modules_side_test.go",

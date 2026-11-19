@@ -116,7 +116,7 @@ func (m *Manifest) Untranslated(known func(lang, text string) bool, also ...stri
 
 // wordy is a text of words in Latin letters alone, which a translation wants.
 func wordy(t string) bool {
-	return strings.IndexFunc(t, unicode.IsLower) >= 0 && strings.IndexFunc(t, func(r rune) bool { return unicode.IsLetter(r) && !unicode.Is(unicode.Latin, r) }) < 0
+	return strings.IndexFunc(t, unicode.IsLower) >= 0 && strings.IndexFunc(t, notLatin) < 0
 }
 
 // shown are the texts of a manifest the owner sees, with also, the values of the enums of its collections and of the

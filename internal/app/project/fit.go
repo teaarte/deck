@@ -12,6 +12,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/tools"
 )
@@ -37,21 +38,25 @@ func (s *Service) untold(ctx context.Context, p db.Project, m *manifest.Manifest
 	return slices.Concat(m.Unreported(), m.Unshaped(p.Name), s.heavy(ctx, p, m), s.foreign(ctx, p, m))
 }
 
-// foreign are the warnings of the scripts and prompts of a module with lines not in English, a file each; the i18n of
-// its manifest is where the owner's words are.
+// foreign are the warnings of the scripts, prompts and skills of a module with lines not in English, a file each; the
+// i18n of its manifest is where the owner's words are.
 func (s *Service) foreign(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
-	if p.ID == 0 {
-		return nil
-	}
-	read := func(kind, file string) string {
-		text, _ := docs.CurrentText(ctx, s.St.Q, docs.ProjectScope(p), kind, file)
-		return text
-	}
 	var out []string
 	add := func(w string) {
 		if w != "" {
 			out = append(out, w)
 		}
+	}
+	for _, c := range m.Commands {
+		add(manifest.NotEnglish("the prompt of command "+c.Name, c.Executor.Prompt, manifest.PromptEnglish))
+	}
+	if p.ID == 0 {
+		return out
+	}
+	scope := docs.ProjectScope(p)
+	read := func(kind, file string) string {
+		text, _ := docs.CurrentText(ctx, s.St.Q, scope, kind, file)
+		return text
 	}
 	for _, sc := range m.Scripts {
 		add(manifest.NotEnglish("script "+sc.File, read(docs.KindScript, sc.File), manifest.ScriptEnglish))
@@ -65,8 +70,10 @@ func (s *Service) foreign(ctx context.Context, p db.Project, m *manifest.Manifes
 	for _, f := range prompts {
 		add(manifest.NotEnglish("prompt "+f, read("", f), manifest.PromptEnglish))
 	}
-	for _, c := range m.Commands {
-		add(manifest.NotEnglish("the prompt of command "+c.Name, c.Executor.Prompt, manifest.PromptEnglish))
+	if skills, err := s.St.Q.ListDocuments(ctx, db.ListDocumentsParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Kind: docs.KindSkill}); err == nil {
+		for _, d := range skills {
+			add(manifest.NotEnglish("skill "+d.Name, read(docs.KindSkill, d.Name), manifest.PromptEnglish))
+		}
 	}
 	return out
 }

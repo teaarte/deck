@@ -23,6 +23,8 @@ var spoken = harness.Manifest(`{"title": "Notes", "i18n": {"ru": {"Notes": "За
 
 const spokenScript = "import json\n# a note of π alone is English\nprint(json.dumps({\"note\": \"Привет\"}))\n"
 
+const spokenSkill = "---\nname: notes\ndescription: How to keep notes.\n---\nA note is short.\nЗаметка короткая.\n"
+
 const spokenPrompt = "Think the note over.\nПодумай над заметкой.\nThen answer.\nОтветь коротко.\n"
 
 // warnedOf are the warnings of a language among ws.
@@ -31,13 +33,16 @@ func warnedOf(ws []string) []string {
 }
 
 // wantSpoken checks the warnings of a language of the module spoken: a file and its lines each, none of i18n.
-func wantSpoken(t *testing.T, how string, ws []string) {
+func wantSpoken(t *testing.T, how string, ws []string, skill bool) {
 	t.Helper()
 	got := warnedOf(ws)
 	want := []string{
+		`the prompt of command say: line 1 not in English ("Скажи заметку владельцу.")`,
 		`script scripts/main.py: line 3 not in English ("print(json.dumps({\"note\": \"Привет\"}))")`,
 		`prompt prompts/think.md: lines 2, 4 not in English ("Подумай над заметкой.")`,
-		`the prompt of command say: line 1 not in English ("Скажи заметку владельцу.")`,
+	}
+	if skill {
+		want = append(want, `skill skills/notes/SKILL.md: line 6 not in English ("Заметка короткая.")`)
 	}
 	if len(got) != len(want) {
 		t.Fatalf("%s warns of the lines not in English, a file each: %q", how, got)
@@ -52,14 +57,15 @@ func wantSpoken(t *testing.T, how string, ws []string) {
 	}
 }
 
-// TestLinesNotInEnglishAreWarnedNeverRefused: a check, a save and an import of a module whose script and prompts hold
-// Russian warn of each file with its lines and take the module; its i18n is not warned.
+// TestLinesNotInEnglishAreWarnedNeverRefused: a check, a save and an import of a module whose script, prompts and skill
+// hold Russian warn of each file with its lines and take the module; its i18n is not warned.
 func TestLinesNotInEnglishAreWarnedNeverRefused(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
 	e.Project("notes", spoken)
 	e.SaveScript("notes", "scripts/main.py", spokenScript)
 	e.Must("deck.document_save", map[string]any{"project": "notes", "name": "prompts/think.md", "kind": "doc", "text": spokenPrompt}, nil)
+	e.Must("deck.document_save", map[string]any{"project": "notes", "name": "skills/notes/SKILL.md", "kind": "skill", "text": spokenSkill}, nil)
 
 	var check struct {
 		Ok       bool
@@ -70,7 +76,7 @@ func TestLinesNotInEnglishAreWarnedNeverRefused(t *testing.T) {
 	if !check.Ok || len(check.Refused) > 0 {
 		t.Fatalf("a check takes a module not in English: %+v", check)
 	}
-	wantSpoken(t, "manifest_check", check.Warnings)
+	wantSpoken(t, "manifest_check", check.Warnings, true)
 
 	var saved struct {
 		Revision int64
@@ -80,10 +86,10 @@ func TestLinesNotInEnglishAreWarnedNeverRefused(t *testing.T) {
 	if saved.Revision < 2 {
 		t.Fatalf("a save takes a module not in English: %+v", saved)
 	}
-	wantSpoken(t, "manifest_save", saved.Warnings)
+	wantSpoken(t, "manifest_save", saved.Warnings, true)
 
 	dir := filepath.Join(t.TempDir(), "spoken")
-	for name, text := range map[string]string{"manifest.json": spoken, "scripts/main.py": spokenScript, "prompts/think.md": spokenPrompt} {
+	for name, text := range map[string]string{"manifest.json": spoken, "scripts/main.py": spokenScript, "prompts/think.md": spokenPrompt, "skills/notes/SKILL.md": spokenSkill} {
 		if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -99,7 +105,16 @@ func TestLinesNotInEnglishAreWarnedNeverRefused(t *testing.T) {
 	if imported.Status != "draft" {
 		t.Fatalf("an import takes a module not in English as a draft: %+v", imported)
 	}
-	wantSpoken(t, "project_import", imported.Warnings)
+	wantSpoken(t, "project_import", imported.Warnings, true)
+
+	var alone struct {
+		Ok       bool
+		Warnings []string
+	}
+	e.Must("deck.manifest_check", map[string]any{"manifest": spoken}, &alone)
+	if got := warnedOf(alone.Warnings); !alone.Ok || len(got) != 1 || !strings.HasPrefix(got[0], "the prompt of command say: line 1") {
+		t.Fatalf("a manifest checked alone warns of the prompts in it: %+v", alone)
+	}
 
 	var english struct{ Warnings []string }
 	e.Project("plain", strings.NewReplacer("Скажи заметку владельцу.", "Say the note to the owner.").Replace(spoken))

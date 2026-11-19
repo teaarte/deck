@@ -14,9 +14,9 @@ import (
 )
 
 // runTool makes the one gateway tool call of a tool command with the command input as it is.
-func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
+func (r *Runner) runTool(ctx context.Context, t turn, p db.Process) {
 	name := t.cmd.Executor.Tool
-	r.runCall(ctx, t, trial, true, func(proj db.Project) (string, json.RawMessage, error) {
+	r.runCall(ctx, t, p, true, func(proj db.Project) (string, json.RawMessage, error) {
 		if !registry.IsBuiltin(name) {
 			name = proj.Name + "." + name
 		}
@@ -31,8 +31,8 @@ func (r *Runner) runTool(ctx context.Context, t turn, trial bool) {
 
 // runModel makes the one call of a model of a model command: its prompt, the command input, and the result
 // schema for text; the words of tts, the recording of stt and the frames of a video are input fields.
-func (r *Runner) runModel(ctx context.Context, t turn, trial bool) {
-	r.runCall(ctx, t, trial, false, func(db.Project) (string, json.RawMessage, error) {
+func (r *Runner) runModel(ctx context.Context, t turn, p db.Process) {
+	r.runCall(ctx, t, p, false, func(db.Project) (string, json.RawMessage, error) {
 		prompt, err := r.commandBody(context.WithoutCancel(ctx), t.project, t.cmd)
 		if err != nil {
 			return "", nil, err
@@ -80,7 +80,7 @@ func (r *Runner) runModel(ctx context.Context, t turn, trial bool) {
 
 // runCall makes the one gateway call of a command whose executor is a call: what call names with its input; a tool
 // no stricter than its command is cleared with it, a model keeps to its own limits whatever the command's class.
-func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call func(db.Project) (string, json.RawMessage, error)) {
+func (r *Runner) runCall(ctx context.Context, t turn, p db.Process, tool bool, call func(db.Project) (string, json.RawMessage, error)) {
 	bg := context.WithoutCancel(ctx)
 	id := t.process
 	u := &run{turn: t}
@@ -100,7 +100,7 @@ func (r *Runner) runCall(ctx context.Context, t turn, trial, tool bool, call fun
 		return
 	}
 	defer u.close(r)
-	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: id, Trial: trial, Run: t.cmd.Executor.Type}
+	act := registry.ProcessOf(p, proj)
 	var out any
 	if tool {
 		out, err = r.gw.CallTool(ctx, act, proj.Name+"."+t.cmd.Name, name, input)

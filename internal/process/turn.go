@@ -68,11 +68,11 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	}
 	switch t.cmd.Executor.Type {
 	case KindScript:
-		r.runScript(ctx, t, trial)
+		r.runScript(ctx, t, p)
 	case KindTool:
-		r.runTool(ctx, t, trial)
+		r.runTool(ctx, t, p)
 	case KindModel:
-		r.runModel(ctx, t, trial)
+		r.runModel(ctx, t, p)
 	default:
 		r.runAgent(ctx, &t, p, trial)
 	}
@@ -120,7 +120,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		fail(fault.Of(err))
 		return nil, false
 	}
-	if !r.started(ctx, t, proj, trial, fail) {
+	if !r.started(ctx, t, p, proj, fail) {
 		return nil, false
 	}
 	if !r.deps.Goes(ctx, proj.WorkspaceID, pv.Name()) {
@@ -184,8 +184,10 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		}
 	}
 	var reached sync.Once
-	u, f := r.begin(ctx, *t, proj, &gateway.Session{ProcessID: t.process, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Submit: a.sub,
-		Question: pv.QuestionTool(), Wait: callLimit(pv), Master: proj.Builtin == 1, Commands: t.cmd.Executor.Calls,
+	who := registry.ProcessOf(p, proj)
+	who.Commands = t.cmd.Executor.Calls
+	u, f := r.begin(ctx, *t, proj, &gateway.Session{Who: who, Submit: a.sub,
+		Question: pv.QuestionTool(), Wait: callLimit(pv),
 		Heard: func() { r.answered(t.process); reached.Do(func() { r.reached(ctx, t.process) }) }})
 	if f != nil {
 		fail(f)
@@ -460,7 +462,7 @@ type again struct {
 
 // started asks the owner, before a turn starts, for the rights it needs that are not answered yet: the login of its
 // CLI and the network of the shells of its agents; false when it waits for the answer or a login was not given.
-func (r *Runner) started(ctx context.Context, t *turn, proj db.Project, trial bool, fail func(*fault.F)) bool {
+func (r *Runner) started(ctx context.Context, t *turn, p db.Process, proj db.Project, fail func(*fault.F)) bool {
 	login := ""
 	if sub, ok := t.pv.(provider.Subscribed); ok {
 		login = sub.OnLogin()
@@ -470,10 +472,7 @@ func (r *Runner) started(ctx context.Context, t *turn, proj db.Project, trial bo
 		fail(fault.Of(err))
 		return false
 	}
-	act := registry.Actor{Kind: registry.Agent, Workspace: proj.WorkspaceID, ProjectID: t.project, ProcessID: t.process, Trial: trial}
-	if proj.Builtin == 1 {
-		act.Kind = registry.Master
-	}
+	act := registry.ProcessOf(p, proj)
 	ask, work, err := r.gw.Start(ctx, act, proj.Name+"."+t.cmd.Name, m, granted, login)
 	switch {
 	case err != nil:

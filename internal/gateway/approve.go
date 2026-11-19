@@ -68,15 +68,15 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 	}
 	until := g.cfg.Now().Add(s.wait(g.cfg.QuestionWait))
 	text := strings.Join(texts, "\n")
-	open, _ := g.st.Q.ListOpenAsksOfProcess(ctx, s.ProcessID)
+	open, _ := g.st.Q.ListOpenAsksOfProcess(ctx, s.Who.ProcessID)
 	a, err := g.again(open, text), error(nil)
 	if a.ID == 0 {
 		// A question waits as long as a confirmation; at its term the agent goes on without the answer.
 		var expires time.Time
-		if ttl := g.confirmTTL(ctx, s.Workspace); ttl > 0 {
+		if ttl := g.confirmTTL(ctx, s.Who.Workspace); ttl > 0 {
 			expires = g.cfg.Now().Add(ttl)
 		}
-		a, err = g.asks.Create(ctx, s.ProcessID, ask.KindQuestion, text, in.Input, expires)
+		a, err = g.asks.Create(ctx, s.Who.ProcessID, ask.KindQuestion, text, in.Input, expires)
 	}
 	if err != nil {
 		return decision{Behavior: "deny", Message: "deck: could not deliver the question: " + err.Error()}
@@ -268,8 +268,8 @@ func RejectMessage(answer string) string {
 // awaitOwner waits until the owner answers ask id or until passes, with the ceiling of the process paused while any
 // call of it waits for the owner; the ceiling runs again once none does, even when the call went away.
 func (g *Gateway) awaitOwner(ctx context.Context, s *Session, id int64, until time.Time) (string, bool) {
-	g.waits(ctx, s.ProcessID, 1)
-	defer g.waits(context.WithoutCancel(ctx), s.ProcessID, -1)
+	g.waits(ctx, s.Who.ProcessID, 1)
+	defer g.waits(context.WithoutCancel(ctx), s.Who.ProcessID, -1)
 	return g.asks.Wait(ctx, id, until)
 }
 

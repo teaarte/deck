@@ -8,6 +8,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/registry"
 	"deck2/internal/txguard"
 )
 
@@ -15,7 +16,7 @@ import (
 // tool; the session it opens may call no command.
 func (g *Gateway) Reach(ctx context.Context, base string) error {
 	txguard.Check(ctx, "a reach of deck's MCP server")
-	tok, err := g.Open(ctx, &Session{Commands: []string{}})
+	tok, err := g.Open(ctx, &Session{Who: registry.Actor{Kind: registry.Agent, Commands: []string{}}})
 	if err != nil {
 		return err
 	}

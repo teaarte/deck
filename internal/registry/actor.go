@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"time"
+
+	"deck2/internal/store/db"
 )
 
 const (
@@ -142,4 +144,17 @@ func (a Actor) Author() string {
 		return fmt.Sprintf("%s:%d", cmp.Or(a.Run, Agent), a.ProcessID)
 	}
 	return a.Kind
+}
+
+// ProcessOf is the actor of a process of a project, the one way to make it: its agent turn is the master's in the
+// built-in project, else an agent's; a script, tool or model process is an agent that runs as its kind.
+func ProcessOf(p db.Process, proj db.Project) Actor {
+	a := Actor{Kind: Agent, Workspace: proj.WorkspaceID, ProjectID: p.ProjectID, ProcessID: p.ID, Trial: p.Trial == 1}
+	switch {
+	case p.Kind != Agent:
+		a.Run = p.Kind
+	case proj.Builtin == 1:
+		a.Kind = Master
+	}
+	return a
 }

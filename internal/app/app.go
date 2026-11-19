@@ -196,7 +196,11 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Installed: a.Providers.Installed, Node: a.nodeTransport,
 		Online: func(device int64) bool { return a.Nodes.State(device).Online }, FolderNodes: a.Folders.Nodes, Go: a.bg.Go,
 		Tools: func(ctx context.Context, p db.Project, cmd *manifest.Command) int {
-			return a.Gateway.Count(ctx, &gateway.Session{ProjectID: p.ID, Workspace: p.WorkspaceID, Master: p.Builtin == 1, Commands: cmd.Executor.Calls})
+			who := registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID, Commands: cmd.Executor.Calls}
+			if p.Builtin == 1 {
+				who.Kind = registry.Master
+			}
+			return a.Gateway.Count(ctx, &gateway.Session{Who: who})
 		}}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver, Await: a.Bus.Await,
 		Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start, Lang: a.Chats.LangOf,

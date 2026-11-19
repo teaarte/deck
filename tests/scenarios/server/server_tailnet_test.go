@@ -23,6 +23,7 @@ import (
 
 	"deck2/internal/api"
 	"deck2/internal/gateway"
+	"deck2/internal/registry"
 	"deck2/internal/tsnet"
 	"deck2/tests/harness"
 	"deck2/web"
@@ -209,7 +210,7 @@ func TestPhoneReachesDeckOverTheTailnet(t *testing.T) {
 	if !strings.Contains(r.Header.Get("Content-Security-Policy"), "frame-ancestors 'self'") {
 		t.Fatalf("no other page frames the client: %s", r.Header.Get("Content-Security-Policy"))
 	}
-	tok, err := e.App.Gateway.Open(ctx, &gateway.Session{Workspace: 1})
+	tok, err := e.App.Gateway.Open(ctx, &gateway.Session{Who: registry.Actor{Kind: registry.Agent, Workspace: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}

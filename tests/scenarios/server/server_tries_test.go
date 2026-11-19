@@ -174,7 +174,7 @@ func TestTheGatewayOfDecksNetworkIsNoProxy(t *testing.T) {
 func TestTheMCPOfAProcessRefusesAForwardedRequest(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	tok, err := e.App.Gateway.Open(t.Context(), &gateway.Session{Workspace: 1})
+	tok, err := e.App.Gateway.Open(t.Context(), &gateway.Session{Who: registry.Actor{Kind: registry.Agent, Workspace: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}

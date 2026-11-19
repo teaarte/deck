@@ -17,12 +17,14 @@ import (
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
 	"deck2/internal/script"
+	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 
 // runScript runs a command script once: input JSON in stdin, result JSON in stdout, files in its results folder.
-func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
+func (r *Runner) runScript(ctx context.Context, t turn, p db.Process) {
+	trial := p.Trial == 1
 	bg := context.WithoutCancel(ctx)
 	id := t.process
 	u := &run{turn: t}
@@ -44,7 +46,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, trial bool) {
 	}
 	r.deps.Servers(bg, t.project)
 	_ = r.deps.Programs(bg, t.project)
-	u, f := r.begin(bg, t, proj, &gateway.Session{ProcessID: id, ProjectID: t.project, Workspace: proj.WorkspaceID, Trial: trial, Run: KindScript})
+	u, f := r.begin(bg, t, proj, &gateway.Session{Who: registry.ProcessOf(p, proj)})
 	if f != nil {
 		u = &run{turn: t}
 		fail(f)

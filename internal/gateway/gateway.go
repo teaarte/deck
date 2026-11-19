@@ -32,25 +32,14 @@ const (
 
 // Session is what the gateway knows about the process behind an MCP token, or about an automation token.
 type Session struct {
-	ProcessID int64
-	ProjectID int64
-	Workspace int64
-	Trial     bool
-	// Run is the executor of a process that is not an agent turn, such as script.
-	Run string
-	// Token is set for an automation token: the caller calls what the master may, limited to Commands and Scope.
-	Token int64
-	Scope registry.Scope
-	// Commands, when not nil, are all an automation token or an agent may call.
-	Commands []string
+	// Who is the caller: a process by registry.ProcessOf, with the calls its command lists, or an automation token.
+	Who registry.Actor
 	// Submit is set when the process hands in its result with result_submit.
 	Submit *Submit
 	// Question is the question tool of the provider; the ask tool of the gateway is added for provider.AskTool.
 	Question string
 	// Wait caps how long a call of the session waits for the owner, for a provider whose tool calls time out.
 	Wait time.Duration
-	// Master is an agent of the built-in project master: it acts as the master, across projects.
-	Master bool
 	// Heard hears each call of a tool of the session, a sign of the model that makes it.
 	Heard func()
 
@@ -59,15 +48,11 @@ type Session struct {
 }
 
 func (s *Session) actor() registry.Actor {
-	if s.Token != 0 {
-		return registry.Actor{Kind: registry.Token, Workspace: s.Workspace, Token: s.Token, Commands: s.Commands, Scope: s.Scope}
+	a := s.Who
+	if a.Kind != registry.Token {
+		a.CallLimit = s.Wait
 	}
-	if s.Master {
-		return registry.Actor{Kind: registry.Master, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial,
-			Commands: s.Commands, CallLimit: s.Wait}
-	}
-	return registry.Actor{Kind: registry.Agent, Workspace: s.Workspace, ProjectID: s.ProjectID, ProcessID: s.ProcessID, Trial: s.Trial,
-		Commands: s.Commands, CallLimit: s.Wait, Run: s.Run}
+	return a
 }
 
 type Config struct {
@@ -198,9 +183,9 @@ func (g *Gateway) retool(ctx context.Context, srv *mcp.Server, s *Session, old [
 // Handler.
 func (g *Gateway) Open(ctx context.Context, s *Session) (string, error) {
 	tok := nonce.Hex(16)
-	if s.Run != "" {
+	if s.Who.Run != "" {
 		g.mu.Lock()
-		g.sessions[tok] = &entry{session: s, tally: g.tallyOf(s.actor(), s.ProjectID, manifest.Programs)}
+		g.sessions[tok] = &entry{session: s, tally: g.tallyOf(s.actor(), s.Who.ProjectID, manifest.Programs)}
 		g.mu.Unlock()
 		return tok, nil
 	}
@@ -211,7 +196,7 @@ func (g *Gateway) Open(ctx context.Context, s *Session) (string, error) {
 	cmds, _ := g.reg.List(ctx, s.actor())
 	g.mu.Lock()
 	g.sessions[tok] = &entry{session: s, server: srv, allowed: allowed, tools: tools, commands: commandsOf(cmds),
-		tally: g.tallyOf(s.actor(), s.ProjectID, manifest.Agents)}
+		tally: g.tallyOf(s.actor(), s.Who.ProjectID, manifest.Agents)}
 	g.mu.Unlock()
 	return tok, nil
 }
@@ -420,7 +405,7 @@ type liveKey struct{}
 func Live(ctx context.Context) bool { return ctx.Value(liveKey{}) != nil }
 
 func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json.RawMessage) *mcp.CallToolResult {
-	if s.Token == 0 && s.Run == "" && s.ProcessID != 0 {
+	if s.Who.Token == 0 && s.Who.Run == "" && s.Who.ProcessID != 0 {
 		ctx = context.WithValue(ctx, liveKey{}, true)
 	}
 	out, err := g.call(registry.WithPictures(ctx), s.actor(), name, args)
@@ -502,7 +487,7 @@ func (g *Gateway) projectName(ctx context.Context, project int64) string {
 }
 
 func (g *Gateway) log(ctx context.Context, s *Session, tool string, right registry.Need, outcome, params string) {
-	g.journal(ctx, s.actor(), s.ProjectID, tool, right, outcome, params, "")
+	g.journal(ctx, s.actor(), s.Who.ProjectID, tool, right, outcome, params, "")
 }
 
 // Journal writes a call to the journal for a command that writes its own line, on the line before wrote if any: one

@@ -166,9 +166,14 @@ func (s *Service) feedPress(ctx context.Context, act registry.Actor, in feedPres
 		writer.Kind = registry.Master
 	}
 	if f.ProcessID.Valid {
-		switch w, err := s.St.Q.GetProcess(ctx, f.ProcessID.Int64); {
+		w, err := s.St.Q.GetProcess(ctx, f.ProcessID.Int64)
+		var own db.Project
+		if err == nil {
+			own, err = s.St.Q.GetProject(ctx, w.ProjectID)
+		}
+		switch {
 		case err == nil:
-			writer = registry.ProcessOf(w, p)
+			writer = registry.ProcessOf(w, own)
 		case !errors.Is(err, sql.ErrNoRows):
 			return nil, err
 		}

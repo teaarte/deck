@@ -149,3 +149,40 @@ func TestAMarkedTurnsButtonKeepsItsMarkPastADay(t *testing.T) {
 		t.Fatalf("a day later the press of a marked turn's button still waits and sends nothing: %+v %d", held, len(svc.Requests()))
 	}
 }
+
+// TestTheMastersFeedButtonOnAModulesNoteAsksFirst: the master's note in a module with a button of an outward command
+// presses as the master's call of that module, which asks the owner first.
+func TestTheMastersFeedButtonOnAModulesNoteAsksFirst(t *testing.T) {
+	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "sent"}`) })
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "review" {
+			if out, bad := c.Tool(ctx, "owner_notify", map[string]any{"project": "notes", "text": "The queue is stuck",
+				"actions": `[{"label": "Send out", "command": "send", "params": {"id": "a", "text": "stuck"}}]`}); bad {
+				return provider.Result{Text: "refused: " + out}
+			}
+		}
+		return provider.Result{Text: "ok"}
+	}))
+	m := strings.NewReplacer(`"commands": [`, `"commands": [{"name": "send", "title": "Send out", "description": "Sends a note out.",
+    "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]},
+    "executor": {"type": "tool", "tool": "post"}}, `, `"what": ["post"]`, `"what": ["post", "send"]`).Replace(harness.PostManifest(svc.URL, ""))
+	e.Project("notes", m)
+	e.Secret("notes", "svc", "s3cret")
+	e.WaitState(e.Start("master", "review", nil), "done", "failed")
+	var feed []struct {
+		Buttons []struct {
+			Command string
+			Params  map[string]any
+		}
+	}
+	e.Must("deck.feed_list", map[string]any{"kind": "note"}, &feed)
+	if len(feed) != 1 || len(feed[0].Buttons) != 1 || feed[0].Buttons[0].Command != "deck.feed_press" {
+		t.Fatalf("the master's note with the button of the module's call: %+v", feed)
+	}
+	var held struct{ Waiting int64 }
+	e.Must("deck.feed_press", feed[0].Buttons[0].Params, &held)
+	if a := e.WaitAsk(); held.Waiting != a.ID || len(svc.Requests()) != 0 {
+		t.Fatalf("the press waits for the owner and sends nothing: %+v %+v", held, a)
+	}
+}

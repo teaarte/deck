@@ -1,5 +1,5 @@
 // Package models keeps who does what of the work of deck: the models assigned to each kind of work, where a call of a
-// model goes and what it cost, the calls of models, the web of agents and speech to text.
+// model goes and what it cost, the calls of models and speech to text.
 package models
 
 import (
@@ -35,8 +35,6 @@ type Service struct {
 	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
 	// Invoke calls a command, as speech to text calls a model.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
-	// Journal writes the line of a command that keeps its own in the journal of the gateway, a read of the web.
-	Journal func(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string)
 	// Builtin are the providers deck was started with, the main one first.
 	Builtin []provider.Provider
 	// Provider is a provider of a workspace by name, All every one that is on, Off why one takes no work.
@@ -74,9 +72,9 @@ type Service struct {
 	jobs  sync.Map
 }
 
-// Commands are the commands of the work: assignments, calls of models, the web of agents and speech to text.
+// Commands are the commands of the work: assignments, calls of models and speech to text.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.listCommands(), s.assignmentCommands(), s.replaceCommands(), s.callCommands(), s.webCommands(), s.transcribeCommands())
+	return slices.Concat(s.listCommands(), s.assignmentCommands(), s.replaceCommands(), s.callCommands(), s.transcribeCommands())
 }
 
 // plainOf is the flag of a model whose API takes no reasoning back, kept while deck runs.

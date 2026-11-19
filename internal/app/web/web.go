@@ -1,4 +1,6 @@
-package models
+// Package web keeps the web of deck's agents: a search through the search service of deck's settings and a read of
+// a page of the hosts a module holds the network of.
+package web
 
 import (
 	"context"
@@ -21,13 +23,21 @@ import (
 	"deck2/internal/models"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/untrusted"
 )
 
-// noSearch is what the owner does when no search is assigned; searchGone, when a search does not answer.
-const noSearch = "no search is set up, so agents without their own web only read pages; deck from compose.yaml searches through the SearXNG beside it, anywhere else the master sets SearXNG up by its models skill"
+// Service reads the web for deck's agents; the gateway journals each read.
+type Service struct {
+	St *store.Store
+	// Journal writes the line of a command that keeps its own in the journal of the gateway, a read of the web.
+	Journal func(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string)
+	// Route finds where an actor's call of a model goes, the search of deck's settings for @search.
+	Route func(ctx context.Context, act registry.Actor, ask models.Ask) ([]models.Hop, error)
+}
 
-const searchGone = "%s; deck from compose.yaml of this release runs SearXNG beside it (docker compose up -d), anywhere else the master sets SearXNG up by its models skill"
+// Commands are the web of deck's agents.
+func (s *Service) Commands() []*registry.Command { return s.webCommands() }
 
 const (
 	maxPage     = 4 << 20
@@ -94,7 +104,7 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 	if strings.TrimSpace(in.Query) == "" {
 		return nil, registry.Invalid("a search needs a query")
 	}
-	hops, err := s.Route(ctx, act, models.Ask{Connection: "@", Model: "@" + RoleSearch})
+	hops, err := s.Route(ctx, act, models.Ask{Connection: "@", Model: "@" + models.KindSearch})
 	if err != nil {
 		return nil, err
 	}

@@ -33,6 +33,7 @@ import (
 	"deck2/internal/app/themes"
 	"deck2/internal/app/triggers"
 	"deck2/internal/app/updates"
+	"deck2/internal/app/web"
 	"deck2/internal/ask"
 	"deck2/internal/auth"
 	"deck2/internal/events"
@@ -66,6 +67,7 @@ type App struct {
 	Scheduler *trigger.Scheduler
 	Providers providers.Service
 	Models    appmodels.Service
+	Web       web.Service
 	Feed      feed.Service
 	Chats     chat.Service
 	// Auth signs the owner's devices in; Owners keeps the devices, their pushes and the tokens.
@@ -191,7 +193,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Builtin: builtin, Ctx: a.ctx, Go: a.bg.Go, TurnModel: a.Models.TurnModel, Catalog: a.Models.Catalog, CheckFiles: a.Models.CheckFiles,
 		KeepBig: a.Models.KeepBig, View: a.Models.ModelView, Unassign: a.Models.Unassign}
 	a.Models = appmodels.Service{St: st, Now: cfg.Now, Home: h, Hold: a.Files.Hold, VideoPoll: cfg.VideoPoll, VideoCeiling: cfg.VideoCeiling,
-		Key: a.Secrets.Key, Resolve: a.Tools.Resolve, Invoke: a.Registry.Invoke, Journal: a.Gateway.Journal, Builtin: builtin, Provider: a.Providers.Provider,
+		Key: a.Secrets.Key, Resolve: a.Tools.Resolve, Invoke: a.Registry.Invoke, Builtin: builtin, Provider: a.Providers.Provider,
 		All: a.Providers.All, Off: a.Providers.Off, Up: a.Providers.Up, Health: a.Providers.Health, Exists: a.Providers.Exists, Limited: a.Providers.Limited, Answered: a.Providers.Answered, Free: a.Providers.Free, Spare: a.Providers.Spare,
 		Installed: a.Providers.Installed, Node: a.nodeTransport,
 		Online: func(device int64) bool { return a.Nodes.State(device).Online }, FolderNodes: a.Folders.Nodes, Go: a.bg.Go,
@@ -202,6 +204,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			}
 			return a.Gateway.Count(ctx, &gateway.Session{Who: who})
 		}}
+	a.Web = web.Service{St: st, Journal: a.Gateway.Journal, Route: a.Models.Route}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver, Await: a.Bus.Await,
 		Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start, Lang: a.Chats.LangOf,
 		Shown: func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, bool, error) {

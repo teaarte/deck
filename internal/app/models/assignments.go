@@ -567,3 +567,8 @@ func (s *Service) inForce(ctx context.Context, workspace int64, input json.RawMe
 	}
 	return true
 }
+
+// noSearch is what the owner does when no search is assigned; searchGone, when a search does not answer.
+const noSearch = "no search is set up, so agents without their own web only read pages; deck from compose.yaml searches through the SearXNG beside it, anywhere else the master sets SearXNG up by its models skill"
+
+const searchGone = "%s; deck from compose.yaml of this release runs SearXNG beside it (docker compose up -d), anywhere else the master sets SearXNG up by its models skill"

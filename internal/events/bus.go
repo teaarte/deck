@@ -90,7 +90,7 @@ func (b *Bus) Await(ctx context.Context, workspace int64, topics []string, check
 		if done || err != nil {
 			return err
 		}
-		timer := time.NewTimer(again)
+		timer := time.NewTimer(max(again, minAwait))
 		for woke := false; !woke; {
 			select {
 			case <-ctx.Done():
@@ -105,6 +105,9 @@ func (b *Bus) Await(ctx context.Context, workspace int64, topics []string, check
 		timer.Stop()
 	}
 }
+
+// minAwait is the shortest wait of Await between two checks, so a check that names none does not spin.
+const minAwait = 10 * time.Millisecond
 
 // Subscribe follows the events of a workspace.
 func (b *Bus) Subscribe(workspace int64) (*Sub, func()) {

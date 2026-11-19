@@ -371,7 +371,9 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		// A wait goes on through the process another model took the work over to.
 		next, soon := s.handedOn(ctx, p)
 		for ; in.Wait > 0 && next != 0; next, soon = s.handedOn(ctx, p) {
-			if p, err = s.St.Q.GetProcess(ctx, next); err != nil {
+			if p, err = s.St.Q.GetProcess(ctx, next); errors.Is(err, sql.ErrNoRows) {
+				return true, 0, registry.NotFound("no process %d", next)
+			} else if err != nil {
 				return true, 0, err
 			}
 			in.Process = next

@@ -54,7 +54,7 @@ func refOf(raw string) (Ref, error) {
 }
 
 // who derives the caller a reference names now: a process by registry.ProcessOf with the calls of its command, a token
-// by its rights now, a trigger by its row; one gone gives an error and its kind and ids alone, a name for the journal.
+// by its rights now; a process or token gone gives an error and its kind and ids alone, a name for the journal.
 func (g *Gateway) who(ctx context.Context, q *db.Queries, r Ref) (registry.Actor, error) {
 	bare := registry.Actor{Kind: r.Kind, Workspace: r.Workspace, ProjectID: r.Project, ProcessID: r.Process, TriggerID: r.Trigger,
 		Confirmed: r.Trigger != 0, Token: r.Token}
@@ -67,11 +67,8 @@ func (g *Gateway) who(ctx context.Context, q *db.Queries, r Ref) (registry.Actor
 		}
 		return act, nil
 	case r.Trigger != 0:
-		t, err := q.GetTrigger(ctx, r.Trigger)
-		if err != nil {
-			return bare, fmt.Errorf("the trigger %d that asked is gone: %w", r.Trigger, err)
-		}
-		bare.ProjectID = t.ProjectID
+		// A trigger is its reference whole: an edit of its manifest replaces its row, and the call still goes.
+		bare.Kind = registry.Trigger
 		return bare, nil
 	case r.Process != 0:
 		p, err := q.GetProcess(ctx, r.Process)
@@ -88,9 +85,11 @@ func (g *Gateway) who(ctx context.Context, q *db.Queries, r Ref) (registry.Actor
 			if err != nil {
 				return act, fmt.Errorf("the manifest of process %d: %w", r.Process, err)
 			}
-			if c := m.Command(p.Command); c != nil {
-				act.Commands = c.Executor.Calls
+			c := m.Command(p.Command)
+			if c == nil {
+				return act, fmt.Errorf("process %d: its command %q is not in its manifest", r.Process, p.Command)
 			}
+			act.Commands = c.Executor.Calls
 		}
 		return act, nil
 	}
@@ -271,6 +270,9 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 	if f.As != AsOwner {
 		act, err = g.who(ctx, g.st.Q, f.Who)
 		act.Why = f.Reason
+		if err != nil {
+			g.journal(ctx, act, a.ProjectID.Int64, f.Call.Command, needOf(f.Need), "rejected", string(f.Call.Input), err.Error())
+		}
 	}
 	var out any
 	if err == nil {

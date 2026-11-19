@@ -3,6 +3,7 @@ package owner
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"slices"
 	"strings"
 	"testing"
@@ -134,5 +135,34 @@ func TestAnAskMadeBeforeTheUpdateIsAnsweredAfter(t *testing.T) {
 	_ = e2.SQLRow(`SELECT actor FROM tool_call WHERE tool = 'deck.assignment_set' AND outcome = 'done' ORDER BY id DESC`).Scan(&made)
 	if want := fmt.Sprintf("script:%d", run); waited != want || made != want {
 		t.Fatalf("the call waited and is made as the script it came from: waited as %q, made as %q", waited, made)
+	}
+}
+
+// TestAYesToTheCallOfATokenRevokedMeanwhileMakesNothing: the caller of a call that waited is derived at the yes, so a
+// token the owner revoked meanwhile makes nothing, and the journal says the call was refused.
+func TestAYesToTheCallOfATokenRevokedMeanwhileMakesNothing(t *testing.T) {
+	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "sent"}`) })
+	e := harness.New(t)
+	e.Project("notes", strings.NewReplacer(`"commands": [`, `"commands": [{"name": "send", "title": "Send out", "description": "Sends a note out.",
+    "input": {"type": "object", "properties": {"id": {"type": "string"}, "text": {"type": "string"}}, "required": ["id", "text"]},
+    "executor": {"type": "tool", "tool": "post"}}, `, `"what": ["post"]`, `"what": ["post", "send"]`).Replace(harness.PostManifest(svc.URL, "")))
+	e.Secret("notes", "svc", "s3cret")
+	id, tok := e.Token("shortcuts", "notes.*")
+	if code, out := e.As(tok).Call("notes.send", map[string]any{"id": "a", "text": "hi"}); code != 200 || !strings.Contains(string(out), "waiting") {
+		t.Fatalf("the token's call waits for the owner: %d %s", code, out)
+	}
+	a := e.WaitAsk()
+	e.Must("deck.token_revoke", map[string]any{"token": id}, nil)
+	_, _ = e.Call("deck.ask_answer", map[string]any{"ask": a.ID, "answer": "allow"})
+	if n := len(svc.Requests()); n != 0 {
+		t.Fatalf("a revoked token's call is not made: %d requests", n)
+	}
+	refused := false
+	for _, r := range e.Journal() {
+		refused = refused || r.Actor == fmt.Sprintf("token:%d", id) && r.Tool == "notes.send" && r.Outcome == "rejected"
+	}
+	if !refused {
+		t.Fatalf("the journal says the call was refused: %+v", e.Journal())
 	}
 }

@@ -550,8 +550,8 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
 - 2026-11-14: under `run_usd` a paid call of a model deck cannot price (the API sent no cost, the model has no price in
   deck's settings) counts as past the cap: the next call of that run waits for the owner (an agent) or is refused (a
   script). A model of the owner's machine, a free one and a subscription are not money.
-  Modules: a model a module calls under `run_usd` gets a price in deck's settings, or the run waits for the owner
-  after its first call.
+  Modules: a module that calls a model under `run_usd` asks the owner to give that model a price in deck's settings,
+  or the run waits for the owner after its first call.
 - 2026-11-14: calls of models of one run under `run_usd` go one at a time, each counted with what the ones before it
   cost: a script's parallel calls wait for each other, and the run spends no more than when it calls in a row.
   Modules: nothing.
@@ -596,8 +596,8 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   of a draft are gone: the draft's card says how many rights enabling gives and how many ask first, with a button to
   Rights. A module's report is the screen `rights-report` (`project`, `period`). An open process gives `marks` (its
   hosts and login as labels) and a chat topic `opens`; the head of Today says how many runs hold the network or a login.
-  Modules: a screen of a module that links to the rights of its settings links `deck/settings` with `tab` `Rights` and
-  `project`.
+  Modules: a button of a module that opened the rights of its settings opens the screen `deck/settings` with `params`
+  `tab: Rights` and `project`.
 - 2026-11-14: `asks_list` gives `waits`, why a request waits for the owner in the owner's words (by the row of the
   table of decisions), and with `by_work` puts the open requests of one process in one item with `parts`, each with its
   own buttons, and buttons for all (verbs `allow_all`, `deny_all`, `allow_work_all`); `ask_answer` takes `also`, other
@@ -610,8 +610,9 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   onnxruntime-gpu in a header, of a script that downloads from Hugging Face or `network` on huggingface.co, and of a
   script of `runtime: node` (a script is Python; node only starts a ready JS engine). `files: gpu` is for rendering
   and video.
-  Modules: a script that loads weights or downloads them from Hugging Face, or runs on node: call a model of a
-  connection instead (`manifest_check` names it).
+  Modules: a script that loads weights or downloads them from Hugging Face calls a model of a connection instead; a
+  script of `runtime: node` is rewritten in Python, node only starting a ready JS engine (`manifest_check` names
+  both).
 - 2026-11-14: the master has the skills `models` (a model is a ready open-source server or a cloud API: a server by
   kind, its install on a Mac or Linux, its connection through a node or a local address, cloud or own by how often,
   a model tried through the cloud) and `first-setup` (three ways to reach models and the assignments of each kind). A
@@ -669,8 +670,9 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
 - 2026-11-20: `commands_list` gives the master the form of `deck.project_trust` (Settings → Rights, a dialog that takes
   `project`), so the master links the owner to it; the `runtime` of a script in `manifest_format_get` says that python
   runs by `uv run --script` with its PEP 723 block; `manifest_check`, `manifest_save`, a read of a manifest and an
-  import warn of a script of `runtime` `exec` with `uv run` in its shebang. Each line here since 2026-11-10 ends with
-  what a module does about it.
+  import warn of a script of `runtime` `exec` with `uv run` in its shebang. Each line here since 2026-11-10 now ends with
+  what a module does about it: read them again from 2026-11-10. The line of 2026-11-13 on HTTP tools of POST, PUT,
+  PATCH or DELETE is now within the one of 2026-11-14, and `calls_list` is named the owner's.
   Modules: a script of `"runtime": "exec"` whose first line is `#!/usr/bin/env -S uv run --script` gets
   `"runtime": "python"`.
 - 2026-11-20: `manifest_check`, `manifest_save` and an import warn of the lines not in English of a module's scripts,

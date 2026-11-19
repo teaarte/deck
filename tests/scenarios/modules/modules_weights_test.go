@@ -98,12 +98,14 @@ InferenceClient(base_url="https://router.huggingface.co/v1")
 func TestAnExecScriptOfUvIsWarnedToRunAsPython(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	for name, c := range map[string]struct{ runtime, warn string }{
-		"uvexec": {"exec", "script main runs by exec with uv run in its shebang: give it runtime python"},
-		"uvpy":   {"python", ""},
+	for name, c := range map[string]struct{ runtime, shebang, warn string }{
+		"uvexec":  {"exec", "#!/usr/bin/env -S uv run --script", "script main runs by exec with uv run in its shebang: give it runtime python"},
+		"uvpy312": {"exec", "#!/usr/bin/env -S  uv run --python 3.12 --script", "script main runs by exec with uv run in its shebang"},
+		"uvpy":    {"python", "#!/usr/bin/env -S uv run --script", ""},
+		"python3": {"exec", "#!/usr/bin/env python3", ""},
 	} {
 		e.Project(name, heavyModule(c.runtime, ""))
-		e.SaveScript(name, "scripts/main.py", "#!/usr/bin/env -S uv run --script\n"+header("requests"))
+		e.SaveScript(name, "scripts/main.py", c.shebang+"\n"+header("requests"))
 		var check struct {
 			Ok       bool
 			Warnings []string

@@ -23,6 +23,9 @@ var learning = []string{"torch", "torchvision", "torchaudio", "diffusers", "tran
 var fromHF = regexp.MustCompile(`\b(?:huggingface\.co|hf\.co)/[\w.-]+/[\w.-]+/(?:resolve|blob)/|` +
 	`\bgit(?:\s+lfs)?\s+clone\s+\S*\b(?:huggingface\.co|hf\.co)/|\b(?:snapshot_download|hf_hub_download|from_pretrained)\(`)
 
+// uvShebang is a first line that runs a script by uv, as a Python script ran before runtime python.
+var uvShebang = regexp.MustCompile(`^\x{FEFF}?#!\S*env\s+-S\s+uv\b[^\n]*\brun\b`)
+
 // tomlString is a string of a line of TOML.
 var tomlString = regexp.MustCompile(`"([^"]+)"|'([^']+)'`)
 
@@ -46,7 +49,7 @@ func (m *Manifest) Heavy(src func(file string) string) []string {
 			out = append(out, fmt.Sprintf("script %s runs on node: a script of a module is Python with a PEP 723 header; node only starts a ready JS engine, such as Remotion", sc.Name))
 		}
 		text := src(sc.File)
-		if sc.Runtime == "exec" && strings.HasPrefix(text, "#!/usr/bin/env -S uv run") {
+		if sc.Runtime == "exec" && uvShebang.MatchString(text) {
 			out = append(out, fmt.Sprintf("script %s runs by exec with uv run in its shebang: give it runtime python, which runs it by uv run --script on deck's python", sc.Name))
 		}
 		deps := requirements(text)

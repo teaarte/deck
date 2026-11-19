@@ -666,3 +666,10 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   has now (a token revoked meanwhile gets the call refused), an agent with the calls its command lists. `call_explain`
   of a process and a button on a note act as the process that wrote it.
   Modules: nothing.
+- 2026-11-20: `commands_list` gives the master the form of `deck.project_trust` (Settings → Rights, a dialog that takes
+  `project`), so the master links the owner to it; the `runtime` of a script in `manifest_format_get` says that python
+  runs by `uv run --script` with its PEP 723 block; `manifest_check`, `manifest_save`, a read of a manifest and an
+  import warn of a script of `runtime` `exec` with `uv run` in its shebang. Each line here since 2026-11-10 ends with
+  what a module does about it.
+  Modules: a script of `"runtime": "exec"` whose first line is `#!/usr/bin/env -S uv run --script` gets
+  `"runtime": "python"`.

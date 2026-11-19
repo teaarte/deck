@@ -600,3 +600,31 @@ func TestAnAgentThatWritesSaysWhatItChanged(t *testing.T) {
 		t.Fatalf("an import takes the module and warns: %+v", im)
 	}
 }
+
+// The format a model reads to write a module says how deck runs a script of runtime python.
+func TestTheFormatSaysHowAPythonScriptRuns(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	var schema struct {
+		Defs map[string]struct {
+			Properties map[string]struct {
+				Description string `json:"description"`
+			} `json:"properties"`
+		} `json:"$defs"`
+	}
+	e.Must("deck.manifest_format_get", nil, &schema)
+	var runtime string
+	for _, d := range schema.Defs {
+		if p, ok := d.Properties["runtime"]; ok {
+			runtime = p.Description
+		}
+	}
+	for _, want := range []string{"uv run --script", "PEP 723", "3.11", "program.missing"} {
+		if !strings.Contains(runtime, want) {
+			t.Fatalf("the runtime of a script says %q: %q", want, runtime)
+		}
+	}
+	if strings.Contains(runtime, "#!/usr/bin/env -S uv run") {
+		t.Fatalf("a python script no longer runs by exec with uv in its shebang: %q", runtime)
+	}
+}

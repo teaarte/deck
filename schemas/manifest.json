@@ -144,7 +144,7 @@
       "properties": {
         "name": {"$ref": "#/$defs/name"},
         "file": {"type": "string", "minLength": 1, "description": "Project document holding the script source."},
-        "runtime": {"enum": ["python", "node", "bash", "exec"], "description": "exec runs the file by its shebang. A script installs its own packages when it runs (Python: exec with #!/usr/bin/env -S uv run --script and a PEP 723 block; Node: npm install into $DECK_DATA); the registries are hosts of its network right."},
+        "runtime": {"enum": ["python", "node", "bash", "exec"], "description": "python runs the file by uv run --script on deck's one python (3.11 in the image): its PEP 723 block gives its packages, and a requires-python that python does not meet fails as program.missing. exec runs the file by its shebang; node takes its packages by npm install into $DECK_DATA. The registries are hosts of its network right."},
         "programs": {"type": "array", "uniqueItems": true, "description": "Programs that must exist on the machine: a name, or a name with how the owner installs it.",
           "items": {"oneOf": [{"type": "string"}, {"type": "object", "additionalProperties": false, "required": ["name"],
             "properties": {"name": {"type": "string", "minLength": 1}, "install": {"type": "string", "description": "How the owner installs it, such as brew install ffmpeg; deck shows it while the program is missing."}}}]}},

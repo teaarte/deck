@@ -92,3 +92,26 @@ InferenceClient(base_url="https://router.huggingface.co/v1")
 		}
 	}
 }
+
+// A script of the form before 2026-11-14, exec with uv run in its shebang, is warned to take runtime python; the save
+// still takes it, and runtime python is not warned.
+func TestAnExecScriptOfUvIsWarnedToRunAsPython(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	for name, c := range map[string]struct{ runtime, warn string }{
+		"uvexec": {"exec", "script main runs by exec with uv run in its shebang: give it runtime python"},
+		"uvpy":   {"python", ""},
+	} {
+		e.Project(name, heavyModule(c.runtime, ""))
+		e.SaveScript(name, "scripts/main.py", "#!/usr/bin/env -S uv run --script\n"+header("requests"))
+		var check struct {
+			Ok       bool
+			Warnings []string
+		}
+		e.Must("deck.manifest_check", map[string]any{"project": name}, &check)
+		warned := slices.ContainsFunc(check.Warnings, func(w string) bool { return strings.Contains(w, "uv run in its shebang") })
+		if !check.Ok || warned != (c.warn != "") || c.warn != "" && !slices.ContainsFunc(check.Warnings, func(w string) bool { return strings.Contains(w, c.warn) }) {
+			t.Fatalf("%s: manifest_check takes it and warns %q: %+v", name, c.warn, check)
+		}
+	}
+}

@@ -146,6 +146,8 @@
           ]}
       ]},
       {"title": "Rights", "icon": "shield-check", "blocks": [
+        {"type": "dialog", "name": "trust", "title": "Trust the data of a module", "icon": "shield-check", "blocks": [
+          {"type": "form", "command": "deck.project_trust", "values": {"project": "=param.project"}}]},
         {"type": "list", "title": "Rights", "span": "full", "source": {"from": "deck.rights_list", "input": {"project": "=param.project ?? ''"}},
           "head": [
             {"label": "By module", "icon": "apps", "screen": "settings", "params": {"tab": "Rights"}},

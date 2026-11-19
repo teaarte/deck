@@ -643,3 +643,35 @@ func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 		}
 	}
 }
+
+// The master gives the owner a link to the form of project_trust, which only the owner calls: a dialog of Rights.
+func TestTheMasterLinksTheFormOfProjectTrust(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	out, err := e.App.Registry.Invoke(t.Context(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.commands_list",
+		json.RawMessage(`{"project":"deck","fields":["name","owner_only","form","form_params"]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := json.Marshal(out)
+	var rows []struct {
+		Name       string   `json:"name"`
+		OwnerOnly  bool     `json:"owner_only"`
+		Form       string   `json:"form"`
+		FormParams []string `json:"form_params"`
+	}
+	if err := json.Unmarshal(raw, &rows); err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(rows, func(r struct {
+		Name       string   `json:"name"`
+		OwnerOnly  bool     `json:"owner_only"`
+		Form       string   `json:"form"`
+		FormParams []string `json:"form_params"`
+	}) bool {
+		return r.Name == "deck.project_trust"
+	})
+	if i < 0 || !rows[i].OwnerOnly || rows[i].Form != "#/deck/settings?dialog=trust&tab=Rights" || !slices.Equal(rows[i].FormParams, []string{"project"}) {
+		t.Fatalf("the master's row of project_trust has no form of Rights: %s", raw)
+	}
+}

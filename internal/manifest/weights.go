@@ -27,7 +27,7 @@ var fromHF = regexp.MustCompile(`\b(?:huggingface\.co|hf\.co)/[\w.-]+/[\w.-]+/(?
 var tomlString = regexp.MustCompile(`"([^"]+)"|'([^']+)'`)
 
 // Heavy are the warnings of a module whose scripts look like they keep a model in deck — gpu with a package that loads
-// weights, a package of a graphics card, a download from Hugging Face — or are not Python; src is the text of a file.
+// weights, a package of a graphics card, a download from Hugging Face — or do not run as Python; src is a file's text.
 func (m *Manifest) Heavy(src func(file string) string) []string {
 	var out []string
 	gpu := slices.ContainsFunc(m.Rights, func(d Declared) bool { return d.Right == Files && slices.Contains(d.What, GPU) })
@@ -46,6 +46,9 @@ func (m *Manifest) Heavy(src func(file string) string) []string {
 			out = append(out, fmt.Sprintf("script %s runs on node: a script of a module is Python with a PEP 723 header; node only starts a ready JS engine, such as Remotion", sc.Name))
 		}
 		text := src(sc.File)
+		if sc.Runtime == "exec" && strings.HasPrefix(text, "#!/usr/bin/env -S uv run") {
+			out = append(out, fmt.Sprintf("script %s runs by exec with uv run in its shebang: give it runtime python, which runs it by uv run --script on deck's python", sc.Name))
+		}
 		deps := requirements(text)
 		if i := slices.IndexFunc(deps, onGPU); i >= 0 {
 			out = append(out, fmt.Sprintf("script %s: %s in its PEP 723 header runs a model on a graphics card; %s", sc.Name, deps[i], model))

@@ -673,3 +673,9 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   what a module does about it.
   Modules: a script of `"runtime": "exec"` whose first line is `#!/usr/bin/env -S uv run --script` gets
   `"runtime": "python"`.
+- 2026-11-20: `manifest_check`, `manifest_save` and an import warn of the lines not in English of a module's scripts,
+  its prompt files and the prompts of its commands, a warning a file with the numbers of its lines (a word of two
+  letters or more of a script other than Latin, such as Cyrillic); they still take the module. The `i18n` of a
+  manifest is not warned.
+  Modules: a script that writes its words in another language writes them in English and puts the owner's words in
+  `i18n`; a prompt in another language is rewritten in English, its agent writing in the language deck gives.

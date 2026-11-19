@@ -29,12 +29,46 @@ func (s *Service) unassigned(ctx context.Context, p db.Project, m *manifest.Mani
 }
 
 // untold are the warnings of a module's commands that do not say what they changed or call one whose answer no schema
-// tells, and of its scripts that keep a model in deck or are not Python; the built-in project tells the owner itself.
+// tells, of its scripts that keep a model in deck or are not Python, and of lines not in English; not of the master.
 func (s *Service) untold(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
 	if p.Builtin == 1 {
 		return nil
 	}
-	return slices.Concat(m.Unreported(), m.Unshaped(p.Name), s.heavy(ctx, p, m))
+	return slices.Concat(m.Unreported(), m.Unshaped(p.Name), s.heavy(ctx, p, m), s.foreign(ctx, p, m))
+}
+
+// foreign are the warnings of the scripts and prompts of a module with lines not in English, a file each; the i18n of
+// its manifest is where the owner's words are.
+func (s *Service) foreign(ctx context.Context, p db.Project, m *manifest.Manifest) []string {
+	if p.ID == 0 {
+		return nil
+	}
+	read := func(kind, file string) string {
+		text, _ := docs.CurrentText(ctx, s.St.Q, docs.ProjectScope(p), kind, file)
+		return text
+	}
+	var out []string
+	add := func(w string) {
+		if w != "" {
+			out = append(out, w)
+		}
+	}
+	for _, sc := range m.Scripts {
+		add(manifest.NotEnglish("script "+sc.File, read(docs.KindScript, sc.File), manifest.ScriptEnglish))
+	}
+	prompts := []string{docs.PromptName}
+	for _, c := range m.Commands {
+		if f := c.Executor.PromptFile; f != "" && !slices.Contains(prompts, f) {
+			prompts = append(prompts, f)
+		}
+	}
+	for _, f := range prompts {
+		add(manifest.NotEnglish("prompt "+f, read("", f), manifest.PromptEnglish))
+	}
+	for _, c := range m.Commands {
+		add(manifest.NotEnglish("the prompt of command "+c.Name, c.Executor.Prompt, manifest.PromptEnglish))
+	}
+	return out
 }
 
 // heavy are the warnings of the scripts of a module that keep a model in deck or are not Python, read with their files.

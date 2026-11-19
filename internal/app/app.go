@@ -19,6 +19,7 @@ import (
 	apphealth "deck2/internal/app/health"
 	"deck2/internal/app/journal"
 	appmodels "deck2/internal/app/models"
+	appmodules "deck2/internal/app/modules"
 	"deck2/internal/app/owners"
 	"deck2/internal/app/processes"
 	"deck2/internal/app/project"
@@ -90,6 +91,7 @@ type App struct {
 	Signins   signins.Service
 	Projects  project.Service
 	Rights    rights.Service
+	Modules   appmodules.Service
 	Records   records.Service
 	Health    apphealth.Service
 	Processes processes.Service
@@ -240,12 +242,14 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: a.bg.Go,
 		Snapshot: func(ctx context.Context) error { _, err := a.Snapshots.Snapshot(ctx); return err }}
 	a.Projects = project.Service{St: st, Emit: a.Bus.Emit, Now: cfg.Now, Home: h, Registry: a.Registry,
-		Gateway: a.Gateway, Scheduler: a.Scheduler, Scripts: a.Scripts, LogPath: a.Runner.LogPath, StopServer: a.Host.Stop, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep,
+		Gateway: a.Gateway, Scheduler: a.Scheduler, Scripts: a.Scripts, LogPath: a.Runner.LogPath, StopServer: a.Host.Stop, Snapshot: a.Snapshots.BeforeDelete,
 		PrepareLater: a.Documents.PrepareLater, Noted: a.Feed.Noted, CheckScreens: a.Screens.CheckScreens,
 		Unassigned: a.Models.Unassigned, Missing: a.missingPrograms, Secret: a.Secrets.Has, DropSecrets: a.Secrets.Drop,
 		Theme: a.Themes.Current, Saw: a.Runner.Saw, Seen: a.Runner.Seen,
-		Ungranted: a.Rights.Ungranted, GrantDeclared: a.Rights.GrantDeclared, Grant: a.Rights.Grant, TellRights: a.Rights.TellRights}
+		Ungranted: a.Rights.Ungranted, GrantDeclared: a.Rights.GrantDeclared, Grant: a.Rights.Grant, TellRights: a.Rights.TellRights,
+		Starter: appmodules.Starter, ReadUpload: a.Modules.ReadUpload, ReadFolder: appmodules.ReadFolder, RestoreUpload: a.Modules.RestoreUpload}
 	a.Rights = rights.Service{St: st, Now: cfg.Now, Registry: a.Registry, StopServer: a.Host.Stop}
+	a.Modules = appmodules.Service{St: st, Now: cfg.Now, Home: h, Gateway: a.Gateway, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Asks.OnLateAnswer(a.Answers.LateAnswer)

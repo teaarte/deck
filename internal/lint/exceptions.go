@@ -19,8 +19,8 @@ var exceptions = map[string][]string{
 	"read": {
 		"cmd/deck-release/main.go:60", "internal/app/feed/push.go:66",
 		"internal/app/files/files.go:251", "internal/app/files/light.go:19", "internal/app/files/resource.go:72",
-		"internal/app/files/thumbs.go:87", "internal/app/files/thumbs.go:99", "internal/app/project/module_data.go:339",
-		"internal/app/project/module_zip.go:41", "internal/app/secrets/move.go:100", "internal/app/secrets/move.go:68", "internal/app/snapshots/snapshot.go:129",
+		"internal/app/files/thumbs.go:87", "internal/app/files/thumbs.go:99", "internal/app/modules/module_data.go:339",
+		"internal/app/modules/module_zip.go:41", "internal/app/secrets/move.go:100", "internal/app/secrets/move.go:68", "internal/app/snapshots/snapshot.go:129",
 		"internal/app/secrets/secrets.go:124", "internal/app/secrets/secrets.go:52", "internal/app/secrets/secrets.go:77",
 		"internal/app/updates/updates.go:346", "internal/app/updates/updates.go:361",
 		"internal/app/models/option_files.go:168", "internal/auth/codes.go:68", "internal/auth/origins.go:86",
@@ -62,8 +62,8 @@ var exceptions = map[string][]string{
 		"internal/process/wake.go:202", "internal/process/wake.go:207",
 	},
 	"failure": {
-		"internal/app/owners/devices.go:236", "internal/app/project/import.go:133",
-		"internal/app/project/module_data.go:288", "internal/app/project/project_delete.go:39",
+		"internal/app/owners/devices.go:236", "internal/app/project/import.go:126",
+		"internal/app/modules/module_data.go:288", "internal/app/project/project_delete.go:39",
 		"internal/app/providers/selfcheck.go:379", "internal/app/providers/selfcheck.go:381",
 		"internal/app/providers/sessions.go:51", "internal/app/secrets/move.go:38",
 		"internal/app/signins/agent_login.go:168", "internal/auth/auth.go:83", "internal/auth/browser.go:46",

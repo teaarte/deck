@@ -1,4 +1,4 @@
-package project
+package modules
 
 import (
 	"archive/zip"
@@ -23,9 +23,9 @@ import (
 // maxZipEntries bounds the entries of an imported .zip.
 const maxZipEntries = 2000
 
-// readUpload reads the text files of an uploaded .zip of a module folder, with the name of its folder; one
+// ReadUpload reads the text files of an uploaded .zip of a module folder, with the name of its folder; one
 // folder around them all is that folder. An entry that leaves the folder refuses the whole file.
-func (s *Service) readUpload(ctx context.Context, act registry.Actor, ref string) (files []docs.File, skipped []string, name string, err error) {
+func (s *Service) ReadUpload(ctx context.Context, act registry.Actor, ref string) (files []docs.File, skipped []string, name string, err error) {
 	missing := registry.NotFound("no uploaded file %s", ref)
 	id, err := strconv.ParseInt(ref, 10, 64)
 	if err != nil {
@@ -44,7 +44,7 @@ func (s *Service) readUpload(ctx context.Context, act registry.Actor, ref string
 	}
 	defer file.Close()
 	// A module with its data may be as large as an upload; one without it holds 32 MB of text at most.
-	if f.Size > maxFolder && !withData(file, f.Size) {
+	if f.Size > docs.MaxFolder && !withData(file, f.Size) {
 		return nil, nil, "", registry.Invalid("%s is larger than 32 MB", f.Name)
 	}
 	return readZip(f.Name, file, f.Size)
@@ -115,7 +115,7 @@ func readZip(fileName string, r io.ReaderAt, size int64) (files []docs.File, ski
 			skipped = append(skipped, p+": not text")
 			continue
 		}
-		if total += len(b); total > maxFolder {
+		if total += len(b); total > docs.MaxFolder {
 			return nil, nil, "", registry.Invalid("%s holds more than 32 MB of text", fileName)
 		}
 		files = append(files, docs.File{Name: p, Text: string(b)})

@@ -1,4 +1,4 @@
-package project
+package modules
 
 import (
 	"archive/zip"
@@ -326,8 +326,8 @@ func (s *Service) dataCommands() []*registry.Command {
 	}
 }
 
-// restoreUpload brings back the data an uploaded .zip of a module holds into the project made of it.
-func (s *Service) restoreUpload(ctx context.Context, act registry.Actor, p db.Project, ref string) (int, error) {
+// RestoreUpload brings back the data an uploaded .zip of a module holds into the project made of it.
+func (s *Service) RestoreUpload(ctx context.Context, act registry.Actor, p db.Project, ref string) (int, error) {
 	id, err := strconv.ParseInt(ref, 10, 64)
 	if err != nil {
 		return 0, nil

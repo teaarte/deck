@@ -4,10 +4,10 @@ package project
 
 import (
 	"context"
-	"io"
 	"slices"
 	"time"
 
+	"deck2/internal/docs"
 	"deck2/internal/events"
 	"deck2/internal/gateway"
 	"deck2/internal/home"
@@ -35,8 +35,6 @@ type Service struct {
 	StopServer func(key string)
 	// Snapshot writes a snapshot before a delete.
 	Snapshot func(ctx context.Context, project int64) (string, error)
-	// Keep stores a file a command made for the owner to download.
-	Keep func(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error)
 	// PrepareLater records the health of the script commands of a project in the background.
 	PrepareLater func(projectID int64)
 	// Saw notes the revision of a document a running turn read or saved; Seen gives it back, 0 when none.
@@ -62,9 +60,15 @@ type Service struct {
 	Grant         func(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest, give func(registry.Need) bool) error
 	// TellRights tells the master once what format 17 did to the rights of its modules.
 	TellRights func(ctx context.Context, workspace int64)
+	// Starter, ReadUpload and ReadFolder read the files of a module to import, what deck cannot take in skipped;
+	// RestoreUpload brings back the data of an uploaded .zip into the project made of it.
+	Starter       func(name string) ([]docs.File, error)
+	ReadUpload    func(ctx context.Context, act registry.Actor, ref string) (files []docs.File, skipped []string, name string, err error)
+	ReadFolder    func(top, rel string) (files []docs.File, skipped []string, err error)
+	RestoreUpload func(ctx context.Context, act registry.Actor, p db.Project, ref string) (int, error)
 }
 
 // Commands are the commands of projects.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.projectsCommands(), s.importCommands(), s.startersCommands(), s.draftsCommands(), s.projectDeleteCommands(), s.manifestCommands(), s.saveCheckCommands(), s.moduleZipCommands(), s.draftCommands(), s.dataCommands())
+	return slices.Concat(s.projectsCommands(), s.importCommands(), s.readinessCommands(), s.draftsCommands(), s.projectDeleteCommands(), s.manifestCommands(), s.saveCheckCommands(), s.draftCommands())
 }

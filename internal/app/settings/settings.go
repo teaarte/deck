@@ -158,10 +158,11 @@ func (s *Service) SetProviderOff(ctx context.Context, q *db.Queries, workspace i
 func (d settingDef) value(text string) (string, error) {
 	text = strings.TrimSpace(text)
 	if d.zone {
-		if _, err := time.LoadLocation(text); err != nil || text == "" || text == "Local" {
-			return "", registry.Invalid("%s is the name of a time zone, such as Europe/Oslo or UTC", d.name)
+		loc, err := time.LoadLocation(text)
+		if err != nil || text == "" {
+			return "", registry.Invalid("%s is the name of a time zone, such as Europe/Oslo or UTC, or Local for deck's own", d.name)
 		}
-		return text, nil
+		return loc.String(), nil
 	}
 	if text == "" || text == "0" && d.options == nil {
 		return "", nil

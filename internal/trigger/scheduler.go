@@ -58,7 +58,8 @@ func (s *Scheduler) Rezone(ctx context.Context, workspace int64) error {
 			return err
 		}
 		for _, t := range ts {
-			if t.Kind != KindCron {
+			// A run due already is the tick's, which starts or spreads it.
+			if t.Kind != KindCron || t.NextRunAt.String <= store.Time(s.Now()) {
 				continue
 			}
 			next, err := Next(t.Spec, s.at(ctx, q, t.ProjectID, s.Now()))

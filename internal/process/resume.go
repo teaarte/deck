@@ -173,11 +173,10 @@ func (r *Runner) Recover(ctx context.Context) error {
 	}
 	var failed []error
 	for _, p := range ps {
-		if next, err := r.handedOn(ctx, p); err != nil || next != 0 {
-			if err == nil {
-				r.apply(ctx, p.ID, Fail{F: fault.New(fault.DeckRestart, fmt.Sprintf("deck restarted after process #%d took on the work of this one", next))})
-			}
-			failed = append(failed, err)
+		next, herr := r.handedOn(ctx, p)
+		failed = append(failed, herr)
+		if next != 0 {
+			r.apply(ctx, p.ID, Fail{F: fault.New(fault.DeckRestart, fmt.Sprintf("deck restarted after process #%d took on the work of this one", next))})
 			continue
 		}
 		if p.Kind == KindTool || p.Kind == KindModel {

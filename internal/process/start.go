@@ -133,6 +133,12 @@ func (r *Runner) Begin(ctx context.Context, projectID int64, m *manifest.Manifes
 	}
 	in, _ := json.Marshal(input)
 	a := &admitted{in: in, input: input}
+	if o.closes != nil {
+		// The process it hands on from is taken only now, so a stop before the start wins.
+		if o.closes.owned = r.own(o.closes.process); !o.closes.owned {
+			return Started{}, errNotRunning
+		}
+	}
 	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := r.admitIn(ctx, q, proj, m, cmd, command, at, a, o); err != nil || a.refused != nil || o.closes == nil {
 			return err

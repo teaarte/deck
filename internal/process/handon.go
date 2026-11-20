@@ -58,21 +58,18 @@ func (r *Runner) handOnTo(ctx context.Context, t turn, was, next string, f *faul
 	if p.FinishedAt.Valid {
 		return false
 	}
-	if !r.own(p.ID) {
-		// Another end of the process is under way; the work is not handed on beside it.
-		return true
-	}
 	// The continuation takes the retry key, so a call with the key finds it from the start.
 	c := &closing{process: p.ID, f: f, heard: heard}
 	id, err := r.Start(ctx, t.project, t.m, t.cmd.Name, input, Origin{Provider: next, Follows: p.ID, Note: note,
 		Parent: p.ParentID.Int64, Key: p.RetryKey, closes: c})
-	if errors.Is(err, errNotRunning) {
-		// The process was closed otherwise meanwhile, so nothing started.
+	if err != nil && c.owned {
 		r.disown(p.ID)
+	}
+	if errors.Is(err, errNotRunning) {
+		// The process was closed or is closing otherwise, so nothing started.
 		return true
 	}
 	if err != nil {
-		r.disown(p.ID)
 		slog.Error("hand a process on to the next model", "process", p.ID, "provider", next, "err", err)
 		return false
 	}
@@ -92,6 +89,8 @@ type closing struct {
 	f       *fault.F
 	heard   []db.ProcessRemark
 	moved   bool
+	// owned says the start took the closing of the process to itself, so no stop closes it meanwhile.
+	owned bool
 }
 
 // closeIn closes the process c hands on from and passes its messages on to the continuation to; errNotRunning rolls

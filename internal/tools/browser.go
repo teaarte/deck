@@ -146,11 +146,11 @@ func (b *Browser) Ensure(ctx context.Context) {
 	_, _ = b.Host.Tools(ctx, BrowserKey, b.spec(false))
 }
 
-// Commands are the browser tools as builtin registry commands.
+// Commands are the browser tools as builtin registry commands, a list of its own for each caller to append to.
 func (b *Browser) Commands(context.Context) []*registry.Command {
 	b.listMu.Lock()
 	defer b.listMu.Unlock()
-	return b.cmds
+	return slices.Clone(b.cmds)
 }
 
 func (b *Browser) build(list []*mcp.Tool) {

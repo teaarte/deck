@@ -284,8 +284,24 @@ func (r *Runner) spawn(t turn) bool {
 // detailsCap is how much of the details of a failure a process keeps.
 const detailsCap = 16000
 
-// finish closes a running process done or failed, as apply asks; one that a stop has closed meanwhile stays as the stop left it.
+// finish closes a running process done or failed, as apply asks; one that a stop closed meanwhile stays as it is.
 func (r *Runner) finish(ctx context.Context, processID int64, o Outcome) {
+	if !r.own(processID) {
+		return
+	}
+	var n int64
+	parked := false
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		var err error
+		n, parked, err = r.finishIn(ctx, q, processID, o)
+		return err
+	})
+	r.finished(ctx, processID, n, parked, err)
+}
+
+// finishIn writes the end of a running process in a transaction: n is 0 for one that left running meanwhile, parked
+// says it went on waiting for a message of the owner that came as it ended done.
+func (r *Runner) finishIn(ctx context.Context, q *db.Queries, processID int64, o Outcome) (n int64, parked bool, err error) {
 	state, result, notBySchema, f := StateDone, "", false, (*fault.F)(nil)
 	switch o := o.(type) {
 	case Done:
@@ -301,46 +317,43 @@ func (r *Runner) finish(ctx context.Context, processID int64, o Outcome) {
 		f = cmp.Or(f, fault.New(fault.ResultInvalid, "the result did not match its schema"))
 	}
 	f = cmp.Or(f, &fault.F{})
-	var n int64
-	parked := false
-	if !r.own(processID) {
-		return
+	// A message of the owner that came as the turn ended goes on in the same session instead.
+	if state == StateDone {
+		if m, err := q.ListUndeliveredRemarks(ctx, processID); err != nil || len(m) > 0 {
+			if err == nil {
+				parked, err = r.parkIn(ctx, q, processID)
+			}
+			return 0, parked, err
+		}
 	}
-	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		// A message of the owner that came as the turn ended goes on in the same session instead.
-		if state == StateDone {
-			if m, err := q.ListUndeliveredRemarks(ctx, processID); err != nil || len(m) > 0 {
-				if err == nil {
-					parked, err = r.parkIn(ctx, q, processID)
-				}
-				return err
-			}
+	// An agent runs again after only for a call it did not hear.
+	p, err := q.GetProcess(ctx, processID)
+	if err != nil {
+		return 0, false, err
+	}
+	if p.Kind == KindAgent && p.Again != "" && !unheardCall(ctx, q, processID) {
+		if err := q.SetAgain(ctx, db.SetAgainParams{ID: processID}); err != nil {
+			return 0, false, err
 		}
-		// An agent runs again after only for a call it did not hear.
-		p, err := q.GetProcess(ctx, processID)
-		if err != nil {
-			return err
-		}
-		if p.Kind == KindAgent && p.Again != "" && !unheardCall(ctx, q, processID) {
-			if err := q.SetAgain(ctx, db.SetAgainParams{ID: processID}); err != nil {
-				return err
-			}
-		}
-		// A failure that has no result of its own leaves the one handed in.
-		if p.SubmittedAt.Valid && result == "" {
-			result = p.Result
-		}
-		n, err = q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: f.Text,
-			ErrorType: f.Type, ErrorDetails: untrusted.Cut(f.Details, detailsCap), FinishedAt: r.stamp(), ID: processID})
-		if err != nil || n == 0 {
-			return err
-		}
-		// A frozen call outlives its process unless the owner stops it.
-		if _, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, Now: store.Time(r.now())}); err != nil {
-			return err
-		}
-		return q.ReleaseFolderLocks(ctx, processID)
-	})
+	}
+	// A failure that has no result of its own leaves the one handed in.
+	if p.SubmittedAt.Valid && result == "" {
+		result = p.Result
+	}
+	n, err = q.FinishProcess(ctx, db.FinishProcessParams{State: state, Result: result, NotBySchema: nbs, Error: f.Text,
+		ErrorType: f.Type, ErrorDetails: untrusted.Cut(f.Details, detailsCap), FinishedAt: r.stamp(), ID: processID})
+	if err != nil || n == 0 {
+		return n, false, err
+	}
+	// A frozen call outlives its process unless the owner stops it.
+	if _, err = q.CloseOpenAsksOfProcess(ctx, db.CloseOpenAsksOfProcessParams{ProcessID: processID, Now: store.Time(r.now())}); err != nil {
+		return n, false, err
+	}
+	return n, false, q.ReleaseFolderLocks(ctx, processID)
+}
+
+// finished does what follows the end of a process finishIn wrote and its transaction committed, or failed with err.
+func (r *Runner) finished(ctx context.Context, processID int64, n int64, parked bool, err error) {
 	if err != nil || parked || n == 0 {
 		r.disown(processID)
 	}

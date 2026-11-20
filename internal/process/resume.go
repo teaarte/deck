@@ -173,6 +173,13 @@ func (r *Runner) Recover(ctx context.Context) error {
 	}
 	var failed []error
 	for _, p := range ps {
+		if next, err := r.handedOn(ctx, p); err != nil || next != 0 {
+			if err == nil {
+				r.apply(ctx, p.ID, Fail{F: fault.New(fault.DeckRestart, fmt.Sprintf("deck restarted after process #%d took on the work of this one", next))})
+			}
+			failed = append(failed, err)
+			continue
+		}
 		if p.Kind == KindTool || p.Kind == KindModel {
 			text := map[string]string{KindTool: "deck restarted while the tool call ran", KindModel: "deck restarted while the model call ran"}[p.Kind]
 			r.apply(ctx, p.ID, Fail{F: fault.New(fault.DeckRestart, text), State: StateInterrupted})

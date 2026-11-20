@@ -621,7 +621,6 @@ func TestFall14ATabOpenAcrossAnUpdate(t *testing.T) {
 // TestFall15AHandOnCutBetweenItsTwoProcesses: deck fell after the continuation started and before the process it
 // continues closed; after the start only the continuation goes on.
 func TestFall15AHandOnCutBetweenItsTwoProcesses(t *testing.T) {
-	skip(t, "row 15, A11: confirmed: the process that handed on resumes beside its continuation and runs again once its model's pause ends; A11 makes the cut impossible and closes such a process at start")
 	t.Parallel()
 	hold := make(chan struct{})
 	clock := &harness.Clock{At: harness.T0}

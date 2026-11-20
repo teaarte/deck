@@ -70,6 +70,8 @@ type Origin struct {
 	Carries []Source
 	// again is the one run after Follows with the last call that came for its record while it ran.
 	again bool
+	// closes is the process Follows the start hands the work on from, closed in the same transaction.
+	closes *closing
 }
 
 // chainOf is the commands of the chain that ends in p, from its first: "a → b → c".
@@ -132,7 +134,10 @@ func (r *Runner) Begin(ctx context.Context, projectID int64, m *manifest.Manifes
 	in, _ := json.Marshal(input)
 	a := &admitted{in: in, input: input}
 	if err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return r.admitIn(ctx, q, proj, m, cmd, command, at, a, o)
+		if err := r.admitIn(ctx, q, proj, m, cmd, command, at, a, o); err != nil || a.refused != nil || o.closes == nil {
+			return err
+		}
+		return r.closeIn(ctx, q, o.closes, a.p.ID)
 	}); err != nil {
 		return Started{}, err
 	}

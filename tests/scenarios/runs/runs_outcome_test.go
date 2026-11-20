@@ -76,3 +76,21 @@ func TestAWaitingQuestionBeatsAHandOn(t *testing.T) {
 		t.Fatalf("the answer resumes the session on the same model: %+v, %d turns, %d of backup", got, len(calls), len(backup.Calls()))
 	}
 }
+
+// TestAHandOnIsOneTransaction: a hand-on whose transaction fails as it closes the process starts no continuation, so
+// no fall in its middle leaves the work running twice.
+func TestAHandOnIsOneTransaction(t *testing.T) {
+	t.Parallel()
+	e, main, backup := outcomeEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
+		return provider.Fail(fault.ModelUnavailable, "the model is overloaded")
+	})
+	e.SQL(`CREATE TRIGGER fall BEFORE UPDATE OF state ON process WHEN OLD.provider = 'fake' AND NEW.state = 'error'
+		BEGIN SELECT RAISE(ABORT, 'a fall as the process closes'); END`)
+	e.StartWork(1)
+	e.Until("the turn of the first model", func() bool { return len(main.Calls()) == 1 })
+	e.Settle()
+	var n int
+	if err := e.SQLRow(`SELECT count(*) FROM process`).Scan(&n); err != nil || n != 1 || len(backup.Calls()) != 0 {
+		t.Fatalf("a hand-on that could not close its process started nothing: %d processes, %d turns of backup", n, len(backup.Calls()))
+	}
+}

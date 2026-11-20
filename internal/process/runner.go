@@ -228,9 +228,11 @@ type Deps struct {
 
 func New(cfg Config, deps Deps) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Runner{st: deps.Store, gw: deps.Gateway, bus: deps.Bus, scripts: deps.Scripts, cfg: cfg, deps: deps, ctx: ctx, cancel: cancel,
+	r := &Runner{st: deps.Store, gw: deps.Gateway, bus: deps.Bus, scripts: deps.Scripts, cfg: cfg, deps: deps, ctx: ctx, cancel: cancel,
 		live: map[int64]*liveTurn{}, marked: map[int64]time.Time{}, stderrCut: map[int64]bool{}, warned: map[int64]int64{},
 		slots: map[int64]int{}, hearing: map[int64]bool{}}
+	deps.Gateway.Own(rows{r})
+	return r
 }
 
 // Shutdown interrupts running providers and waits; interrupted processes stay running and resume on next start.

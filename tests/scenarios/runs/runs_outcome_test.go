@@ -84,12 +84,14 @@ func TestAHandOnIsOneTransaction(t *testing.T) {
 	e, main, backup := outcomeEnv(t, func(ctx context.Context, c *harness.Call) provider.Result {
 		return provider.Fail(fault.ModelUnavailable, "the model is overloaded")
 	})
+	// A trigger imitates a fall of the transaction as it closes the process that hands on.
 	e.SQL(`CREATE TRIGGER fall BEFORE UPDATE OF state ON process WHEN OLD.provider = 'fake' AND NEW.state = 'error'
 		BEGIN SELECT RAISE(ABORT, 'a fall as the process closes'); END`)
 	e.StartWork(1)
 	e.Until("the turn of the first model", func() bool { return len(main.Calls()) == 1 })
 	e.Settle()
 	var n int
+	// Every process, a continuation stopped at once too, which the API lists by state only.
 	if err := e.SQLRow(`SELECT count(*) FROM process`).Scan(&n); err != nil || n != 1 || len(backup.Calls()) != 0 {
 		t.Fatalf("a hand-on that could not close its process started nothing: %d processes, %d turns of backup", n, len(backup.Calls()))
 	}

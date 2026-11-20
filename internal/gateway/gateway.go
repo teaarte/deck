@@ -107,7 +107,20 @@ type Gateway struct {
 	handler http.Handler
 	// spend lets one call of a run held to its run_usd go at a time; a restart ends the calls it held apart.
 	spend spend
+	// rows writes the marks and the ceiling of the row of a process, set once by the runner of processes.
+	rows Rows
 }
+
+// Rows writes the marks and the ceiling of the row of a process, which the runner of processes alone writes: what a
+// call brought and that it wrote, in the transaction of the call, and the ceiling paused while calls wait for the owner.
+type Rows interface {
+	MarkRead(ctx context.Context, q *db.Queries, process int64, from string) error
+	MarkWrote(ctx context.Context, q *db.Queries, process int64) error
+	Ceiling(ctx context.Context, process int64, paused bool)
+}
+
+// Own makes rows the writer of the marks and the ceiling of the rows of processes.
+func (g *Gateway) Own(rows Rows) { g.rows = rows }
 
 type entry struct {
 	session *Session

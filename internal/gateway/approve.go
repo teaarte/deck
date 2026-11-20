@@ -269,13 +269,7 @@ func (g *Gateway) waits(ctx context.Context, processID int64, by int) {
 	if !edge {
 		return
 	}
-	now := g.cfg.Now().UnixMilli()
-	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if by < 0 {
-			return q.StartCeiling(ctx, db.StartCeilingParams{Now: now, ID: processID})
-		}
-		return q.PauseCeiling(ctx, db.PauseCeilingParams{Now: now, ID: processID})
-	})
+	g.rows.Ceiling(ctx, processID, by > 0)
 }
 
 func (g *Gateway) delivered(ctx context.Context, ask int64) {

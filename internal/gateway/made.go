@@ -126,7 +126,7 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 			}
 		}
 		if read != "" {
-			if err := q.MarkProcessRead(ctx, db.MarkProcessReadParams{ReadUntrusted: read, ID: act.ProcessID}); err != nil {
+			if err := g.rows.MarkRead(ctx, q, act.ProcessID, read); err != nil {
 				return err
 			}
 		}
@@ -168,7 +168,7 @@ func (g *Gateway) after(ctx context.Context, call Call, act registry.Actor, c *r
 	}
 	terr := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		if wrote {
-			if err := q.MarkProcessWrote(ctx, act.ProcessID); err != nil {
+			if err := g.rows.MarkWrote(ctx, q, act.ProcessID); err != nil {
 				return err
 			}
 		}

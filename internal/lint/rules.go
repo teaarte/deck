@@ -54,6 +54,8 @@ var rules = []rule{
 		[]string{"internal/", "cmd/"}, []string{"internal/gateway/", "internal/registry/"}, handlerCall},
 	{"dropped", "the error of a transaction thrown away: return it, or say it where the owner sees it", []string{"internal/", "cmd/"},
 		nil, droppedTx},
+	{"processrow", "the mark or the ceiling of a process written outside internal/process: the runner of processes is their one writer (gateway.Rows)",
+		[]string{"internal/", "cmd/"}, []string{"internal/process/"}, processRow},
 }
 
 // sqlRules are the conventions of the SQL of the store, by line.
@@ -362,6 +364,23 @@ func handlerCall(f *ast.File, fset *token.FileSet) []int {
 	})
 	return out
 }
+
+// processRow are the lines that call a query writing the mark or the ceiling of the row of a process.
+func processRow(f *ast.File, fset *token.FileSet) []int {
+	var out []int
+	ast.Inspect(f, func(n ast.Node) bool {
+		if c, ok := n.(*ast.CallExpr); ok {
+			if s, ok := c.Fun.(*ast.SelectorExpr); ok && slices.Contains(rowWrites, s.Sel.Name) {
+				out = append(out, fset.Position(c.Pos()).Line)
+			}
+		}
+		return true
+	})
+	return out
+}
+
+// rowWrites are the queries that write the mark or the ceiling of the row of a process.
+var rowWrites = []string{"MarkProcessRead", "MarkProcessWrote", "StartCeiling", "PauseCeiling", "PauseCeilingAtLastOutput"}
 
 // fileWrite are the lines that call os.Rename, os.CreateTemp or os.WriteFile.
 func fileWrite(f *ast.File, fset *token.FileSet) []int {

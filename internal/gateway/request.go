@@ -73,7 +73,7 @@ func (g *Gateway) request(ctx context.Context, act registry.Actor, c *registry.C
 		if a, err = Hold(ctx, q, act, project, process, ask.KindCall, right, text, f, expires, g.cfg.Now()); err != nil || !writes(act, c) {
 			return err
 		}
-		return q.MarkProcessWrote(ctx, act.ProcessID)
+		return g.rows.MarkWrote(ctx, q, act.ProcessID)
 	})
 	if err != nil {
 		return nil, err

@@ -23,9 +23,10 @@ type loans struct {
 	of map[string]lent
 }
 
-// Lend is a token that acts as act for ttl and only reads, for deck's own browser to open a page with.
+// Lend is a token that acts as act for ttl and only reads, for deck's own browser to open a page with: its calls are the
+// browser's, not the live turn's that lent it.
 func (s *Service) Lend(act registry.Actor, ttl time.Duration) string {
-	act.Looks, act.ReadOnly, act.Passkey = true, true, time.Time{}
+	act.Looks, act.ReadOnly, act.Passkey, act.Live, act.CallLimit = true, true, time.Time{}, false, 0
 	return s.lend(lent{act: act, until: s.Now().Add(ttl)})
 }
 

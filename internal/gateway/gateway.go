@@ -433,8 +433,8 @@ type Call struct {
 	Input   json.RawMessage
 	// Live marks a call an agent's turn makes now through its tools, rather than one made for it later: it may wait.
 	Live bool
-	// Inside marks a call a command makes in its own run, as a screen reads its blocks: the journal keeps the call that
-	// made it, not this one, and it does not wait for the owner.
+	// Inside marks a read a command makes in its own run, as a screen reads its blocks: its marks and its line are those
+	// of the call that made it, and it does not wait for the owner.
 	Inside bool
 	// answer is the ask whose yes makes the call; tool marks the one tool call its command lets through.
 	answer int64
@@ -447,8 +447,11 @@ func (g *Gateway) Call(ctx context.Context, call Call) (any, error) {
 	return g.call(ctx, call)
 }
 
-// journaled says the journal keeps a line of the call: not the owner's own, nor one made inside another call.
-func (call Call) journaled() bool { return call.Who.Kind != registry.Owner && !call.Inside }
+// journaled says the journal keeps a line of the call: not the owner's own, but one the owner's yes makes, nor one
+// made inside another call.
+func (call Call) journaled() bool {
+	return (call.Who.Kind != registry.Owner || call.answer != 0) && !call.Inside
+}
 
 func (g *Gateway) call(ctx context.Context, call Call) (any, error) {
 	act, name := call.Who, call.Command
@@ -486,6 +489,8 @@ func (g *Gateway) call(ctx context.Context, call Call) (any, error) {
 	right := needOf(v.Need)
 	switch {
 	case err != nil:
+	case call.Inside && !c.Reads():
+		err = registry.Refuse("%s changes deck: a command makes only reads inside its own run", c.Name)
 	case v.Does == DoRefuse:
 		err = v.refusal(c, g.projectName(ctx, project))
 	case v.Does == DoAsk && call.Inside:

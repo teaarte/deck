@@ -312,6 +312,9 @@ func (g *Gateway) run(ctx context.Context, act registry.Actor, c *registry.Comma
 // the journal as making, but for a read or a call the journal does not keep; a failed Tx refuses the call.
 func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict, right registry.Need, params string) (*line, error) {
 	l := &line{tool: c.Name}
+	if call.Inside {
+		return l, nil
+	}
 	read := g.brought(ctx, act, c, project, input)
 	taint, targets := g.taint(ctx, act, c, project, input, v)
 	lined := !c.Readable && call.journaled()

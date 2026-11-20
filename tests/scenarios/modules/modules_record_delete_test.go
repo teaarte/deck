@@ -294,6 +294,13 @@ func TestTheMasterAsksTheOwnerBeforeDeletingWhatAModuleMade(t *testing.T) {
 	if code, _ := e.Call("deck.record_get", map[string]any{"record": ids["knights"]}); code != 404 {
 		t.Fatal("the owner's yes deletes the record")
 	}
+	var journal []struct{ Tool, Actor, Outcome string }
+	e.Must("deck.calls_list", nil, &journal)
+	if !slices.ContainsFunc(journal, func(c struct{ Tool, Actor, Outcome string }) bool {
+		return c.Tool == "deck.record_delete" && c.Actor == "owner" && c.Outcome == "done"
+	}) {
+		t.Fatalf("the journal keeps the deletion the owner's yes made: %+v", journal)
+	}
 	var n int
 	// Every file of the project, the trash too, which no list shows.
 	_ = e.SQLRow(`SELECT count(*) FROM file WHERE project_id = ?`, pid).Scan(&n)

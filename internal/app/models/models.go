@@ -4,7 +4,6 @@ package models
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 	"slices"
 	"sync"
@@ -33,8 +32,6 @@ type Service struct {
 	Key func(workspace int64, connection string) string
 	// Resolve finds a file an input points to for a process of a project.
 	Resolve func(ctx context.Context, project, process int64, ref string) (files.Ref, error)
-	// Invoke calls a command, as speech to text calls a model.
-	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
 	// Builtin are the providers deck was started with, the main one first.
 	Builtin []provider.Provider
 	// Provider is a provider of a workspace by name, All every one that is on, Off why one takes no work.

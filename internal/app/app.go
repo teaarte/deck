@@ -165,10 +165,10 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
 
 	a.Secrets = secrets.Service{St: st, Emit: a.Bus.Emit, Home: h}
-	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Invoke: a.Registry.Invoke}
+	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Call: a.Gateway.Call}
 	a.Journal = journal.Service{St: st, Now: cfg.Now, Groups: a.Models.Groups, Explain: a.Gateway.Explain}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake}
-	a.Themes = themes.Service{St: st, Now: cfg.Now, Home: h, Invoke: a.Registry.Invoke, Language: a.Settings.Language,
+	a.Themes = themes.Service{St: st, Now: cfg.Now, Home: h, Tell: a.Chats.Tell, Language: a.Settings.Language,
 		Picked: a.Settings.Theme, Pick: a.Settings.SetTheme, Keep: a.Files.Keep, Thumb: a.Files.Thumb, Drop: a.Files.Drop}
 	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Models.Works, Incident: a.Processes.Incident, IsFailure: a.Processes.IsFailure}
 	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Missing: a.missingPrograms, Go: a.bg.Go,
@@ -197,7 +197,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Builtin: builtin, Ctx: a.ctx, Go: a.bg.Go, TurnModel: a.Models.TurnModel, Catalog: a.Models.Catalog, CheckFiles: a.Models.CheckFiles,
 		KeepBig: a.Models.KeepBig, View: a.Models.ModelView, Unassign: a.Models.Unassign}
 	a.Models = appmodels.Service{St: st, Now: cfg.Now, Home: h, Hold: a.Files.Hold, VideoPoll: cfg.VideoPoll, VideoCeiling: cfg.VideoCeiling,
-		Key: a.Secrets.Key, Resolve: a.Tools.Resolve, Invoke: a.Registry.Invoke, Builtin: builtin, Provider: a.Providers.Provider,
+		Key: a.Secrets.Key, Resolve: a.Tools.Resolve, Builtin: builtin, Provider: a.Providers.Provider,
 		All: a.Providers.All, Off: a.Providers.Off, Up: a.Providers.Up, Health: a.Providers.Health, Exists: a.Providers.Exists, Limited: a.Providers.Limited, Answered: a.Providers.Answered, Free: a.Providers.Free, Spare: a.Providers.Spare,
 		Installed: a.Providers.Installed, Node: a.nodeTransport,
 		Online: func(device int64) bool { return a.Nodes.State(device).Online }, FolderNodes: a.Folders.Nodes, Go: a.bg.Go,
@@ -223,13 +223,13 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}
 	a.Feed = feed.Service{St: st, Now: cfg.Now,
-		Home: h, Invoke: a.Registry.Invoke, Call: a.Gateway.Call, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.Gives, Reads: a.Chats.LangOf,
+		Home: h, Call: a.Gateway.Call, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.Gives, Reads: a.Chats.LangOf,
 		FailedRuns: a.Processes.FailedRuns, FailingChecks: a.Health.FailingChecks}
-	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup, Await: a.Bus.Await,
+	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Call: a.Gateway.Call, Lookup: a.Registry.Lookup, Await: a.Bus.Await,
 		Works: a.Models.Works, Waits: a.Gateway.Waits}
 	a.Health = apphealth.Service{St: st, Image: cfg.Image != "", Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Models.Unassigned, NoSearch: a.Models.NoSearch, Missing: a.Models.Missing,
 		Works: a.Models.Works, Places: a.Models.Places, Go: a.bg.Go}
-	a.Screens = screens.Service{St: st, Now: cfg.Now, Registry: a.Registry, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
+	a.Screens = screens.Service{St: st, Now: cfg.Now, Registry: a.Registry, Call: a.Gateway.Call, Tell: a.Chats.Tell, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
 		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Feed.Unread, Works: a.Models.Works, AgentWorks: a.Models.AgentWorks,
 		ScreenFailed: a.Processes.Screen, ScreenDrawn: a.Processes.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language,
 		Theme: a.Themes.Current}

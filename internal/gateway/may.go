@@ -36,12 +36,12 @@ type Verdict struct {
 }
 
 // verdict gathers the facts of a call of c with input by act in project and decides it; look lets deck reach out to
-// see what the call acts on.
-func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, look bool) (Verdict, error) {
+// see what the call acts on, cleared is a call the owner's answer or its command let through.
+func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, look, cleared bool) (Verdict, error) {
 	var v Verdict
 	f := &v.Facts
 	f.Owner = act.Kind == registry.Owner
-	f.Cleared = act.Cleared(c.Name)
+	f.Cleared = cleared
 	if !c.Gated() || f.Owner {
 		f.Needs = c.Gated()
 		if !f.Owner && !f.Cleared && (c.Gate.Subject != nil || c.ProjectID != 0) && g.marked(ctx, act) {
@@ -250,7 +250,7 @@ func (v Verdict) refusal(c *registry.Command, project string) error {
 
 // made makes a call a row lets run, cleared, with its line in the journal; one shown after is among the changes made
 // without the owner, with its undo, and a press it took is given back when it fails.
-func (g *Gateway) made(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict, params string) (any, error) {
+func (g *Gateway) made(ctx context.Context, call Call, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict, params string) (any, error) {
 	if v.Name == "pressed" {
 		took, err := g.take(ctx, act, c, input)
 		if err != nil {
@@ -269,18 +269,15 @@ func (g *Gateway) made(ctx context.Context, act registry.Actor, c *registry.Comm
 			undo = ""
 		}
 	}
-	if c.Gated() && !v.Facts.Owner {
-		act = g.clear.Clear(act, c.Name)
-	}
 	right := needOf(v.Need)
-	l, err := g.before(ctx, act, c, project, input, v, right, params)
+	l, err := g.before(ctx, call, act, c, project, input, v, right, params)
 	if err != nil {
 		if v.Name == "pressed" {
 			g.giveBack(ctx, act, c, input)
 		}
 		return nil, err
 	}
-	out, err := g.reg.Invoke(context.WithValue(ctx, lineKey{}, l), act, c.Name, input)
+	out, err := g.run(context.WithValue(ctx, lineKey{}, l), act, c, input)
 	var change *db.AddFeedParams
 	if err == nil && v.Does == DoShow {
 		what := cmp.Or(v.Subject.Where, untrusted.Cut(Canonical(input), 300))
@@ -294,20 +291,31 @@ func (g *Gateway) made(ctx context.Context, act registry.Actor, c *registry.Comm
 			change.Command, change.Params = undo, string(back)
 		}
 	}
-	g.after(ctx, act, c, project, right, params, l, err, change)
+	g.after(ctx, call, act, c, project, right, params, l, err, change)
 	if err != nil && v.Does == DoShow && v.Name == "pressed" {
 		g.giveBack(ctx, act, c, input)
 	}
 	return out, err
 }
 
+// run is the stage that makes a call the table let run: the registry's last check, then the command's handler, the one
+// place a handler runs.
+func (g *Gateway) run(ctx context.Context, act registry.Actor, c *registry.Command, input json.RawMessage) (any, error) {
+	ctx, act, err := g.reg.Ready(ctx, act, c, input)
+	if err != nil {
+		return nil, err
+	}
+	return c.Handler(ctx, act, input)
+}
+
 // before writes, in one Tx before a call runs, the marks of what it brings and of the data it writes and its line in
-// the journal as making, but for a read; a failed Tx refuses the call.
-func (g *Gateway) before(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict, right registry.Need, params string) (*line, error) {
+// the journal as making, but for a read or a call the journal does not keep; a failed Tx refuses the call.
+func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict, right registry.Need, params string) (*line, error) {
 	l := &line{tool: c.Name}
 	read := g.brought(ctx, act, c, project, input)
 	taint, targets := g.taint(ctx, act, c, project, input, v)
-	if read == "" && len(targets) == 0 && c.Readable {
+	lined := !c.Readable && call.journaled()
+	if read == "" && len(targets) == 0 && !lined {
 		return l, nil
 	}
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -321,7 +329,7 @@ func (g *Gateway) before(ctx context.Context, act registry.Actor, c *registry.Co
 				return err
 			}
 		}
-		if c.Readable {
+		if !lined {
 			return nil
 		}
 		var err error
@@ -336,13 +344,14 @@ func (g *Gateway) before(ctx context.Context, act registry.Actor, c *registry.Co
 
 // after writes, in one Tx, the outcome on the line of a call whose command keeps none of its own, that its run wrote,
 // and the change shown to the owner; a failed Tx leaves the line making, which Recover makes unknown.
-func (g *Gateway) after(ctx context.Context, act registry.Actor, c *registry.Command, project int64, right registry.Need, params string, l *line, err error, change *db.AddFeedParams) {
+func (g *Gateway) after(ctx context.Context, call Call, act registry.Actor, c *registry.Command, project int64, right registry.Need, params string, l *line, err error, change *db.AddFeedParams) {
 	outcome, text := "done", ""
 	if err != nil {
 		outcome, text = "rejected", err.Error()
 	}
 	wrote := err == nil && writes(act, c)
-	if l.own && !wrote && change == nil {
+	lined := !l.own && call.journaled()
+	if !lined && !wrote && change == nil {
 		return
 	}
 	terr := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
@@ -352,7 +361,7 @@ func (g *Gateway) after(ctx context.Context, act registry.Actor, c *registry.Com
 			}
 		}
 		switch {
-		case l.own:
+		case !lined:
 		case l.id != 0:
 			if _, err := q.FinishToolCall(ctx, db.FinishToolCallParams{Outcome: outcome, Error: text, ID: l.id}); err != nil {
 				return err
@@ -625,7 +634,7 @@ func (g *Gateway) Explain(ctx context.Context, act registry.Actor, command strin
 	if project == 0 || c.ProjectID != 0 {
 		project = c.ProjectID
 	}
-	return g.verdict(ctx, act, c, project, in, false)
+	return g.verdict(ctx, act, c, project, in, false, false)
 }
 
 // waitsSays are why a call waits for the owner in the owner's words, by the row of the table of decisions; %s of

@@ -2,7 +2,6 @@ package themes
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
@@ -77,8 +76,7 @@ func (s *Service) draw(ctx context.Context, act registry.Actor, in coverDrawIn) 
 	} else {
 		b = append(b, manifest.TrText(ws, fmt.Sprintf("One picture for the light scheme and one for the dark: call deck.model_call of kind image on %s for each, then set each with deck.project_cover_set, theme %s, its file as results/<the name the call gave>, scheme light or dark.", model, cur)))
 	}
-	input, _ := json.Marshal(map[string]any{"text": strings.Join(b, "\n\n")})
-	return s.Invoke(ctx, act, registry.Deck("chat_send"), input)
+	return s.Tell(ctx, act, strings.Join(b, "\n\n"), "")
 }
 
 // freeImageModel is the image model a cover is drawn on by default: a free one of the owner's machine first, then
@@ -138,8 +136,7 @@ func (s *Service) drawPictures(ctx context.Context, act registry.Actor, in theme
 		b = append(b, manifest.TrText(ws, fmt.Sprintf("Pictures for the light scheme and for the dark: call deck.model_call of kind image on %s for each, then set each with deck.theme_image_set, theme %s, its slot, its file as results/<the name the call gave>, scheme light or dark.", model, cur)))
 	}
 	b = append(b, manifest.TrText(ws, "Then check the words of Today over the cockpit with deck.theme_check and look at the tiles with deck.screen_capture."))
-	input, _ := json.Marshal(map[string]any{"text": strings.Join(b, "\n\n")})
-	return s.Invoke(ctx, act, registry.Deck("chat_send"), input)
+	return s.Tell(ctx, act, strings.Join(b, "\n\n"), "")
 }
 
 func (s *Service) drawCommands() []*registry.Command {

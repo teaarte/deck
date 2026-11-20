@@ -153,12 +153,7 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	var out any
-	if act := actor(r); act.Kind == registry.Token {
-		out, err = s.app.Gateway.Call(r.Context(), gateway.Call{Who: act, Command: r.PathValue("name"), Input: body})
-	} else {
-		out, err = s.app.Registry.Invoke(r.Context(), act, r.PathValue("name"), body)
-	}
+	out, err := s.app.Gateway.Call(r.Context(), gateway.Call{Who: actor(r), Command: r.PathValue("name"), Input: body})
 	if err != nil {
 		refuse(w, r, err.Error(), fault.Status(err))
 		return

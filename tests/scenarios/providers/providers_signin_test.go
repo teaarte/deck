@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"deck2/internal/gateway"
 	"deck2/internal/registry"
 	"deck2/tests/harness"
 )
@@ -23,7 +24,7 @@ func TestTheOwnerSignsCodexInFromDeck(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCodex(t)
 	e := harness.New(t, harness.WithCodex(c))
-	if _, err := e.App.Registry.Invoke(t.Context(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.agent_login", json.RawMessage(`{"provider":"codex"}`)); err == nil {
+	if _, err := e.App.Gateway.Call(t.Context(), gateway.Call{Who: registry.Actor{Kind: registry.Master, Workspace: 1}, Command: "deck.agent_login", Input: json.RawMessage(`{"provider":"codex"}`)}); err == nil {
 		t.Fatal("the master does not sign deck's agents in")
 	}
 	e.Refused("deck.agent_login", map[string]any{"provider": "nobody"}, 422, "not a CLI agent")

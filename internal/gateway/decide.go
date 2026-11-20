@@ -58,8 +58,8 @@ type Row struct {
 	Text string `json:"text"`
 }
 
-// decide is the one place deck decides whether a call may be made now, by the table of decisions; every call of a
-// caller other than the owner, a tool of an agent's provider among them, goes by it.
+// decide is the one place deck decides whether a call may be made now, by the table of decisions; a call goes by it
+// whoever makes it, the owner (row owner) and a tool of an agent's provider among them.
 func decide(f Facts) Row {
 	made := DoRun
 	if f.Shown {

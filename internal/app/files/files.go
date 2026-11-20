@@ -8,7 +8,6 @@ import (
 	"database/sql"
 	"deck2/internal/events"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"io"
 	"mime"
@@ -22,6 +21,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/files"
+	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -37,8 +37,8 @@ type Service struct {
 	Held func(ctx context.Context, project int64, folder string) bool
 	// Go runs work beside the calls unless deck stops.
 	Go func(func(context.Context)) bool
-	// Invoke calls a command as an actor.
-	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
+	// Call makes a call through the gateway, as the manager reads deck's lists.
+	Call func(ctx context.Context, call gateway.Call) (any, error)
 	// draining keeps one drain of the outbox at a time.
 	draining sync.Mutex
 	mu       sync.RWMutex

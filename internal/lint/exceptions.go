@@ -12,6 +12,8 @@ var exceptions = map[string][]string{
 		"internal/provider/acp/acp.go:189",
 		"internal/tools/oauth.go:79", "internal/tools/oauth.go:90",
 	},
+	// The trial of a command is the run of deck.command_try, which the gateway decided.
+	"handler": {"internal/app/project/drafts.go:95"},
 	"exec": {
 		"internal/app/updates/updates.go:19", "internal/provider/codex/gen/main.go:11",
 		"internal/script/runtime.go:7",

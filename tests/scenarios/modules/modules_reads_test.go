@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"deck2/internal/gateway"
 	deckhome "deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
@@ -45,7 +46,7 @@ func TestAReadGivesOnlyTheFieldsAsked(t *testing.T) {
 	}
 
 	master := registry.Actor{Kind: registry.Master, Workspace: 1}
-	out, err := e.App.Registry.Invoke(t.Context(), master, "deck.projects_list", json.RawMessage(`{"fields": ["name"]}`))
+	out, err := e.App.Gateway.Call(t.Context(), gateway.Call{Who: master, Command: "deck.projects_list", Input: json.RawMessage(`{"fields": ["name"]}`)})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -37,18 +37,17 @@ func (s *Service) widgetDraw(ctx context.Context, act registry.Actor, in widgetD
 	if w := strings.TrimSpace(in.Wish); w != "" {
 		b = append(b, manifest.TrText(ws, fmt.Sprintf("The owner wishes: %s", w)))
 	}
-	send := map[string]any{"text": strings.Join(b, "\n\n")}
 	// The model of the role for the module, else for the workspace.
+	model := ""
 	for _, at := range []int64{p.ID, 0} {
 		raw, err := s.St.Q.GetAssignment(ctx, db.GetAssignmentParams{WorkspaceID: act.Workspace, ProjectID: at, Role: widgetRole})
 		var models []string
 		if err == nil && json.Unmarshal([]byte(raw), &models) == nil && len(models) > 0 {
-			send["model"] = models[0]
+			model = models[0]
 			break
 		}
 	}
-	input, _ := json.Marshal(send)
-	return s.Registry.Invoke(ctx, act, registry.Deck("chat_send"), input)
+	return s.Tell(ctx, act, strings.Join(b, "\n\n"), model)
 }
 
 func (s *Service) widgetsCommands() []*registry.Command {

@@ -12,6 +12,7 @@ import (
 	"deck2/internal/ask"
 	"deck2/internal/docs"
 	"deck2/internal/fault"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -170,7 +171,7 @@ func (s *Service) processRetry(ctx context.Context, act registry.Actor, in proce
 		input = json.RawMessage("{}")
 	}
 	before := store.Time(s.Now())
-	out, err := s.Invoke(ctx, act, fmt.Sprintf("%s.%s", proj.Name, p.Command), input)
+	out, err := s.Call(ctx, gateway.Call{Who: act, Command: fmt.Sprintf("%s.%s", proj.Name, p.Command), Input: input})
 	if err != nil {
 		return out, err
 	}

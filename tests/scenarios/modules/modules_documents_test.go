@@ -14,6 +14,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/events"
+	"deck2/internal/gateway"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
 	"deck2/tests/harness"
@@ -457,12 +458,12 @@ func TestAScreenReadByAnotherShowsWhatItMayAndSaysWhatIsTheOwners(t *testing.T) 
 	e.Project("plain", harness.PlainManifest)
 	master := registry.Actor{Kind: registry.Master, Workspace: 1}
 	for _, in := range []string{`{"screen": "files"}`, `{"project": "plain", "screen": "documents"}`} {
-		out, err := e.App.Registry.Invoke(context.Background(), master, "deck.screen_get", []byte(in))
+		out, err := e.App.Gateway.Call(context.Background(), gateway.Call{Who: master, Command: "deck.screen_get", Input: []byte(in)})
 		if err != nil || strings.Contains(fmt.Sprint(out), "deleted documents") || strings.Contains(fmt.Sprint(out), `"state":"error"`) {
 			t.Fatalf("a screen the master reads has no failed blocks: %s %v %v", in, out, err)
 		}
 	}
-	out, _ := e.App.Registry.Invoke(context.Background(), master, "deck.screen_get", []byte(`{"screen": "files", "tab": "Snapshots"}`))
+	out, _ := e.App.Gateway.Call(context.Background(), gateway.Call{Who: master, Command: "deck.screen_get", Input: []byte(`{"screen": "files", "tab": "Snapshots"}`)})
 	if !strings.Contains(fmt.Sprint(out), "only the owner sees this") {
 		t.Fatalf("the snapshots of the owner say whose they are: %v", out)
 	}

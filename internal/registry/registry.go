@@ -2,7 +2,6 @@ package registry
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -253,7 +252,6 @@ type Modules func(ctx context.Context, workspace int64, project string) ([]*Comm
 type Registry struct {
 	builtins map[string]*Command
 	modules  Modules
-	issued   bool
 	// key signs the calls a button deck drew allows; it is kept in deck's folder, so a restart keeps it.
 	key []byte
 	now func() time.Time
@@ -456,7 +454,7 @@ func withField(in json.RawMessage, name, desc string) (json.RawMessage, error) {
 }
 
 // keyed is a handler that gets the retry key of its input as Actor.Key and the input without it or the calls a press
-// allows, which a call that skips Invoke may still carry.
+// allows, which a trial that runs its handler past the gateway's entry may still carry.
 func keyed(h Handler) Handler {
 	return func(ctx context.Context, a Actor, input json.RawMessage) (any, error) {
 		var in map[string]json.RawMessage
@@ -567,36 +565,38 @@ func CommandName(tool string) string {
 // out into the actor, so no schema has it.
 const AllowsKey = "allows"
 
-// Invoke checks the caller, validates the input against the command schema and runs the command.
-func (r *Registry) Invoke(ctx context.Context, a Actor, name string, input json.RawMessage) (any, error) {
-	a.Why = cmp.Or(a.Why, WhyOf(input))
+// Allows takes the field of the calls a press allows out of the input of a call of name and verifies it: the owner's
+// press of a button deck drew for name gives the actor its calls; another caller with the field is refused.
+func (r *Registry) Allows(a Actor, name string, input json.RawMessage) (Actor, json.RawMessage, error) {
 	signed, input := allows(input)
 	switch {
 	case signed == "":
 	case a.Kind != Owner:
-		return nil, Invalid("%s comes only with a press of the owner", AllowsKey)
+		return a, input, Invalid("%s comes only with a press of the owner", AllowsKey)
 	default:
 		calls, ok := r.verified(name, signed)
 		if !ok {
-			return nil, Refuse("%s comes only with a button deck drew for %s; press it again", AllowsKey, name)
+			return a, input, Refuse("%s comes only with a button deck drew for %s; press it again", AllowsKey, name)
 		}
 		a.Allows = calls
 	}
-	c, input, err := r.Check(ctx, a, name, input)
-	if err != nil {
-		return nil, err
-	}
+	return a, input, nil
+}
+
+// Ready is the last check of a call of c the gateway let run: a write of a caller that reads is refused, a call that takes
+// the owner's fresh passkey gets it; the actor and ctx are those its handler gets.
+func (r *Registry) Ready(ctx context.Context, a Actor, c *Command, input json.RawMessage) (context.Context, Actor, error) {
 	if a.ReadOnly && !c.Reads() {
-		return nil, Refuse("%s changes deck; this caller only reads", c.Name)
+		return ctx, a, Refuse("%s changes deck; this caller only reads", c.Name)
 	}
 	if err := r.passkey(ctx, a, c, input); err != nil {
-		return nil, err
+		return ctx, a, err
 	}
 	a.Changes = a.Kind == Token && !c.Reads()
 	if c.Reads() {
 		ctx = inRead(ctx)
 	}
-	return c.Handler(ctx, a, input)
+	return ctx, a, nil
 }
 
 // passkey refuses a call that takes the owner's fresh passkey to a caller without one.
@@ -654,15 +654,6 @@ func allows(input json.RawMessage) (string, json.RawMessage) {
 	delete(in, AllowsKey)
 	b, _ := json.Marshal(in)
 	return out, b
-}
-
-// Check does everything Invoke does except running the command.
-func (r *Registry) Check(ctx context.Context, a Actor, name string, input json.RawMessage) (*Command, json.RawMessage, error) {
-	c, input, err := r.Resolve(ctx, a, name, input)
-	if err == nil && a.Kind != Owner && c.Gated() && !a.Cleared(c.Name) {
-		err = Refuse("%s may need a right of deck's catalog; only the gateway calls it for %s", c.Name, a.Kind)
-	}
-	return c, input, err
 }
 
 // Resolve checks the caller and the input but not the rights a call needs, which the gateway decides.

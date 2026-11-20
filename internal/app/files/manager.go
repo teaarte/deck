@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"deck2/internal/files"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/words"
@@ -241,7 +242,7 @@ func (s *Service) projectIDs(ctx context.Context, workspace int64) (map[string]i
 // read calls a read of deck as the caller and takes its result.
 func (s *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
 	raw, _ := json.Marshal(input)
-	got, err := s.Invoke(ctx, act, registry.Deck(name), raw)
+	got, err := s.Call(ctx, gateway.Call{Who: act, Command: registry.Deck(name), Input: raw, Inside: true})
 	if err != nil {
 		return err
 	}

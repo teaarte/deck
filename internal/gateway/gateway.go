@@ -96,8 +96,6 @@ type Gateway struct {
 	st   *store.Store
 	asks *ask.Broker
 	reg  *registry.Registry
-	// clear is the one clearance of the registry: the gateway holds it to let a gated call through.
-	clear registry.Clearance
 
 	mu sync.Mutex
 	// sessions are the MCP sessions of live turns and scripts; a restart ends them with their turns.
@@ -128,7 +126,7 @@ type entry struct {
 }
 
 func New(cfg Config, deps Deps) *Gateway {
-	g := &Gateway{cfg: cfg, st: deps.Store, asks: deps.Asks, reg: deps.Registry, clear: deps.Registry.Clearance(),
+	g := &Gateway{cfg: cfg, st: deps.Store, asks: deps.Asks, reg: deps.Registry,
 		sessions: map[string]*entry{}, tokens: map[int64]*automationEntry{}, owed: map[int64]int{}}
 	bus := deps.Bus
 	g.handler = stateful(g.serverFor)
@@ -435,22 +433,33 @@ type Call struct {
 	Input   json.RawMessage
 	// Live marks a call an agent's turn makes now through its tools, rather than one made for it later: it may wait.
 	Live bool
+	// Inside marks a call a command makes in its own run, as a screen reads its blocks: the journal keeps the call that
+	// made it, not this one, and it does not wait for the owner.
+	Inside bool
 	// answer is the ask whose yes makes the call; tool marks the one tool call its command lets through.
 	answer int64
 	tool   bool
 }
 
-// Call makes a call by the stages of an entry: resolve, decide by the table, then now, waiting for the owner, or
-// refused; the journal keeps it with the right it needs.
+// Call makes a call by the stages of an entry, the owner's too: entry, resolve, decide by the table, then before, run
+// and after, or waiting for the owner, or refused; the journal keeps it with the right it needs.
 func (g *Gateway) Call(ctx context.Context, call Call) (any, error) {
 	return g.call(ctx, call)
 }
 
+// journaled says the journal keeps a line of the call: not the owner's own, nor one made inside another call.
+func (call Call) journaled() bool { return call.Who.Kind != registry.Owner && !call.Inside }
+
 func (g *Gateway) call(ctx context.Context, call Call) (any, error) {
-	act, name, args := call.Who, call.Command, call.Input
+	act, name := call.Who, call.Command
 	act.Live = call.Live
-	act.Why = cmp.Or(act.Why, registry.WhyOf(args))
-	c, input, err := g.reg.Resolve(ctx, act, name, args)
+	act.Why = cmp.Or(act.Why, registry.WhyOf(call.Input))
+	var c *registry.Command
+	act, args, err := g.reg.Allows(act, name, call.Input)
+	input := args
+	if err == nil {
+		c, input, err = g.reg.Resolve(ctx, act, name, args)
+	}
 	project := act.ProjectID
 	params := ""
 	if c != nil {
@@ -466,31 +475,40 @@ func (g *Gateway) call(ctx context.Context, call Call) (any, error) {
 	}
 	var v Verdict
 	give := func() {}
+	cleared := call.answer != 0 || call.tool
 	if err == nil {
-		v, err = g.verdict(ctx, act, c, project, input, true)
+		v, err = g.verdict(ctx, act, c, project, input, true, cleared)
 	}
 	if err == nil {
-		v, give, err = g.held(ctx, act, v, func() (Verdict, error) { return g.verdict(ctx, act, c, project, input, true) })
+		v, give, err = g.held(ctx, act, v, func() (Verdict, error) { return g.verdict(ctx, act, c, project, input, true, cleared) })
 	}
 	defer give()
 	right := needOf(v.Need)
-	if err == nil && v.Does == DoRefuse {
+	switch {
+	case err != nil:
+	case v.Does == DoRefuse:
 		err = v.refusal(c, g.projectName(ctx, project))
+	case v.Does == DoAsk && call.Inside:
+		err = registry.Refuse("%s: %s", c.Name, v.Text)
 	}
 	if err != nil {
-		g.journal(ctx, act, project, name, right, "rejected", params, err.Error())
+		if call.journaled() {
+			g.journal(ctx, act, project, name, right, "rejected", params, err.Error())
+		}
 		return nil, err
 	}
 	switch v.Does {
 	case DoUnchanged:
-		g.journal(ctx, act, project, name, right, "unchanged", params, "")
+		if call.journaled() {
+			g.journal(ctx, act, project, name, right, "unchanged", params, "")
+		}
 		return Unchanged{Unchanged: true, Text: fmt.Sprintf("deck: %s changes nothing, it is so already; no request went to the owner.", c.Name)}, nil
 	case DoAsk:
 		// A call that waits for the owner does not hold its run meanwhile.
 		give()
 		return g.request(ctx, act, c, project, input, v)
 	}
-	return g.made(ctx, act, c, project, input, v, params)
+	return g.made(ctx, call, act, c, project, input, v, params)
 }
 
 // needOf is the right of a call for its line in the journal, none when it needs none.

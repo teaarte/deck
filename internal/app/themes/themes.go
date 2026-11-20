@@ -29,8 +29,8 @@ import (
 type Service struct {
 	St  *store.Store
 	Now func() time.Time
-	// Invoke calls a command of deck: the master is told through deck.chat_send.
-	Invoke   func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
+	// Tell sends the owner's words to the master in a new topic of the chat.
+	Tell     func(ctx context.Context, act registry.Actor, text, model string) (any, error)
 	Language func(ctx context.Context, workspace int64) string
 	// Picked is the theme the owner put on a workspace, empty for none; Pick puts one on it.
 	Picked func(ctx context.Context, workspace int64) string

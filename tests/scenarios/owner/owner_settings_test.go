@@ -18,6 +18,7 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/events"
+	"deck2/internal/gateway"
 	"deck2/internal/health"
 	deckhome "deck2/internal/home"
 	"deck2/internal/registry"
@@ -444,7 +445,7 @@ func TestTheMasterSeesTheNamesOfSecrets(t *testing.T) {
 	e := harness.New(t)
 	e.Project("mail", harness.PostManifest("https://api.example", ""))
 	e.Secret("mail", "svc", "s3cret-value")
-	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.secrets_list", []byte(`{"project": "mail"}`))
+	out, err := e.App.Gateway.Call(context.Background(), gateway.Call{Who: registry.Actor{Kind: registry.Master, Workspace: 1}, Command: "deck.secrets_list", Input: []byte(`{"project": "mail"}`)})
 	raw, _ := json.Marshal(out)
 	if err != nil || !strings.HasPrefix(string(raw), `[{"project":"mail","name":"svc","set":true,"named":true,"changed_at":"`) || strings.Contains(string(raw), "s3cret") {
 		t.Fatalf("the master gets the names of the secrets and no value: %s %v", raw, err)
@@ -460,13 +461,13 @@ func TestTheMasterReadsTheSettingsAndTheNamesOfTokens(t *testing.T) {
 	e.Must("deck.token_create", map[string]any{"name": "shortcuts", "commands": []string{"deck.owner_notify"}}, &made)
 	master := registry.Actor{Kind: registry.Master, Workspace: 1}
 	for _, name := range []string{"deck.settings_list", "deck.tokens_list"} {
-		out, err := e.App.Registry.Invoke(context.Background(), master, name, []byte(`{}`))
+		out, err := e.App.Gateway.Call(context.Background(), gateway.Call{Who: master, Command: name, Input: []byte(`{}`)})
 		raw, _ := json.Marshal(out)
 		if err != nil || strings.Contains(string(raw), made.Token) {
 			t.Fatalf("the master reads %s without a token in it: %s %v", name, raw, err)
 		}
 	}
-	out, err := e.App.Registry.Invoke(context.Background(), master, "deck.screen_get", []byte(`{"screen": "settings"}`))
+	out, err := e.App.Gateway.Call(context.Background(), gateway.Call{Who: master, Command: "deck.screen_get", Input: []byte(`{"screen": "settings"}`)})
 	if drawn := fmt.Sprint(out); err != nil || strings.Contains(drawn, "settings_list cannot be called") || strings.Contains(drawn, "tokens_list cannot be called") {
 		t.Fatalf("the settings screen of the master reads the settings and the tokens: %v %v", err, drawn)
 	}

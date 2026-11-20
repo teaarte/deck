@@ -46,8 +46,7 @@ func (s *Service) recordingTranscribe(ctx context.Context, act registry.Actor, i
 		return nil, registry.Invalid("a recording is at most 10 MB")
 	}
 	act.ProjectID = p.ID
-	input, _ := json.Marshal(map[string]string{"kind": "stt", "file": in.File})
-	out, err := s.Invoke(ctx, act, registry.Deck("model_call"), input)
+	out, err := s.modelCall(ctx, act, modelCallIn{Kind: "stt", File: in.File})
 	if err != nil {
 		return nil, registry.Invalid("speech to text failed: %v", err)
 	}

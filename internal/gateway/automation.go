@@ -73,7 +73,7 @@ func (g *Gateway) CallTool(ctx context.Context, act registry.Actor, command, too
 	}
 	if t, err := g.reg.Lookup(ctx, act.Workspace, tool); err == nil && t.ProjectID == p.ID && !act.Trial && p.Status != store.ProjectDraft &&
 		c.Gated() {
-		return g.call(ctx, Call{Who: g.clear.Clear(act, t.Name), Command: tool, Input: args, tool: true})
+		return g.call(ctx, Call{Who: act, Command: tool, Input: args, tool: true})
 	}
 	return g.call(ctx, Call{Who: act, Command: tool, Input: args})
 }

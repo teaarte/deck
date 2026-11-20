@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/gateway"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/tests/harness"
@@ -20,7 +21,7 @@ import (
 func screenAs(e *harness.Env, act registry.Actor, in map[string]any) map[string]map[string]json.RawMessage {
 	e.T.Helper()
 	raw, _ := json.Marshal(in)
-	out, err := e.App.Registry.Invoke(context.Background(), act, "deck.screen_get", raw)
+	out, err := e.App.Gateway.Call(context.Background(), gateway.Call{Who: act, Command: "deck.screen_get", Input: raw})
 	if err != nil {
 		e.T.Fatal(err)
 	}

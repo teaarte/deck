@@ -34,9 +34,8 @@ type Service struct {
 	St   *store.Store
 	Now  func() time.Time
 	Home home.Layout
-	// Invoke calls a command, as the undo of a change does; Call calls one for another caller, decided by the gateway.
-	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
-	Call   func(ctx context.Context, call gateway.Call) (any, error)
+	// Call makes a call through the gateway: the undo of a change, a button of a note as the caller that wrote it.
+	Call func(ctx context.Context, call gateway.Call) (any, error)
 	// FailedRuns are the open failed runs of a project, of every one for ""; FailingChecks its failing checks of
 	// health the owner has not read.
 	FailedRuns    func(ctx context.Context, act registry.Actor, project string) ([]process.FailedRun, error)
@@ -399,7 +398,7 @@ func (s *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndoI
 		if u.params != nil {
 			params, _ = json.Marshal(u.params)
 		}
-		if out, err = s.Invoke(ctx, act, u.call.Command, params); err != nil {
+		if out, err = s.Call(ctx, gateway.Call{Who: act, Command: u.call.Command, Input: params}); err != nil {
 			return nil, err
 		}
 		if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

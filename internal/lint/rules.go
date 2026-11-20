@@ -50,6 +50,8 @@ var rules = []rule{
 		[]string{"internal/events/"}, topicLit},
 	{"actor", "an actor made by hand: take a constructor of registry (OwnerIn, ProcessOf, TokenOf, TriggerOf, ModuleOf, …)",
 		[]string{"internal/", "cmd/"}, []string{"internal/registry/", "internal/auth/"}, actorLit},
+	{"handler", "a command's handler run by hand: call it through the gateway (Gateway.Call), whose run stage runs it",
+		[]string{"internal/", "cmd/"}, []string{"internal/gateway/", "internal/registry/"}, handlerCall},
 	{"dropped", "the error of a transaction thrown away: return it, or say it where the owner sees it", []string{"internal/", "cmd/"},
 		nil, droppedTx},
 }
@@ -345,6 +347,20 @@ func clientLit(f *ast.File, fset *token.FileSet) []int {
 // actorLit are the lines that make a registry.Actor by a literal.
 func actorLit(f *ast.File, fset *token.FileSet) []int {
 	return composite(f, fset, "deck2/internal/registry", "Actor")
+}
+
+// handlerCall are the lines that call the Handler of a command with its three arguments.
+func handlerCall(f *ast.File, fset *token.FileSet) []int {
+	var out []int
+	ast.Inspect(f, func(n ast.Node) bool {
+		if c, ok := n.(*ast.CallExpr); ok && len(c.Args) == 3 {
+			if s, ok := c.Fun.(*ast.SelectorExpr); ok && s.Sel.Name == "Handler" {
+				out = append(out, fset.Position(c.Pos()).Line)
+			}
+		}
+		return true
+	})
+	return out
 }
 
 // fileWrite are the lines that call os.Rename, os.CreateTemp or os.WriteFile.

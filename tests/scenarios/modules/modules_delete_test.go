@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"deck2/internal/events"
+	"deck2/internal/gateway"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -191,8 +192,7 @@ func TestTheMasterDeletesOnlyDrafts(t *testing.T) {
 		return provider.Result{Text: "Tried."}
 	}))
 
-	if _, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.project_create",
-		[]byte(fmt.Sprintf(`{"name": "sketch", "manifest": %q}`, harness.WebNotes))); err != nil {
+	if _, err := e.App.Gateway.Call(context.Background(), gateway.Call{Who: registry.Actor{Kind: registry.Master, Workspace: 1}, Command: "deck.project_create", Input: []byte(fmt.Sprintf(`{"name": "sketch", "manifest": %q}`, harness.WebNotes))}); err != nil {
 		t.Fatal(err)
 	}
 	e.Project("live", harness.WebNotes)

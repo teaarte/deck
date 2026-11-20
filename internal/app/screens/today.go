@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -142,7 +143,7 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 // read calls a read of deck as the caller and takes its result.
 func (s *Service) read(ctx context.Context, act registry.Actor, name string, input map[string]any, out any) error {
 	raw, _ := json.Marshal(input)
-	got, err := s.Registry.Invoke(ctx, act, registry.Deck(name), raw)
+	got, err := s.Call(ctx, gateway.Call{Who: act, Command: registry.Deck(name), Input: raw, Inside: true})
 	if err != nil {
 		return err
 	}

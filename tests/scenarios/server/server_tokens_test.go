@@ -12,6 +12,7 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/events"
+	"deck2/internal/gateway"
 	"deck2/internal/registry"
 	"deck2/tests/harness"
 )
@@ -303,11 +304,11 @@ func TestACallOfATokenThatWaitsForTheOwnerIsKept(t *testing.T) {
 }
 
 // TestAClearedCallDoesNotClearTheCallsItMakes: the owner's yes clears one call; a command that calls another
-// with its own caller does not pass the class rules of the other on that yes.
+// with its own caller does not pass the class rules of the other on that yes: the inner call waits for its own.
 func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
 	t.Parallel()
 	var inner atomic.Int64
-	var nested error
+	var nested any
 	var e *harness.Env
 	in := harness.Sends(registry.Def("inner_send", "Send inside", "Sends something outside deck.", registry.OwnerSide,
 		func(context.Context, registry.Actor, struct{}) (any, error) {
@@ -316,7 +317,7 @@ func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
 		}))
 	out := harness.Sends(registry.Def("outer_send", "Send", "Sends and sends again.", registry.OwnerSide,
 		func(ctx context.Context, act registry.Actor, _ struct{}) (any, error) {
-			_, nested = e.App.Registry.Invoke(ctx, act, "deck.inner_send", json.RawMessage(`{}`))
+			nested, _ = e.App.Gateway.Call(ctx, gateway.Call{Who: act, Command: "deck.inner_send", Input: json.RawMessage(`{}`)})
 			return map[string]any{"sent": true}, nil
 		}))
 	e = harness.New(t, harness.WithConfig(func(c *app.Config) { c.Commands = append(c.Commands, in, out) }))
@@ -327,8 +328,8 @@ func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
 		t.Fatalf("the outer call waits for the owner: %d %s", code, body)
 	}
 	e.Answer(held.Waiting, "allow")
-	if inner.Load() != 0 || nested == nil {
-		t.Fatalf("the yes to the outer call does not make the inner one: %d calls, %v", inner.Load(), nested)
+	if w, ok := nested.(gateway.Waiting); inner.Load() != 0 || !ok || w.Ask == held.Waiting {
+		t.Fatalf("the yes to the outer call does not make the inner one, which waits for its own: %d calls, %v", inner.Load(), nested)
 	}
 }
 

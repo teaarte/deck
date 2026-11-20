@@ -1,9 +1,11 @@
 package owner
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -42,5 +44,60 @@ func TestEveryCommandOfDeckIsCalledByAScenario(t *testing.T) {
 	}
 	if n < 100 {
 		t.Fatalf("the owner lists every command of deck: %d", n)
+	}
+}
+
+// TestTheOwnerCallsEveryCommandOfTheSnapshotThroughTheOneDoor: the owner's call of each command of the snapshot goes
+// the stages of every call: an input not an object is refused by its schema, nothing done, no line in the journal.
+func TestTheOwnerCallsEveryCommandOfTheSnapshotThroughTheOneDoor(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	raw, err := os.ReadFile(filepath.Join(harness.Root, "tests", "surface", "testdata", "surface.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var snap struct {
+		Commands []struct {
+			Name    string
+			Callers []string
+		}
+	}
+	if err := json.Unmarshal(raw, &snap); err != nil {
+		t.Fatal(err)
+	}
+	_, tok := e.Token("terminal", "deck.*")
+	lines := func() (n int) {
+		// The count of the journal's lines, which no read gives whole.
+		_ = e.SQLRow(`SELECT count(*) FROM tool_call`).Scan(&n)
+		return n
+	}
+	before, n := lines(), 0
+	var masters []string
+	for _, c := range snap.Commands {
+		if !strings.HasPrefix(c.Name, "deck.") || !slices.Contains(c.Callers, "owner") {
+			continue
+		}
+		n++
+		code, body := e.Call(c.Name, []any{})
+		if want := "input of " + c.Name; code != 422 || !strings.Contains(string(body), want) {
+			t.Errorf("the owner's %s: %d %s, want 422 %q", c.Name, code, body, want)
+		}
+		if slices.Contains(c.Callers, "master") {
+			masters = append(masters, c.Name)
+		}
+	}
+	if got := lines(); got != before {
+		t.Fatalf("the owner's refused calls write no line, as before: %d lines, were %d", got, before)
+	}
+	for _, name := range masters {
+		if code, body := e.As(tok).Call(name, []any{}); code != 422 && code != 403 {
+			t.Errorf("a token's %s: %d %s", name, code, body)
+		}
+	}
+	if n < 100 {
+		t.Fatalf("the snapshot names the commands of deck the owner calls: %d", n)
+	}
+	if lines() == before {
+		t.Fatal("a token's refused calls are in the journal")
 	}
 }

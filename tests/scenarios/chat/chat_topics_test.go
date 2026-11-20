@@ -14,6 +14,7 @@ import (
 
 	"deck2/internal/app"
 	"deck2/internal/fault"
+	"deck2/internal/gateway"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/tests/harness"
@@ -545,8 +546,7 @@ func TestAMessageAnswersTheQuestionOfTheReply(t *testing.T) {
 	if said := e.MasterSaid(topic, 1); said[0].Text != "Picked the market one" {
 		t.Fatalf("a message typed while the master asks is the answer: %+v", said)
 	}
-	out, err := e.App.Registry.Invoke(context.Background(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.screen_get",
-		[]byte(`{"screen": "chat"}`))
+	out, err := e.App.Gateway.Call(context.Background(), gateway.Call{Who: registry.Actor{Kind: registry.Master, Workspace: 1}, Command: "deck.screen_get", Input: []byte(`{"screen": "chat"}`)})
 	if err != nil || !strings.Contains(fmt.Sprint(out), "only the owner sees this") {
 		t.Fatalf("only the owner reads the chat: %v %v", out, err)
 	}

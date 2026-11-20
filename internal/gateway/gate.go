@@ -276,7 +276,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 	var out any
 	if err == nil {
 		run := context.WithValue(context.WithValue(context.WithoutCancel(ctx), retryingKey{}, a.ID), approvedKey{}, f.Tool)
-		out, err = g.call(run, Call{Who: g.clear.Clear(act, f.Call.Command), Command: f.Call.Command, Input: f.Call.Input, answer: a.ID})
+		out, err = g.call(run, Call{Who: act, Command: f.Call.Command, Input: f.Call.Input, answer: a.ID})
 	}
 	if err != nil && f.As == AsOwner {
 		reopen()

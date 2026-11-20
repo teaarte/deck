@@ -5,6 +5,7 @@ import (
 	"slices"
 	"time"
 
+	"deck2/internal/gateway"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -16,6 +17,9 @@ import (
 type Service struct {
 	St       *store.Store
 	Registry *registry.Registry
+	// Call makes a call through the gateway, as a block reads its source; Tell sends the owner's words to the master.
+	Call func(ctx context.Context, call gateway.Call) (any, error)
+	Tell func(ctx context.Context, act registry.Actor, text, model string) (any, error)
 	// Waiting, Open and Failing count by project what waits for the owner, runs and fails; Failed and Unread are the
 	// failed runs and the notes not read.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)

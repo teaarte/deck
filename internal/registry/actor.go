@@ -65,9 +65,6 @@ type Actor struct {
 	// Live marks a call an agent's turn makes now through its tools, rather than one made for it later: it may wait for
 	// it; the gateway sets it from the call.
 	Live bool
-	// cleared is the command the holder of the Clearance, the gateway, let through its class rules; a call the
-	// command makes with this actor is not cleared by it.
-	cleared string
 }
 
 // Scope is what an automation token reaches by its rights of deck's catalog: the projects whose data deck's reads give
@@ -85,30 +82,6 @@ const FreshKey = 5 * time.Minute
 // browser has one, so no agent, master, trigger or token ever has.
 func Touched(a Actor, now time.Time) bool {
 	return a.Kind == Owner && !a.Passkey.IsZero() && !now.Before(a.Passkey) && now.Sub(a.Passkey) <= FreshKey
-}
-
-// Cleared says the gateway let a call of the command that is not internal through.
-func (a Actor) Cleared(command string) bool { return a.cleared != "" && a.cleared == command }
-
-// Clearance lets its one holder, the gateway, clear an actor for calls that are not internal.
-type Clearance struct{ r *Registry }
-
-// Clear is the actor cleared for the call of the command it makes now.
-func (c Clearance) Clear(a Actor, command string) Actor {
-	if c.r == nil {
-		panic("registry: a clearance the registry did not issue")
-	}
-	a.cleared = command
-	return a
-}
-
-// Clearance issues the one clearance of the registry; a second ask panics, so the gateway, which asks first, holds it.
-func (r *Registry) Clearance() Clearance {
-	if r.issued {
-		panic("registry: the clearance is already issued")
-	}
-	r.issued = true
-	return Clearance{r: r}
 }
 
 // Confined is an actor that stays inside its own project, an agent or a trigger, or a token inside its modules.

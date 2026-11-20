@@ -9,6 +9,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/screen"
@@ -213,7 +214,7 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 		return nil, screen.OwnerOnly
 	}
 	raw, _ := json.Marshal(in)
-	out, err := s.svc.Registry.Invoke(ctx, act, command, raw)
+	out, err := s.svc.Call(ctx, gateway.Call{Who: act, Command: command, Input: raw, Inside: true})
 	if err != nil {
 		return nil, err
 	}

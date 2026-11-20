@@ -12,6 +12,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -119,7 +120,7 @@ func TestCommandsListDeckSelectsBuiltins(t *testing.T) {
 	e.Project("ideas", harness.IdeasManifest)
 	for _, kind := range []string{registry.Owner, registry.Master} {
 		act := registry.Actor{Kind: kind, Workspace: 1}
-		out, err := e.App.Registry.Invoke(t.Context(), act, "deck.commands_list", json.RawMessage(`{"project":"deck","fields":["name","description","owner_only","form","form_params"]}`))
+		out, err := e.App.Gateway.Call(t.Context(), gateway.Call{Who: act, Command: "deck.commands_list", Input: json.RawMessage(`{"project":"deck","fields":["name","description","owner_only","form","form_params"]}`)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -594,7 +595,7 @@ func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
     {"type": "dialog", "name": "tune", "title": "Tune", "blocks": [{"type": "form", "command": "tune", "values": {"level": "=param.level"}}]}]}]}`,
 		cmd, harness.AgentCommand("play", ""))))
 	master := registry.Actor{Kind: registry.Master, Workspace: 1}
-	out, err := e.App.Registry.Invoke(t.Context(), master, "deck.commands_list", json.RawMessage(`{}`))
+	out, err := e.App.Gateway.Call(t.Context(), gateway.Call{Who: master, Command: "deck.commands_list", Input: json.RawMessage(`{}`)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -629,7 +630,7 @@ func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 	if got["deck.assignment_set"] != "" {
 		t.Fatalf("the master proposes an assignment itself, the owner applies it: %v", got)
 	}
-	if _, err := e.App.Registry.Invoke(t.Context(), master, "deck.secret_set", json.RawMessage(`{"project": "radio", "name": "k", "value": "v"}`)); err == nil {
+	if _, err := e.App.Gateway.Call(t.Context(), gateway.Call{Who: master, Command: "deck.secret_set", Input: json.RawMessage(`{"project": "radio", "name": "k", "value": "v"}`)}); err == nil {
 		t.Fatal("the master still cannot call a command of the owner")
 	}
 	var owner []struct {
@@ -648,8 +649,7 @@ func TestTheMasterSeesTheCommandsOfTheOwnerWithTheirForms(t *testing.T) {
 func TestTheMasterLinksTheFormOfProjectTrust(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
-	out, err := e.App.Registry.Invoke(t.Context(), registry.Actor{Kind: registry.Master, Workspace: 1}, "deck.commands_list",
-		json.RawMessage(`{"project":"deck","fields":["name","owner_only","form","form_params"]}`))
+	out, err := e.App.Gateway.Call(t.Context(), gateway.Call{Who: registry.Actor{Kind: registry.Master, Workspace: 1}, Command: "deck.commands_list", Input: json.RawMessage(`{"project":"deck","fields":["name","owner_only","form","form_params"]}`)})
 	if err != nil {
 		t.Fatal(err)
 	}

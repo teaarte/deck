@@ -27,7 +27,7 @@ type automationEntry struct {
 // ServeAutomation serves the MCP entry of automation tokens to act, whom the token of the request is: it comes with
 // each request, so a revoked token is refused at once; a new session sees the commands of the moment.
 func (g *Gateway) ServeAutomation(w http.ResponseWriter, r *http.Request, act registry.Actor) {
-	s := &Session{Who: registry.Actor{Kind: registry.Token, Workspace: act.Workspace, Token: act.Token, Commands: act.Commands, Scope: act.Scope}}
+	s := &Session{Who: act}
 	e := g.automationEntry(act.Token)
 	if r.Method == http.MethodPost && r.Header.Get("Mcp-Session-Id") == "" {
 		e.mu.Lock()
@@ -57,12 +57,6 @@ func (g *Gateway) automationEntry(token int64) *automationEntry {
 	return e
 }
 
-// CallAs runs a registry command for an automation token, a trigger or a process, decided by the table and kept in
-// the journal of the gateway.
-func (g *Gateway) CallAs(ctx context.Context, act registry.Actor, name string, args []byte) (any, error) {
-	return g.call(ctx, act, name, args)
-}
-
 // CallTool makes the one call of the tool command command: a tool of the project is let through by the call of its
 // command when that command needs a right too; a builtin of deck, or any in a trial or a draft, is decided as any call.
 func (g *Gateway) CallTool(ctx context.Context, act registry.Actor, command, tool string, args []byte) (any, error) {
@@ -76,7 +70,7 @@ func (g *Gateway) CallTool(ctx context.Context, act registry.Actor, command, too
 	}
 	if t, err := g.reg.Lookup(ctx, act.Workspace, tool); err == nil && t.ProjectID == p.ID && !act.Trial && p.Status != store.ProjectDraft &&
 		c.Gated() {
-		act = g.clear.Clear(act, t.Name)
+		return g.call(ctx, Call{Who: g.clear.Clear(act, t.Name), Command: tool, Input: args, tool: true})
 	}
-	return g.call(ctx, act, tool, args)
+	return g.call(ctx, Call{Who: act, Command: tool, Input: args})
 }

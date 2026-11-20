@@ -201,7 +201,7 @@ func (s *Service) PushNew(ctx context.Context, workspace int64) {
 	// The badge is counted once the first push is read, so it counts every ask that push names.
 	badge := sync.OnceValue(func() int64 {
 		n := int64(0)
-		if waiting, err := s.Waiting(ctx, registry.Actor{Kind: registry.Owner, Workspace: workspace}); err == nil {
+		if waiting, err := s.Waiting(ctx, registry.OwnerIn(workspace)); err == nil {
 			for _, w := range waiting {
 				n += w
 			}

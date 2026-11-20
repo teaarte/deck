@@ -56,8 +56,7 @@ func refOf(raw string) (Ref, error) {
 // who derives the caller a reference names now: a process by registry.ProcessOf with the calls of its command, a token
 // by its rights now; a process or token gone gives an error and its kind and ids alone, a name for the journal.
 func (g *Gateway) who(ctx context.Context, q *db.Queries, r Ref) (registry.Actor, error) {
-	bare := registry.Actor{Kind: r.Kind, Workspace: r.Workspace, ProjectID: r.Project, ProcessID: r.Process, TriggerID: r.Trigger,
-		Confirmed: r.Trigger != 0, Token: r.Token}
+	bare := registry.Named(r.Kind, r.Workspace, r.Project, r.Process, r.Trigger, r.Token)
 	switch {
 	case r.Token != 0 || r.Kind == registry.Token:
 		bare.Kind = registry.Token
@@ -277,7 +276,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 	var out any
 	if err == nil {
 		run := context.WithValue(context.WithValue(context.WithoutCancel(ctx), retryingKey{}, a.ID), approvedKey{}, f.Tool)
-		out, err = g.call(run, g.clear.Clear(act, f.Call.Command), f.Call.Command, f.Call.Input)
+		out, err = g.call(run, Call{Who: g.clear.Clear(act, f.Call.Command), Command: f.Call.Command, Input: f.Call.Input, answer: a.ID})
 	}
 	if err != nil && f.As == AsOwner {
 		reopen()

@@ -170,7 +170,7 @@ func (s *Service) printOf(ctx context.Context, p db.Project, n registry.Need) st
 		return ""
 	}
 	sub := c.Gate.Subject(ctx, registry.At{Workspace: p.WorkspaceID, Project: p.ID}, nil)
-	needs, err := c.Gate.Needs(ctx, registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID}, sub, nil)
+	needs, err := c.Gate.Needs(ctx, registry.ModuleOf(p.WorkspaceID, p.ID), sub, nil)
 	for _, got := range needs {
 		if err == nil && got.Right == n.Right && got.Subject == n.Subject {
 			return got.Print

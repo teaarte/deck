@@ -17,6 +17,7 @@ import (
 
 	"deck2/internal/egress"
 	"deck2/internal/events"
+	"deck2/internal/gateway"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -195,8 +196,8 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
 	home := e.App.Cfg.Home
 	for path, want := range map[string]string{filepath.Join(deckhome.Layout(home).State(), "secrets", "1", "fake_token"): "read=false",
 		filepath.Join(deckhome.Layout(home).State(), "deck.db"): "read=false", filepath.Join(e.McpDir("srv", "fake"), "pid"): "read=true"} {
-		out, _ := e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.ProjectID("srv")},
-			"srv.fake.peek", json.RawMessage(fmt.Sprintf(`{"path": %q}`, path)))
+		out, _ := e.App.Gateway.Call(context.Background(), gateway.Call{Who: registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.ProjectID("srv")},
+			Command: "srv.fake.peek", Input: json.RawMessage(fmt.Sprintf(`{"path": %q}`, path))})
 		if b, _ := json.Marshal(out); !strings.Contains(string(b), want) {
 			t.Fatalf("a program server runs in the sandbox: reading %s gave %s", path, b)
 		}
@@ -208,8 +209,8 @@ func TestMCPServerByURLAndTheEnvironmentOfAProgram(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer sock.Close()
-	out, _ := e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.ProjectID("srv")},
-		"srv.fake.dial", json.RawMessage(fmt.Sprintf(`{"path": %q}`, sock.Addr().String())))
+	out, _ := e.App.Gateway.Call(context.Background(), gateway.Call{Who: registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.ProjectID("srv")},
+		Command: "srv.fake.dial", Input: json.RawMessage(fmt.Sprintf(`{"path": %q}`, sock.Addr().String()))})
 	if b, _ := json.Marshal(out); !strings.Contains(string(b), "connected=false") {
 		t.Fatalf("a program server with the network reaches no local socket of the owner: %s", b)
 	}

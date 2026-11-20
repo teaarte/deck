@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/gateway"
 	deckhome "deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/tests/harness"
@@ -450,8 +451,8 @@ func TestTheSandboxClosesTheHomeButForRuntimesAndTheFoldersOfTheProject(t *testi
 		t.Fatalf("a script reads of the home only the runtimes on PATH and the folders of its project: %+v %s", p, p.Result)
 	}
 	for path, want := range map[string]string{filepath.Join(owner, ".zshrc"): "read=false", filepath.Join(owner, "code", "readme"): "read=true"} {
-		out, _ := e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.ProjectID("tools")},
-			"tools.fake.peek", json.RawMessage(fmt.Sprintf(`{"path": %q}`, path)))
+		out, _ := e.App.Gateway.Call(context.Background(), gateway.Call{Who: registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.ProjectID("tools")},
+			Command: "tools.fake.peek", Input: json.RawMessage(fmt.Sprintf(`{"path": %q}`, path))})
 		if b, _ := json.Marshal(out); !strings.Contains(string(b), want) {
 			t.Fatalf("an MCP server reads of the home only what a script does: reading %s gave %s", path, b)
 		}

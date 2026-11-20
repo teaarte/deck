@@ -57,15 +57,15 @@ func (s *Service) Return(raw string) {
 func (s *Service) IsLent(raw string) bool { return strings.HasPrefix(raw, lentPrefix) }
 
 // Lent is the actor a lent token acts as while it lasts.
-func (s *Service) Lent(raw string) (registry.Actor, bool) {
+func (s *Service) Lent(raw string) (act registry.Actor, ok bool) {
 	if !strings.HasPrefix(raw, lentPrefix) {
-		return registry.Actor{}, false
+		return act, false
 	}
 	s.loans.mu.Lock()
 	defer s.loans.mu.Unlock()
 	l, ok := s.loans.of[raw]
 	if !ok || s.Now().After(l.until) {
-		return registry.Actor{}, false
+		return act, false
 	}
 	return l.act, true
 }

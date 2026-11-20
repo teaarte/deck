@@ -82,7 +82,8 @@ type Source struct {
 	// Project is the module whose data it is, said by OfProject of its name and who wrote there.
 	Project   int64
 	OfProject string
-	// Token is an automation token whose words it is, said by OfToken of its name.
+	// Token is an automation token from outside deck whose words it is (registry.Actor.Outside), said by OfToken of its
+	// name.
 	Token   int64
 	OfToken string
 }
@@ -101,7 +102,7 @@ func carried(ctx context.Context, q *db.Queries, sources ...Source) string {
 			}
 		}
 		if s.Token != 0 {
-			if t, err := q.GetToken(ctx, s.Token); err == nil && t.Trusted == 0 {
+			if t, err := q.GetToken(ctx, s.Token); err == nil {
 				return fmt.Sprintf(s.OfToken, t.Name)
 			}
 		}

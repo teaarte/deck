@@ -34,6 +34,9 @@ type Actor struct {
 	// Token is the automation token of a caller of kind Token; Scope the modules its rights reach.
 	Token int64
 	Scope Scope
+	// Outside marks a caller whose words come from outside deck, set where deck learns who calls: an automation token
+	// the owner does not trust.
+	Outside bool
 	// Changes marks a call of a token that changes deck: it acts in the modules its rights let it change.
 	Changes bool
 	// Commands narrow what a token or an agent whose command lists its calls may call.
@@ -59,6 +62,9 @@ type Actor struct {
 	Key string
 	// CallLimit is how long a tool call of the calling agent may last; zero when it has no such limit.
 	CallLimit time.Duration
+	// Live marks a call an agent's turn makes now through its tools, rather than one made for it later: it may wait for
+	// it; the gateway sets it from the call.
+	Live bool
 	// cleared is the command the holder of the Clearance, the gateway, let through its class rules; a call the
 	// command makes with this actor is not cleared by it.
 	cleared string
@@ -144,6 +150,37 @@ func (a Actor) Author() string {
 		return fmt.Sprintf("%s:%d", cmp.Or(a.Run, Agent), a.ProcessID)
 	}
 	return a.Kind
+}
+
+// The constructors of an actor: outside the registry and auth an actor is made only by them (lint actor).
+
+// OwnerIn is the owner of a workspace as deck acts for them, without a device or a passkey.
+func OwnerIn(workspace int64) Actor { return Actor{Kind: Owner, Workspace: workspace} }
+
+// MasterIn is the master of a workspace outside a process of it.
+func MasterIn(workspace int64) Actor { return Actor{Kind: Master, Workspace: workspace} }
+
+// ModuleOf is an agent of a module outside a process of it, inside its project, as a screen of the module reads.
+func ModuleOf(workspace, project int64) Actor {
+	return Actor{Kind: Agent, Workspace: workspace, ProjectID: project}
+}
+
+// TokenOf is the caller of an automation token, its words from outside unless the owner trusts it; what its rights
+// reach is set by its caller.
+func TokenOf(workspace, token int64, trusted bool) Actor {
+	return Actor{Kind: Token, Workspace: workspace, Token: token, Outside: !trusted}
+}
+
+// TriggerOf is the caller of a trigger of a project, after the process whose finish fired it; confirmed when the owner
+// asked for it or said yes to it.
+func TriggerOf(workspace, project, trigger, after int64, confirmed bool) Actor {
+	return Actor{Kind: Trigger, Workspace: workspace, ProjectID: project, ProcessID: after, TriggerID: trigger, Confirmed: confirmed}
+}
+
+// Named is the actor a stored reference names by its kind and ids alone: a name for the journal when the caller it
+// names is gone, or one that is its reference whole.
+func Named(kind string, workspace, project, process, trigger, token int64) Actor {
+	return Actor{Kind: kind, Workspace: workspace, ProjectID: project, ProcessID: process, TriggerID: trigger, Confirmed: trigger != 0, Token: token}
 }
 
 // ProcessOf is the actor of a process of a project, the one way to make it: its agent turn is the master's in the

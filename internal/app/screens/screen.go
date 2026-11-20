@@ -207,7 +207,7 @@ func (s screenSources) Read(ctx context.Context, command string, input map[strin
 	}
 	act := s.act
 	if sc.By != 0 {
-		act = registry.Actor{Kind: registry.Agent, Workspace: act.Workspace, ProjectID: sc.By}
+		act = registry.ModuleOf(act.Workspace, sc.By)
 	}
 	if !slices.Contains(c.Callers, act.As()) && slices.Contains(c.Callers, registry.Owner) {
 		return nil, screen.OwnerOnly

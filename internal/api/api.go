@@ -21,6 +21,7 @@ import (
 	"deck2/internal/app"
 	"deck2/internal/auth"
 	"deck2/internal/fault"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/theme"
@@ -154,7 +155,7 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 	}
 	var out any
 	if act := actor(r); act.Kind == registry.Token {
-		out, err = s.app.Gateway.CallAs(r.Context(), act, r.PathValue("name"), body)
+		out, err = s.app.Gateway.Call(r.Context(), gateway.Call{Who: act, Command: r.PathValue("name"), Input: body})
 	} else {
 		out, err = s.app.Registry.Invoke(r.Context(), act, r.PathValue("name"), body)
 	}
@@ -271,10 +272,7 @@ func serveFile(w http.ResponseWriter, r *http.Request, name, typ string, file *o
 // alive says the sign-in of a stream still lasts: a lent token until it is back, the session of a device until it ends
 // or the device is revoked, checked after the stream is held so a revoke meanwhile is not missed.
 func (s *Server) alive(r *http.Request) func(context.Context) bool {
-	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if c, err := r.Cookie(cookieOf(originOf(r))); err == nil && raw == "" {
-		raw = c.Value
-	}
+	raw, _ := auth.Resolve(r, cookieOf(originOf(r)))
 	if _, ok := s.app.Owners.Lent(raw); ok {
 		return func(context.Context) bool { _, ok := s.app.Owners.Lent(raw); return ok }
 	}

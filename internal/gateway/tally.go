@@ -46,7 +46,7 @@ func (g *Gateway) tallyOf(act registry.Actor, project int64, who string) *tally 
 // Tally hears the hosts the box of a module's program reaches, for a box with no session, such as an MCP server: it
 // writes them on the way, by batch or after a while.
 func (g *Gateway) Tally(workspace, project int64) func(host string) {
-	return g.tallyOf(registry.Actor{Kind: registry.Agent, Workspace: workspace, ProjectID: project}, project, manifest.Programs).reach
+	return g.tallyOf(registry.ModuleOf(workspace, project), project, manifest.Programs).reach
 }
 
 func (t *tally) reach(host string) {

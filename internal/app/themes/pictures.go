@@ -30,7 +30,7 @@ type projectCoverSetIn struct {
 // projectCover sets the picture of a project's card for a theme and scheme from a file, with its light copy and main
 // color, or takes it off.
 func (s *Service) projectCover(ctx context.Context, act registry.Actor, in projectCoverSetIn) (any, error) {
-	p, err := access.Project(ctx, s.St.Q, registry.Actor{Kind: registry.Owner, Workspace: act.Workspace}, in.Project)
+	p, err := access.Project(ctx, s.St.Q, registry.OwnerIn(act.Workspace), in.Project)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (s *Service) putPicture(ctx context.Context, act registry.Actor, p db.Proje
 	if !strings.HasPrefix(ref.Type, "image/") {
 		return 0, registry.Invalid("a %s is a picture, not %s", slot, ref.Type)
 	}
-	owner := registry.Actor{Kind: registry.Owner, Workspace: act.Workspace}
+	owner := registry.OwnerIn(act.Workspace)
 	f, _, err := ref.Open()
 	if err != nil {
 		return 0, err
@@ -197,7 +197,7 @@ func (s *Service) Thumbs(ctx context.Context) {
 		if err != nil {
 			continue
 		}
-		thumb, light := s.Thumb(ctx, registry.Actor{Kind: registry.Owner, Workspace: p.WorkspaceID}, p.Name, pic.FileID)
+		thumb, light := s.Thumb(ctx, registry.OwnerIn(p.WorkspaceID), p.Name, pic.FileID)
 		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			if err := q.SetPictureThumb(ctx, db.SetPictureThumbParams{ThumbID: thumb, Color: light.Color, ID: pic.ID, FileID: pic.FileID}); err != nil {
 				return err

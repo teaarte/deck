@@ -72,7 +72,7 @@ func (s *Service) seedMaster(ctx context.Context, workspace int64, files []docs.
 			return err
 		}
 		// The master's rights are deck's own manifest, so deck gives them all as it ships it.
-		if err := s.Grant(ctx, q, registry.Actor{}, p, shipped, func(registry.Need) bool { return true }); err != nil {
+		if err := s.Grant(ctx, q, registry.OwnerIn(p.WorkspaceID), p, shipped, func(registry.Need) bool { return true }); err != nil {
 			return err
 		}
 		for _, n := range done.Notes {

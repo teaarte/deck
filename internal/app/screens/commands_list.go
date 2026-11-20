@@ -103,7 +103,7 @@ func (s *Service) commandsList(ctx context.Context, act registry.Actor, in comma
 	master := act.Kind == registry.Master
 	var ownerOnly map[string]bool
 	if master {
-		owner, err := s.Registry.List(ctx, registry.Actor{Kind: registry.Owner, Workspace: act.Workspace})
+		owner, err := s.Registry.List(ctx, registry.OwnerIn(act.Workspace))
 		if err != nil {
 			return nil, err
 		}

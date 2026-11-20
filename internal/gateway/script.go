@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"deck2/internal/auth"
 	"deck2/internal/fault"
 	"deck2/internal/registry"
 )
@@ -25,7 +26,7 @@ func (g *Gateway) Handler(tok string) http.Handler {
 			http.Error(w, "deck: this process has finished", http.StatusGone)
 			return
 		}
-		out, err := g.call(r.Context(), s.actor(), r.PathValue("name"), body)
+		out, err := g.Call(r.Context(), Call{Who: s.Who, Command: r.PathValue("name"), Input: body})
 		if err != nil {
 			http.Error(w, err.Error(), fault.Status(err))
 			return
@@ -42,11 +43,11 @@ func (g *Gateway) Handler(tok string) http.Handler {
 			http.Error(w, "deck: this process has finished", http.StatusGone)
 			return
 		}
-		http.StripPrefix("/models", g.cfg.Models(s.actor())).ServeHTTP(w, r)
+		http.StripPrefix("/models", g.cfg.Models(s.Who)).ServeHTTP(w, r)
 	})
 	return side{g: g, tok: tok, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		got := r.Header.Get("Authorization")
-		if subtle.ConstantTimeCompare([]byte(got), []byte("Bearer "+tok)) != 1 || g.session(tok) == nil {
+		got, bearer := auth.Resolve(r, "")
+		if !bearer || subtle.ConstantTimeCompare([]byte(got), []byte(tok)) != 1 || g.session(tok) == nil {
 			http.Error(w, "deck: unknown or finished process token", http.StatusUnauthorized)
 			return
 		}

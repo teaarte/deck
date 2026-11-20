@@ -46,7 +46,7 @@ func (s *Service) callExplain(ctx context.Context, act registry.Actor, in callEx
 		if err != nil {
 			return explainView{}, err
 		}
-		who = registry.Actor{Kind: registry.Agent, Workspace: act.Workspace, ProjectID: p.ID}
+		who = registry.ModuleOf(act.Workspace, p.ID)
 		if p.Builtin == 1 {
 			who.Kind = registry.Master
 		}

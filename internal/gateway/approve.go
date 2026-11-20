@@ -131,7 +131,7 @@ const TrialRefusal = "deck: trial run: external actions are declined; this call 
 // confirm decides a call of a tool of the agent's provider as any call is decided: by the table, with the owner's
 // answer waited for while the turn waits.
 func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) decision {
-	act := s.actor()
+	act := s.Who
 	input, _ := json.Marshal(in.Input)
 	params := Canonical(input)
 	v := g.turnVerdict(ctx, act, in.ToolName, input)

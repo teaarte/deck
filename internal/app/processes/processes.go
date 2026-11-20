@@ -340,7 +340,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	if err != nil {
 		return processView{}, err
 	}
-	turn := gateway.Live(ctx) && act.ProcessID != 0 && act.ProcessID != p.ID
+	turn := act.Live && act.ProcessID != 0 && act.ProcessID != p.ID
 	until := time.Now().Add(min(time.Duration(max(in.Wait, 0))*time.Second, waitLimit(act)))
 	if self, err := s.St.Q.GetProcess(ctx, act.ProcessID); act.ProcessID != 0 && err == nil && self.DeadlineMs.Valid {
 		left := time.UnixMilli(self.DeadlineMs.Int64).Sub(s.Now()) - ceilingMargin
@@ -516,9 +516,11 @@ func (s *Service) processRework(ctx context.Context, act registry.Actor, in proc
 	if err != nil {
 		return nil, err
 	}
-	if err := s.Runner.Rework(ctx, in.Process, strings.TrimSpace(in.Remark+"\n\n"+given),
-		process.Source{Process: act.ProcessID, OfProcess: "a remark of process %d, which read %s",
-			Token: act.Token, OfToken: "a remark of automation token %s"}); err != nil {
+	from := process.Source{Process: act.ProcessID, OfProcess: "a remark of process %d, which read %s", OfToken: "a remark of automation token %s"}
+	if act.Outside {
+		from.Token = act.Token
+	}
+	if err := s.Runner.Rework(ctx, in.Process, strings.TrimSpace(in.Remark+"\n\n"+given), from); err != nil {
 		return nil, err
 	}
 	return process.Started{Process: in.Process}, nil

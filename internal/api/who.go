@@ -23,36 +23,36 @@ var (
 
 // Who is the one place that says whom a call comes from: a lent or automation token in the header (a wrong one counts
 // against its address), else a browser's session by the cookie way lets through.
-func (s *Server) Who(w http.ResponseWriter, r *http.Request) (registry.Actor, error) {
+func (s *Server) Who(w http.ResponseWriter, r *http.Request) (act registry.Actor, err error) {
 	bearer, token, cookie, err := way(r, originOf(r))
 	switch {
 	case errors.Is(err, errNoOne):
-		return registry.Actor{}, s.unsigned(r)
+		return act, s.unsigned(r)
 	case err != nil:
-		return registry.Actor{}, err
+		return act, err
 	case bearer:
 		if act, ok := s.app.Owners.Lent(token); ok {
 			return act, nil
 		} else if s.app.Owners.IsLent(token) {
-			return registry.Actor{}, s.unsigned(r)
+			return act, s.unsigned(r)
 		}
 		act, err := s.app.Owners.Automation(r.Context(), token)
 		if err == nil {
 			return act, nil
 		}
 		if !s.app.Auth.Misses.Allow(s.clientIP(r)) {
-			return registry.Actor{}, errTries
+			return act, errTries
 		}
-		return registry.Actor{}, s.unsigned(r)
+		return act, s.unsigned(r)
 	}
 	p, ok := s.app.Auth.Session(r.Context(), cookie)
 	if !ok || p.Kind != auth.Browser {
-		return registry.Actor{}, s.unsigned(r)
+		return act, s.unsigned(r)
 	}
 	if p.Unsettled {
 		var mark string
 		if p, mark, err = s.app.Auth.Settle(r.Context(), cookie, client(r)); err != nil {
-			return registry.Actor{}, s.unsigned(r)
+			return act, s.unsigned(r)
 		}
 		keepMark(w, r, mark)
 	}
@@ -65,11 +65,11 @@ var errNoOne = errors.New("no one")
 // way is what a request at o offers to say whom it comes from: a token in the header, else the cookie of a browser
 // where one signs in, a write only from deck's own page at o, a read from its pages or opened by hand.
 func way(r *http.Request, o auth.Origin) (bearer bool, token, cookie string, err error) {
-	if token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer "); ok {
-		return true, token, "", nil
+	raw, bearer := auth.Resolve(r, cookieOf(o))
+	if bearer {
+		return true, raw, "", nil
 	}
-	c, err := r.Cookie(cookieOf(o))
-	if err != nil || !o.Passkeys() {
+	if raw == "" || !o.Passkeys() {
 		return false, "", "", errNoOne
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -79,7 +79,7 @@ func way(r *http.Request, o auth.Origin) (bearer bool, token, cookie string, err
 	} else if site := r.Header.Get("Sec-Fetch-Site"); site != "" && site != "same-origin" && site != "none" {
 		return false, "", "", errOrigin
 	}
-	return false, "", c.Value, nil
+	return false, "", raw, nil
 }
 
 // unsigned refuses a call of no one; at an address where no browser signs in it names those where one does.

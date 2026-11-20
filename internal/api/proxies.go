@@ -23,16 +23,16 @@ type proxies struct {
 	last    map[string][]netip.Addr
 }
 
-// gateway is the name the compose of before gave the gateway of deck's network, which deck takes as no proxy: any
+// composeGateway is the name the compose of before gave the gateway of deck's network, which deck takes as no proxy: any
 // container of the host comes from it.
-const gateway = "gateway"
+const composeGateway = "gateway"
 
 // newProxies are the proxies of a list; gateway says the list names the gateway, which is left out.
 func newProxies(list []string, now func() time.Time) (p *proxies, gw bool) {
 	p = &proxies{now: now, last: map[string][]netip.Addr{}}
 	for _, x := range list {
-		if x = strings.TrimSpace(x); x == "" || x == gateway {
-			gw = gw || x == gateway
+		if x = strings.TrimSpace(x); x == "" || x == composeGateway {
+			gw = gw || x == composeGateway
 			continue
 		}
 		if pre, err := netip.ParsePrefix(x); err == nil {

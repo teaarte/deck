@@ -36,7 +36,7 @@ func (s *Service) proposeCommands() []*registry.Command {
 		registry.OwnerSide, s.documentPropose).Brings(registry.FromDeck)
 	// The subject is the revision the proposal changes, so a yes does not apply it over a newer text.
 	c.Gate.Subject = func(ctx context.Context, at registry.At, input json.RawMessage) registry.Subject {
-		in, cur, err := s.proposed(ctx, s.St.Q, registry.Actor{Kind: registry.Master, Workspace: at.Workspace}, input)
+		in, cur, err := s.proposed(ctx, s.St.Q, registry.MasterIn(at.Workspace), input)
 		if in.Delete && errors.Is(err, errGone) {
 			return registry.Subject{InForce: true}
 		}

@@ -4,8 +4,6 @@ package feed
 import (
 	"cmp"
 	"context"
-	"deck2/internal/events"
-	"deck2/internal/health"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
@@ -14,6 +12,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"deck2/internal/events"
+	"deck2/internal/gateway"
+	"deck2/internal/health"
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
@@ -34,7 +36,7 @@ type Service struct {
 	Home home.Layout
 	// Invoke calls a command, as the undo of a change does; Call calls one for another caller, decided by the gateway.
 	Invoke func(ctx context.Context, act registry.Actor, name string, input json.RawMessage) (any, error)
-	Call   func(ctx context.Context, act registry.Actor, name string, input []byte) (any, error)
+	Call   func(ctx context.Context, call gateway.Call) (any, error)
 	// FailedRuns are the open failed runs of a project, of every one for ""; FailingChecks its failing checks of
 	// health the owner has not read.
 	FailedRuns    func(ctx context.Context, act registry.Actor, project string) ([]process.FailedRun, error)

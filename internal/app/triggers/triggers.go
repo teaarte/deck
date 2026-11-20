@@ -262,8 +262,8 @@ func (s *Service) triggerRun(ctx context.Context, act registry.Actor, in trigger
 	}
 	params[registry.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
 	raw, _ := json.Marshal(params)
-	as := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID, TriggerID: t.ID, Confirmed: true}
-	return s.Gateway.CallAs(ctx, as, name, raw)
+	as := registry.TriggerOf(p.WorkspaceID, p.ID, t.ID, 0, true)
+	return s.Gateway.Call(ctx, gateway.Call{Who: as, Command: name, Input: raw})
 }
 
 type triggerPauseIn struct {

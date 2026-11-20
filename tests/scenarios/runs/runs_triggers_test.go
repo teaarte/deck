@@ -15,6 +15,7 @@ import (
 
 	"deck2/internal/events"
 	"deck2/internal/fault"
+	"deck2/internal/gateway"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -632,7 +633,7 @@ func TestRunNowKeepsTheRightsOfItsCaller(t *testing.T) {
 	}
 	e.Must("deck.project_pause", map[string]any{"project": "alpha", "paused": true}, nil)
 	master := registry.Actor{Kind: registry.Master, Workspace: 1}
-	if _, err := e.App.Gateway.CallAs(context.Background(), master, "deck.trigger_run", []byte(fmt.Sprintf(`{"trigger": %d}`, job))); err == nil ||
+	if _, err := e.App.Gateway.Call(context.Background(), gateway.Call{Who: master, Command: "deck.trigger_run", Input: []byte(fmt.Sprintf(`{"trigger": %d}`, job))}); err == nil ||
 		!strings.Contains(err.Error(), "paused") || e.CountOf("c1") != 1 {
 		t.Fatalf("the master does not run a command of a paused project now: %v, %d runs", err, e.CountOf("c1"))
 	}

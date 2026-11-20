@@ -16,7 +16,9 @@ import (
 // tool; the session it opens may call no command.
 func (g *Gateway) Reach(ctx context.Context, base string) error {
 	txguard.Check(ctx, "a reach of deck's MCP server")
-	tok, err := g.Open(ctx, &Session{Who: registry.Actor{Kind: registry.Agent, Commands: []string{}}})
+	who := registry.ModuleOf(0, 0)
+	who.Commands = []string{}
+	tok, err := g.Open(ctx, &Session{Who: who})
 	if err != nil {
 		return err
 	}

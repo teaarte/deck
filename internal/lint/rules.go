@@ -48,6 +48,8 @@ var rules = []rule{
 		[]string{"internal/fault/", "internal/registry/", "internal/lint/"}, deckErr},
 	{"topic", "a topic of events written out: take its constant of internal/events", []string{"internal/", "cmd/"},
 		[]string{"internal/events/"}, topicLit},
+	{"actor", "an actor made by hand: take a constructor of registry (OwnerIn, ProcessOf, TokenOf, TriggerOf, ModuleOf, …)",
+		[]string{"internal/", "cmd/"}, []string{"internal/registry/", "internal/auth/"}, actorLit},
 	{"dropped", "the error of a transaction thrown away: return it, or say it where the owner sees it", []string{"internal/", "cmd/"},
 		nil, droppedTx},
 }
@@ -338,6 +340,11 @@ func execUse(f *ast.File, fset *token.FileSet) []int {
 func clientLit(f *ast.File, fset *token.FileSet) []int {
 	return append(composite(f, fset, "net/http", "Client", "Transport"),
 		calls(f, fset, "net/http", "DefaultClient", "DefaultTransport", "Get", "Post", "Head", "PostForm")...)
+}
+
+// actorLit are the lines that make a registry.Actor by a literal.
+func actorLit(f *ast.File, fset *token.FileSet) []int {
+	return composite(f, fset, "deck2/internal/registry", "Actor")
 }
 
 // fileWrite are the lines that call os.Rename, os.CreateTemp or os.WriteFile.

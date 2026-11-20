@@ -105,7 +105,7 @@ func (r *Runner) runCall(ctx context.Context, t turn, p db.Process, tool bool, c
 	if tool {
 		out, err = r.gw.CallTool(ctx, act, proj.Name+"."+t.cmd.Name, name, input)
 	} else {
-		out, err = r.gw.CallAs(ctx, act, name, input)
+		out, err = r.gw.Call(ctx, gateway.Call{Who: act, Command: name, Input: input})
 	}
 	if r.cutRun(bg, ctx, u) {
 		return

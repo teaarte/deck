@@ -9,6 +9,7 @@ import (
 	"log/slog"
 
 	"deck2/internal/docs"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
 	"deck2/internal/registry"
@@ -33,8 +34,8 @@ func (s *Service) Start(ctx context.Context, t db.Trigger, input map[string]any,
 		return 0, err
 	}
 	raw, _ := json.Marshal(input)
-	act := registry.Actor{Kind: registry.Trigger, Workspace: p.WorkspaceID, ProjectID: p.ID, ProcessID: parent, TriggerID: t.ID}
-	out, err := s.Gateway.CallAs(ctx, act, p.Name+"."+t.Command, raw)
+	act := registry.TriggerOf(p.WorkspaceID, p.ID, t.ID, parent, false)
+	out, err := s.Gateway.Call(ctx, gateway.Call{Who: act, Command: p.Name + "." + t.Command, Input: raw})
 	if err != nil {
 		return 0, err
 	}

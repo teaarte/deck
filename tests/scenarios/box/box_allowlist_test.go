@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"deck2/internal/app"
+	"deck2/internal/gateway"
 	deckhome "deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
@@ -102,8 +103,8 @@ func TestASecretOfAServerIsNotInTheCommandLineNorSeenByAnotherBox(t *testing.T) 
 	e.App.Signins.Servers(context.Background(), e.ProjectID("holder"))
 	var said string
 	e.Until("the server to run with its secret", func() bool {
-		out, _ := e.App.Gateway.CallAs(context.Background(), registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.ProjectID("holder")},
-			"holder.fake.env", json.RawMessage(`{}`))
+		out, _ := e.App.Gateway.Call(context.Background(), gateway.Call{Who: registry.Actor{Kind: registry.Agent, Workspace: 1, ProjectID: e.ProjectID("holder")},
+			Command: "holder.fake.env", Input: json.RawMessage(`{}`)})
 		b, _ := json.Marshal(out)
 		said = string(b)
 		return strings.Contains(said, fmt.Sprintf("len=%d", len(secret)))

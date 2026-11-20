@@ -173,7 +173,8 @@ func (g *Gateway) Recover(ctx context.Context) error {
 				right = f.Need.Right
 			}
 			if f.As == AsOwner {
-				act = registry.Actor{Kind: registry.Owner, Workspace: a.WorkspaceID, ProjectID: a.ProjectID.Int64}
+				act = registry.OwnerIn(a.WorkspaceID)
+				act.ProjectID = a.ProjectID.Int64
 			}
 			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: a.ProjectID,
 				Actor: act.Author(), Who: RefOf(act).String(), Tool: f.Call.Command, Need: right, Subject: needOf(f.Need).Subject, Count: 1, Outcome: "unknown",

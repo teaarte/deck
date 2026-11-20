@@ -202,7 +202,8 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Installed: a.Providers.Installed, Node: a.nodeTransport,
 		Online: func(device int64) bool { return a.Nodes.State(device).Online }, FolderNodes: a.Folders.Nodes, Go: a.bg.Go,
 		Tools: func(ctx context.Context, p db.Project, cmd *manifest.Command) int {
-			who := registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID, Commands: cmd.Executor.Calls}
+			who := registry.ModuleOf(p.WorkspaceID, p.ID)
+			who.Commands = cmd.Executor.Calls
 			if p.Builtin == 1 {
 				who.Kind = registry.Master
 			}
@@ -222,7 +223,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}
 	a.Feed = feed.Service{St: st, Now: cfg.Now,
-		Home: h, Invoke: a.Registry.Invoke, Call: a.Gateway.CallAs, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.Gives, Reads: a.Chats.LangOf,
+		Home: h, Invoke: a.Registry.Invoke, Call: a.Gateway.Call, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.Gives, Reads: a.Chats.LangOf,
 		FailedRuns: a.Processes.FailedRuns, FailingChecks: a.Health.FailingChecks}
 	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Invoke: a.Registry.Invoke, Lookup: a.Registry.Lookup, Await: a.Bus.Await,
 		Works: a.Models.Works, Waits: a.Gateway.Waits}

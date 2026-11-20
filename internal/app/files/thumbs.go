@@ -48,7 +48,7 @@ func (s *Service) fileThumb(ctx context.Context, f db.File) {
 	if err != nil {
 		return
 	}
-	thumb, l := s.Thumb(ctx, registry.Actor{Kind: registry.Owner, Workspace: p.WorkspaceID}, p.Name, f.ID)
+	thumb, l := s.Thumb(ctx, registry.OwnerIn(p.WorkspaceID), p.Name, f.ID)
 	if thumb.Int64 != 0 && l.Width <= files.ThumbWidth && f.Size <= smallPicture {
 		s.Drop(ctx, thumb.Int64)
 		thumb.Int64 = f.ID

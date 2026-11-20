@@ -5,16 +5,16 @@ package documents
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/events"
 	"errors"
 	"fmt"
 	"slices"
 	"strings"
 	"time"
 
+	"deck2/internal/events"
+
 	"deck2/internal/access"
 	"deck2/internal/docs"
-	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -243,7 +243,7 @@ func (s *Service) documentGet(ctx context.Context, act registry.Actor, in docume
 	}
 	v := s.docView(ctx, d)
 	v.Revision, v.Text = r.N, r.Text
-	if r.N == d.Current && gateway.Live(ctx) && act.ProcessID != 0 {
+	if r.N == d.Current && act.Live && act.ProcessID != 0 {
 		s.Saw(ctx, act.ProcessID, d.ID, r.N)
 	}
 	if r.N == d.Current {
@@ -336,7 +336,7 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 	if err != nil {
 		return nil, err
 	}
-	if gateway.Live(ctx) && act.ProcessID != 0 && saved != 0 {
+	if act.Live && act.ProcessID != 0 && saved != 0 {
 		s.Saw(ctx, act.ProcessID, d.ID, saved)
 	}
 	v := s.docView(ctx, d)
@@ -447,7 +447,7 @@ func unattended(ctx context.Context, q *db.Queries, act registry.Actor) (bool, e
 
 // behind refuses a whole text a turn saves without if_revision over what others saved after the revision it read.
 func (s *Service) behind(ctx context.Context, q *db.Queries, act registry.Actor, ref docs.Ref, in documentSaveIn) error {
-	if !gateway.Live(ctx) || act.ProcessID == 0 || in.Text == "" || len(in.Old) > 0 || in.IfRevision != 0 {
+	if !act.Live || act.ProcessID == 0 || in.Text == "" || len(in.Old) > 0 || in.IfRevision != 0 {
 		return nil
 	}
 	d, err := docs.Find(ctx, q, ref)

@@ -29,7 +29,7 @@ func (s *Server) rites(mux *http.ServeMux) {
 // nodeSide serves a node's call of deck's side of a turn it runs, by the node's key: deck's MCP server of the turn
 // and the model of an agent in it.
 func (s *Server) nodeSide(w http.ResponseWriter, r *http.Request) {
-	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	raw, _ := auth.Resolve(r, "")
 	p, ok := s.app.Auth.NodeKey(r.Context(), raw)
 	if raw == "" || !ok {
 		if !s.app.Auth.Misses.Allow(s.clientIP(r)) {
@@ -45,7 +45,7 @@ func (s *Server) nodeSide(w http.ResponseWriter, r *http.Request) {
 
 // node holds the connection of a node signed in by its key, until it breaks or the node is revoked.
 func (s *Server) node(w http.ResponseWriter, r *http.Request) {
-	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	raw, _ := auth.Resolve(r, "")
 	p, ok := s.app.Auth.NodeKey(r.Context(), raw)
 	if raw == "" || !ok {
 		if !s.app.Auth.Misses.Allow(s.clientIP(r)) {
@@ -164,10 +164,7 @@ func (s *Server) loginFinish(w http.ResponseWriter, r *http.Request, in riteIn) 
 // logout ends the session of the cookie or the key and drops the cookie.
 func (s *Server) logout(w http.ResponseWriter, r *http.Request, _ riteIn) {
 	o := originOf(r)
-	raw, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if c, err := r.Cookie(cookieOf(o)); err == nil && raw == "" {
-		raw = c.Value
-	}
+	raw, _ := auth.Resolve(r, cookieOf(o))
 	if raw != "" {
 		p, signed := s.app.Auth.Session(r.Context(), raw)
 		if err := s.app.Auth.Logout(r.Context(), raw); err != nil {

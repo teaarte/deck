@@ -32,7 +32,8 @@ const (
 
 // Session is what the gateway knows about the process behind an MCP token, or about an automation token.
 type Session struct {
-	// Who is the caller: a process by registry.ProcessOf, with the calls its command lists, or an automation token.
+	// Who is the caller: a process by registry.ProcessOf, with the calls its command lists and, once opened, the limit of
+	// a call of its provider, or an automation token.
 	Who registry.Actor
 	// Submit is set when the process hands in its result with result_submit.
 	Submit *Submit
@@ -45,14 +46,6 @@ type Session struct {
 
 	// mu guards the result the session handed in.
 	mu sync.Mutex
-}
-
-func (s *Session) actor() registry.Actor {
-	a := s.Who
-	if a.Kind != registry.Token {
-		a.CallLimit = s.Wait
-	}
-	return a
 }
 
 type Config struct {
@@ -144,7 +137,7 @@ func (g *Gateway) renew(ctx context.Context) {
 		if e.server == nil {
 			continue
 		}
-		cmds, err := g.reg.List(ctx, e.session.actor())
+		cmds, err := g.reg.List(ctx, e.session.Who)
 		if err != nil || commandsOf(cmds) == e.commands {
 			continue
 		}
@@ -185,9 +178,12 @@ func (g *Gateway) retool(ctx context.Context, srv *mcp.Server, s *Session, old [
 // Handler.
 func (g *Gateway) Open(ctx context.Context, s *Session) (string, error) {
 	tok := nonce.Hex(16)
+	if s.Who.Kind != registry.Token {
+		s.Who.CallLimit = s.Wait
+	}
 	if s.Who.Run != "" {
 		g.mu.Lock()
-		g.sessions[tok] = &entry{session: s, tally: g.tallyOf(s.actor(), s.Who.ProjectID, manifest.Programs)}
+		g.sessions[tok] = &entry{session: s, tally: g.tallyOf(s.Who, s.Who.ProjectID, manifest.Programs)}
 		g.mu.Unlock()
 		return tok, nil
 	}
@@ -195,10 +191,10 @@ func (g *Gateway) Open(ctx context.Context, s *Session) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cmds, _ := g.reg.List(ctx, s.actor())
+	cmds, _ := g.reg.List(ctx, s.Who)
 	g.mu.Lock()
 	g.sessions[tok] = &entry{session: s, server: srv, allowed: allowed, tools: tools, commands: commandsOf(cmds),
-		tally: g.tallyOf(s.actor(), s.Who.ProjectID, manifest.Agents)}
+		tally: g.tallyOf(s.Who, s.Who.ProjectID, manifest.Agents)}
 	g.mu.Unlock()
 	return tok, nil
 }
@@ -330,7 +326,7 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 // Count is how many tools a session would have: its commands, the approval, and the tools of a question and of the
 // result it asks for.
 func (g *Gateway) Count(ctx context.Context, s *Session) int {
-	cmds, err := g.reg.List(ctx, s.actor())
+	cmds, err := g.reg.List(ctx, s.Who)
 	if err != nil {
 		return 0
 	}
@@ -346,7 +342,7 @@ func (g *Gateway) Count(ctx context.Context, s *Session) int {
 
 // addCommands exposes the registry commands the session may call as tools of srv.
 func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session) (allowed, tools []string, err error) {
-	cmds, err := g.reg.List(ctx, s.actor())
+	cmds, err := g.reg.List(ctx, s.Who)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -400,17 +396,9 @@ func (g *Gateway) progress(ctx context.Context, req *mcp.CallToolRequest) func()
 	return func() { close(done) }
 }
 
-// liveKey marks a call an agent's turn makes now through its tools, rather than one made for it later.
-type liveKey struct{}
-
-// Live says the call of ctx is one an agent's turn makes now through its tools, which may wait for it.
-func Live(ctx context.Context) bool { return ctx.Value(liveKey{}) != nil }
-
 func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json.RawMessage) *mcp.CallToolResult {
-	if s.Who.Token == 0 && s.Who.Run == "" && s.Who.ProcessID != 0 {
-		ctx = context.WithValue(ctx, liveKey{}, true)
-	}
-	out, err := g.call(registry.WithPictures(ctx), s.actor(), name, args)
+	live := s.Who.Token == 0 && s.Who.Run == "" && s.Who.ProcessID != 0
+	out, err := g.Call(registry.WithPictures(ctx), Call{Who: s.Who, Command: name, Input: args, Live: live})
 	if err != nil {
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}
 	}
@@ -424,9 +412,28 @@ func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json
 	return res
 }
 
-// call runs a registry command for a caller other than the owner, as the table of decisions says: now, waiting for the
-// owner, or refused; the journal keeps it with the right it needs.
-func (g *Gateway) call(ctx context.Context, act registry.Actor, name string, args json.RawMessage) (any, error) {
+// Call is one call of a command as its entry built it: who calls, the command and its input; the facts of an answer
+// of the owner and of the tool call of a command are unexported, set by the gateway.
+type Call struct {
+	Who     registry.Actor
+	Command string
+	Input   json.RawMessage
+	// Live marks a call an agent's turn makes now through its tools, rather than one made for it later: it may wait.
+	Live bool
+	// answer is the ask whose yes makes the call; tool marks the one tool call its command lets through.
+	answer int64
+	tool   bool
+}
+
+// Call makes a call by the stages of an entry: resolve, decide by the table, then now, waiting for the owner, or
+// refused; the journal keeps it with the right it needs.
+func (g *Gateway) Call(ctx context.Context, call Call) (any, error) {
+	return g.call(ctx, call)
+}
+
+func (g *Gateway) call(ctx context.Context, call Call) (any, error) {
+	act, name, args := call.Who, call.Command, call.Input
+	act.Live = call.Live
 	act.Why = cmp.Or(act.Why, registry.WhyOf(args))
 	c, input, err := g.reg.Resolve(ctx, act, name, args)
 	project := act.ProjectID
@@ -489,7 +496,7 @@ func (g *Gateway) projectName(ctx context.Context, project int64) string {
 }
 
 func (g *Gateway) log(ctx context.Context, s *Session, tool string, right registry.Need, outcome, params string) {
-	g.journal(ctx, s.actor(), s.Who.ProjectID, tool, right, outcome, params, "")
+	g.journal(ctx, s.Who, s.Who.ProjectID, tool, right, outcome, params, "")
 }
 
 // Journal writes a call to the journal for a command that writes its own line, on the line before wrote if any: one

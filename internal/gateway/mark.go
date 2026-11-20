@@ -95,8 +95,11 @@ func (g *Gateway) taint(ctx context.Context, act registry.Actor, c *registry.Com
 	from := ""
 	switch {
 	case act.Token != 0:
+		if !act.Outside {
+			return "", nil
+		}
 		t, err := g.st.Q.GetToken(ctx, act.Token)
-		if err != nil || t.Trusted == 1 {
+		if err != nil {
 			return "", nil
 		}
 		from = fmt.Sprintf("automation token %s", t.Name)

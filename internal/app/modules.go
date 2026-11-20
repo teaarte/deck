@@ -161,7 +161,7 @@ func (s *modules) startHandler(projectID int64, m *manifest.Manifest, command st
 			return nil, registry.Invalid("input: %v", err)
 		}
 		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Confirmed: act.Confirmed, Key: act.Key, Trial: act.Trial, Alone: act.Alone,
-			Same: turnOf(ctx, act)}
+			Same: turnOf(act)}
 		// Only the owner's own press stands for their yes.
 		if act.Kind == registry.Owner && act.Allows != "" {
 			var as []gateway.Allow
@@ -171,7 +171,7 @@ func (s *modules) startHandler(projectID int64, m *manifest.Manifest, command st
 			o.Allows = gateway.Allows(as)
 		}
 		st, err := s.a.Runner.Begin(ctx, projectID, m, command, input, o)
-		if err != nil || st.Process == 0 || !turnOf(ctx, act) || m.Command(command).Executor.Type == process.KindAgent {
+		if err != nil || st.Process == 0 || !turnOf(act) || m.Command(command).Executor.Type == process.KindAgent {
 			return st, err
 		}
 		return s.a.Processes.Outcome(ctx, act, st)
@@ -179,6 +179,6 @@ func (s *modules) startHandler(projectID int64, m *manifest.Manifest, command st
 }
 
 // turnOf says the caller is the turn of an agent calling now, which gets the outcome of a short command in its call.
-func turnOf(ctx context.Context, act registry.Actor) bool {
-	return gateway.Live(ctx) && act.ProcessID != 0 && (act.Kind == registry.Master || act.Kind == registry.Agent && act.Run == "")
+func turnOf(act registry.Actor) bool {
+	return act.Live && act.ProcessID != 0 && (act.Kind == registry.Master || act.Kind == registry.Agent && act.Run == "")
 }

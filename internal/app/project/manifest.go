@@ -11,7 +11,6 @@ import (
 	"deck2/internal/access"
 	"deck2/internal/docs"
 	"deck2/internal/events"
-	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -49,7 +48,7 @@ func (s *Service) manifestGet(ctx context.Context, act registry.Actor, in manife
 	if err != nil {
 		return manifestView{}, err
 	}
-	if gateway.Live(ctx) && act.ProcessID != 0 {
+	if act.Live && act.ProcessID != 0 {
 		s.Saw(ctx, act.ProcessID, d.ID, d.Current)
 	}
 	v := manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: r.Text}
@@ -82,7 +81,7 @@ func (s *Service) manifestSave(ctx context.Context, act registry.Actor, in manif
 	if err != nil {
 		return nil, err
 	}
-	if whole && gateway.Live(ctx) && act.ProcessID != 0 {
+	if whole && act.Live && act.ProcessID != 0 {
 		// A whole manifest of a turn goes only over the revision the turn read.
 		base, err := s.Seen(ctx, s.St.Q, act.ProcessID, d.ID)
 		if err != nil {
@@ -94,7 +93,7 @@ func (s *Service) manifestSave(ctx context.Context, act registry.Actor, in manif
 		in.IfRevision = base
 	}
 	saved, err := s.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision)
-	if err == nil && gateway.Live(ctx) && act.ProcessID != 0 && saved.Revision != 0 {
+	if err == nil && act.Live && act.ProcessID != 0 && saved.Revision != 0 {
 		s.Saw(ctx, act.ProcessID, d.ID, saved.Revision)
 	}
 	return saved, err

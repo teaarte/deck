@@ -11,6 +11,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -161,7 +162,7 @@ func (s *Service) feedPress(ctx context.Context, act registry.Actor, in feedPres
 	}
 	b := buttons[in.Button]
 	input, _ := json.Marshal(b.Params)
-	writer := registry.Actor{Kind: registry.Agent, Workspace: p.WorkspaceID, ProjectID: p.ID}
+	writer := registry.ModuleOf(p.WorkspaceID, p.ID)
 	if f.Author == registry.Master {
 		writer.Kind = registry.Master
 	}
@@ -179,5 +180,5 @@ func (s *Service) feedPress(ctx context.Context, act registry.Actor, in feedPres
 		}
 	}
 	writer.Why = fmt.Sprintf("You pressed %q on its note", b.Label)
-	return s.Call(ctx, writer, p.Name+"."+b.Command, input)
+	return s.Call(ctx, gateway.Call{Who: writer, Command: p.Name + "." + b.Command, Input: input})
 }

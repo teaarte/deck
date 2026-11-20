@@ -106,6 +106,11 @@ func (e *Env) In(lang string) Client {
 	return Client{e, func(r *http.Request) { e.owner(r); r.Header.Set("Deck-Lang", lang) }, true}
 }
 
+// Pressing is the owner in a client whose calls carry key, as a press of the web client keeps one until it is answered.
+func (e *Env) Pressing(key string) Client {
+	return Client{e, func(r *http.Request) { e.owner(r); r.Header.Set("Deck-Key", key) }, true}
+}
+
 // As is a caller with an automation token.
 func (e *Env) As(token string) Client {
 	return Client{e, Bearer(token), false}

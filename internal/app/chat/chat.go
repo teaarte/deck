@@ -107,7 +107,6 @@ type chatSendIn struct {
 	Text     string   `type:"text" desc:"The message"`
 	Topic    int64    `opt:"" desc:"Chat topic; a new topic when omitted"`
 	Screen   string   `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, process"`
-	RetryKey string   `json:"retry_key" opt:"" desc:"A key of this message: sending it again with the same key returns the first one"`
 	Files    []string `type:"file[]" opt:"" desc:"Uploads of project master the owner attaches; the turn that takes the message gets copies"`
 	Model    string   `opt:"" desc:"The model the replies of the topic go on from now; the master's model when omitted on a new topic"`
 }
@@ -129,11 +128,6 @@ func (s *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendI
 	if strings.TrimSpace(in.Screen) != "" {
 		if err := json.Unmarshal([]byte(in.Screen), &it); err != nil {
 			return nil, registry.Invalid("screen is a JSON object: %v", err)
-		}
-	}
-	if in.RetryKey != "" {
-		if old, err := s.St.Q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: act.Workspace, RetryKey: in.RetryKey}); err == nil {
-			return s.sent(ctx, old), nil
 		}
 	}
 	it.Files = nil
@@ -159,16 +153,6 @@ func (s *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendI
 	}
 	var msg db.ChatMessage
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if in.RetryKey != "" {
-			old, err := q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: act.Workspace, RetryKey: in.RetryKey})
-			if err == nil {
-				msg = old
-				return nil
-			}
-			if !errors.Is(err, sql.ErrNoRows) {
-				return err
-			}
-		}
 		var t db.ChatTopic
 		var err error
 		if in.Topic != 0 {
@@ -183,7 +167,7 @@ func (s *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendI
 				return err
 			}
 		}
-		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: t.ID, Role: roleOwner, Text: text, Context: screen, RetryKey: in.RetryKey}); err != nil {
+		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: t.ID, Role: roleOwner, Text: text, Context: screen}); err != nil {
 			return err
 		}
 		// The owner answered in words: the options and forms of the topic wait for them no more.

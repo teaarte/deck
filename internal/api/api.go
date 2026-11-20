@@ -148,12 +148,21 @@ func (s *Server) ownerOnly(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// maxKey is the longest key of a call, Deck-Key, a press of the client takes.
+const maxKey = 200
+
+// invoke makes a call; Deck-Key is the caller's key of it, one a press keeps until it gets an answer.
 func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 	body, err := registry.ReadBody(w, r, registry.MaxBody)
 	if err != nil {
 		return
 	}
-	out, err := s.app.Gateway.Call(r.Context(), gateway.Call{Who: actor(r), Command: r.PathValue("name"), Input: body})
+	key := r.Header.Get("Deck-Key")
+	if len(key) > maxKey {
+		refuse(w, r, fmt.Sprintf("deck: the key of a call is at most %d bytes", maxKey), http.StatusBadRequest)
+		return
+	}
+	out, err := s.app.Gateway.Call(r.Context(), gateway.Call{Who: actor(r), Command: r.PathValue("name"), Input: body, Key: key})
 	if err != nil {
 		refuse(w, r, err.Error(), fault.Status(err))
 		return

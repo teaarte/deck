@@ -231,3 +231,31 @@ func TestAButtonDrawnBeforeARestartStillAllowsItsCall(t *testing.T) {
 		t.Fatalf("another deck refuses a button this one drew: %d %s", code, out)
 	}
 }
+
+// TestAPressSentAgainActsOnce: a press sent again with its key, as after its answer was lost, gives the answer of the
+// first and acts once; a new press acts again; a press whose call gave a token is not answered twice.
+func TestAPressSentAgainActsOnce(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("plain", harness.PlainManifest)
+	var first, again struct{ Process int64 }
+	e.Pressing("p1").Must("plain.work", nil, &first)
+	e.WaitState(first.Process, "done", "error")
+	e.Pressing("p1").Must("plain.work", nil, &again)
+	if again.Process != first.Process || e.CountOf("work") != 1 {
+		t.Fatalf("the press sent again is the first one: %d of %d, %d runs", again.Process, first.Process, e.CountOf("work"))
+	}
+	e.Pressing("p2").Must("plain.work", nil, &again)
+	if again.Process == first.Process {
+		t.Fatalf("a new press acts again: %d", again.Process)
+	}
+	e.WaitState(again.Process, "done", "error")
+	token := map[string]any{"name": "shortcuts", "commands": []string{"deck.owner_notify"}}
+	e.Pressing("t1").Must("deck.token_create", token, nil)
+	e.Pressing("t1").Refused("deck.token_create", token, 403, "not given twice")
+	var tokens []map[string]any
+	e.Must("deck.tokens_list", nil, &tokens)
+	if len(tokens) != 1 {
+		t.Fatalf("the press sent again made no second token: %d", len(tokens))
+	}
+}

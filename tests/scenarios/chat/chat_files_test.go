@@ -68,19 +68,21 @@ func TestOwnerAttachesFilesAndTopicsKnowTheirModule(t *testing.T) {
 	e.Refused("deck.chat_send", map[string]any{"text": "again", "files": []string{fmt.Sprint(id)}}, 404, "no upload")
 }
 
-// TestARetriedMessageDoesNotAttachItsFilesAgain: a message sent again with its retry key is the one already
+// TestARetriedMessageDoesNotAttachItsFilesAgain: a message sent again with its key is the one already
 // sent, even when its upload is gone by now.
 func TestARetriedMessageDoesNotAttachItsFilesAgain(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result { return provider.Result{Text: "Read it."} }))
 	id := e.Upload("master", "plan.txt", "text/plain", "the plan")
-	in := map[string]any{"files": []string{fmt.Sprint(id)}, "retry_key": "k1"}
-	topic := e.Say(0, "look at the plan", in)
+	in := map[string]any{"text": "look at the plan", "files": []string{fmt.Sprint(id)}}
+	var first, again struct{ Topic int64 }
+	e.Pressing("k1").Must("deck.chat_send", in, &first)
+	topic := first.Topic
 	if err := os.Remove(filepath.Join(deckhome.Layout(e.App.Cfg.Home).Files(), fmt.Sprint(id))); err != nil {
 		t.Fatal(err)
 	}
-	if again := e.Say(0, "look at the plan", in); again != topic {
-		t.Fatalf("the retry is the message already sent: %d, not %d", again, topic)
+	if e.Pressing("k1").Must("deck.chat_send", in, &again); again.Topic != topic {
+		t.Fatalf("the retry is the message already sent: %d, not %d", again.Topic, topic)
 	}
 }
 

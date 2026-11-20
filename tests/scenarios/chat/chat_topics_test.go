@@ -26,8 +26,9 @@ func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
 		return provider.Result{Text: "Put it into the inbox."}
 	}))
 
-	topic := e.Say(0, "Remember to buy milk\nand bread", map[string]any{"screen": `{"project":"master","screen":"documents","record":7}`,
-		"retry_key": "k1"})
+	var first struct{ Topic int64 }
+	e.Pressing("k1").Must("deck.chat_send", map[string]any{"text": "Remember to buy milk\nand bread", "screen": `{"project":"master","screen":"documents","record":7}`}, &first)
+	topic := first.Topic
 	said := e.MasterSaid(topic, 1)
 	if said[0].Text != "Put it into the inbox." {
 		t.Fatalf("the final text of the turn is the master's reply: %+v", said)
@@ -62,7 +63,7 @@ func TestOwnerMessageGetsAMasterReplyInTheTopic(t *testing.T) {
 		t.Fatalf("the reply is a process of command reply of project master: %+v", p)
 	}
 	var again struct{ Topic, Message int64 }
-	e.Must("deck.chat_send", map[string]any{"text": "Remember to buy milk\nand bread", "retry_key": "k1"}, &again)
+	e.Pressing("k1").Must("deck.chat_send", map[string]any{"text": "Remember to buy milk\nand bread", "screen": `{"project":"master","screen":"documents","record":7}`}, &again)
 	if again.Topic != topic || again.Message != ms[0].ID || len(e.Fake.Calls()) != 1 {
 		t.Fatalf("a message sent again with its key is the same message: %+v", again)
 	}

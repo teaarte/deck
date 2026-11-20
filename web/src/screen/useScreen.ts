@@ -113,8 +113,8 @@ export function useScreen(route: Route, shownNow = true) {
           if (wide > 0 && ids.length > 0 && ids.every((id) => feed.since(id) >= wide)) return;
           return readBlock(block, { [String(c.param)]: String(c.key ?? '') });
       }
-      const { reply, ...pressed } = c as Action & { reply?: string };
-      const r = await run(pressed);
+      const { reply, key, ...pressed } = c as Action & { reply?: string; key?: string };
+      const r = await run(pressed, key);
       // What the press changed is read as soon as deck tells it; a press on what was over already reads it all anew.
       if (r.gone) void load();
       else if (!r.error) {

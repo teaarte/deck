@@ -19,12 +19,20 @@ export class Refusal extends Error {
   constructor(text: string, readonly status: number) { super(text); }
 }
 
+// newKey is the key of a press; it works on plain http, where randomUUID does not.
+export function newKey(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 // invoke calls a registry command; a refusal throws the server's text in the language of the interface. A small call
-// outlives the page; one that takes a fresh passkey waits for the owner's touch, then goes again.
-export async function invoke<T = unknown>(command: string, input: Record<string, unknown> = {}): Promise<Answer<T>> {
+// outlives the page; one that takes a fresh passkey waits for the owner's touch, then goes again. A call with the key
+// of one deck made gives what that one gave.
+export async function invoke<T = unknown>(command: string, input: Record<string, unknown> = {}, key?: string): Promise<Answer<T>> {
   const body = JSON.stringify(input);
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (key) headers['Deck-Key'] = key;
   const send = () => authed('/api/commands/' + encodeURIComponent(command), {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: body.length < 60000,
+    method: 'POST', headers, body, keepalive: body.length < 60000,
   });
   let r = await send();
   if (r.status === 428) {
@@ -38,7 +46,8 @@ export async function invoke<T = unknown>(command: string, input: Record<string,
 }
 
 // call is the result of a command alone.
-export const call = async <T = unknown>(command: string, input: Record<string, unknown> = {}): Promise<T> => (await invoke<T>(command, input)).data;
+export const call = async <T = unknown>(command: string, input: Record<string, unknown> = {}, key?: string): Promise<T> =>
+  (await invoke<T>(command, input, key)).data;
 
 export interface Uploaded {
   id: number;

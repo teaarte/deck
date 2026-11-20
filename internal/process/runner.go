@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -291,6 +292,8 @@ func (r *Runner) finish(ctx context.Context, processID int64, o Outcome) {
 		result, notBySchema = o.Result, o.NotBySchema
 	case Fail:
 		state, result, f = cmp.Or(o.State, StateError), o.Result, o.F
+	default:
+		panic(fmt.Sprintf("process: finish of %T", o))
 	}
 	nbs := int64(0)
 	if notBySchema {

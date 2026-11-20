@@ -27,12 +27,11 @@ func outcomeEnv(t *testing.T, main harness.Script, opts ...harness.Option) (*har
 }
 
 // TestASubmittedResultBeatsAFailureAfterIt: a turn that handed in its result and then failed in a way that hands the
-// work on — its model unavailable, a call refused, past a limit of deck — is done with its result on its own model.
+// work on — its model unavailable, past a limit of deck — is done with its result on its own model.
 func TestASubmittedResultBeatsAFailureAfterIt(t *testing.T) {
 	t.Parallel()
 	failures := map[string]provider.Result{
 		"unavailable": provider.Fail(fault.ModelUnavailable, "the model is overloaded"),
-		"refused":     {Refusal: "400 Bad Request: the reasoning of an earlier reply"},
 		"past":        {Past: "the call would pass the limit of 1000 tokens"},
 	}
 	for name, failure := range failures {

@@ -196,7 +196,7 @@ type heard struct {
 
 // rerun is an outcome of a turn that does not end it: the provider runs once more in the same turn.
 type rerun struct {
-	Why string
+	Why reason
 	// Text is the error of the result the turn is asked again for, or the kill it goes on after.
 	Text string
 }
@@ -208,7 +208,19 @@ type takeIn struct {
 	err error
 }
 
-func (rerun) outcome()  {}
+func (rerun) outcome() {}
+
+// reason is why a turn runs again: its session was lost, deck's tools reach it now, a kill cut it, its result was off
+// its schema.
+type reason string
+
+const (
+	lostSession reason = "session"
+	withTools   reason = "tools"
+	afterKill   reason = "killed"
+	forResult   reason = "result"
+)
+
 func (takeIn) outcome() {}
 
 // rule is one rule of how a turn of an agent ends: its outcome when it holds of the facts, else nil.
@@ -252,7 +264,7 @@ func wasCut(f *facts) Outcome {
 // lostItsSession: the session of a resume was gone, so the turn runs again in a fresh one.
 func lostItsSession(f *facts) Outcome {
 	if f.heard == nil && f.err == nil && f.res.SessionMissing {
-		return rerun{Why: "session"}
+		return rerun{Why: lostSession}
 	}
 	return nil
 }
@@ -260,7 +272,7 @@ func lostItsSession(f *facts) Outcome {
 // beganWithoutTools: the session began before deck's tools reached it, so it goes on in that session once.
 func beganWithoutTools(f *facts) Outcome {
 	if f.heard == nil && f.err != nil && f.res.Is(fault.DeckTools) && f.res.Begun && !f.rejoined {
-		return rerun{Why: "tools"}
+		return rerun{Why: withTools}
 	}
 	return nil
 }
@@ -299,7 +311,7 @@ func questionWaits(f *facts) Outcome {
 func killedOnce(f *facts) Outcome {
 	var k *provider.Killed
 	if errors.As(f.err, &k) && !f.revived && f.session != "" {
-		return rerun{Why: "killed", Text: k.Error()}
+		return rerun{Why: afterKill, Text: k.Error()}
 	}
 	return nil
 }
@@ -408,7 +420,7 @@ func offSchemaAgain(f *facts) Outcome {
 
 // offSchema: a result off its schema is asked for once more.
 func offSchema(f *facts) Outcome {
-	return rerun{Why: "result", Text: f.heard.invalid.Error()}
+	return rerun{Why: forResult, Text: f.heard.invalid.Error()}
 }
 
 // leave is how a turn deck took from its model ends: a waiting question parks it, else the work goes on on the next

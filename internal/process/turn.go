@@ -331,7 +331,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn) {
 // runAgain readies the request of a turn that runs again by next; a failure to ready it is the outcome, else nil.
 func (r *Runner) runAgain(ctx context.Context, t *turn, a *agentTurn, f *facts, req *provider.Request, asks *told, next rerun) Outcome {
 	switch next.Why {
-	case "session":
+	case lostSession:
 		// The owner's messages go with the fresh session; the asks stay undelivered, so it parks for them.
 		*asks = told{Remarks: asks.Remarks}
 		req.Resume = false
@@ -340,25 +340,27 @@ func (r *Runner) runAgain(ctx context.Context, t *turn, a *agentTurn, f *facts, 
 			return Fail{F: fault.Of(err)}
 		}
 		req.Prompt += r.remarksText(ctx, t.process, asks.Remarks)
-	case "tools":
+	case withTools:
 		// The session began before deck's tools reached it: it goes on in its session once, deck's tools with it.
 		f.rejoined = true
 		req.Emit(provider.Event{Kind: provider.EventStderr, Text: "deck: the agent began without deck's tools; the turn goes on in its session"})
 		req.Resume = true
 		req.Prompt = master.Text("again", again{Why: "tools", Submit: a.sub != nil})
-	case "killed":
+	case afterKill:
 		// A signal from outside cut the turn once: it goes on in its session, which keeps what it did.
 		f.revived = true
 		req.Emit(provider.Event{Kind: provider.EventStderr, Text: "deck: " + next.Text + "; the turn goes on in its session"})
 		req.Resume = true
 		req.Prompt = master.Text("again", again{Why: "killed", Submit: a.sub != nil})
-	case "result":
+	case forResult:
 		f.retried = true
 		req.Resume = true
 		if a.sub != nil {
 			a.sub.Spend()
 		}
 		req.Prompt = master.Text("again", again{Why: "result", Submit: a.sub != nil, Error: next.Text})
+	default:
+		panic(fmt.Sprintf("process: a turn runs again for %q", next.Why))
 	}
 	return nil
 }

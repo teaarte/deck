@@ -21,6 +21,6 @@ func (r *Runner) pause(ctx context.Context, pv provider.Provider, processID int6
 		return err
 	})
 	if err != nil {
-		r.finish(ctx, processID, StateError, "", false, fault.Wrap("pause on the usage limit", err))
+		r.apply(ctx, processID, Fail{F: fault.Wrap("pause on the usage limit", err)})
 	}
 }

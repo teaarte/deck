@@ -23,7 +23,6 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/store/db"
-	"deck2/internal/untrusted"
 	"deck2/master"
 )
 
@@ -56,7 +55,7 @@ func (r *Runner) run(ctx context.Context, t turn) {
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		// A failed read ends the process with it: none stays running with no turn.
 		slog.Error("read the process of a turn", "process", t.process, "err", err)
-		r.finish(bg, t.process, StateError, "", false, fault.Of(err))
+		r.apply(bg, t.process, Fail{F: fault.Of(err)})
 		return
 	}
 	if err != nil || p.State != StateRunning {
@@ -93,13 +92,13 @@ type agentTurn struct {
 
 func (r *Runner) runAgent(ctx context.Context, t *turn, p db.Process, trial bool) {
 	bg := context.WithoutCancel(ctx)
-	fail := func(f *fault.F) { r.finish(bg, t.process, StateError, "", false, f) }
+	fail := func(f *fault.F) { r.apply(bg, t.process, Fail{F: f}) }
 	a, ok := r.prepare(bg, t, p, trial, fail)
 	if !ok {
 		return
 	}
 	defer a.cleanup()
-	r.converse(ctx, t, a, fail)
+	r.converse(ctx, t, a)
 }
 
 // prepare gets a turn its provider, folder and slot, or leaves it waiting for them, then its folders, gateway
@@ -267,162 +266,101 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	return a, true
 }
 
-// converse runs the provider until the turn has an outcome: done by the schema, parked for the owner, paused on
-// a limit, a lost login or an error; a result off the schema is asked for once more.
-func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn, fail func(*fault.F)) {
+// converse runs the provider until the turn has an outcome by the rules of classify, then applies it; a run again of
+// the same turn is the outcome rerun.
+func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn) {
 	bg := context.WithoutCancel(ctx)
 	processID, pv, req := t.process, t.pv, a.req
 	asks := t.asks
-	for retried, revived, rejoined := false, false, false; ; {
+	f := &facts{pv: pv, run: a.run, workspace: a.proj.WorkspaceID, sub: a.sub != nil}
+	for {
 		a.listen(true)
 		stop := r.watchCall(processID, a.proj.WorkspaceID, pv)
 		res, err := provider.Run(ctx, pv, req)
 		stop()
 		a.listen(false)
 		r.setGroup(bg, processID, 0)
-		if l := leftModel(ctx); l != nil {
-			if a.sub == nil || !a.sub.Taken() {
-				t.asks = asks
-				r.leaveModel(bg, t, l)
-				return
-			}
+		t.asks = asks
+		f.t, f.res, f.err, f.heard = *t, res, err, nil
+		f.resume, f.prompt, f.session = req.Resume, req.Prompt, req.SessionID
+		f.taken = a.sub != nil && a.sub.Taken()
+		f.submitted = a.sub != nil && submitted(a.sub)
+		f.left = leftModel(ctx)
+		if f.left != nil && f.taken {
 			// A model that went quiet after it handed in its result ends the turn done, not on another model.
-			ctx = bg
+			f.left, ctx = nil, bg
 		}
-		if r.cut(bg, ctx, processID) {
-			return
+		f.cut, f.running, f.questioned = false, true, false
+		if f.left != nil {
+			p, err := r.st.Q.GetProcess(bg, processID)
+			f.running = err == nil && p.State == StateRunning
+			f.questioned = f.running && r.questioned(bg, processID)
+		} else {
+			f.cut = r.cut(bg, ctx, processID)
 		}
-		if err == nil && res.SessionMissing {
-			// The owner's messages go with the fresh session; the asks stay undelivered, so it parks for them.
-			asks = told{Remarks: asks.Remarks}
-			req.Resume = false
-			if req.Prompt, err = r.firstPrompt(bg, a.proj, *t, a.tools, a.data, true); err != nil {
-				fail(fault.Of(err))
-				return
+		o := classify(f)
+		if in, ok := o.(takeIn); ok {
+			f.res, f.err = in.res, in.err
+			_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error { return asks.mark(ctx, q, r.now()) })
+			asks = told{}
+			r.providerHealth(bg, pv, f.res, f.err)
+			r.deps.Answered(bg, a.proj.WorkspaceID, pv.Name(), f.err == nil && f.res.Fault == nil, f.res.Quota)
+			settled := f.err == nil && f.res.Fault == nil
+			if a.sub != nil && settled {
+				var spent bool
+				f.res.Structured, spent = a.sub.Result()
+				f.retried = f.retried || spent
 			}
-			req.Prompt += r.remarksText(bg, processID, asks.Remarks)
-			continue
-		}
-		if err != nil && res.Is(fault.DeckTools) && res.Begun && !rejoined {
-			// The session began before deck's tools reached it: it goes on in its session once, deck's tools with it.
-			rejoined = true
-			req.Emit(provider.Event{Kind: provider.EventStderr, Text: "deck: the agent began without deck's tools; the turn goes on in its session"})
-			req.Resume = true
-			req.Prompt = master.Text("again", again{Why: "tools", Submit: a.sub != nil})
-			continue
-		}
-		if err != nil && res.Is(fault.DeckTools) {
-			t.asks, t.resume = asks, req.Resume
-			if req.Resume {
-				t.message = req.Prompt
+			f.heard = &heard{blocked: settled && r.blocked(bg, processID)}
+			if settled && !f.heard.blocked {
+				f.heard.invalid = validate(t.cmd, f.res.Structured)
 			}
-			r.lostTools(bg, *t, pv, err)
-			return
+			f.questioned = !settled && r.questioned(bg, processID)
+			o = classify(f)
 		}
-		var killed *provider.Killed
-		if a.sub != nil && a.sub.Taken() {
-			// A turn that handed in a result its schema took is done, whatever came after it.
-			err, res.Fault, res.Past, res.Refusal = nil, nil, "", ""
+		if next, ok := o.(rerun); ok {
+			if o = r.runAgain(bg, t, a, f, &req, &asks, next); o == nil {
+				continue
+			}
 		}
-		if errors.As(err, &killed) && a.sub != nil && submitted(a.sub) {
-			// A turn killed after it handed in its result is done.
-			err, res.Fault = nil, nil
-		}
-		if a.sub != nil && err == nil && !res.Is(fault.TaskFailed) && submitted(a.sub) {
-			// A turn that ended on its own with its result in is done, whatever a later call of the model got.
-			res.Fault = nil
-		}
-		_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error { return asks.mark(ctx, q, r.now()) })
-		asks = told{}
-		r.providerHealth(bg, pv, res, err)
-		r.deps.Answered(bg, a.proj.WorkspaceID, pv.Name(), err == nil && res.Fault == nil, res.Quota)
-		settled := err == nil && res.Fault == nil
-		if a.sub != nil && settled {
-			var spent bool
-			res.Structured, spent = a.sub.Result()
-			retried = retried || spent
-		}
-		verr := error(nil)
-		blocked := settled && r.blocked(bg, processID)
-		if settled && !blocked {
-			verr = validate(t.cmd, res.Structured)
-		}
-		switch {
-		case (err != nil || res.Fault != nil) && r.questioned(bg, processID):
-			r.park(bg, processID)
-		case errors.As(err, &killed) && !revived && req.SessionID != "":
-			// A signal from outside cut the turn once: it goes on in its session, which keeps what it did.
-			revived = true
-			req.Emit(provider.Event{Kind: provider.EventStderr, Text: "deck: " + killed.Error() + "; the turn goes on in its session"})
-			req.Resume = true
-			req.Prompt = master.Text("again", again{Why: "killed", Submit: a.sub != nil})
-			continue
-		case errors.As(err, &killed):
-			fail(fault.With(fault.Killed, killed.Error(), killed.Stderr))
-		case err != nil:
-			fail(fault.Of(err))
-			r.deps.Broke(bg, pv.Name())
-		case res.Past != "":
-			// Deck held the call back, so the model is not at a limit of its own and does not pause.
-			f := fault.With(fault.ModelLimit, untrusted.Flat(res.Past, 300), res.Past)
-			if !r.handOn(bg, *t, pv, f) {
-				r.finish(bg, processID, StateError, "", false, f)
-			}
-		case res.Is(fault.ModelUnavailable):
-			text := res.Fault.Text
-			f := fault.With(fault.ModelUnavailable, fmt.Sprintf("%s did not answer: %s", pv.Name(), untrusted.Flat(text, 200)), text)
-			if !r.handOn(bg, *t, pv, f) {
-				r.finish(bg, processID, StateError, text, false, f)
-			}
-			r.deps.Broke(bg, pv.Name())
-		case res.Is(fault.ModelLimit):
-			text := res.Fault.Text
-			until, _ := r.deps.Limited(bg, a.proj.WorkspaceID, pv.Name(), res.ResetsAt, text)
-			// A short limit of a subscription waits on the same login: another one would take the burst and lose the cache.
-			short := r.deps.Subscription(bg, a.proj.WorkspaceID, pv.Name()) != "" && !until.After(r.now().Add(shortLimit))
-			if short || !r.handOn(bg, *t, pv, fault.With(fault.ModelLimit, fmt.Sprintf("%s reached its usage limit", pv.Name()), text)) {
-				r.pause(bg, pv, processID, until)
-			}
-		case res.Is(fault.ModelLogin):
-			r.needLogin(bg, pv, processID, res.Fault.Text)
-		case res.Fault != nil:
-			text := res.Fault.Text
-			r.finish(bg, processID, StateError, text, false, fault.With(fault.TaskFailed, fmt.Sprintf("the agent reported an error: %s", untrusted.Flat(text, 200)), text))
-			r.deps.Broke(bg, pv.Name())
-		case !blocked && verr != nil && res.Refusal != "":
-			f := fault.With(fault.ModelUnavailable, fmt.Sprintf("%s refused a call of the turn: %s", pv.Name(), untrusted.Flat(res.Refusal, 200)), res.Refusal)
-			if !r.handOn(bg, *t, pv, f) {
-				r.finish(bg, processID, StateError, res.Refusal, false, f)
-			}
-			r.deps.Broke(bg, pv.Name())
-		case blocked:
-			r.turnText(bg, processID, res.Text)
-			r.park(bg, processID)
-		case verr == nil:
-			r.turnText(bg, processID, res.Text)
-			result := res.Text
-			if len(t.cmd.Result) > 0 {
-				result = string(res.Structured)
-			}
-			r.settle(bg, a.run, result, nil)
-		case retried:
-			raw := string(res.Structured)
-			if raw == "" {
-				raw = res.Text
-			}
-			// Off its schema twice, the result ends done and nothing acts on it.
-			r.finish(bg, processID, StateDone, raw, true, nil)
-		default:
-			retried = true
-			req.Resume = true
-			if a.sub != nil {
-				a.sub.Spend()
-			}
-			req.Prompt = master.Text("again", again{Why: "result", Submit: a.sub != nil, Error: verr.Error()})
-			continue
-		}
+		r.apply(bg, processID, o)
 		return
 	}
+}
+
+// runAgain readies the request of a turn that runs again by next; a failure to ready it is the outcome, else nil.
+func (r *Runner) runAgain(ctx context.Context, t *turn, a *agentTurn, f *facts, req *provider.Request, asks *told, next rerun) Outcome {
+	switch next.Why {
+	case "session":
+		// The owner's messages go with the fresh session; the asks stay undelivered, so it parks for them.
+		*asks = told{Remarks: asks.Remarks}
+		req.Resume = false
+		var err error
+		if req.Prompt, err = r.firstPrompt(ctx, a.proj, *t, a.tools, a.data, true); err != nil {
+			return Fail{F: fault.Of(err)}
+		}
+		req.Prompt += r.remarksText(ctx, t.process, asks.Remarks)
+	case "tools":
+		// The session began before deck's tools reached it: it goes on in its session once, deck's tools with it.
+		f.rejoined = true
+		req.Emit(provider.Event{Kind: provider.EventStderr, Text: "deck: the agent began without deck's tools; the turn goes on in its session"})
+		req.Resume = true
+		req.Prompt = master.Text("again", again{Why: "tools", Submit: a.sub != nil})
+	case "killed":
+		// A signal from outside cut the turn once: it goes on in its session, which keeps what it did.
+		f.revived = true
+		req.Emit(provider.Event{Kind: provider.EventStderr, Text: "deck: " + next.Text + "; the turn goes on in its session"})
+		req.Resume = true
+		req.Prompt = master.Text("again", again{Why: "killed", Submit: a.sub != nil})
+	case "result":
+		f.retried = true
+		req.Resume = true
+		if a.sub != nil {
+			a.sub.Spend()
+		}
+		req.Prompt = master.Text("again", again{Why: "result", Submit: a.sub != nil, Error: next.Text})
+	}
+	return nil
 }
 
 // validate checks structured output against the result schema; null, nothing to do, only where the schema takes it.

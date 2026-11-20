@@ -283,8 +283,15 @@ func (r *Runner) spawn(t turn) bool {
 // detailsCap is how much of the details of a failure a process keeps.
 const detailsCap = 16000
 
-// finish closes a running process; one that a stop has closed meanwhile stays as the stop left it.
-func (r *Runner) finish(ctx context.Context, processID int64, state, result string, notBySchema bool, f *fault.F) {
+// finish closes a running process done or failed, as apply asks; one that a stop has closed meanwhile stays as the stop left it.
+func (r *Runner) finish(ctx context.Context, processID int64, o Outcome) {
+	state, result, notBySchema, f := StateDone, "", false, (*fault.F)(nil)
+	switch o := o.(type) {
+	case Done:
+		result, notBySchema = o.Result, o.NotBySchema
+	case Fail:
+		state, result, f = cmp.Or(o.State, StateError), o.Result, o.F
+	}
 	nbs := int64(0)
 	if notBySchema {
 		nbs = 1
@@ -340,7 +347,7 @@ func (r *Runner) finish(ctx context.Context, processID int64, state, result stri
 	}
 	if parked {
 		if err := r.Deliver(ctx, processID); err != nil {
-			r.finish(ctx, processID, StateError, "", false, fault.Wrap("resume with a message", err))
+			r.apply(ctx, processID, Fail{F: fault.Wrap("resume with a message", err)})
 		}
 		return
 	}

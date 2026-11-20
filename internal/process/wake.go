@@ -187,7 +187,7 @@ func (r *Runner) wake(ctx context.Context) {
 		t, err := r.heldTurn(ctx, p)
 		if err != nil {
 			s.release(ctx)
-			r.finish(ctx, p.ID, StateError, "", false, fault.Of(err))
+			r.apply(ctx, p.ID, Fail{F: fault.Of(err)})
 			continue
 		}
 		t.slot = s
@@ -231,7 +231,7 @@ func (r *Runner) silence(ctx context.Context, now time.Time) {
 		if ok, err := r.claim(ctx, p.ID, p.WaitReason); err != nil || !ok {
 			continue
 		}
-		r.finish(ctx, p.ID, StateError, "", false, fault.New(t, text))
+		r.apply(ctx, p.ID, Fail{F: fault.New(t, text)})
 	}
 }
 func (r *Runner) folderFree(ctx context.Context, folder string) bool {

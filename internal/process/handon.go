@@ -62,7 +62,7 @@ func (r *Runner) handOnTo(ctx context.Context, t turn, was, next string, f *faul
 		slog.Error("hand a process on to the next model", "process", p.ID, "provider", next, "err", err)
 		return false
 	}
-	r.finish(ctx, t.process, StateError, "", false, f)
+	r.apply(ctx, t.process, Fail{F: f})
 	if p, err = r.st.Q.GetProcess(ctx, t.process); err != nil || p.State != StateError || p.ErrorType != f.Type {
 		_ = r.Cancel(ctx, id, "deck: the process it would continue was closed otherwise", false)
 		return true

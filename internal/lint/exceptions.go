@@ -35,7 +35,7 @@ var exceptions = map[string][]string{
 	},
 	"write": {
 		"cmd/deck-release/main.go:53", "cmd/deck-release/main.go:56", "cmd/deck/main.go:60", "cmd/deck/main.go:281",
-		"internal/app/snapshots/snapshot.go:168", "internal/app/updates/updates.go:330", "internal/process/settle.go:125",
+		"internal/app/snapshots/snapshot.go:168", "internal/app/updates/updates.go:330", "internal/process/settle.go:119",
 		"internal/provider/codex/gen/main.go:93", "internal/provider/codex/gen/main.go:104",
 		"internal/provider/shellcheck.go:80", "internal/provider/shellcheck.go:81",
 	},
@@ -60,7 +60,7 @@ var exceptions = map[string][]string{
 		"internal/process/files.go:243", "internal/process/health.go:33", "internal/process/log.go:72",
 		"internal/process/park.go:101", "internal/process/resume.go:123", "internal/process/resume.go:249",
 		"internal/process/script.go:157", "internal/process/submit.go:57", "internal/process/tool.go:142",
-		"internal/process/turn.go:335", "internal/process/wake.go:59", "internal/process/wake.go:185",
+		"internal/process/turn.go:304", "internal/process/wake.go:59", "internal/process/wake.go:185",
 		"internal/process/wake.go:202", "internal/process/wake.go:207",
 	},
 	"failure": {

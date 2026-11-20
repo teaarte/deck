@@ -55,7 +55,7 @@ func (r *Runner) Deliver(ctx context.Context, processID int64) error {
 		return err
 	}
 	if err := r.resume(ctx, processID, pending.message()+r.stillWaiting(ctx, processID), pending.ids(), false); err != nil {
-		r.finish(ctx, processID, StateError, "", false, fault.Wrap("resume after answer", err))
+		r.apply(ctx, processID, Fail{F: fault.Wrap("resume after answer", err)})
 		return err
 	}
 	return nil
@@ -109,7 +109,7 @@ func (r *Runner) relogin(ctx context.Context, processID int64, login db.Ask, pen
 		msg += "\n" + others.message()
 	}
 	if err := r.resume(ctx, processID, msg, others.ids(), fresh); err != nil {
-		r.finish(ctx, processID, StateError, "", false, fault.Wrap("continue after login", err))
+		r.apply(ctx, processID, Fail{F: fault.Wrap("continue after login", err)})
 		return err
 	}
 	return nil
@@ -124,8 +124,8 @@ func (r *Runner) loginPast(ctx context.Context, p db.Process, login db.Ask) erro
 		_, err := q.DeliverAsk(ctx, db.DeliverAskParams{ID: login.ID, Now: store.Time(r.now())})
 		return err
 	})
-	r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.ModelLogin,
-		fmt.Sprintf("deck: %s waited for a login until %s, its term, and the owner did not log in", p.Provider, login.ExpiresAt.String)))
+	r.apply(ctx, p.ID, Fail{F: fault.New(fault.ModelLogin,
+		fmt.Sprintf("deck: %s waited for a login until %s, its term, and the owner did not log in", p.Provider, login.ExpiresAt.String))})
 	return nil
 }
 
@@ -175,18 +175,18 @@ func (r *Runner) Recover(ctx context.Context) error {
 	for _, p := range ps {
 		if p.Kind == KindTool || p.Kind == KindModel {
 			text := map[string]string{KindTool: "deck restarted while the tool call ran", KindModel: "deck restarted while the model call ran"}[p.Kind]
-			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.New(fault.DeckRestart, text))
+			r.apply(ctx, p.ID, Fail{F: fault.New(fault.DeckRestart, text), State: StateInterrupted})
 			_ = os.RemoveAll(r.runDir(p.ID))
 			continue
 		}
 		if p.Kind == KindScript {
-			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.New(fault.DeckRestart, "deck restarted while the script ran"))
+			r.apply(ctx, p.ID, Fail{F: fault.New(fault.DeckRestart, "deck restarted while the script ran"), State: StateInterrupted})
 			r.warn(ctx, p.ID, fmt.Sprintf("Script command %s was interrupted by a restart of deck; run it again if it is still needed.", p.Command))
 			_ = os.RemoveAll(r.runDir(p.ID))
 			continue
 		}
 		if p.SessionID == "" {
-			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.New(fault.DeckRestart, "deck restarted before the session started"))
+			r.apply(ctx, p.ID, Fail{F: fault.New(fault.DeckRestart, "deck restarted before the session started"), State: StateInterrupted})
 			continue
 		}
 		// The ceiling stood still while deck was down: it counts up to the last output seen.
@@ -205,7 +205,7 @@ func (r *Runner) Recover(ctx context.Context) error {
 			msg += "\n" + gateway.Unresolved(open)
 		}
 		if err := r.resumeHeld(ctx, p, msg, pending.ids()); err != nil {
-			r.finish(ctx, p.ID, StateInterrupted, "", false, fault.Of(err))
+			r.apply(ctx, p.ID, Fail{F: fault.Of(err), State: StateInterrupted})
 		}
 	}
 	return errors.Join(failed...)

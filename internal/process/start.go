@@ -454,7 +454,7 @@ func (r *Runner) launch(ctx context.Context, projectID int64, m *manifest.Manife
 			})
 		}
 		if err != nil {
-			r.finish(ctx, a.p.ID, StateError, "", false, fault.Wrap("give files", err))
+			r.apply(ctx, a.p.ID, Fail{F: fault.Wrap("give files", err)})
 			return a.p.ID, err
 		}
 	}

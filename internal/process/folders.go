@@ -40,7 +40,7 @@ func (r *Runner) holdFolder(ctx context.Context, t turn, folder string) bool {
 		return err
 	})
 	if err != nil {
-		r.finish(ctx, t.process, StateError, "", false, fault.Wrap("take the folder", err))
+		r.apply(ctx, t.process, Fail{F: fault.Wrap("take the folder", err)})
 		return false
 	}
 	if held {
@@ -75,7 +75,7 @@ func (r *Runner) holdRun(ctx context.Context, t turn) bool {
 		return err
 	})
 	if err != nil {
-		r.finish(ctx, t.process, StateError, "", false, fault.Wrap("wait for the run before", err))
+		r.apply(ctx, t.process, Fail{F: fault.Wrap("wait for the run before", err)})
 		return false
 	}
 	if !held {

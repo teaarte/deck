@@ -86,17 +86,17 @@ func (r *Runner) runCall(ctx context.Context, t turn, p db.Process, tool bool, c
 	u := &run{turn: t}
 	proj, err := r.st.Q.GetProject(bg, t.project)
 	if err != nil {
-		r.settle(bg, u, "", fault.Of(err))
+		r.apply(bg, u.process, Settle{Run: u, F: fault.Of(err)})
 		return
 	}
 	name, input, err := call(proj)
 	if err != nil {
-		r.settle(bg, u, "", fault.Of(err))
+		r.apply(bg, u.process, Settle{Run: u, F: fault.Of(err)})
 		return
 	}
 	u, f := r.begin(bg, t, proj, nil)
 	if f != nil {
-		r.settle(bg, &run{turn: t}, "", f)
+		r.apply(bg, t.process, Settle{Run: &run{turn: t}, F: f})
 		return
 	}
 	defer u.close(r)
@@ -111,7 +111,7 @@ func (r *Runner) runCall(ctx context.Context, t turn, p db.Process, tool bool, c
 		return
 	}
 	if err != nil {
-		r.settle(bg, u, "", fault.OfCall(err))
+		r.apply(bg, u.process, Settle{Run: u, F: fault.OfCall(err)})
 		return
 	}
 	if _, ok := out.(gateway.Waiting); ok {
@@ -119,7 +119,7 @@ func (r *Runner) runCall(ctx context.Context, t turn, p db.Process, tool bool, c
 		return
 	}
 	res, _ := json.Marshal(out)
-	r.settle(bg, u, string(callResult(res)), nil)
+	r.apply(bg, u.process, Settle{Run: u, Result: string(callResult(res))})
 }
 
 // callResult is what a call gave as the result of its process: a file the tool saved is a file of the result.
@@ -154,16 +154,16 @@ func (r *Runner) deliverTool(ctx context.Context, p db.Process, pending untold) 
 		_ = json.Unmarshal([]byte(row.Result), &o)
 		switch {
 		case a.State == ask.StateExpired || a.State == ask.StateDismissed:
-			r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.RightsDenied, "deck: the owner did not confirm the call in time; it was not made"))
+			r.apply(ctx, p.ID, Fail{F: fault.New(fault.RightsDenied, "deck: the owner did not confirm the call in time; it was not made")})
 		case row.Result == "":
-			r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.RightsDenied, gateway.RejectMessage(a.Answer)))
+			r.apply(ctx, p.ID, Fail{F: fault.New(fault.RightsDenied, gateway.RejectMessage(a.Answer))})
 		case o.Error != "" || cmd == nil:
-			r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.TaskFailed, o.Error))
+			r.apply(ctx, p.ID, Fail{F: fault.New(fault.TaskFailed, o.Error)})
 		default:
-			r.settle(ctx, &run{turn: turn{process: p.ID, project: p.ProjectID, cmd: cmd}}, string(callResult(o.Result)), nil)
+			r.apply(ctx, p.ID, Settle{Run: &run{turn: turn{process: p.ID, project: p.ProjectID, cmd: cmd}}, Result: string(callResult(o.Result))})
 		}
 		return nil
 	}
-	r.finish(ctx, p.ID, StateError, "", false, fault.New(fault.DeckInternal, "deck: the tool call got no decision"))
+	r.apply(ctx, p.ID, Fail{F: fault.New(fault.DeckInternal, "deck: the tool call got no decision")})
 	return nil
 }

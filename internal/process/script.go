@@ -28,7 +28,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, p db.Process) {
 	bg := context.WithoutCancel(ctx)
 	id := t.process
 	u := &run{turn: t}
-	fail := func(f *fault.F) { r.settle(bg, u, "", f) }
+	fail := func(f *fault.F) { r.apply(bg, u.process, Settle{Run: u, F: f}) }
 	proj, err := r.st.Q.GetProject(bg, t.project)
 	if err != nil {
 		fail(fault.Of(err))
@@ -102,7 +102,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, p db.Process) {
 		fail(fault.New(fault.ResultInvalid, fmt.Sprintf("script %s printed output that is not JSON: %s", job.Script.Name, untrusted.Cut(result, 300))))
 		return
 	}
-	r.settle(bg, u, result, nil)
+	r.apply(bg, u.process, Settle{Run: u, Result: result})
 }
 
 // onNode says t is a script that runs on a node, on a copy of the data of its project: runs of its command there take

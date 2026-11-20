@@ -48,7 +48,7 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 		return
 	}
 	if err != nil {
-		r.finish(ctx, processID, StateError, "", false, fault.New(fault.ModelLogin, fmt.Sprintf("needs login: %s", text)))
+		r.apply(ctx, processID, Fail{F: fault.New(fault.ModelLogin, fmt.Sprintf("needs login: %s", text))})
 		return
 	}
 	r.deps.Broke(ctx, pv.Name())
@@ -73,7 +73,7 @@ func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, er
 		return err
 	})
 	if txErr != nil {
-		r.finish(ctx, t.process, StateError, "", false, fault.Of(txErr))
+		r.apply(ctx, t.process, Fail{F: fault.Of(txErr)})
 		return
 	}
 	r.deps.Broke(ctx, pv.Name())
@@ -107,7 +107,7 @@ func (r *Runner) park(ctx context.Context, processID int64) {
 		return
 	}
 	if err := r.Deliver(ctx, processID); err != nil {
-		r.finish(ctx, processID, StateError, "", false, fault.Wrap("resume after answer", err))
+		r.apply(ctx, processID, Fail{F: fault.Wrap("resume after answer", err)})
 	}
 	if err := r.hear(ctx, processID, func(h Hook, p db.Process) error { return h.Parked(ctx, p) }); err != nil {
 		slog.Error("hear a parked process", "process", processID, "err", err)

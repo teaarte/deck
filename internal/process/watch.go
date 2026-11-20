@@ -1,7 +1,6 @@
 package process
 
 import (
-	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -196,36 +195,6 @@ func leftModel(ctx context.Context) *leaving {
 		return l
 	}
 	return nil
-}
-
-// leave ends a turn deck took from its model: the work goes on on the next model of the assignment; without one a
-// turn on a provider that went down waits for it in its session, any other fails.
-func (r *Runner) leaveModel(ctx context.Context, t *turn, l *leaving) {
-	if p, err := r.st.Q.GetProcess(ctx, t.process); err != nil || p.State != StateRunning {
-		return
-	}
-	if r.questioned(ctx, t.process) {
-		r.park(ctx, t.process)
-		return
-	}
-	pv := t.pv
-	if r.handOn(ctx, *t, pv, l.f) {
-		if l.down == "" && l.f.Type == fault.ModelUnavailable {
-			r.deps.Broke(ctx, pv.Name())
-		}
-		return
-	}
-	if l.down != "" {
-		held := *t
-		held.resume, held.message = true, "deck: your model was held up and is back. Continue where you stopped."
-		r.warnOf(ctx, t.process, fmt.Sprintf("%s waits for %s: %s", cmp.Or(t.cmd.Title, t.cmd.Name), pv.Name(), l.f.Text), health.Provider(pv.Name()))
-		r.hold(ctx, held, wait{reason: WaitProvider, on: pv.Name(), silence: SilenceFail + fault.ModelUnavailable, until: r.now().Add(providerTerm)})
-		return
-	}
-	r.finish(ctx, t.process, StateError, "", false, l.f)
-	if l.f.Type == fault.ModelUnavailable {
-		r.deps.Broke(ctx, pv.Name())
-	}
 }
 
 // Saw notes in the base the revision of a document an open process read or saved; it stays through its turns and restarts.

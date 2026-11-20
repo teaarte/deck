@@ -68,10 +68,9 @@ func (r *Runner) cutRun(ctx, runCtx context.Context, u *run) bool {
 	return true
 }
 
-// settle closes a run with what it gave: failure f, or result, done by the schema of its command with the files it
-// names kept, or done off its schema, which nothing acts on.
-func (r *Runner) settle(ctx context.Context, u *run, result string, f *fault.F) {
-	// The run folder of a script or call goes before the process ends, so none sees it ended with its folder there.
+// settled is what a run that gave failure f or result comes to: done by its schema with the files it names kept, or off
+// it, which nothing acts on; the run folder of a script or call goes first, so none sees it ended with its folder.
+func (r *Runner) settled(ctx context.Context, u *run, result string, f *fault.F) Outcome {
 	clear := func() {
 		if !u.agent {
 			r.clearRun(r.runDir(u.process))
@@ -79,23 +78,19 @@ func (r *Runner) settle(ctx context.Context, u *run, result string, f *fault.F) 
 	}
 	if f != nil {
 		clear()
-		r.finish(ctx, u.process, StateError, "", false, f)
-		return
+		return Fail{F: f}
 	}
 	if left := r.leftWork(ctx, u, result); left != nil {
 		clear()
-		r.finish(ctx, u.process, StateError, result, false, left)
-		return
+		return Fail{F: left, Result: result}
 	}
 	if verr := validate(u.cmd, []byte(result)); verr != nil {
 		clear()
-		r.finish(ctx, u.process, StateDone, result, true, nil)
 		name := u.cmd.Name
 		if p, err := r.st.Q.GetProject(ctx, u.project); err == nil {
 			name = p.Name + "." + name
 		}
-		r.warn(ctx, u.process, fmt.Sprintf("The result of %s does not match its schema, so nothing acts on it: %v", name, verr))
-		return
+		return Done{Result: result, NotBySchema: true, Warn: fmt.Sprintf("The result of %s does not match its schema, so nothing acts on it: %v", name, verr)}
 	}
 	kept, err := r.kept(ctx, u, result)
 	clear()
@@ -103,10 +98,9 @@ func (r *Runner) settle(ctx context.Context, u *run, result string, f *fault.F) 
 		if !u.agent {
 			result = ""
 		}
-		r.finish(ctx, u.process, StateError, result, false, fault.Of(err))
-		return
+		return Fail{F: fault.Of(err), Result: result}
 	}
-	r.finish(ctx, u.process, StateDone, kept, false, nil)
+	return Done{Result: kept}
 }
 
 // kept keeps the files of a result by its schema in the results folder and gives the result with their ids; a turn

@@ -455,9 +455,10 @@ func TestCodexStopInterruptsTheTurn(t *testing.T) {
 	id := e.Run(e.Project("paint", harness.OnLogin(harness.ColorManifest)), "work")
 	e.Until("the turn to run", func() bool { return c.Calls() >= 1 && c.Call(1).Request("turn/start") != nil })
 	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
-	if got := e.WaitState(id, "stopped", "done", "error"); got.State != "stopped" || c.Call(1).Request("turn/interrupt") == nil {
-		t.Fatalf("want the turn interrupted and the process stopped: %+v", got)
+	if got := e.WaitState(id, "stopped", "done", "error"); got.State != "stopped" {
+		t.Fatalf("want the process stopped: %+v", got)
 	}
+	e.Until("the turn to be interrupted", func() bool { return c.Call(1).Request("turn/interrupt") != nil })
 	alive, err := os.Open(filepath.Join(c.Dir, "calls", "1", "alive"))
 	if err != nil {
 		t.Fatal(err)

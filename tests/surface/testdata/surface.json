@@ -10575,7 +10575,8 @@
               "agent_limit",
               "language",
               "push_text",
-              "master_web"
+              "master_web",
+              "time_zone"
             ],
             "type": "string"
           },

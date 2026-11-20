@@ -27,6 +27,8 @@ import (
 type Service struct {
 	St  *store.Store
 	Now func() time.Time
+	// Zone is the owner's time zone of a workspace, whose days count.
+	Zone func(ctx context.Context, workspace int64) *time.Location
 	// Groups give the group of a model of a workspace where models are listed, in a language, and its place.
 	Groups func(ctx context.Context, workspace int64, lang string) func(model string) (string, int)
 	// Explain is how the gateway would decide a call now.
@@ -200,12 +202,12 @@ func compact(n int64) string {
 }
 
 // window is the start of the first of the last days of the owner, as stored, and the days in order, oldest first.
-func (s *Service) window(days int64) (string, []string) {
+func (s *Service) window(loc *time.Location, days int64) (string, []string) {
 	if days < 1 || days > 366 {
 		days = 30
 	}
-	y, m, d := s.Now().Local().Date()
-	first := time.Date(y, m, d-int(days-1), 0, 0, 0, 0, time.Local)
+	y, m, d := s.Now().In(loc).Date()
+	first := time.Date(y, m, d-int(days-1), 0, 0, 0, 0, loc)
 	out := make([]string, 0, days)
 	for i := range int(days) {
 		out = append(out, first.AddDate(0, 0, i).Format(time.DateOnly))
@@ -213,18 +215,19 @@ func (s *Service) window(days int64) (string, []string) {
 	return store.Time(first), out
 }
 
-// day is the day of the owner a minute of the base, 2006-01-02T15:04 in UTC, falls on.
-func day(minute string) string {
+// day is the day of the owner in loc a minute of the base, 2006-01-02T15:04 in UTC, falls on.
+func day(loc *time.Location, minute string) string {
 	t, err := time.Parse("2006-01-02T15:04", minute)
 	if err != nil {
 		return ""
 	}
-	return t.Local().Format(time.DateOnly)
+	return t.In(loc).Format(time.DateOnly)
 }
 
 // spendDaily is the tokens and cost of model calls of the last days by day, provider, project or both.
 func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDaysListIn) ([]spendDayView, error) {
-	since, days := s.window(in.Days)
+	loc := s.Zone(ctx, act.Workspace)
+	since, days := s.window(loc, in.Days)
 	rows, err := s.St.Q.SpendSince(ctx, db.SpendSinceParams{WorkspaceID: act.Workspace, Since: since})
 	if err != nil {
 		return nil, err
@@ -258,7 +261,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		total += r.InputTokens + r.OutputTokens
 		key := r.Project
 		if in.By == "" || in.By == "day" {
-			key = day(r.Minute)
+			key = day(loc, r.Minute)
 		}
 		if models[key] == nil {
 			models[key] = map[string]*spent{}
@@ -279,7 +282,7 @@ func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDa
 		case "project_provider":
 			add(r.Project+"\x00"+r.Provider, r, spendDayView{Project: r.Project, Provider: r.Provider})
 		default:
-			if d := day(r.Minute); by[d] != nil {
+			if d := day(loc, r.Minute); by[d] != nil {
 				add(d, r, spendDayView{})
 			}
 		}

@@ -745,3 +745,26 @@ func TestASlotOfATriggerStartsOnce(t *testing.T) {
 	e.Schedule()
 	e.Until("the run of the next slot", func() bool { return e.CountOf("job") == 2 })
 }
+
+// TestTheOwnersZoneSetsTheClockOfSchedules: a schedule runs by the wall clock of the zone the owner set, moved there
+// once it is set; a name that is no zone is refused.
+func TestTheOwnersZoneSetsTheClockOfSchedules(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithClock())
+	e.Project("daily", harness.TestManifest([]string{harness.AgentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
+	e.Refused("deck.setting_set", map[string]any{"name": "time_zone", "value": "Mars/Base"}, 422, "time zone")
+	e.Must("deck.setting_set", map[string]any{"name": "time_zone", "value": "Pacific/Kiritimati"}, nil)
+	zone, _ := time.LoadLocation("Pacific/Kiritimati")
+	var next string
+	// The next slot of the schedule, which the schedule screen shows by the time of day alone.
+	if err := e.SQLRow(`SELECT next_run_at FROM "trigger" WHERE command = 'job'`).Scan(&next); err != nil {
+		t.Fatal(err)
+	}
+	at, err := time.Parse(time.RFC3339Nano, next)
+	if err != nil || at.In(zone).Hour() != 9 || at.In(zone).Minute() != 0 || !at.After(e.Clock.Now()) {
+		t.Fatalf("the schedule runs at 9:00 in the owner's zone: %s %v", next, err)
+	}
+	e.Clock.Add(at.Sub(e.Clock.Now()) + time.Minute)
+	e.Schedule()
+	e.Until("the run at 9:00 in the zone", func() bool { return e.CountOf("job") == 1 })
+}

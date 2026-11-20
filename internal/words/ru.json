@@ -1327,6 +1327,7 @@
   "Read from outside": "Читал извне",
   "Its replies read text from outside: {{from}}": "Ответы в этой теме читали текст извне: {{from}}",
   "Pages the master reads after it read text from outside: it asks you for each, or reads them by its right": "Страницы, которые мастер читает после текста извне: спрашивает тебя о каждой или читает по своему праву",
+  "Time zone of schedules and of the day, such as Europe/Oslo; deck's own when not set": "Часовой пояс расписаний и дня, например Europe/Oslo; если не задан — пояс самого deck",
   "Pages the master reads after text from outside": "Страницы, которые мастер читает после текста извне",
   "After text from outside, the master asks you for each page, or reads by its right: then a page may carry out what it knows.": "После текста извне мастер спрашивает тебя о каждой странице или читает по своему праву — тогда страница может унести наружу то, что он знает.",
   "reads by its right": "читает по своему праву",

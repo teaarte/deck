@@ -26,8 +26,10 @@ import (
 
 // Service keeps the triggers; the scheduler fires them, the gateway runs a trigger now.
 type Service struct {
-	St        *store.Store
-	Now       func() time.Time
+	St  *store.Store
+	Now func() time.Time
+	// Zone is the owner's time zone of a workspace, whose days count.
+	Zone      func(ctx context.Context, workspace int64) *time.Location
 	Scheduler *trigger.Scheduler
 	Gateway   *gateway.Gateway
 	// IsFailure says whether a process is an open failure, as the cockpit counts them.
@@ -177,17 +179,17 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		}
 		out = append(out, v)
 	}
-	ordered(out, s.Now())
+	ordered(out, s.Now().In(s.Zone(ctx, act.Workspace)))
 	return out, nil
 }
 
-// ordered gives each trigger its place in a day: a schedule by the time of day of its next run on the owner's clock,
+// ordered gives each trigger its place in a day: a schedule by the time of day of its next run on the clock of now's zone,
 // a trigger after another command under the schedule its chain starts from, a step deeper each link.
 func ordered(ts []triggerView, now time.Time) {
 	// The first slot of a day of a cron is the time of day it runs; that of a command with several, its earliest.
 	day := func(t triggerView) string {
-		y, m, d := now.In(time.Local).Date()
-		next, err := trigger.Next(t.Spec, time.Date(y, m, d, 0, 0, 0, 0, time.Local).Add(-time.Second))
+		y, m, d := now.Date()
+		next, err := trigger.Next(t.Spec, time.Date(y, m, d, 0, 0, 0, 0, now.Location()).Add(-time.Second))
 		if err != nil {
 			return ""
 		}
@@ -195,7 +197,7 @@ func ordered(ts []triggerView, now time.Time) {
 		if err != nil {
 			return ""
 		}
-		return at.In(time.Local).Format("15:04")
+		return at.In(now.Location()).Format("15:04")
 	}
 	byCommand := map[string]int{}
 	for i, t := range ts {

@@ -398,7 +398,7 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 	}
 	// A cron slot moves with its run, so a crash between them cannot start it twice.
 	if t.Kind == trigger.KindCron && !o.Confirmed {
-		next, err := trigger.Next(t.Spec, r.now())
+		next, err := trigger.Next(t.Spec, r.now().In(r.cfg.Zone(ctx, q, pr.WorkspaceID)))
 		if err != nil {
 			return err
 		}

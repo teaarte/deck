@@ -31,12 +31,46 @@ const (
 	grace  = 2 * time.Minute
 )
 
-// Scheduler runs cron triggers in the local time zone. A run later than grace was missed
+// Scheduler runs cron triggers in the owner's zone. A run later than grace was missed
 // (deck down or the machine asleep): it fires once, and several missed runs are spaced spread apart.
 type Scheduler struct {
 	st    *store.Store
 	start Fire
 	Now   func() time.Time
+	// Zone is the owner's zone of a workspace; deck's own when nil.
+	Zone func(ctx context.Context, q *db.Queries, workspace int64) *time.Location
+}
+
+// at is t in the owner's zone of a project.
+func (s *Scheduler) at(ctx context.Context, q *db.Queries, project int64, t time.Time) time.Time {
+	p, err := q.GetProject(ctx, project)
+	if s.Zone == nil || err != nil {
+		return t.In(time.Local)
+	}
+	return t.In(s.Zone(ctx, q, p.WorkspaceID))
+}
+
+// Rezone moves the cron triggers of a workspace to their next slots in its zone, which the owner changed.
+func (s *Scheduler) Rezone(ctx context.Context, workspace int64) error {
+	return s.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		ts, err := q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: workspace})
+		if err != nil {
+			return err
+		}
+		for _, t := range ts {
+			if t.Kind != KindCron {
+				continue
+			}
+			next, err := Next(t.Spec, s.at(ctx, q, t.ProjectID, s.Now()))
+			if err != nil {
+				return err
+			}
+			if err := q.SetTriggerNext(ctx, db.SetTriggerNextParams{NextRunAt: sql.NullString{String: next, Valid: true}, ID: t.ID}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func New(st *store.Store, fire Fire, now func() time.Time) *Scheduler {
@@ -93,7 +127,7 @@ func (s *Scheduler) Sync(ctx context.Context, q *db.Queries, projectID int64, m 
 		kind, spec := Identity(t)
 		var next sql.NullString
 		if kind == KindCron {
-			n, err := Next(spec, s.Now())
+			n, err := Next(spec, s.at(ctx, q, projectID, s.Now()))
 			if err != nil {
 				return err
 			}
@@ -113,8 +147,8 @@ func (s *Scheduler) Sync(ctx context.Context, q *db.Queries, projectID int64, m 
 	return nil
 }
 
-// Next is the slot of a cron spec after a time by the owner's wall clock: one in an hour the clocks skip runs at the
-// first minute after it; in an hour they repeat, a spec of every hour holds its slots in both passes, another once.
+// Next is the slot of a cron spec after a time by the wall clock of its zone: one in an hour the clocks skip runs at
+// the first minute after it; in an hour they repeat, a spec of every hour holds its slots in both passes, another once.
 func Next(spec string, after time.Time) (string, error) {
 	sched, err := manifest.CronParser.Parse(spec)
 	if err != nil {
@@ -122,7 +156,7 @@ func Next(spec string, after time.Time) (string, error) {
 	}
 	s, ok := sched.(*cron.SpecSchedule)
 	hourly := ok && s.Hour&(1<<24-1) == 1<<24-1
-	a := after.In(time.Local)
+	a, loc := after, after.Location()
 	// From the first pass of a repeated hour a spec of every hour goes on minute by minute into the second.
 	if ps := wallPasses(a); hourly && len(ps) == 2 && !a.After(ps[0]) {
 		for m := a.Truncate(time.Minute).Add(time.Minute); !m.After(ps[1]); m = m.Add(time.Minute) {
@@ -134,7 +168,7 @@ func Next(spec string, after time.Time) (string, error) {
 	w := wall(a)
 	for {
 		w = sched.Next(w)
-		t := time.Date(w.Year(), w.Month(), w.Day(), w.Hour(), w.Minute(), w.Second(), 0, time.Local)
+		t := time.Date(w.Year(), w.Month(), w.Day(), w.Hour(), w.Minute(), w.Second(), 0, loc)
 		if t.Hour() != w.Hour() || t.Minute() != w.Minute() {
 			_, off := t.Zone()
 			t = t.Truncate(time.Minute)
@@ -154,9 +188,8 @@ func Next(spec string, after time.Time) (string, error) {
 	}
 }
 
-// wall is the reading of the owner's clock at t, as a time in UTC.
+// wall is the reading of the clock of t's zone at t, as a time in UTC.
 func wall(t time.Time) time.Time {
-	t = t.In(time.Local)
 	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.UTC)
 }
 
@@ -183,7 +216,7 @@ func (s *Scheduler) Rewind(ctx context.Context, q *db.Queries, t db.Trigger) err
 	if t.Kind != KindCron || t.NextRunAt.String > store.Time(s.Now()) {
 		return nil
 	}
-	next, err := Next(t.Spec, s.Now())
+	next, err := Next(t.Spec, s.at(ctx, q, t.ProjectID, s.Now()))
 	if err != nil {
 		return err
 	}
@@ -280,7 +313,7 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 // after moves a fired or skipped cron trigger to its next slot.
 func (s *Scheduler) after(ctx context.Context, t db.Trigger, now time.Time) {
 	s.tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		next, err := Next(t.Spec, now)
+		next, err := Next(t.Spec, s.at(ctx, q, t.ProjectID, now))
 		if err != nil {
 			return err
 		}

@@ -554,10 +554,14 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 		if len(r.Actions) != 1 || r.Actions[0].Verb != "edit" {
 			t.Fatalf("%s has the edit button: %+v", s.Name, r)
 		}
-		if !slices.Contains(s.Options, "2") {
+		value := "2"
+		if s.Name == "time_zone" {
+			value = "UTC"
+		}
+		if !slices.Contains(s.Options, value) {
 			t.Fatalf("%s offers its values to pick: %+v", s.Name, s.Options)
 		}
-		in := map[string]any{r.Actions[0].Input: "2"}
+		in := map[string]any{r.Actions[0].Input: value}
 		for k, v := range r.Actions[0].Params {
 			in[k] = v
 		}
@@ -569,7 +573,7 @@ func TestEverySettingIsEditedFromItsOneDefinition(t *testing.T) {
 	}
 	e.Must("deck.settings_list", nil, &after)
 	for _, s := range after {
-		if fmt.Sprint(s.Value) != "2" && fmt.Sprint(s.Value) != "open" && fmt.Sprint(s.Value) != "ru" && fmt.Sprint(s.Value) != "hidden" && fmt.Sprint(s.Value) != "always" {
+		if fmt.Sprint(s.Value) != "2" && fmt.Sprint(s.Value) != "open" && fmt.Sprint(s.Value) != "ru" && fmt.Sprint(s.Value) != "hidden" && fmt.Sprint(s.Value) != "always" && fmt.Sprint(s.Value) != "UTC" {
 			t.Fatalf("the button set %s: %+v", s.Name, after)
 		}
 	}

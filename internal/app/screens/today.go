@@ -91,14 +91,15 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 	if len(out) == 0 {
 		out = append(out, todayLineView{ID: "calm", Kind: "calm", Title: tr("All is well: nothing to decide, no failures."), Icon: "check", Tone: "ok"})
 	}
-	// The day is the owner's, by the clock of their machine, as the schedule and the spend count it.
-	y, m, d := s.Now().Local().Date()
-	done, err := s.St.Q.CountDoneSince(ctx, db.CountDoneSinceParams{Since: store.Time(time.Date(y, m, d, 0, 0, 0, 0, time.Local)), WorkspaceID: act.Workspace})
+	// The day is the owner's, in their zone, as the schedule and the spend count it.
+	loc := s.Zone(ctx, act.Workspace)
+	y, m, d := s.Now().In(loc).Date()
+	done, err := s.St.Q.CountDoneSince(ctx, db.CountDoneSinceParams{Since: store.Time(time.Date(y, m, d, 0, 0, 0, 0, loc)), WorkspaceID: act.Workspace})
 	if err != nil {
 		return nil, err
 	}
 	out = append(out, todayLineView{ID: "day", Kind: "day", Title: tr("Done today: %d", done), Icon: "checks"})
-	asked, err := s.St.Q.ListRecentRequests(ctx, db.ListRecentRequestsParams{WorkspaceID: act.Workspace, Since: store.Time(time.Date(y, m, d, 0, 0, 0, 0, time.Local))})
+	asked, err := s.St.Q.ListRecentRequests(ctx, db.ListRecentRequestsParams{WorkspaceID: act.Workspace, Since: store.Time(time.Date(y, m, d, 0, 0, 0, 0, loc))})
 	if err != nil {
 		return nil, err
 	}

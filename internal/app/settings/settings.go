@@ -25,6 +25,8 @@ type Service struct {
 	St         *store.Store
 	DefaultTTL time.Duration
 	Wake       func(ctx context.Context)
+	// Rezone moves the schedules of a workspace to the zone the owner set.
+	Rezone func(ctx context.Context, workspace int64) error
 }
 
 // agentLimit is how many agent turns a workspace runs at once unless the owner set it.
@@ -36,7 +38,9 @@ type settingDef struct {
 	name, title    string
 	min, max       int64
 	steps, options []string
-	def            func(s *Service) any
+	// zone marks a setting whose value is the name of a time zone.
+	zone bool
+	def  func(s *Service) any
 }
 
 var settingDefs = []settingDef{
@@ -52,16 +56,25 @@ var settingDefs = []settingDef{
 		def: func(*Service) any { return "full" }},
 	{name: "master_web", title: "Pages the master reads after it read text from outside: it asks you for each, or reads them by its right", options: []string{"ask", "always"},
 		def: func(*Service) any { return "ask" }},
+	{name: "time_zone", title: "Time zone of schedules and of the day, such as Europe/Oslo; deck's own when not set", zone: true,
+		steps: []string{"UTC", "Europe/London", "Europe/Berlin", "Europe/Oslo", "Europe/Kyiv", "Europe/Moscow", "Asia/Dubai", "Asia/Kolkata",
+			"Asia/Shanghai", "Asia/Tokyo", "Australia/Sydney", "America/Sao_Paulo", "America/New_York", "America/Chicago", "America/Los_Angeles"},
+		def: func(*Service) any { return "" }},
 }
 
 // setting is the value of a setting of a workspace, its default when the owner set none.
 func (s *Service) setting(ctx context.Context, workspace int64, name string) any {
+	return s.settingIn(ctx, s.St.Q, workspace, name)
+}
+
+// settingIn is setting read by q, as inside a transaction.
+func (s *Service) settingIn(ctx context.Context, q *db.Queries, workspace int64, name string) any {
 	d := settingDefs[slices.IndexFunc(settingDefs, func(d settingDef) bool { return d.name == name })]
-	v, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: "setting:" + name})
+	v, err := q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: "setting:" + name})
 	switch {
 	case err != nil || v == "":
 		return d.def(s)
-	case d.options != nil:
+	case d.options != nil || d.zone:
 		return v
 	}
 	if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
@@ -88,6 +101,20 @@ func (s *Service) AgentSlots(ctx context.Context, workspace int64) int {
 // MarkedWeb says the owner lets the master read pages by its right of always on a turn that read text from outside.
 func (s *Service) MarkedWeb(ctx context.Context, workspace int64) bool {
 	return s.setting(ctx, workspace, "master_web") == "always"
+}
+
+// Zone is the owner's time zone of the workspace, whose wall clock schedules and the day read; deck's own when unset.
+func (s *Service) Zone(ctx context.Context, workspace int64) *time.Location {
+	return s.ZoneIn(ctx, s.St.Q, workspace)
+}
+
+// ZoneIn is Zone read by q, as inside a transaction.
+func (s *Service) ZoneIn(ctx context.Context, q *db.Queries, workspace int64) *time.Location {
+	name := fmt.Sprint(s.settingIn(ctx, q, workspace, "time_zone"))
+	if loc, err := time.LoadLocation(name); err == nil && name != "" {
+		return loc
+	}
+	return time.Local
 }
 
 // ConfirmTTL is how long a confirmation of the workspace waits for the owner unless its tool sets its own.
@@ -130,6 +157,12 @@ func (s *Service) SetProviderOff(ctx context.Context, q *db.Queries, workspace i
 // value is the stored text of a setting given as text; empty when it is not given.
 func (d settingDef) value(text string) (string, error) {
 	text = strings.TrimSpace(text)
+	if d.zone {
+		if _, err := time.LoadLocation(text); err != nil || text == "" || text == "Local" {
+			return "", registry.Invalid("%s is the name of a time zone, such as Europe/Oslo or UTC", d.name)
+		}
+		return text, nil
+	}
 	if text == "" || text == "0" && d.options == nil {
 		return "", nil
 	}
@@ -181,6 +214,11 @@ func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settin
 	}
 	if in.Name == "agent_limit" {
 		s.Wake(ctx)
+	}
+	if in.Name == "time_zone" {
+		if err := s.Rezone(ctx, act.Workspace); err != nil {
+			return nil, err
+		}
 	}
 	return s.settingsList(ctx, act, settingsListIn{})
 }

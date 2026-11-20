@@ -76,7 +76,7 @@ func TestAgentLimitHoldsTheFourthAgentUntilASlotFreesAndScriptsDoNotCount(t *tes
 	harness.WaitEvent(t, stream, events.Event{Topic: "settings"})
 	e.Until("a raised limit to run the last one", func() bool { return e.Proc(ids[4]).State == "running" })
 	rows := harness.BlockData[[]harness.ScreenRow](t, e.SettingsBlock("Limits", nil)["rows"])
-	if len(rows) != 2 || rows[1].Cells[1] != "5" || rows[1].Cells[2] != float64(3) {
+	if len(rows) != 3 || rows[1].Cells[1] != "5" || rows[1].Cells[2] != float64(3) {
 		t.Fatalf("the limits show the limit and its default: %+v", rows)
 	}
 

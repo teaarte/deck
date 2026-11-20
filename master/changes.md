@@ -693,3 +693,7 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   twice. `deck.chat_send` loses its own retry key: the press of the chat carries its key. A cron trigger's run is
   keyed by its slot, which starts once.
   Modules: nothing to change.
+- 2026-11-20: The owner's time zone is a setting (`time_zone`, Settings → Advanced → Limits, an IANA name such as
+  Europe/Oslo): cron triggers run by its wall clock and move to it when it is set, and Today, the journal and the
+  report of rights count the owner's day in it; deck's own zone (the `TZ` of its process) while it is not set.
+  Modules: a cron of a manifest reads the owner's clock as before.

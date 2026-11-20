@@ -134,7 +134,8 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	act := s.Who
 	input, _ := json.Marshal(in.Input)
 	params := Canonical(input)
-	v := g.turnVerdict(ctx, act, in.ToolName, input)
+	call := Call{Who: act, Command: in.ToolName, Input: input}
+	v, _ := g.verdict(ctx, call, nil, act.ProjectID, input, false)
 	switch v.Does {
 	case DoRefuse:
 		g.log(ctx, s, in.ToolName, registry.Need{}, "rejected", params)
@@ -157,7 +158,7 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	if !ok {
 		return decision{Behavior: "deny", Message: "deck: waiting for the owner to confirm this call; it was not made." + stopAndWait}
 	}
-	if v := g.turnVerdict(ctx, act, in.ToolName, input); v.Does != DoAsk && v.Does != DoRefuse && g.taken(ctx, act, in.ToolName, input, v) {
+	if v, _ := g.verdict(ctx, call, nil, act.ProjectID, input, false); v.Does != DoAsk && v.Does != DoRefuse && g.taken(ctx, act, in.ToolName, input, v) {
 		g.delivered(ctx, a.ID)
 		g.log(ctx, s, in.ToolName, registry.Need{}, "done", params)
 		return decision{Behavior: "allow", UpdatedInput: in.Input}
@@ -165,25 +166,6 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	g.delivered(ctx, a.ID)
 	g.log(ctx, s, in.ToolName, registry.Need{}, "rejected", params)
 	return decision{Behavior: "deny", Message: RejectMessage(answer)}
-}
-
-// turnVerdict decides a call of a tool of the agent's provider: deck's to answer, for the work of the turn or once; a
-// way out whose subject deck does not see.
-func (g *Gateway) turnVerdict(ctx context.Context, act registry.Actor, tool string, input json.RawMessage) Verdict {
-	v := Verdict{Facts: Facts{Needs: true, Declared: true, Draft: act.Trial, Exit: true, Marked: g.marked(ctx, act)}}
-	allows, _ := g.allowsOf(ctx, act)
-	same := Canonical(input)
-	for _, a := range allows {
-		switch {
-		case a.Command != tool:
-		case a.Any:
-			v.Facts.Answer = Work
-		case Canonical(a.Params) == same:
-			v.Facts.Pressed = true
-		}
-	}
-	v.Row = decide(v.Facts)
-	return v
 }
 
 // taken takes the yes a row of a turn's call stands on: a call allowed once is taken; one for the work stays.

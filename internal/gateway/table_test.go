@@ -4,6 +4,8 @@ import "testing"
 
 func Test_decide(t *testing.T) {
 	declared := Facts{Needs: true, Declared: true}
+	// A tool of the agent's provider as verdict gathers it: deck's to answer, a way out whose subject deck does not see.
+	tool := Facts{Needs: true, Declared: true, Exit: true}
 	with := func(f Facts, edit func(*Facts)) Facts {
 		edit(&f)
 		return f
@@ -65,6 +67,16 @@ func Test_decide(t *testing.T) {
 		{with(declared, func(f *Facts) { f.Over = true }), "ask", DoAsk, "past the cap, nothing answered: ask"},
 		{Facts{Needs: true, Cleared: true, Declared: true, Answer: "always", Over: true}, "cleared", DoRun, "the owner's once lets a call past the cap through"},
 		{with(declared, func(f *Facts) { f.Answer = "always"; f.Over = true; f.Marked = true; f.Exit = true }), "marked", DoAsk, "a marked turn past the cap asks for its mark"},
+		{tool, "ask", DoAsk, "a tool of the provider, nothing answered: ask"},
+		{with(tool, func(f *Facts) { f.Answer = Work }), "for_work", DoRun, "a tool of the provider for the work of the turn"},
+		{with(tool, func(f *Facts) { f.Pressed = true }), "pressed", DoRun, "the owner's once to this very tool call"},
+		{with(tool, func(f *Facts) { f.Answer = Work; f.Marked = true }), "marked", DoAsk, "for the work no more on a marked turn"},
+		{with(tool, func(f *Facts) { f.Pressed = true; f.Marked = true }), "pressed", DoRun, "a once on a marked turn"},
+		{with(tool, func(f *Facts) { f.Draft = true; f.Pressed = true }), "draft", DoRefuse, "a trial declines the provider's tools"},
+		{Facts{Owner: true, Needs: true, Draft: true}, "owner", DoRun, "the owner's call of a draft's command through the one door"},
+		{Facts{Owner: true, Needs: true, Declared: true, Over: true, Answer: "always"}, "owner", DoRun, "the owner's call past the cap of a run"},
+		{Facts{Needs: true, Cleared: true, Declared: true, Answer: "no"}, "cleared", DoRun, "the owner's once to this very call past a kept no"},
+		{Facts{Needs: true, Cleared: true, Draft: true}, "cleared", DoRun, "the owner's once to a tool call of a draft"},
 	} {
 		got := decide(row.facts)
 		if got.Name != row.name || got.Does != row.does || got.Text == "" {

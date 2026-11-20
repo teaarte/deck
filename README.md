@@ -27,9 +27,12 @@ deck in the morning, see what was done, and answer the one or two things that ne
 - **Ask for a module in words.** Deki, deck's built-in assistant that builds and changes modules, interviews you for
   a minute, builds the module (data, commands, schedule, screens, widgets), tries it as a draft and hands it over.
   Later you just tell it what to change.
-- **Nothing important happens behind your back.** Anything that leaves the machine, spends money or widens a
-  module's rights waits for your yes, and a button you press already is that yes. What agents changed on their own
-  is one line per run under **Done without you**, with an undo.
+- **Nothing important happens behind your back.** Enabling a module lets its programs reach the hosts its rights
+  name, without asking again. Anything else that leaves the machine — sending in your name, spending money, calling
+  another module, a host it does not name — and anything that widens a module's rights waits for your yes, and a
+  button you press already is that yes. A turn that read text from outside deck and holds something of value asks
+  again for each such call, even one you allowed always. What agents changed on their own is one line per run under
+  **Done without you**, with an undo.
 - **Your models, your bill.** Subscriptions (Claude Code, Codex) or any model on OpenRouter, Google, Anthropic,
   Groq, a local server or Ollama, each command on its own model with fallbacks. **Spend** shows what every module
   costs.
@@ -73,8 +76,9 @@ The same tiles and a tab bar for the thumb; added to the home screen, deck gets 
 ## Under the hood
 
 - **One binary, one door.** About 70k lines of Go with SQLite and the React client embedded. Buttons, the API,
-  schedules, scripts and agents all call the same commands through one registry, so rights, confirmations, the
-  journal and the undo are enforced in one place.
+  schedules, scripts, agents and deck's own screens all call the same commands through one entry, with the same
+  stages for every caller, the owner too: whether a call goes, waits for you or is refused is one table, decided by
+  the facts of the call.
 - **MCP-native.** Every agent process gets its own deck MCP server: the commands it may call as tools, questions and
   confirmations to the owner, nothing else. Scripts get an HTTP entry with a per-run token.
 - **Sandboxed, with one way out.** Every program of a module — a script, an MCP server, Claude Code, Codex, an ACP

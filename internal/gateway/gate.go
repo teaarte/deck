@@ -204,8 +204,6 @@ type Outcome struct {
 // ErrChanged refuses an old yes to a call whose tool or target changed since it was frozen.
 var ErrChanged = registry.Refuse("what this call acts on changed after it was asked for: the tool, or what it would change; deny it, and the caller asks again")
 
-type retryingKey struct{}
-
 type approvedKey struct{}
 
 // Approved is the print the owner said yes to, for a tool that checks it again while it acts.
@@ -275,7 +273,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 	}
 	var out any
 	if err == nil {
-		run := context.WithValue(context.WithValue(context.WithoutCancel(ctx), retryingKey{}, a.ID), approvedKey{}, f.Tool)
+		run := context.WithValue(context.WithoutCancel(ctx), approvedKey{}, f.Tool)
 		out, err = g.call(run, Call{Who: act, Command: f.Call.Command, Input: f.Call.Input, answer: a.ID})
 	}
 	if err != nil && f.As == AsOwner {

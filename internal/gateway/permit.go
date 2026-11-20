@@ -19,9 +19,10 @@ func (g *Gateway) Permit(ctx context.Context, act registry.Actor, command string
 		return done, err
 	}
 	mctx := context.WithValue(ctx, modelsKey{}, true)
-	v, err := g.verdict(mctx, act, c, act.ProjectID, input, true, false)
+	call := Call{Who: act, Command: command}
+	v, err := g.verdict(mctx, call, c, act.ProjectID, input, true)
 	if err == nil {
-		v, done, err = g.held(ctx, act, v, func() (Verdict, error) { return g.verdict(mctx, act, c, act.ProjectID, input, true, false) })
+		v, done, err = g.held(ctx, act, v, func() (Verdict, error) { return g.verdict(mctx, call, c, act.ProjectID, input, true) })
 	}
 	switch {
 	case err != nil:

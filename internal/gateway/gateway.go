@@ -478,12 +478,12 @@ func (g *Gateway) call(ctx context.Context, call Call) (any, error) {
 	}
 	var v Verdict
 	give := func() {}
-	cleared := call.answer != 0 || call.tool
+	call.Who = act
 	if err == nil {
-		v, err = g.verdict(ctx, act, c, project, input, true, cleared)
+		v, err = g.verdict(ctx, call, c, project, input, true)
 	}
 	if err == nil {
-		v, give, err = g.held(ctx, act, v, func() (Verdict, error) { return g.verdict(ctx, act, c, project, input, true, cleared) })
+		v, give, err = g.held(ctx, act, v, func() (Verdict, error) { return g.verdict(ctx, call, c, project, input, true) })
 	}
 	defer give()
 	right := needOf(v.Need)

@@ -28,9 +28,13 @@ func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64,
 		same = func(raw json.RawMessage) string { return c.Same(raw) }
 	}
 	want := same(params)
+	// A call the owner's yes to an ask makes is not held back by the unknown line of that ask, which it settles.
+	var retrying int64
+	if l, ok := ctx.Value(lineKey{}).(*line); ok {
+		retrying = l.answer
+	}
 	var id int64
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		retrying, _ := ctx.Value(retryingKey{}).(int64)
 		open, err := q.ListUnresolvedCalls(ctx, db.ListUnresolvedCallsParams{Retrying: retrying, ProjectID: store.ID(project), Tool: tool, Self: self})
 		if err != nil {
 			return err

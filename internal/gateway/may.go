@@ -35,13 +35,32 @@ type Verdict struct {
 	capped bool
 }
 
-// verdict gathers the facts of a call of c with input by act in project and decides it; look lets deck reach out to
-// see what the call acts on, cleared is a call the owner's answer or its command let through.
-func (g *Gateway) verdict(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, look, cleared bool) (Verdict, error) {
+// verdict is the one gathering of the facts of a call, which it decides: of c with input in project, or with c nil of
+// a tool of the agent's provider named by the call; look lets deck reach out to see what the call acts on.
+func (g *Gateway) verdict(ctx context.Context, call Call, c *registry.Command, project int64, input json.RawMessage, look bool) (Verdict, error) {
 	var v Verdict
+	act := call.Who
 	f := &v.Facts
 	f.Owner = act.Kind == registry.Owner
-	f.Cleared = cleared
+	f.Cleared = call.answer != 0 || call.tool
+	if c == nil {
+		// A tool of the provider is deck's to answer, for the work of the turn or once: a way out whose subject deck does
+		// not see.
+		f.Needs, f.Declared, f.Draft, f.Exit, f.Marked = true, true, act.Trial, true, g.marked(ctx, act)
+		allows, _ := g.allowsOf(ctx, act)
+		same := Canonical(input)
+		for _, a := range allows {
+			switch {
+			case a.Command != call.Command:
+			case a.Any:
+				f.Answer = Work
+			case Canonical(a.Params) == same:
+				f.Pressed = true
+			}
+		}
+		v.Row = decide(*f)
+		return v, nil
+	}
 	if !c.Gated() || f.Owner {
 		f.Needs = c.Gated()
 		if !f.Owner && !f.Cleared && (c.Gate.Subject != nil || c.ProjectID != 0) && g.marked(ctx, act) {
@@ -277,6 +296,7 @@ func (g *Gateway) made(ctx context.Context, call Call, act registry.Actor, c *re
 		}
 		return nil, err
 	}
+	l.answer = call.answer
 	out, err := g.run(context.WithValue(ctx, lineKey{}, l), act, c, input)
 	var change *db.AddFeedParams
 	if err == nil && v.Does == DoShow {
@@ -608,6 +628,8 @@ type line struct {
 	tool   string
 	own    bool
 	intent bool
+	// answer is the ask whose yes makes the call.
+	answer int64
 }
 
 type lineKey struct{}
@@ -637,7 +659,7 @@ func (g *Gateway) Explain(ctx context.Context, act registry.Actor, command strin
 	if project == 0 || c.ProjectID != 0 {
 		project = c.ProjectID
 	}
-	return g.verdict(ctx, act, c, project, in, false, false)
+	return g.verdict(ctx, Call{Who: act, Command: command}, c, project, in, false)
 }
 
 // waitsSays are why a call waits for the owner in the owner's words, by the row of the table of decisions; %s of

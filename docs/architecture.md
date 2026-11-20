@@ -22,16 +22,31 @@ flowchart LR
   store -- topics --> bus[Event bus] -- SSE --> web
 ```
 
-**Everything goes through one door.** Buttons, the API, the master agent, schedules, scripts and agents all call
-the same commands through the registry. Rights, confirmations, the journal and the feed are therefore enforced in
-one place.
+**Everything goes through one door.** Buttons, the API, the master agent, schedules, scripts, agents, the tools of
+an agent's CLI and deck's own screens all call the same commands through one entry of the gateway. Each call is one
+`Call` (who, the command, its input) and goes the same stages: entry → resolve → decide → before → run → after. The
+owner's own call is a row of the same table, so rights, confirmations, the journal and the feed are decided in one
+place: one gathering of facts (`verdict`) and one table (`decide`). The owner's yes to a waiting call makes the same
+call again with the fact of that answer.
 
 - **Commands.** Every action is a command: `deck.<name>` is built into deck, and `<module>.<name>` comes from a
   manifest. A module declares the rights of deck's catalog it may ask for (network, login, data, files, money, send,
-  modules); a call that needs one the owner has not answered always waits for the owner's yes, and the answers
-  live apart from the manifest. A button you press is your yes to the calls its row lists (`allows`). Changes made without the
+  modules); a call that needs one the owner has not answered waits for the owner's yes, and the answers live apart
+  from the manifest. A button you press is your yes to the calls its row lists (`allows`). Changes made without the
   owner go to the feed as one "done without you" line per run, with an undo. A pending ask closes by itself once
   it is no longer needed or what it acts on has changed.
+- **What goes out with and without the owner's yes.** Enabling a module answers always to the rights it declares whose
+  always takes no passkey: its files and folders, the data of its own tools, runs and models, and the hosts its
+  programs' network right names, which they reach and send to without asking. The subscription login, money, sending
+  in the owner's name, other modules, other data, a body posted to a tool that reads, the network of agents' shells
+  and every host (`*`) wait for the owner's first answer; always to one of them takes a passkey. A turn is **marked**
+  when it read text from outside deck (a page, an outside tool's answer, data that holds such text, or the network of
+  its box) and holds something of value (a subscription login, or the data of its module in a box without network). A
+  marked turn's ways out — sending, money, another module, a host it does not name, a body posted to a tool — and its
+  changes of what an enabled module runs go only with the owner's yes to that very call, whatever was allowed always;
+  the hosts its module names stay open. A turn whose box has network and no login is never marked: it may already send
+  its data to those hosts. The own web search of Claude Code and Codex runs outside deck and does not mark a turn; it
+  is off in deck's image (Linux) and on for a deck without Docker on macOS.
 - **Store and events.** One writer transaction at a time, with readers apart. Every committed write publishes the
   topic of its table on the bus. A screen read declares its topics, so the client refreshes over SSE only when
   that data changes, without polling.
@@ -127,11 +142,11 @@ A module is a manifest, documents (prompts, skills), scripts and screens. It con
 }
 ```
 
-The schema is `schemas/manifest.json`. A command can run an agent, a script, an HTTP or MCP tool, or a model
-call. A trigger runs a command on a cron schedule or after another command. `rights` lists what the module may ask
-the owner for, each with why; a declaration grants nothing, enabling a module grants all but sending in the owner's
-name, which asks the first time. A new restriction warns when a manifest is read and fails only when it is
-saved. A new format comes with a migration that rewrites the stored manifests.
+The schema is `schemas/manifest.json`. A command can run an agent, a script, an HTTP or MCP tool, or a model call. A
+trigger runs a command on a cron schedule or after another command. `rights` lists what the module may ask the owner
+for, each with why; a declaration grants nothing, enabling a module grants what "What goes out with and without the
+owner's yes" above says, the rest asks the first time. A new restriction warns when a manifest is read and fails only
+when it is saved. A new format comes with a migration that rewrites the stored manifests.
 
 Deki builds modules from an interview with the `module-builder` skill
 ([skills/module-builder](../skills/module-builder/SKILL.md)). A module exports to a `.zip` without secrets,

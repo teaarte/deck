@@ -27,12 +27,12 @@ deck in the morning, see what was done, and answer the one or two things that ne
 - **Ask for a module in words.** Deki, deck's built-in assistant that builds and changes modules, interviews you for
   a minute, builds the module (data, commands, schedule, screens, widgets), tries it as a draft and hands it over.
   Later you just tell it what to change.
-- **Nothing important happens behind your back.** Enabling a module lets its programs reach the hosts its rights
-  name, without asking again. Anything else that leaves the machine — sending in your name, spending money, calling
-  another module, a host it does not name — and anything that widens a module's rights waits for your yes, and a
-  button you press already is that yes. A turn that read text from outside deck and holds something of value asks
-  again for each such call, even one you allowed always. What agents changed on their own is one line per run under
-  **Done without you**, with an undo.
+- **Nothing important happens behind your back.** Enabling a module lets its programs reach the hosts its rights name,
+  without asking again; a host it does not name it does not reach. Anything else that leaves the machine — sending in
+  your name, spending money, calling another module — and anything that widens a module's rights waits for your yes,
+  and a button you press already is that yes. A turn that read text from outside deck and holds something of value
+  asks again for each such call, even one you allowed always. What agents changed on their own is one line per run
+  under **Done without you**, with an undo.
 - **Your models, your bill.** Subscriptions (Claude Code, Codex) or any model on OpenRouter, Google, Anthropic,
   Groq, a local server or Ollama, each command on its own model with fallbacks. **Spend** shows what every module
   costs.

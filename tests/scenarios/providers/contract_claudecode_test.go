@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/app"
 	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
@@ -242,5 +243,71 @@ func TestASelfCheckCutByItsCeilingIsSlowNotABrokenAdapter(t *testing.T) {
 	got := c.Adapter(t.TempDir()).SelfCheck(ctx)
 	if !got.Slow || got.Err == nil || !strings.Contains(got.Err.Error(), "within the ceiling") {
 		t.Fatalf("a self-check cut by its ceiling is slow and says the network may be down: %+v", got)
+	}
+}
+
+// TestClaudeCodeErrorResultIsAFailedTask: a result that is an error and neither the API's nor a login's fails the
+// task, not the model.
+func TestClaudeCodeErrorResultIsAFailedTask(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCLI(t)
+	b, err := os.ReadFile(harness.Testdata("claude/error.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.StreamText(0, strings.Replace(string(b), "API Error: 500 Internal server error", "The file to edit is not there.", 1))
+	e := harness.New(t, harness.WithCLI(c))
+	id := e.Run(e.Project("plain", harness.Declared(harness.OnLogin(harness.PlainManifest))), "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "error" || !strings.Contains(got.Error, "not there") || e.Fault(id).ErrorType != fault.TaskFailed {
+		t.Fatalf("want an error typed %s with the words of the CLI: %+v %+v", fault.TaskFailed, got, e.Fault(id))
+	}
+}
+
+// TestClaudeCodeStopEndsTheCLI: the owner's stop of a running turn ends the CLI with its group and the process is
+// stopped.
+func TestClaudeCodeStopEndsTheCLI(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	c.Before(`sed "s/{{session}}/$session/g" "$d/stream" | head -2; DECK_FAKE_MCP=hold '` + harness.Fakes + `' "$c/alive"`)
+	e := harness.New(t, harness.WithCLI(c))
+	id := e.Run(e.Project("plain", harness.Declared(harness.OnLogin(harness.PlainManifest))), "work")
+	held := filepath.Join(c.Dir, "calls", "1", "alive.held")
+	e.Until("the turn to run", func() bool { _, err := os.Stat(held); return err == nil })
+	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
+	if got := e.WaitState(id, "stopped", "done", "error"); got.State != "stopped" {
+		t.Fatalf("want the stopped turn stopped: %+v", got)
+	}
+	alive, err := os.Open(filepath.Join(c.Dir, "calls", "1", "alive"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alive.Close()
+	e.Until("the CLI to end on the stop", func() bool { return harness.Stopped(alive) })
+}
+
+// TestClaudeCodeQuestionParksAndTheAnswerResumes: a question the owner did not answer in time parks the process;
+// the answer resumes the session with it.
+func TestClaudeCodeQuestionParksAndTheAnswerResumes(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCLI(t)
+	c.Stream(0, "ok.jsonl")
+	c.Before(`if [ "$n" = 1 ]; then
+  url=$(sed -n 's/.*"url":"\([^"]*\)".*/\1/p' "$c/mcpconfig")
+  DECK_FAKE_MCP=approve '` + harness.Fakes + `' "$url" AskUserQuestion '{"questions":[{"question":"Which color should the report use?"}]}'
+fi`)
+	e := harness.New(t, harness.WithCLI(c), harness.WithConfig(func(cfg *app.Config) { cfg.QuestionWait = 200 * time.Millisecond }))
+	id := e.Run(e.Project("plain", harness.Declared(harness.OnLogin(harness.PlainManifest))), "work")
+	e.WaitState(id, "waiting:answer")
+	a := e.WaitAsk()
+	if !strings.Contains(a.Text, "Which color") {
+		t.Fatalf("want the question of the CLI asked of the owner: %+v", a)
+	}
+	e.Answer(a.ID, "blue")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
+		t.Fatalf("want the answered turn done: %+v", got)
+	}
+	if call := c.Call(2); !slices.Contains(call.Args, "--resume") || !slices.Contains(call.Args, e.Session(id)) || !strings.Contains(call.Stdin, "blue") {
+		t.Fatalf("want the session resumed with the answer: %v %.300s", call.Args, call.Stdin)
 	}
 }

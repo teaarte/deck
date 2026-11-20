@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"deck2/internal/app"
+	"deck2/internal/fault"
 	deckhome "deck2/internal/home"
 	"deck2/tests/harness"
 )
@@ -367,4 +368,97 @@ func TestCodexKilledTwiceSaysWhoKilledIt(t *testing.T) {
 	if got.State != "error" || c.Calls() != 2 || !strings.Contains(got.Error, "SIGTERM") || !strings.Contains(got.Error, "not deck") {
 		t.Fatalf("a turn killed twice fails once, naming the signal and that it came from outside deck: %d calls, %+v", c.Calls(), got)
 	}
+}
+
+// codexLines are the lines of a recorded stream of Codex.
+func codexLines(t *testing.T, fixture string) []string {
+	raw, err := os.ReadFile(harness.Testdata("codex/" + fixture))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return strings.Split(strings.TrimSpace(string(raw)), "\n")
+}
+
+// TestCodexHighUsageWithoutAReachedLimitIsNoLimit: a window near its end that codex does not call reached is a
+// warning, and the turn goes on to its result.
+func TestCodexHighUsageWithoutAReachedLimitIsNoLimit(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCodex(t)
+	lines := codexLines(t, "ok.jsonl")
+	for i, l := range lines {
+		if strings.Contains(l, "account/rateLimits/updated") {
+			lines[i] = strings.Replace(l, `"usedPercent": 18`, `"usedPercent": 97`, 1)
+		}
+	}
+	c.StreamText(1, strings.Join(lines, "\n"))
+	e := harness.New(t, harness.WithCodex(c))
+	got := e.WaitState(e.Run(e.Project("paint", harness.OnLogin(harness.ColorManifest)), "work"), "done", "error", "waiting:limit")
+	if got.State != "done" || string(got.Result) != `{"color":"blue"}` {
+		t.Fatalf("want done with the result though the window is at 97%%: %+v", got)
+	}
+}
+
+// TestCodexFailureOfItsModelOrTaskIsTyped: a failed turn whose model was overloaded is the model's, any other error
+// without a 401 is the task's.
+func TestCodexFailureOfItsModelOrTaskIsTyped(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ info, kind string }{{"serverOverloaded", fault.ModelUnavailable}, {"other", fault.TaskFailed}} {
+		t.Run(tc.info, func(t *testing.T) {
+			t.Parallel()
+			lines := codexLines(t, "ratelimit.jsonl")
+			// Without the reached window, the failure is the turn's error alone.
+			lines = append(lines[:6], lines[7:]...)
+			text := strings.ReplaceAll(strings.Join(lines, "\n"), `"usageLimitExceeded"`, `"`+tc.info+`"`)
+			text = strings.ReplaceAll(text, "You've hit your usage limit. Try again later.", "The turn failed.")
+			c := harness.NewCodex(t)
+			c.StreamText(1, text)
+			e := harness.New(t, harness.WithCodex(c))
+			id := e.Run(e.Project("paint", harness.OnLogin(harness.ColorManifest)), "work")
+			got := e.WaitState(id, "done", "error", "waiting:limit", "waiting:sign_in")
+			if f := e.Fault(id); got.State != "error" || f.ErrorType != tc.kind {
+				t.Fatalf("want an error typed %s: %+v %+v", tc.kind, got, f)
+			}
+		})
+	}
+}
+
+// TestCodexResultHandedInBeatsAnUnfinishedTurn: a turn that handed in its result is done though it then ended
+// without its completion or with two.
+func TestCodexResultHandedInBeatsAnUnfinishedTurn(t *testing.T) {
+	t.Parallel()
+	for _, fixture := range []string{"nocompletion.jsonl", "two_completions.jsonl"} {
+		t.Run(fixture, func(t *testing.T) {
+			t.Parallel()
+			c := harness.NewCodex(t)
+			c.Stream(1, fixture)
+			e := harness.New(t, harness.WithCodex(c))
+			got := e.WaitState(e.Run(e.Project("paint", harness.OnLogin(harness.ColorManifest)), "work"), "done", "error")
+			if got.State != "done" || string(got.Result) != `{"color":"blue"}` {
+				t.Fatalf("want done with the result handed in: %+v", got)
+			}
+		})
+	}
+}
+
+// TestCodexStopInterruptsTheTurn: the owner's stop sends turn/interrupt, the app-server ends and the process is
+// stopped.
+func TestCodexStopInterruptsTheTurn(t *testing.T) {
+	t.Parallel()
+	c := harness.NewCodex(t)
+	lines := codexLines(t, "ok.jsonl")
+	end := strings.Replace(lines[len(lines)-1], `"status": "completed"`, `"status": "interrupted"`, 1)
+	c.StreamText(1, strings.Join(append(lines[:6], `{"reply": "turn/interrupt", "result": {}}`, end), "\n"))
+	e := harness.New(t, harness.WithCodex(c))
+	id := e.Run(e.Project("paint", harness.OnLogin(harness.ColorManifest)), "work")
+	e.Until("the turn to run", func() bool { return c.Calls() >= 1 && c.Call(1).Request("turn/start") != nil })
+	e.Must("deck.process_stop", map[string]any{"process": id}, nil)
+	if got := e.WaitState(id, "stopped", "done", "error"); got.State != "stopped" || c.Call(1).Request("turn/interrupt") == nil {
+		t.Fatalf("want the turn interrupted and the process stopped: %+v", got)
+	}
+	alive, err := os.Open(filepath.Join(c.Dir, "calls", "1", "alive"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alive.Close()
+	e.Until("the app-server to end on the stop", func() bool { return harness.Stopped(alive) })
 }

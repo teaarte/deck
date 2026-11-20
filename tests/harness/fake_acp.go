@@ -180,7 +180,10 @@ func (f *fakeACPRun) run(lines []string) {
 		case l["update"] != nil:
 			var u any
 			_ = json.Unmarshal([]byte(f.subst(string(l["update"]))), &u)
-			f.send(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": f.session, "update": u}})
+			// A line with "session" stands for an update of another session, such as a sub-agent's.
+			session := f.session
+			_ = json.Unmarshal(l["session"], &session)
+			f.send(map[string]any{"jsonrpc": "2.0", "method": "session/update", "params": map[string]any{"sessionId": session, "update": u}})
 		case l["permission"] != nil:
 			f.askDeck(l["permission"])
 		case l["end"] != nil:

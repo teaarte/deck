@@ -8,12 +8,14 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/tests/harness"
 )
 
@@ -385,5 +387,66 @@ func TestACPAgentKilledTwiceSaysWhoKilledIt(t *testing.T) {
 	got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error")
 	if got.State != "error" || f.Calls() != 5 || !strings.Contains(got.Error, "SIGTERM") || !strings.Contains(got.Error, "not deck") {
 		t.Fatalf("a turn killed twice fails once, naming the signal and that it came from outside deck: %d calls, %+v", f.Calls(), got)
+	}
+}
+
+// TestACPServerErrorOfTheModelAPIIsUnavailable: a turn that failed on a 5xx of the model API is the model's, not
+// the task's.
+func TestACPServerErrorOfTheModelAPIIsUnavailable(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	llm := harness.NewLLM(t, func(n int, _ harness.ChatRequest) harness.ChatReply {
+		if n <= 3 {
+			return harness.TextReply("ok")
+		}
+		return harness.ChatReply{Status: 502, Body: `{"error": {"message": "bad gateway"}}`}
+	})
+	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
+		`{"fail": {"code": -32603, "message": "Internal error: the provider failed"}}`))
+	e := harness.New(t, harness.WithACP(f, llm))
+	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
+	got := e.WaitState(id, "done", "error", "waiting:sign_in", "waiting:limit")
+	if fv := e.Fault(id); got.State != "error" || fv.ErrorType != fault.ModelUnavailable {
+		t.Fatalf("want an error typed %s: %+v %+v", fault.ModelUnavailable, got, fv)
+	}
+}
+
+// TestACPAgentThatStaysAfterItsTurnIsKilled: an agent that does not exit after its turn is killed after its linger
+// and the turn keeps its result.
+func TestACPAgentThatStaysAfterItsTurnIsKilled(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`, `{"shell": "sleep 120"}`))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
+	if got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
+		t.Fatalf("want the turn of an agent that stays done with its result: %+v", got)
+	}
+	alive, err := os.Open(filepath.Join(f.Dir, "calls", "4", "alive"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer alive.Close()
+	e.Until("deck to end the agent that stays", func() bool { return harness.Stopped(alive) })
+}
+
+// TestACPUpdatesOfAnotherSessionAreNotTheProcess: what the agent says in another session, such as a sub-agent's, is
+// not in the log of the process nor its answer.
+func TestACPUpdatesOfAnotherSessionAreNotTheProcess(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"session": "s-sub", "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "The sub-agent says."}}}`,
+		`{"session": "s-sub", "update": {"sessionUpdate": "tool_call", "toolCallId": "sub1", "title": "sub-read", "kind": "read", "status": "pending"}}`,
+		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Main says."}}}`,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
+	id := e.Run(e.AcpProject("paint", harness.ColorManifest), "work")
+	if got := e.WaitState(id, "done", "error"); got.State != "done" {
+		t.Fatalf("want the turn done: %+v", got)
+	}
+	log := fmt.Sprint(e.Log(id))
+	if strings.Contains(log, "sub-agent") || strings.Contains(log, "sub-read") || !strings.Contains(log, "Main says.") {
+		t.Fatalf("want only the updates of the process's own session in its log: %s", log)
 	}
 }

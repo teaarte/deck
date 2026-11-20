@@ -211,25 +211,19 @@ func (q *Queries) ListToolCalls(ctx context.Context, processID sql.NullInt64) ([
 
 const listUnresolvedCalls = `-- name: ListUnresolvedCalls :many
 SELECT t.id, t.workspace_id, t.project_id, t.process_id, t.actor, t.caller, t.tool, t.need, t.outcome, t.params, t.external_id, t.error, t.ask_id, t.run, t.result, t.created_at, t.subject, t.count FROM tool_call t LEFT JOIN ask a ON a.id = t.ask_id
-WHERE t.project_id IS ?1 AND t.tool = ?2 AND t.id != ?3
-  AND (t.outcome = 'started' OR t.outcome = 'unknown' AND a.state = 'open' AND a.id != ?4)
+WHERE t.project_id IS ?1 AND t.tool = ?2
+  AND (t.outcome = 'started' OR t.outcome = 'unknown' AND a.state = 'open' AND a.id != ?3)
 ORDER BY t.id
 `
 
 type ListUnresolvedCallsParams struct {
 	ProjectID sql.NullInt64
 	Tool      string
-	Self      int64
 	Retrying  int64
 }
 
 func (q *Queries) ListUnresolvedCalls(ctx context.Context, arg ListUnresolvedCallsParams) ([]ToolCall, error) {
-	rows, err := q.db.QueryContext(ctx, listUnresolvedCalls,
-		arg.ProjectID,
-		arg.Tool,
-		arg.Self,
-		arg.Retrying,
-	)
+	rows, err := q.db.QueryContext(ctx, listUnresolvedCalls, arg.ProjectID, arg.Tool, arg.Retrying)
 	if err != nil {
 		return nil, err
 	}
@@ -630,7 +624,7 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 const takeToolCall = `-- name: TakeToolCall :execrows
 UPDATE tool_call SET project_id = ?1, need = ?2, subject = ?3, params = ?4,
     outcome = ?5, error = ?6
-WHERE id = ?7 AND outcome IN ('making', 'started')
+WHERE id = ?7 AND outcome = 'making'
 `
 
 type TakeToolCallParams struct {
@@ -643,7 +637,7 @@ type TakeToolCallParams struct {
 	ID        int64
 }
 
-// A command that keeps its own line writes it on the row its call started.
+// A command that keeps its own line writes it on the row its call is making.
 func (q *Queries) TakeToolCall(ctx context.Context, arg TakeToolCallParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, takeToolCall,
 		arg.ProjectID,

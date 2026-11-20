@@ -57,9 +57,10 @@ func (g *Gateway) made(ctx context.Context, call Call, act registry.Actor, c *re
 			change.Command, change.Params = undo, string(back)
 		}
 	}
-	print := v.Subject.Print
+	// What a lost call acted on, for the owner's retry: as its tool says, else as deck saw it.
+	print := cmp.Or(sent.At, v.Subject.Print)
 	if l.sent && sent.Reached == registry.Lost && err != nil && print == "" {
-		print = g.print(ctx, act.Workspace, project, c.Name, input)
+		print = g.print(context.WithoutCancel(ctx), act.Workspace, project, c.Name, input)
 	}
 	g.after(ctx, call, act, c, project, right, params, l, sent, print, err, change)
 	if err != nil && v.Does == DoShow && v.Name == "pressed" {

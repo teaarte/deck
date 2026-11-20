@@ -9,10 +9,10 @@ UPDATE tool_call SET outcome = ?, external_id = ?, error = ? WHERE id = ? AND ou
 
 
 -- name: TakeToolCall :execrows
--- A command that keeps its own line writes it on the row its call started.
+-- A command that keeps its own line writes it on the row its call is making.
 UPDATE tool_call SET project_id = sqlc.narg(project_id), need = sqlc.arg(need), subject = sqlc.arg(subject), params = sqlc.arg(params),
     outcome = sqlc.arg(outcome), error = sqlc.arg(error)
-WHERE id = sqlc.arg(id) AND outcome IN ('making', 'started');
+WHERE id = sqlc.arg(id) AND outcome = 'making';
 
 
 -- name: MakingToolCalls :many
@@ -38,7 +38,7 @@ UPDATE tool_call SET outcome = 'unknown', ask_id = sqlc.narg(ask_id) WHERE id = 
 
 -- name: ListUnresolvedCalls :many
 SELECT t.* FROM tool_call t LEFT JOIN ask a ON a.id = t.ask_id
-WHERE t.project_id IS sqlc.arg(project_id) AND t.tool = sqlc.arg(tool) AND t.id != sqlc.arg(self)
+WHERE t.project_id IS sqlc.arg(project_id) AND t.tool = sqlc.arg(tool)
   AND (t.outcome = 'started' OR t.outcome = 'unknown' AND a.state = 'open' AND a.id != sqlc.arg(retrying))
 ORDER BY t.id;
 

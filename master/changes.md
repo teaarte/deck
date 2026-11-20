@@ -685,5 +685,5 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   action in deck's browser) itself, before the tool runs; a call the owner makes of a command or tool that sends keeps
   a line of the journal too. The failure of an MCP or browser call whose answer did not come reads
   `deck: <tool>: <why>; the outcome is unknown and the owner decides whether to repeat it`, as an HTTP tool's does,
-  and its line keeps the error its caller got.
+  and the line of one that was answered or did not leave deck keeps the error its caller got.
   Modules: nothing to change; a call of unknown outcome is still not repeated until the owner decides.

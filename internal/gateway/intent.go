@@ -63,9 +63,9 @@ func (g *Gateway) settle(ctx context.Context, q *db.Queries, id int64, sent regi
 	return ferr
 }
 
-// Lost marks an action whose answer did not come as of unknown outcome and asks the owner to retry it or
+// lost marks an action whose answer did not come as of unknown outcome and asks the owner to retry it or
 // count it as done.
-func (g *Gateway) Lost(ctx context.Context, id int64) {
+func (g *Gateway) lost(ctx context.Context, id int64) {
 	ctx = context.WithoutCancel(ctx)
 	row, err := g.st.Q.GetToolCall(ctx, id)
 	if err != nil {
@@ -113,7 +113,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 	lost := map[string]bool{}
 	for _, c := range calls {
 		lost[fmt.Sprint(c.ProjectID.Int64, c.Tool, c.Params)] = true
-		g.Lost(ctx, c.ID)
+		g.lost(ctx, c.ID)
 	}
 	running, err := g.st.Q.ListRunningDecisions(ctx)
 	if err != nil {

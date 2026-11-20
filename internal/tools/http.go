@@ -15,7 +15,6 @@ import (
 
 	"deck2/internal/fault"
 	"deck2/internal/files"
-	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -31,7 +30,6 @@ const (
 // HTTP turns the HTTP tools of manifests into registry commands. Secrets reach only the request deck sends:
 // the journal keeps the call's input, the caller gets the response.
 type HTTP struct {
-	GW      *gateway.Gateway
 	Secrets func(workspace int64, project, name string) (string, error)
 	Home    home.Layout
 	OAuth   *OAuth
@@ -43,7 +41,7 @@ type HTTP struct {
 }
 
 // Command is the registry command of an HTTP tool of p: it reaches its host when public and the hosts p holds the
-// network of; a call needs the right the tool needs, and one that sends keeps its own line in the journal.
+// network of; a call needs the right the tool needs, and one that sends is the gateway's to keep an intent of.
 func (h *HTTP) Command(p db.Project, t manifest.HTTPTool, domains []string) *registry.Command {
 	print := manifest.ToolPrint(t)
 	right, subject := manifest.ToolRight(t)
@@ -51,78 +49,57 @@ func (h *HTTP) Command(p db.Project, t manifest.HTTPTool, domains []string) *reg
 	if right == manifest.Network {
 		need.Print = ""
 	}
-	sends := right == manifest.Send
-	c := registry.Loose(p.Name+"."+t.Name, cmp.Or(t.Title, t.Name), t.Description, registry.Everyone, t.Input, h.handler(p, t, domains, sends))
+	send := h.handler(p, t, domains)
+	c := registry.Loose(p.Name+"."+t.Name, cmp.Or(t.Title, t.Name), t.Description, registry.Everyone, t.Input, registry.Unsent(send))
+	if right == manifest.Send {
+		c.Sends(send)
+	}
 	c.Result, c.ProjectID = t.Result, p.ID
-	c.Gate = registry.Gate{
-		Subject: func(_ context.Context, _ registry.At, input json.RawMessage) registry.Subject {
-			return registry.Subject{Print: print, Where: t.Method + " " + target(t, input)}
-		},
-		Needs: func(context.Context, registry.Actor, registry.Subject, json.RawMessage) ([]registry.Need, error) {
-			return []registry.Need{need}, nil
-		},
-		Undo:   undoOf(p.Name, t.Undo),
-		Term:   time.Duration(t.ConfirmTTLMinutes) * time.Minute,
-		Brings: registry.FromOutside}
+	c.Gate = outside(func(_ context.Context, _ registry.At, input json.RawMessage) registry.Subject {
+		return registry.Subject{Print: print, Where: t.Method + " " + target(t, input)}
+	}, func(registry.Subject) registry.Need { return need })
+	c.Gate.Undo, c.Gate.Term = undoOf(p.Name, t.Undo), time.Duration(t.ConfirmTTLMinutes)*time.Minute
 	return c
 }
 
-func (h *HTTP) handler(p db.Project, t manifest.HTTPTool, domains []string, sends bool) registry.Handler {
+func (h *HTTP) handler(p db.Project, t manifest.HTTPTool, domains []string) registry.Sender {
 	name := p.Name + "." + t.Name
-	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
-		refuse := func(err error) (any, error) {
-			if sends {
-				h.GW.Refused(ctx, act, p.ID, name, raw, err)
-			}
-			return nil, err
-		}
+	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, registry.Sent, error) {
+		var out registry.Sent
 		in, err := manifest.DecodeObject(raw)
 		if err != nil {
-			return refuse(registry.Invalid("input of %s: %v", name, err))
+			return nil, out, registry.Invalid("input of %s: %v", name, err)
 		}
 		req, err := h.request(ctx, act, p, t, domains, in)
 		if fault.Status(err) == http.StatusBadGateway {
 			h.health(ctx, p, name, "error", err.Error())
 		}
 		if err != nil {
-			return refuse(err)
-		}
-		var intent int64
-		if sends {
-			if intent, err = h.GW.Intent(ctx, act, p.ID, name, raw); err != nil {
-				return refuse(err)
-			}
+			return nil, out, err
 		}
 		resp, reached, err := h.send(ctx, p, domains, req)
 		if err != nil {
 			var signIn *ErrSignIn
-			isSignIn := errors.As(err, &signIn)
-			if isSignIn {
+			if errors.As(err, &signIn) {
 				h.signIn(ctx, p, name, signIn.Why)
 			} else {
 				err = errors.New(untrusted.Redact(err.Error(), req.secrets))
 				h.health(ctx, p, name, "error", err.Error())
 				err = fmt.Errorf("deck: %s: %v", name, err)
 			}
-			switch {
-			case intent == 0:
-			case !reached:
-				h.GW.Finish(ctx, intent, "rejected", "", err.Error())
-			default:
-				h.GW.Lost(ctx, intent)
-				return nil, fmt.Errorf("%v; the outcome is unknown and the owner decides whether to repeat it", err)
+			if reached {
+				out.Reached = registry.Lost
 			}
-			return nil, err
+			return nil, out, err
 		}
 		defer resp.Body.Close()
-		out, ext, err := h.response(act, t, resp, req.secrets)
+		v, ext, err := h.response(act, t, resp, req.secrets)
 		if resp.StatusCode >= 500 {
 			h.health(ctx, p, name, "error", err.Error())
 		} else {
 			h.health(ctx, p, name, "ok", "")
 		}
-		done(ctx, h.GW, intent, ext, err)
-		return out, err
+		return v, registry.Sent{Reached: registry.Answered, At: ext}, err
 	}
 }
 
@@ -215,6 +192,17 @@ func (h *HTTP) response(act registry.Actor, t manifest.HTTPTool, resp *http.Resp
 		return nil, "", err
 	}
 	return map[string]any{"file": name, "type": ct, "size": n}, "", nil
+}
+
+// outside is the gate of a tool: what a call acts on, the one right it needs on that, and text it brings back from
+// outside deck.
+func outside(subject func(context.Context, registry.At, json.RawMessage) registry.Subject, need func(registry.Subject) registry.Need) registry.Gate {
+	return registry.Gate{
+		Subject: subject,
+		Needs: func(_ context.Context, _ registry.Actor, s registry.Subject, _ json.RawMessage) ([]registry.Need, error) {
+			return []registry.Need{need(s)}, nil
+		},
+		Brings: registry.FromOutside}
 }
 
 // undoOf is the undo of a call of a command or tool of a module that names one: the call of that one with the same

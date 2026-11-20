@@ -11,26 +11,27 @@ import (
 
 	"deck2/internal/gateway"
 	"deck2/internal/home"
+	"deck2/internal/mcphost"
 	"deck2/internal/registry"
 	"deck2/internal/untrusted"
 )
 
 // actor makes an action on the page the browser shows now: on an act domain or on a page the owner allowed
-// this call on; files it sends come only from the process's own folder.
-func (b *Browser) actor(tool string) registry.Handler {
+// this call on; files it sends come only from the process's own folder. It says the page it acted on.
+func (b *Browser) actor(tool string) registry.Sender {
 	name := registry.Deck(tool)
-	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
+	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, registry.Sent, error) {
+		var none registry.Sent
 		m, g, sites, err := b.rights(ctx, act.ProjectID)
 		if err != nil {
-			return nil, err
+			return nil, none, err
 		}
 		args, copies, err := b.ownPaths(act.ProcessID, raw)
 		if copies != "" {
 			defer os.RemoveAll(copies)
 		}
 		if err != nil {
-			b.GW.Refused(ctx, act, act.ProjectID, name, raw, err)
-			return nil, err
+			return nil, none, err
 		}
 		b.mu.Lock()
 		defer b.mu.Unlock()
@@ -40,24 +41,17 @@ func (b *Browser) actor(tool string) registry.Handler {
 			err = registry.Refuse("the browser shows %s now, which is not a site the owner let this module act on always; look at the page again and repeat the call", untrusted.Line(page, 300))
 		}
 		if err != nil {
-			b.GW.Refused(ctx, act, act.ProjectID, name, raw, err)
-			return nil, err
-		}
-		intent, err := b.GW.Intent(ctx, act, act.ProjectID, name, raw)
-		if err != nil {
-			b.GW.Refused(ctx, act, act.ProjectID, name, raw, err)
-			return nil, err
+			return nil, none, err
 		}
 		res, err := b.call(ctx, readsAnySite(sites), tool, args)
 		if err != nil {
-			return nil, failed(ctx, b.GW, intent, name, page, err)
+			return nil, registry.Sent{Reached: mcphost.Reached(err), At: page}, failed(name, err.Error())
 		}
 		out, cerr := Content(b.Home, act.ProcessID, name, res)
 		if now, off := b.offDomains(ctx, act.ProjectID); off && cerr == nil {
 			out = map[string]any{"text": "Done. The browser now shows " + untrusted.Line(now, 300) + ", which is not a site this module holds the network of, so what it shows is withheld."}
 		}
-		done(ctx, b.GW, intent, page, cerr)
-		return out, cerr
+		return out, registry.Sent{Reached: registry.Answered, At: page}, cerr
 	}
 }
 

@@ -160,10 +160,15 @@ func (g *Gateway) verdict(ctx context.Context, call Call, c *registry.Command, p
 		}
 	}
 	// What a module does outside deck in the owner's name, what deck can take back and what a press made are shown after.
-	outside := (n.Right == manifest.Send || n.Right == manifest.Modules) && !(registry.IsBuiltin(c.Name) && n.Subject == c.Name)
+	outside := outward(c, n) || n.Right == manifest.Modules && !(registry.IsBuiltin(c.Name) && n.Subject == c.Name)
 	f.Shown = outside || c.Gate.Undo != nil || f.Pressed
 	v.Row = decide(*f)
 	return v, nil
+}
+
+// outward says a need is to send outside deck, not on deck's own command a module proposes to the owner.
+func outward(c *registry.Command, n registry.Need) bool {
+	return n.Right == manifest.Send && !(registry.IsBuiltin(c.Name) && n.Subject == c.Name)
 }
 
 // exit says a right is a way out whose subject the call chooses, or data on a tool that sends a body: not a network host

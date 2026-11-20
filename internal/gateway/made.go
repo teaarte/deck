@@ -43,8 +43,7 @@ func (g *Gateway) made(ctx context.Context, call Call, act registry.Actor, c *re
 		}
 		return nil, err
 	}
-	l.answer = call.answer
-	out, err := g.run(context.WithValue(ctx, lineKey{}, l), act, c, input)
+	out, sent, err := g.run(context.WithValue(ctx, lineKey{}, l), act, c, input)
 	var change *db.AddFeedParams
 	if err == nil && v.Does == DoShow {
 		what := cmp.Or(v.Subject.Where, untrusted.Cut(Canonical(input), 300))
@@ -58,27 +57,38 @@ func (g *Gateway) made(ctx context.Context, call Call, act registry.Actor, c *re
 			change.Command, change.Params = undo, string(back)
 		}
 	}
-	g.after(ctx, call, act, c, project, right, params, l, err, change)
+	print := v.Subject.Print
+	if l.sent && sent.Reached == registry.Lost && err != nil && print == "" {
+		print = g.print(ctx, act.Workspace, project, c.Name, input)
+	}
+	g.after(ctx, call, act, c, project, right, params, l, sent, print, err, change)
 	if err != nil && v.Does == DoShow && v.Name == "pressed" {
 		g.giveBack(ctx, act, c, input)
+	}
+	if l.sent && sent.Reached == registry.Lost && err != nil {
+		err = fmt.Errorf("%w; the outcome is unknown and the owner decides whether to repeat it", err)
 	}
 	return out, err
 }
 
 // run is the stage that makes a call the table let run: the registry's last check, then the command's handler, the one
-// place a handler runs.
-func (g *Gateway) run(ctx context.Context, act registry.Actor, c *registry.Command, input json.RawMessage) (any, error) {
+// place a handler runs; one that acts outside deck says how far the call got.
+func (g *Gateway) run(ctx context.Context, act registry.Actor, c *registry.Command, input json.RawMessage) (any, registry.Sent, error) {
 	ctx, act, err := g.reg.Ready(ctx, act, c, input)
 	if err != nil {
-		return nil, err
+		return nil, registry.Sent{}, err
 	}
-	return c.Handler(ctx, act, input)
+	if c.Sender != nil {
+		return c.Sender(ctx, act, input)
+	}
+	out, err := c.Handler(ctx, act, input)
+	return out, registry.Sent{}, err
 }
 
-// before writes, in one Tx before a call runs, the marks of what it brings and of the data it writes and its line in
-// the journal as making, but for a read or a call the journal does not keep; a failed Tx refuses the call.
+// before writes, in one Tx before a call runs, its marks and its line in the journal, making or the intent of a call
+// outside deck, but for one the journal does not keep; a failed Tx or an identical open intent refuses the call.
 func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict, right registry.Need, params string) (*line, error) {
-	l := &line{tool: c.Name}
+	l := &line{tool: c.Name, sent: c.Sender != nil}
 	if call.Inside {
 		return l, nil
 	}
@@ -88,6 +98,7 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 	if read == "" && len(targets) == 0 && !lined {
 		return l, nil
 	}
+	var refused error
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		for _, id := range targets {
 			if err := q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{Untrusted: taint, ID: id}); err != nil {
@@ -103,18 +114,29 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 			return nil
 		}
 		var err error
+		if l.sent {
+			l.id, refused = g.intend(ctx, q, act, c, project, input, call.answer)
+			if l.id == 0 {
+				return refused
+			}
+			return nil
+		}
 		l.id, err = q.LogToolCall(ctx, g.lineOf(act, project, c.Name, right, Making, params, ""))
 		return err
 	})
 	if err != nil {
 		return nil, fault.Wrap(fmt.Sprintf("%s was not made: its mark and its line in the journal could not be written", c.Name), err)
 	}
+	if refused != nil {
+		return nil, refused
+	}
 	return l, nil
 }
 
-// after writes, in one Tx, the outcome on the line of a call whose command keeps none of its own, that its run wrote,
-// and the change shown to the owner; a failed Tx leaves the line making, which Recover makes unknown.
-func (g *Gateway) after(ctx context.Context, call Call, act registry.Actor, c *registry.Command, project int64, right registry.Need, params string, l *line, err error, change *db.AddFeedParams) {
+// after writes, in one Tx, the outcome on the line or intent of a call, that its run wrote, and the change shown to
+// the owner; a failed Tx leaves the line making or started, which Recover makes unknown.
+func (g *Gateway) after(ctx context.Context, call Call, act registry.Actor, c *registry.Command, project int64, right registry.Need, params string, l *line,
+	sent registry.Sent, print string, err error, change *db.AddFeedParams) {
 	outcome, text := "done", ""
 	if err != nil {
 		outcome, text = "rejected", err.Error()
@@ -132,6 +154,10 @@ func (g *Gateway) after(ctx context.Context, call Call, act registry.Actor, c *r
 		}
 		switch {
 		case !lined:
+		case l.sent && l.id != 0:
+			if err := g.settle(ctx, q, l.id, sent, err, print); err != nil {
+				return err
+			}
 		case l.id != 0:
 			if _, err := q.FinishToolCall(ctx, db.FinishToolCallParams{Outcome: outcome, Error: text, ID: l.id}); err != nil {
 				return err
@@ -151,15 +177,14 @@ func (g *Gateway) after(ctx context.Context, call Call, act registry.Actor, c *r
 	}
 }
 
-// line is the line of a call in the journal: before writes it making, and a command that keeps its own line, as a
-// tool that sends keeps its intent, writes that on it.
+// line is the line of a call in the journal: before writes it making, or started as the intent of a call that acts
+// outside deck, and a command that keeps its own line writes that on it.
 type line struct {
-	id     int64
-	tool   string
-	own    bool
-	intent bool
-	// answer is the ask whose yes makes the call.
-	answer int64
+	id   int64
+	tool string
+	own  bool
+	// sent marks the intent of a call that acts outside deck.
+	sent bool
 }
 
 type lineKey struct{}

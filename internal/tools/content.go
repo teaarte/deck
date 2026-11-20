@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,41 +11,14 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"deck2/internal/files"
-	"deck2/internal/gateway"
-	"deck2/internal/mcphost"
 )
 
-// failed settles the intent of a failed MCP call: rejected when it never reached the server, done when the
-// server answered, unknown when the connection was lost; its text leaves out the server's secrets.
-func failed(ctx context.Context, gw *gateway.Gateway, intent int64, name, print string, err error, secrets ...string) error {
-	var ns *mcphost.ErrNotStarted
-	msg := untrusted.Redact(err.Error(), secrets)
-	switch {
-	case errors.As(err, &ns):
-		if intent != 0 {
-			gw.Finish(ctx, intent, "rejected", "", msg)
-		}
-	case mcphost.Answered(err):
-		if intent != 0 {
-			gw.Finish(ctx, intent, "done", "", msg)
-		}
-	case intent != 0:
-		gw.LostAt(ctx, intent, print)
-		return fmt.Errorf("deck: %s: the outcome is unknown and the owner decides whether to repeat it: %s", name, msg)
+// failed is the error of a call of tool that failed with msg, which names the tool once.
+func failed(tool, msg string) error {
+	if strings.HasPrefix(msg, "deck: ") {
+		return errors.New(msg)
 	}
-	return fmt.Errorf("deck: %s: %s", name, msg)
-}
-
-// done settles the intent of a call the other side answered, with where it went and the error of its answer.
-func done(ctx context.Context, gw *gateway.Gateway, intent int64, at string, err error) {
-	if intent == 0 {
-		return
-	}
-	text := ""
-	if err != nil {
-		text = err.Error()
-	}
-	gw.Finish(ctx, intent, "done", at, text)
+	return fmt.Errorf("deck: %s: %s", tool, msg)
 }
 
 // Content turns a tool result into what the caller gets: its structured content, or its text with binary

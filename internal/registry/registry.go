@@ -100,7 +100,9 @@ type Command struct {
 	Answer string `json:"-"`
 
 	Handler Handler `json:"-"`
-	schema  *jsonschema.Schema
+	// Sender is the handler of a command whose calls act outside deck, set by Sends in place of Handler.
+	Sender Sender `json:"-"`
+	schema *jsonschema.Schema
 	// params are the parameters Def read from the input struct; json the fields of the input that hold a JSON text.
 	params []Param
 	json   []string
@@ -125,6 +127,43 @@ type Command struct {
 // schema given whole; Prepare checks it.
 func Loose(name, title, desc string, callers []string, input json.RawMessage, h Handler) *Command {
 	return &Command{Name: name, Title: title, Description: desc, Callers: callers, Input: input, Handler: h}
+}
+
+// Reached is how far a call of a command that acts outside deck got.
+type Reached int
+
+const (
+	// NotReached is a call that did not leave deck.
+	NotReached Reached = iota
+	// Answered is a call the other side answered, with an error or not.
+	Answered
+	// Lost is a call that left deck and whose answer did not come: its outcome is unknown.
+	Lost
+)
+
+// Sent is what the handler of a command that acts outside deck says of a call beside its result: how far it got and
+// where it went on the other side, such as an id the other side gave or a page.
+type Sent struct {
+	Reached Reached
+	At      string
+}
+
+// Sender is the handler of a command whose calls act outside deck.
+type Sender func(ctx context.Context, a Actor, in json.RawMessage) (any, Sent, error)
+
+// Sends makes s the handler of a command whose calls act outside deck: the gateway writes the intent of a call before
+// s runs and its outcome by what s says after.
+func (c *Command) Sends(s Sender) *Command {
+	c.Sender, c.Handler = s, nil
+	return c
+}
+
+// Unsent is s as the handler of a command of the same kind whose calls stay within what its module holds.
+func Unsent(s Sender) Handler {
+	return func(ctx context.Context, a Actor, in json.RawMessage) (any, error) {
+		out, _, err := s(ctx, a, in)
+		return out, err
+	}
 }
 
 // Stays declares that a call of the command needs no right of deck's catalog: what it does stays in deck.
@@ -327,6 +366,9 @@ func ReadOf(name string) *Command {
 func Prepare(c *Command) error {
 	if c.Title == "" || c.Description == "" {
 		return fmt.Errorf("command %q: title and description are required", c.Name)
+	}
+	if (c.Handler == nil) == (c.Sender == nil) {
+		return fmt.Errorf("command %q: give it one handler: Handler, or Sends for one whose calls act outside deck", c.Name)
 	}
 	if c.stays == c.Gated() && !c.Readable {
 		return fmt.Errorf("command %q: declare the rights its calls need (Gate.Needs) or that it stays in deck (Stays)", c.Name)

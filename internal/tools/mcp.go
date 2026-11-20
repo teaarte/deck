@@ -184,30 +184,28 @@ func (x *MCP) Commands(ctx context.Context, q *db.Queries, p db.Project, m *mani
 		right := manifest.ServerRight(s, r.Name)
 		print := r.Spec + "/" + r.Fingerprint
 		need := registry.Need{Right: right, Subject: r.Server + "." + r.Name, Print: print}
+		send := x.handler(p, r.Server, s, m, r.Name, r.Fingerprint)
 		c := registry.Loose(p.Name+"."+r.Server+"."+r.Name, cmp.Or(r.Title, r.Name), cmp.Or(r.Description, r.Name), registry.Everyone, json.RawMessage(r.Input),
-			x.handler(p, r.Server, s, m, r.Name, right == manifest.Send, r.Fingerprint)).Foreign().Brings(registry.FromOutside)
+			registry.Unsent(send)).Foreign()
 		c.ProjectID = p.ID
 		if right == manifest.Network {
 			// A tool that only reaches the hosts the box of the server holds stays in deck's sight.
-			c.Stays()
+			c.Stays().Brings(registry.FromOutside)
 		} else {
-			c.Gate = registry.Gate{
-				Subject: func(context.Context, registry.At, json.RawMessage) registry.Subject {
-					return registry.Subject{Print: print, Where: "server " + r.Server + ", tool " + r.Name}
-				},
-				Needs: func(context.Context, registry.Actor, registry.Subject, json.RawMessage) ([]registry.Need, error) {
-					return []registry.Need{need}, nil
-				},
-				Brings: registry.FromOutside}
+			c.Gate = outside(func(context.Context, registry.At, json.RawMessage) registry.Subject {
+				return registry.Subject{Print: print, Where: "server " + r.Server + ", tool " + r.Name}
+			}, func(registry.Subject) registry.Need { return need })
+			if right == manifest.Send {
+				c.Sends(send)
+			}
 		}
 		out = append(out, c)
 	}
 	return out, nil
 }
 
-func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, m *manifest.Manifest, tool string, external bool, print string) registry.Handler {
+func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, m *manifest.Manifest, tool string, print string) registry.Sender {
 	name := p.Name + "." + server + "." + tool
-	frozen := SpecID(s) + "/" + print
 	same := func(list []*mcp.Tool) error {
 		for _, t := range list {
 			if t.Name == tool {
@@ -219,36 +217,18 @@ func (x *MCP) handler(p db.Project, server string, s manifest.MCPServer, m *mani
 		}
 		return registry.Refuse("%s changed since this call was checked; it was not made, call it again", name)
 	}
-	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, error) {
+	return func(ctx context.Context, act registry.Actor, raw json.RawMessage) (any, registry.Sent, error) {
 		spec, err := x.spec(ctx, p, server, s, m)
-		if err == nil && external {
-			var intent int64
-			if intent, err = x.GW.Intent(ctx, act, p.ID, name, raw); err == nil {
-				return x.call(ctx, act, name, ServerKey(p.ID, server), spec, tool, raw, intent, frozen, same)
-			}
-		}
 		if err != nil {
-			if external {
-				x.GW.Refused(ctx, act, p.ID, name, raw, err)
-			}
-			return nil, err
+			return nil, registry.Sent{}, err
 		}
-		return x.call(ctx, act, name, ServerKey(p.ID, server), spec, tool, raw, 0, frozen, same)
+		res, err := x.Host.Call(ctx, ServerKey(p.ID, server), spec, tool, raw, same)
+		if err != nil {
+			return nil, registry.Sent{Reached: mcphost.Reached(err)}, failed(name, untrusted.Redact(err.Error(), spec.Secrets))
+		}
+		out, cerr := Content(x.Home, act.ProcessID, name, res)
+		return redacted(out, spec.Secrets), registry.Sent{Reached: registry.Answered}, redactErr(cerr, spec.Secrets)
 	}
-}
-
-// call makes a tool call and settles its intent: rejected when it never reached the server, done when the
-// server answered, unknown when the connection was lost while the call was out.
-func (x *MCP) call(ctx context.Context, act registry.Actor, name, key string, spec mcphost.Spec, tool string, raw json.RawMessage, intent int64,
-	print string, check func([]*mcp.Tool) error) (any, error) {
-	res, err := x.Host.Call(ctx, key, spec, tool, raw, check)
-	if err != nil {
-		return nil, failed(ctx, x.GW, intent, name, print, err, spec.Secrets...)
-	}
-	out, cerr := Content(x.Home, act.ProcessID, name, res)
-	out, cerr = redacted(out, spec.Secrets), redactErr(cerr, spec.Secrets)
-	done(ctx, x.GW, intent, "", cerr)
-	return out, cerr
 }
 
 // redacted is a tool result without the secret values deck gave the tool.

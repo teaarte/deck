@@ -20,9 +20,11 @@ type Call struct {
 	// Inside marks a read a command makes in its own run, as a screen reads its blocks: its marks and its line are those
 	// of the call that made it, and it does not wait for the owner.
 	Inside bool
-	// answer is the ask whose yes makes the call; tool marks the one tool call its command lets through.
+	// answer is the ask whose yes makes the call; tool marks the one tool call its command lets through; sends marks a
+	// call of the owner that acts outside deck.
 	answer int64
 	tool   bool
+	sends  bool
 }
 
 // Call makes a call by the stages of an entry, the owner's too: entry, resolve, decide by the table, then before, run
@@ -31,10 +33,10 @@ func (g *Gateway) Call(ctx context.Context, call Call) (any, error) {
 	return g.call(ctx, call)
 }
 
-// journaled says the journal keeps a line of the call: not the owner's own, but one the owner's yes makes, nor one
-// made inside another call.
+// journaled says the journal keeps a line of the call: not the owner's own, but one the owner's yes makes or one that
+// acts outside deck, nor one made inside another call.
 func (call Call) journaled() bool {
-	return (call.Who.Kind != registry.Owner || call.answer != 0) && !call.Inside
+	return (call.Who.Kind != registry.Owner || call.answer != 0 || call.sends) && !call.Inside
 }
 
 func (g *Gateway) call(ctx context.Context, call Call) (any, error) {
@@ -69,6 +71,9 @@ func (g *Gateway) call(ctx context.Context, call Call) (any, error) {
 	if err == nil {
 		v, give, err = g.held(ctx, act, v, func() (Verdict, error) { return g.verdict(ctx, call, c, project, input, true) })
 	}
+	if err == nil && act.Kind == registry.Owner {
+		call.sends = g.sends(ctx, act, c, &v, input)
+	}
 	defer give()
 	right := needOf(v.Need)
 	switch {
@@ -98,6 +103,28 @@ func (g *Gateway) call(ctx context.Context, call Call) (any, error) {
 		return g.request(ctx, act, c, project, input, v)
 	}
 	return g.made(ctx, call, act, c, project, input, v, params)
+}
+
+// sends says a call of the owner acts outside deck: its command does, or a right it needs sends outside deck; that
+// need becomes the right of its line, as the table gathers none for the owner.
+func (g *Gateway) sends(ctx context.Context, act registry.Actor, c *registry.Command, v *Verdict, input json.RawMessage) bool {
+	if c.Sender != nil {
+		return true
+	}
+	if !c.Gated() || c.ProjectID == 0 {
+		return false
+	}
+	needs, err := c.Gate.Needs(ctx, act, v.Subject, input)
+	if err != nil {
+		return false
+	}
+	for _, n := range needs {
+		if outward(c, n) {
+			v.Need = &n
+			return true
+		}
+	}
+	return false
 }
 
 // needOf is the right of a call for its line in the journal, none when it needs none.

@@ -147,13 +147,13 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Models: func(act registry.Actor) http.Handler { return a.Models.Proxy(act, a.Gateway.Permit) }, Progress: cfg.Progress, Go: a.bg.Go},
 		gateway.Deps{Store: st, Asks: a.Asks, Bus: a.Bus, Registry: a.Registry})
 	oauth := &tools.OAuth{Secrets: a.Secrets.Read, Swap: a.Secrets.Swap}
-	a.Tools = &tools.HTTP{GW: a.Gateway, Secrets: a.Secrets.Read, Home: h, OAuth: oauth, Health: a.Signins.ToolHealth, SignIn: a.Signins.ToolSignIn,
+	a.Tools = &tools.HTTP{Secrets: a.Secrets.Read, Home: h, OAuth: oauth, Health: a.Signins.ToolHealth, SignIn: a.Signins.ToolSignIn,
 		Resolve: func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
 			return files.Resolve(ctx, h, a.Store.Q, project, process, ref)
 		}}
 	a.Host = mcphost.New(mcphost.Config{Now: cfg.Now}, mcphost.Deps{Status: a.Signins.ServerStatus, Sandbox: cfg.Sandbox})
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Read, Home: h}
-	a.Browser = &tools.Browser{GW: a.Gateway, Host: a.Host, Store: st, Home: h, Argv: cfg.Browser}
+	a.Browser = &tools.Browser{Host: a.Host, Store: st, Home: h, Argv: cfg.Browser}
 	a.Runner = process.New(
 		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, Hold: a.Files.Hold, AgentSlots: a.Settings.AgentSlots},
 		process.Deps{Store: st, Gateway: a.Gateway, Bus: a.Bus, Scripts: a.Scripts,

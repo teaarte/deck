@@ -19,7 +19,6 @@ import (
 	"deck2/internal/boxes"
 	"deck2/internal/docs"
 	"deck2/internal/egress"
-	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/mcphost"
@@ -48,7 +47,6 @@ var (
 // Browser is the browser MCP server with deck's own profile: reading pages of the read domains, acting
 // only on act domains unless the owner allows it. One call runs at a time, together with its domain check.
 type Browser struct {
-	GW    *gateway.Gateway
 	Host  *mcphost.Host
 	Store *store.Store
 	Home  home.Layout
@@ -161,14 +159,12 @@ func (b *Browser) build(list []*mcp.Tool) {
 			continue
 		}
 		input, _ := json.Marshal(t.InputSchema)
-		c := registry.Loose(registry.Deck(t.Name), t.Name, t.Description, []string{registry.Agent}, input,
-			b.reader(t.Name)).Foreign().Brings(registry.FromOutside)
+		c := registry.Loose(registry.Deck(t.Name), t.Name, t.Description, []string{registry.Agent}, input, b.reader(t.Name)).Foreign()
 		if !act {
-			c.Stays()
+			c.Stays().Brings(registry.FromOutside)
 		} else {
-			c.Handler = b.actor(t.Name)
 			// The page an action acts on is the browser's, which deck looks at only when it may reach out.
-			c.Gate.Subject = func(ctx context.Context, at registry.At, _ json.RawMessage) registry.Subject {
+			c.Sends(b.actor(t.Name)).Gate = outside(func(ctx context.Context, at registry.At, _ json.RawMessage) registry.Subject {
 				if !at.Look {
 					return registry.Subject{Unseen: true}
 				}
@@ -183,10 +179,9 @@ func (b *Browser) build(list []*mcp.Tool) {
 					return registry.Subject{Where: "on a page deck could not tell"}
 				}
 				return registry.Subject{Print: page, Where: "on " + untrusted.Cut(page, 300)}
-			}
-			c.Gate.Needs = func(_ context.Context, _ registry.Actor, s registry.Subject, _ json.RawMessage) ([]registry.Need, error) {
-				return []registry.Need{{Right: manifest.Send, Subject: siteOf(s.Print)}}, nil
-			}
+			}, func(s registry.Subject) registry.Need {
+				return registry.Need{Right: manifest.Send, Subject: siteOf(s.Print)}
+			})
 		}
 		if registry.Prepare(c) == nil {
 			out = append(out, c)

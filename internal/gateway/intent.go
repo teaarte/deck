@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -16,65 +17,50 @@ import (
 	"deck2/internal/untrusted"
 )
 
-// Intent writes the start of an action outside deck with its parameters before it happens. An identical call, by the
-// one identity of a call, still being made or whose outcome is unknown, is refused; the owner repeats it.
-func (g *Gateway) Intent(ctx context.Context, act registry.Actor, project int64, tool string, params json.RawMessage) (int64, error) {
-	var self int64
-	if l := ownLine(ctx, tool); l != nil && !l.intent {
-		self, l.intent = l.id, true
+// intend writes, in the Tx of before, the start of a call that acts outside deck; an identical call still being made
+// or of unknown outcome, but the one the owner's yes to it settles, is refused with its line rejected.
+func (g *Gateway) intend(ctx context.Context, q *db.Queries, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, answer int64) (int64, error) {
+	want := c.Same(input)
+	open, err := q.ListUnresolvedCalls(ctx, db.ListUnresolvedCallsParams{Retrying: answer, ProjectID: store.ID(project), Tool: c.Name})
+	if err != nil {
+		return 0, err
 	}
-	same := Canonical
-	if c, err := g.reg.Lookup(ctx, act.Workspace, tool); err == nil {
-		same = func(raw json.RawMessage) string { return c.Same(raw) }
+	line := g.lineOf(act, project, c.Name, registry.Need{Right: manifest.Send, Subject: sent(c.Name)}, "started", Canonical(input), "")
+	var refused error
+	for _, o := range open {
+		if c.Same(json.RawMessage(o.Params)) != want {
+			continue
+		}
+		refused = registry.Refuse("an identical call of %s is being made now; wait for its outcome instead of repeating it", c.Name)
+		if o.Outcome == "unknown" {
+			refused = registry.Refuse("an identical call of %s has an unknown outcome; it is not repeated until the owner decides", c.Name)
+		}
+		line.Outcome, line.Error = "rejected", refused.Error()
+		break
 	}
-	want := same(params)
-	// A call the owner's yes to an ask makes is not held back by the unknown line of that ask, which it settles.
-	var retrying int64
-	if l, ok := ctx.Value(lineKey{}).(*line); ok {
-		retrying = l.answer
+	id, err := q.LogToolCall(ctx, line)
+	if err != nil {
+		return 0, err
 	}
-	var id int64
-	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		open, err := q.ListUnresolvedCalls(ctx, db.ListUnresolvedCallsParams{Retrying: retrying, ProjectID: store.ID(project), Tool: tool, Self: self})
-		if err != nil {
-			return err
-		}
-		for _, o := range open {
-			if same(json.RawMessage(o.Params)) != want {
-				continue
-			}
-			if o.Outcome == "unknown" {
-				return registry.Refuse("an identical call of %s has an unknown outcome; it is not repeated until the owner decides", tool)
-			}
-			return registry.Refuse("an identical call of %s is being made now; wait for its outcome instead of repeating it", tool)
-		}
-		if self != 0 {
-			n, err := q.TakeToolCall(ctx, db.TakeToolCallParams{ProjectID: store.ID(project), Need: manifest.Send, Subject: sent(tool), Params: Canonical(params),
-				Outcome: "started", ID: self})
-			if err != nil || n == 1 {
-				id = self
-				return err
-			}
-		}
-		id, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(), Who: RefOf(act).String(), Tool: tool,
-			Need: manifest.Send, Subject: sent(tool), Count: 1, Outcome: "started", Params: Canonical(params)})
-		return err
-	})
-	return id, err
+	return id, refused
 }
 
-// Refused writes a call that would have left deck but was refused before its intent.
-func (g *Gateway) Refused(ctx context.Context, act registry.Actor, project int64, tool string, params json.RawMessage, err error) {
-	g.Journal(ctx, act, project, tool, registry.Need{Right: manifest.Send, Subject: sent(tool)}, "rejected", Canonical(params), err.Error())
-}
-
-// Finish records the outcome of an action whose intent is id: done when the other side answered, rejected
-// when the call did not leave deck.
-func (g *Gateway) Finish(ctx context.Context, id int64, outcome, externalID, errText string) {
-	_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-		_, err := q.FinishToolCall(ctx, db.FinishToolCallParams{Outcome: outcome, ExternalID: externalID, Error: untrusted.Cut(errText, 2000), ID: id})
+// settle writes, in the Tx of after, the outcome of a call that acts outside deck by how far it got: done, rejected, or
+// unknown with an ask of the owner, whose retry print says what it acted on.
+func (g *Gateway) settle(ctx context.Context, q *db.Queries, id int64, sent registry.Sent, err error, print string) error {
+	text := ""
+	if err != nil {
+		text = untrusted.Cut(err.Error(), 2000)
+	}
+	switch {
+	case err != nil && sent.Reached == registry.Lost:
+		return g.lose(ctx, q, id, print)
+	case err != nil && sent.Reached == registry.NotReached:
+		_, err := q.FinishToolCall(ctx, db.FinishToolCallParams{Outcome: "rejected", Error: text, ID: id})
 		return err
-	})
+	}
+	_, ferr := q.FinishToolCall(ctx, db.FinishToolCallParams{Outcome: "done", ExternalID: sent.At, Error: text, ID: id})
+	return ferr
 }
 
 // Lost marks an action whose answer did not come as of unknown outcome and asks the owner to retry it or
@@ -85,37 +71,36 @@ func (g *Gateway) Lost(ctx context.Context, id int64) {
 	if err != nil {
 		return
 	}
-	var tool string
+	var print string
 	if proj, err := g.st.Q.GetProject(ctx, row.ProjectID.Int64); err == nil {
-		tool = g.print(ctx, proj.WorkspaceID, proj.ID, row.Tool, json.RawMessage(row.Params))
+		print = g.print(ctx, proj.WorkspaceID, proj.ID, row.Tool, json.RawMessage(row.Params))
 	}
-	g.LostAt(ctx, id, tool)
+	if err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return g.lose(ctx, q, id, print) }); err != nil {
+		slog.Error("an unknown outcome", "call", id, "err", err)
+	}
 }
 
-// LostAt is Lost for a tool that knows its own fingerprint, such as one that holds the lock the
-// fingerprint needs.
-func (g *Gateway) LostAt(ctx context.Context, id int64, tool string) {
-	ctx = context.WithoutCancel(ctx)
-	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		c, err := q.GetToolCall(ctx, id)
-		if err != nil || c.Outcome != "started" {
-			return err
-		}
-		who, err := refOf(c.Who)
-		if err != nil {
-			return fmt.Errorf("the caller of tool call %d: %w", id, err)
-		}
-		text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped or lost the connection while making this call; "+
-			"check the other side, then retry it or count it as done.", c.Tool, untrusted.Cut(c.Params, 500))
-		var f Frozen
-		f.Call.Command, f.Call.Input, f.Who, f.Tool = c.Tool, json.RawMessage(Canonical(json.RawMessage(c.Params))), who, tool
-		a, err := ask.ForProject(ctx, q, c.WorkspaceID, c.ProjectID.Int64, c.ProcessID.Int64, ask.KindUnknown, text, f.String(), time.Time{})
-		if err != nil {
-			return err
-		}
-		_, err = q.MarkToolCallUnknown(ctx, db.MarkToolCallUnknownParams{AskID: sql.NullInt64{Int64: a.ID, Valid: true}, ID: id})
+// lose makes the started call id of unknown outcome with an ask of the owner, whose yes repeats it on what print says
+// it acted on.
+func (g *Gateway) lose(ctx context.Context, q *db.Queries, id int64, print string) error {
+	c, err := q.GetToolCall(ctx, id)
+	if err != nil || c.Outcome != "started" {
 		return err
-	})
+	}
+	who, err := refOf(c.Who)
+	if err != nil {
+		return fmt.Errorf("the caller of tool call %d: %w", id, err)
+	}
+	text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped or lost the connection while making this call; "+
+		"check the other side, then retry it or count it as done.", c.Tool, untrusted.Cut(c.Params, 500))
+	var f Frozen
+	f.Call.Command, f.Call.Input, f.Who, f.Tool = c.Tool, json.RawMessage(Canonical(json.RawMessage(c.Params))), who, print
+	a, err := ask.ForProject(ctx, q, c.WorkspaceID, c.ProjectID.Int64, c.ProcessID.Int64, ask.KindUnknown, text, f.String(), time.Time{})
+	if err != nil {
+		return err
+	}
+	_, err = q.MarkToolCallUnknown(ctx, db.MarkToolCallUnknownParams{AskID: sql.NullInt64{Int64: a.ID, Valid: true}, ID: id})
+	return err
 }
 
 // Recover runs on start: actions left without an answer, decisions of the owner deck was making and lines of calls

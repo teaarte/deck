@@ -17,6 +17,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/jsonrpc"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/untrusted"
 )
@@ -153,10 +154,18 @@ func (h *Host) Call(ctx context.Context, key string, spec Spec, tool string, arg
 	return res, err
 }
 
-// Answered reports whether a call error is the server's own answer rather than a lost connection.
-func Answered(err error) bool {
+// Reached is how far a call that failed with err got: an error wrapping ErrNotStarted did not reach the server, a
+// *jsonrpc.Error is the server's answer, and any other may have been made.
+func Reached(err error) registry.Reached {
+	var ns *ErrNotStarted
 	var rpc *jsonrpc.Error
-	return errors.As(err, &rpc)
+	switch {
+	case errors.As(err, &ns):
+		return registry.NotReached
+	case errors.As(err, &rpc):
+		return registry.Answered
+	}
+	return registry.Lost
 }
 
 // ensure runs with s.mu held; a server whose spec changed is stopped and started again.

@@ -681,3 +681,9 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   manifest is not warned.
   Modules: a script that writes its words in another language writes them in English and puts the owner's words in
   `i18n`; a prompt in another language is rewritten in English, its agent writing in the language deck gives.
+- 2026-11-20: deck writes the intent of a call of a tool that sends (an HTTP or MCP tool with the right to send, an
+  action in deck's browser) itself, before the tool runs; a call the owner makes of a command or tool that sends keeps
+  a line of the journal too. The failure of an MCP or browser call whose answer did not come reads
+  `deck: <tool>: <why>; the outcome is unknown and the owner decides whether to repeat it`, as an HTTP tool's does,
+  and its line keeps the error its caller got.
+  Modules: nothing to change; a call of unknown outcome is still not repeated until the owner decides.

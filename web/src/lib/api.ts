@@ -24,9 +24,22 @@ export function newKey(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-// invoke calls a registry command; a refusal throws the server's text in the language of the interface. A small call
-// outlives the page; one that takes a fresh passkey waits for the owner's touch, then goes again. A call with the key
-// of one deck made gives what that one gave.
+// Kept is the key of a press until it gets an answer, for a press again with the same input: another input is another
+// call, with a key of its own.
+export class Kept {
+  private key = '';
+  private body = '';
+  for(input: unknown): string {
+    const body = JSON.stringify(input ?? null);
+    if (!this.key || body !== this.body) [this.key, this.body] = [newKey(), body];
+    return this.key;
+  }
+  answered(lost?: boolean) { if (!lost) this.key = ''; }
+  forget() { this.key = ''; }
+}
+
+// invoke calls a registry command, with the key of its press; a refusal throws the server's text. A small call outlives
+// the page; one that takes a fresh passkey waits for the owner's touch, then goes again.
 export async function invoke<T = unknown>(command: string, input: Record<string, unknown> = {}, key?: string): Promise<Answer<T>> {
   const body = JSON.stringify(input);
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };

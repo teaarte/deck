@@ -113,8 +113,8 @@ type Command struct {
 	// foreign marks an input schema from elsewhere, not held to App Intents types; retries one that takes a retry key;
 	// untokened one no automation token calls; page one a page reads that is not a read of its own.
 	foreign, retries, keyed, untokened, page bool
-	// stays marks a command whose calls need no right of the catalog: they stay in deck.
-	stays bool
+	// stays marks a command whose calls need no right of the catalog: they stay in deck; secret one whose answer is.
+	stays, secret bool
 	// fresh says which calls of the command take the owner's fresh passkey; nil none.
 	fresh func(ctx context.Context, a Actor, input json.RawMessage) (bool, error)
 	// fields are the properties of its input schema, which the identity of a call keeps; nil keeps them all.
@@ -182,8 +182,14 @@ func (c *Command) Fresh(when func(ctx context.Context, a Actor, input json.RawMe
 	return c
 }
 
-// Trusts says calls of the command change deck's trust for long, so what one gives, as a token, is not given twice.
-func (c *Command) Trusts() bool { return c.fresh != nil }
+// Secret says what a call of the command gives is a secret, as a token, so deck keeps it nowhere to give it twice.
+func (c *Command) Secret() bool { return c.secret }
+
+// Secretive declares that what a call of the command gives is a secret.
+func (c *Command) Secretive() *Command {
+	c.secret = true
+	return c
+}
 
 // Gated says a call of the command may need a right of the catalog, so the gateway decides it.
 func (c *Command) Gated() bool { return c.Gate.Needs != nil }

@@ -232,8 +232,8 @@ func TestAButtonDrawnBeforeARestartStillAllowsItsCall(t *testing.T) {
 	}
 }
 
-// TestAPressSentAgainActsOnce: a press sent again with its key, as after its answer was lost, gives the answer of the
-// first and acts once; a new press acts again; a press whose call gave a token is not answered twice.
+// TestAPressSentAgainActsOnce: a press sent again with its key gives the answer of the first and acts once; a new press
+// acts again, its key with another input is refused; a press that gave a token is not answered twice.
 func TestAPressSentAgainActsOnce(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
@@ -250,6 +250,8 @@ func TestAPressSentAgainActsOnce(t *testing.T) {
 		t.Fatalf("a new press acts again: %d", again.Process)
 	}
 	e.WaitState(again.Process, "done", "error")
+	e.Pressing("c1").Must("deck.chat_send", map[string]any{"text": "a"}, nil)
+	e.Pressing("c1").Refused("deck.chat_send", map[string]any{"text": "b"}, 422, "another call")
 	token := map[string]any{"name": "shortcuts", "commands": []string{"deck.owner_notify"}}
 	e.Pressing("t1").Must("deck.token_create", token, nil)
 	e.Pressing("t1").Refused("deck.token_create", token, 403, "not given twice")

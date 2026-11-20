@@ -6,6 +6,7 @@ CREATE TABLE call_key (
     caller TEXT NOT NULL,
     key TEXT NOT NULL,
     command TEXT NOT NULL,
+    input TEXT NOT NULL DEFAULT '',
     state TEXT NOT NULL,
     result TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,

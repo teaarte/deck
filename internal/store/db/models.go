@@ -56,6 +56,7 @@ type CallKey struct {
 	Who         string
 	Key         string
 	Command     string
+	Input       string
 	State       string
 	Result      string
 	CreatedAt   string

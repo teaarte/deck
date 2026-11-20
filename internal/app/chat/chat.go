@@ -104,11 +104,11 @@ func topicTitle(text string) string {
 }
 
 type chatSendIn struct {
-	Text     string   `type:"text" desc:"The message"`
-	Topic    int64    `opt:"" desc:"Chat topic; a new topic when omitted"`
-	Screen   string   `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, process"`
-	Files    []string `type:"file[]" opt:"" desc:"Uploads of project master the owner attaches; the turn that takes the message gets copies"`
-	Model    string   `opt:"" desc:"The model the replies of the topic go on from now; the master's model when omitted on a new topic"`
+	Text   string   `type:"text" desc:"The message"`
+	Topic  int64    `opt:"" desc:"Chat topic; a new topic when omitted"`
+	Screen string   `type:"json" opt:"" desc:"The screen the owner is on, as JSON: project, screen, record, process"`
+	Files  []string `type:"file[]" opt:"" desc:"Uploads of project master the owner attaches; the turn that takes the message gets copies"`
+	Model  string   `opt:"" desc:"The model the replies of the topic go on from now; the master's model when omitted on a new topic"`
 }
 
 // Tell sends text from the owner to the master in a new topic, as deck.chat_send does, its replies on model when given.

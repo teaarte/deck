@@ -4,9 +4,8 @@ import { openTopic } from '../chat/chatStore';
 import { go } from '../app/router';
 import { watchRun } from '../ui/actions/pressStore';
 
-// act does what a pressed button means and gives the answer of its call, made with the key of the press; a chat button
-// opens its topic, a download button downloads its file, and what a run it started waits to make comes to the owner.
-// A failed call throws.
+// act does what a pressed button means and gives the answer of its call, made with the key of the press; a failed call
+// throws. A chat button opens its topic, a download button downloads its file.
 export async function act(c: Action, key?: string): Promise<unknown> {
   if (c.chat && !c.command && !c.screen) {
     openTopic('new');

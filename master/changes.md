@@ -690,6 +690,6 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
 - 2026-11-20: A call over HTTP may carry its key in the header `Deck-Key`: a call again with the key of one deck made,
   as a press of the web client sent again after its answer was lost, gives what the first gave and acts once; a key is
   kept a day, a call still being made or of unknown outcome is refused, and a call that gave a token is not answered
-  twice. `deck.chat_send` loses its own `retry_key`: the press of the chat carries its key. A cron trigger's run is
+  twice. `deck.chat_send` loses its own retry key: the press of the chat carries its key. A cron trigger's run is
   keyed by its slot, which starts once.
   Modules: nothing to change.

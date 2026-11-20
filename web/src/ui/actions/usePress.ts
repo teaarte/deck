@@ -1,7 +1,7 @@
 import { useContext, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Action } from '../../lib/catalog.gen';
-import { newKey } from '../../lib/api';
+import { Kept } from '../../lib/api';
 import { press, useBlockContext, type Reply } from '../../screen/press';
 import i18n from '../../lib/i18n';
 import { notifyError, notifyNote } from '../../lib/notify';
@@ -34,7 +34,7 @@ export function usePress(act: Action) {
   const [error, setError] = useState('');
   const running = useRef(false);
   // key is the key of the press until it gets an answer, so a press again after a lost one is the same call.
-  const key = useRef('');
+  const key = useRef(new Kept());
   const holding = useContext(Holding);
   const label = act.label ?? '';
   const send = async (input?: Record<string, unknown>): Promise<Reply | undefined> => {
@@ -47,9 +47,8 @@ export function usePress(act: Action) {
     setError('');
     if (act.hold) holding?.(true);
     try {
-      key.current ||= newKey();
-      const r = await press(ctx, act, input, key.current);
-      if (!r.lost) key.current = '';
+      const r = await press(ctx, act, input, key.current.for(input));
+      key.current.answered(r.lost);
       // A press on what is over already tells nothing: its screen reads anew.
       const failed = r.gone ? '' : r.error ?? '';
       setError(failed);

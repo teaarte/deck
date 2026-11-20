@@ -1712,10 +1712,6 @@
             "format": "json",
             "type": "string"
           },
-          "retry_key": {
-            "description": "A key of this message: sending it again with the same key returns the first one",
-            "type": "string"
-          },
           "files": {
             "description": "Uploads of project master the owner attaches; the turn that takes the message gets copies",
             "items": {
@@ -1735,7 +1731,7 @@
         "type": "object"
       },
       "traits": [
-        "fields:files,model,retry_key,screen,text,topic",
+        "fields:files,model,screen,text,topic",
         "stays"
       ],
       "gate": {}

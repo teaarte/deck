@@ -249,7 +249,7 @@ func (s *Service) tokenCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Def("token_create", "Create automation token",
 			"Creates a token for a terminal agent, Shortcuts or a script, with the owner's fresh passkey: it calls the commands of deck it lists, reads the data of the modules data names, and calls the commands of the modules modules names, where deck's commands act for it too; no other module.",
-			registry.OwnerOnly, s.tokenCreate).Stays().Fresh(nil),
+			registry.OwnerOnly, s.tokenCreate).Stays().Fresh(nil).Secretive(),
 		registry.Read("tokens_list", "Automation tokens",
 			"Lists automation tokens by name with the commands of deck they call and the modules their rights reach, never the tokens themselves; revoked ones too.",
 			registry.OwnerSide, s.tokensList).Brings(registry.FromDeck).On(events.Devices).NoTokens(),

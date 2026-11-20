@@ -55,7 +55,7 @@ func (q *Queries) FreeSlotKeys(ctx context.Context) error {
 }
 
 const getCallKey = `-- name: GetCallKey :one
-SELECT workspace_id, caller, "key", command, state, result, created_at FROM call_key WHERE workspace_id = ? AND caller = ? AND key = ?
+SELECT workspace_id, caller, "key", command, input, state, result, created_at FROM call_key WHERE workspace_id = ? AND caller = ? AND key = ?
 `
 
 type GetCallKeyParams struct {
@@ -72,6 +72,7 @@ func (q *Queries) GetCallKey(ctx context.Context, arg GetCallKeyParams) (CallKey
 		&i.Who,
 		&i.Key,
 		&i.Command,
+		&i.Input,
 		&i.State,
 		&i.Result,
 		&i.CreatedAt,
@@ -701,9 +702,10 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 }
 
 const takeCallKey = `-- name: TakeCallKey :exec
-INSERT INTO call_key (workspace_id, caller, key, command, state, result, created_at)
-VALUES (?1, ?2, ?3, ?4, 'making', '', ?5)
-ON CONFLICT (workspace_id, caller, key) DO UPDATE SET command = excluded.command, state = 'making', result = '', created_at = excluded.created_at
+INSERT INTO call_key (workspace_id, caller, key, command, input, state, result, created_at)
+VALUES (?1, ?2, ?3, ?4, ?5, 'making', '', ?6)
+ON CONFLICT (workspace_id, caller, key) DO UPDATE SET command = excluded.command, input = excluded.input, state = 'making', result = '',
+    created_at = excluded.created_at
 `
 
 type TakeCallKeyParams struct {
@@ -711,6 +713,7 @@ type TakeCallKeyParams struct {
 	Who         string
 	Key         string
 	Command     string
+	Input       string
 	CreatedAt   string
 }
 
@@ -721,6 +724,7 @@ func (q *Queries) TakeCallKey(ctx context.Context, arg TakeCallKeyParams) error 
 		arg.Who,
 		arg.Key,
 		arg.Command,
+		arg.Input,
 		arg.CreatedAt,
 	)
 	return err

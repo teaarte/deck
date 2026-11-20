@@ -7,9 +7,8 @@ import { errorText } from '../lib/notify';
 import { holdPress, offerUndo } from '../ui/actions/undo';
 import { act } from './act';
 
-// Reply is what a screen says of a press at /press/<reply>: why the call failed, or its answer; gone, that what it
-// acted on was over already, as an ask answered: a button then tells nothing, a form or a custom block the error;
-// lost, that no answer came, so a press again keeps its key.
+// Reply is what a screen says of a press at /press/<reply>: why the call failed, or its answer; gone, that what it acted
+// on was over already, so a button tells nothing; lost, that no answer came, so a press again keeps its key.
 export interface Reply { error?: string; result?: unknown; taken?: boolean; gone?: boolean; lost?: boolean }
 
 export const PRESS = '/press/';
@@ -52,6 +51,8 @@ export async function run(a: Action, key?: string): Promise<Reply> {
     if (a.undo) offerUndo(a.undo, a.label ?? '');
     return { result };
   } catch (e) {
-    return { error: errorText(e), gone: e instanceof Refusal && e.status === 410, lost: !(e instanceof Refusal) };
+    // A proxy in front of deck that lost it answers 502 to 504: no answer of deck came.
+    const lost = !(e instanceof Refusal) || e.status >= 502 && e.status <= 504;
+    return { error: errorText(e), gone: e instanceof Refusal && e.status === 410, lost };
   }
 }

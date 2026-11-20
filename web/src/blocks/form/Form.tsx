@@ -5,7 +5,7 @@ import { DialogClose } from '../../screen/dialogContext';
 import { outcome } from '../../screen/act';
 import { openTopic } from '../../chat/chatStore';
 import { press, useBlockContext } from '../../screen/press';
-import { newKey } from '../../lib/api';
+import { Kept } from '../../lib/api';
 import { sharedSent } from '../../lib/share';
 import { errorText } from '../../lib/notify';
 import { Failed } from '../../ui/actions/Failed';
@@ -40,7 +40,7 @@ export function Form({ value, still }: { value: FormValue; still?: boolean }) {
   const [failed, setFailed] = useState({ at: '', error: '' });
   const running = useRef(false);
   // key is the key of a submit until it gets an answer, so a submit again after a lost one is the same call.
-  const key = useRef('');
+  const key = useRef(new Kept());
   const props = cmd?.input?.properties ?? {};
   const fields = [...(cmd?.order ?? []).filter((k) => k in props), ...Object.keys(props).filter((k) => !cmd?.order?.includes(k))];
   const required = new Set(cmd?.input?.required ?? []);
@@ -59,11 +59,11 @@ export function Form({ value, still }: { value: FormValue; still?: boolean }) {
       // The fixed fields are not drawn; their values go as the server gave them.
       const data = { ...await buildInput(props, form.values, form.files,
         { project: project ?? '', record: edit ? (value.values as Record<string, unknown> | undefined) ?? {} : undefined }), ...value.fixed };
-      key.current ||= newKey();
+      const k = key.current.for(data);
       const sent = value.send?.input
-        ? await press(ctx, value.send, { [value.send.input]: JSON.stringify(data) }, key.current)
-        : await press(ctx, { command: cmd.name }, data, key.current);
-      if (!sent.lost) key.current = '';
+        ? await press(ctx, value.send, { [value.send.input]: JSON.stringify(data) }, k)
+        : await press(ctx, { command: cmd.name }, data, k);
+      key.current.answered(sent.lost);
       if (sent.error) {
         setFailed({ at: 'run', error: sent.error });
         return;

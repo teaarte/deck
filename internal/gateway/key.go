@@ -21,12 +21,12 @@ const maxKept = 64 << 10
 // errMadeAgain is a call with the key of one made, which gives what that one gave.
 var errMadeAgain = errors.New("made again")
 
-// keyOf is the key a call of c by act takes, nil for a call without one or a read.
-func keyOf(act registry.Actor, c *registry.Command, key string) *db.TakeCallKeyParams {
+// keyOf is the key a call of c by act with input takes, nil for a call without one or a read.
+func keyOf(act registry.Actor, c *registry.Command, input json.RawMessage, key string) *db.TakeCallKeyParams {
 	if key == "" || c.Reads() {
 		return nil
 	}
-	return &db.TakeCallKeyParams{WorkspaceID: act.Workspace, Who: RefOf(act).String(), Key: key, Command: c.Name}
+	return &db.TakeCallKeyParams{WorkspaceID: act.Workspace, Who: RefOf(act).String(), Key: key, Command: c.Name, Input: Canonical(input)}
 }
 
 // claim takes the key of a call in the Tx of before, or gives what the call of that key gave; a key of a call still
@@ -41,8 +41,8 @@ func (g *Gateway) claim(ctx context.Context, q *db.Queries, k db.TakeCallKeyPara
 	case errors.Is(err, sql.ErrNoRows) || err == nil && old.State == "rejected":
 	case err != nil:
 		return nil, err
-	case old.Command != k.Command:
-		return nil, registry.Invalid("the key %s is of a call of %s, not of %s", k.Key, old.Command, k.Command)
+	case old.Command != k.Command || old.Input != k.Input:
+		return nil, registry.Invalid("the key %s is of another call of %s; a new call takes a new key", k.Key, old.Command)
 	case old.State == "making":
 		return nil, registry.Refuse("%s is being made by this key now; its answer comes once it is done", k.Command)
 	case old.State == "lost":
@@ -57,7 +57,7 @@ func (g *Gateway) claim(ctx context.Context, q *db.Queries, k db.TakeCallKeyPara
 }
 
 // keepKey writes, in the Tx of after, what the call of a key gave, or that it was refused so the key is taken anew, or
-// lost; what a call that changes deck's trust gave is not kept.
+// lost; what a call that gives a secret gave is not kept.
 func (g *Gateway) keepKey(ctx context.Context, q *db.Queries, k db.TakeCallKeyParams, c *registry.Command, out any, lost bool, err error) error {
 	state, result := "done", ""
 	switch {
@@ -66,7 +66,7 @@ func (g *Gateway) keepKey(ctx context.Context, q *db.Queries, k db.TakeCallKeyPa
 	case err != nil:
 		state = "rejected"
 	default:
-		if b, merr := json.Marshal(out); merr == nil && len(b) <= maxKept && !c.Trusts() {
+		if b, merr := json.Marshal(out); merr == nil && len(b) <= maxKept && !c.Secret() {
 			result = string(b)
 		}
 	}

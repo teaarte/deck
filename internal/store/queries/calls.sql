@@ -111,9 +111,10 @@ SELECT * FROM call_key WHERE workspace_id = ? AND caller = ? AND key = ?;
 
 -- name: TakeCallKey :exec
 -- A key taken anew: a new one, or one of a refused call.
-INSERT INTO call_key (workspace_id, caller, key, command, state, result, created_at)
-VALUES (sqlc.arg(workspace_id), sqlc.arg(caller), sqlc.arg(key), sqlc.arg(command), 'making', '', sqlc.arg(created_at))
-ON CONFLICT (workspace_id, caller, key) DO UPDATE SET command = excluded.command, state = 'making', result = '', created_at = excluded.created_at;
+INSERT INTO call_key (workspace_id, caller, key, command, input, state, result, created_at)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(caller), sqlc.arg(key), sqlc.arg(command), sqlc.arg(input), 'making', '', sqlc.arg(created_at))
+ON CONFLICT (workspace_id, caller, key) DO UPDATE SET command = excluded.command, input = excluded.input, state = 'making', result = '',
+    created_at = excluded.created_at;
 
 
 -- name: SettleCallKey :exec

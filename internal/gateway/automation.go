@@ -22,13 +22,16 @@ type automationEntry struct {
 	server  *mcp.Server
 	handler http.Handler
 	tools   []string
+	// session is the caller of the token, as its latest request found it.
+	session *Session
 }
 
-// ServeAutomation serves the MCP entry of automation tokens to act, whom the token of the request is: it comes with
-// each request, so a revoked token is refused at once; a new session sees the commands of the moment.
+// ServeAutomation serves the MCP entry of automation tokens to act, whom the token of each request is now: revoked, it
+// is refused at once, and calls go by its rights and trust now; a new session sees the commands of the moment.
 func (g *Gateway) ServeAutomation(w http.ResponseWriter, r *http.Request, act registry.Actor) {
-	s := &Session{Who: act}
 	e := g.automationEntry(act.Token)
+	s := e.session
+	s.becomes(act)
 	if r.Method == http.MethodPost && r.Header.Get("Mcp-Session-Id") == "" {
 		e.mu.Lock()
 		_, tools, err := g.retool(r.Context(), e.server, s, e.tools)
@@ -51,7 +54,7 @@ func (g *Gateway) automationEntry(token int64) *automationEntry {
 		return e
 	}
 	srv := mcp.NewServer(&mcp.Implementation{Name: ServerName, Version: "0"}, &mcp.ServerOptions{Instructions: automationInstructions})
-	e := &automationEntry{server: srv}
+	e := &automationEntry{server: srv, session: &Session{}}
 	e.handler = stateful(func(*http.Request) *mcp.Server { return srv })
 	g.tokens[token] = e
 	return e

@@ -44,8 +44,22 @@ type Session struct {
 	// Heard hears each call of a tool of the session, a sign of the model that makes it.
 	Heard func()
 
-	// mu guards the result the session handed in.
+	// mu guards the result the session handed in and the caller of an automation token.
 	mu sync.Mutex
+}
+
+// caller is the actor of the session now: an automation token's is that of its latest request.
+func (s *Session) caller() registry.Actor {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.Who
+}
+
+// becomes makes act the caller of the session of an automation token.
+func (s *Session) becomes(act registry.Actor) {
+	s.mu.Lock()
+	s.Who = act
+	s.mu.Unlock()
 }
 
 type Config struct {
@@ -326,7 +340,7 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 // Count is how many tools a session would have: its commands, the approval, and the tools of a question and of the
 // result it asks for.
 func (g *Gateway) Count(ctx context.Context, s *Session) int {
-	cmds, err := g.reg.List(ctx, s.Who)
+	cmds, err := g.reg.List(ctx, s.caller())
 	if err != nil {
 		return 0
 	}
@@ -342,7 +356,7 @@ func (g *Gateway) Count(ctx context.Context, s *Session) int {
 
 // addCommands exposes the registry commands the session may call as tools of srv.
 func (g *Gateway) addCommands(ctx context.Context, srv *mcp.Server, s *Session) (allowed, tools []string, err error) {
-	cmds, err := g.reg.List(ctx, s.Who)
+	cmds, err := g.reg.List(ctx, s.caller())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -397,8 +411,9 @@ func (g *Gateway) progress(ctx context.Context, req *mcp.CallToolRequest) func()
 }
 
 func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json.RawMessage) *mcp.CallToolResult {
-	live := s.Who.Token == 0 && s.Who.Run == "" && s.Who.ProcessID != 0
-	out, err := g.Call(registry.WithPictures(ctx), Call{Who: s.Who, Command: name, Input: args, Live: live})
+	who := s.caller()
+	live := who.Token == 0 && who.Run == "" && who.ProcessID != 0
+	out, err := g.Call(registry.WithPictures(ctx), Call{Who: who, Command: name, Input: args, Live: live})
 	if err != nil {
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}
 	}

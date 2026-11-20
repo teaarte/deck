@@ -35,11 +35,22 @@ func (q *Queries) FinishToolCall(ctx context.Context, arg FinishToolCallParams) 
 }
 
 const forgetCallKeys = `-- name: ForgetCallKeys :exec
-DELETE FROM call_key WHERE created_at < ?1
+DELETE FROM call_key WHERE created_at < ?1 AND state != 'making'
 `
 
 func (q *Queries) ForgetCallKeys(ctx context.Context, before string) error {
 	_, err := q.db.ExecContext(ctx, forgetCallKeys, before)
+	return err
+}
+
+const freeSlotKeys = `-- name: FreeSlotKeys :exec
+DELETE FROM call_key WHERE state = 'making' AND key LIKE 'trigger:%'
+`
+
+// The slots of triggers deck was starting when it stopped: a slot moves in the Tx that starts its run, so one still
+// due did not start.
+func (q *Queries) FreeSlotKeys(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, freeSlotKeys)
 	return err
 }
 

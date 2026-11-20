@@ -130,6 +130,9 @@ func (g *Gateway) Recover(ctx context.Context) error {
 	}
 	res, _ := json.Marshal(Outcome{Error: "deck stopped while making this call; it is listed for the owner as an unknown outcome"})
 	err = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := q.FreeSlotKeys(ctx); err != nil {
+			return err
+		}
 		if err := q.LoseCallKeys(ctx); err != nil {
 			return err
 		}

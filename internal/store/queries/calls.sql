@@ -102,7 +102,7 @@ GROUP BY c.project_id;
 
 
 -- name: ForgetCallKeys :exec
-DELETE FROM call_key WHERE created_at < sqlc.arg(before);
+DELETE FROM call_key WHERE created_at < sqlc.arg(before) AND state != 'making';
 
 
 -- name: GetCallKey :one
@@ -119,6 +119,12 @@ ON CONFLICT (workspace_id, caller, key) DO UPDATE SET command = excluded.command
 -- name: SettleCallKey :exec
 UPDATE call_key SET state = sqlc.arg(state), result = sqlc.arg(result)
 WHERE workspace_id = sqlc.arg(workspace_id) AND caller = sqlc.arg(caller) AND key = sqlc.arg(key) AND state = 'making';
+
+
+-- name: FreeSlotKeys :exec
+-- The slots of triggers deck was starting when it stopped: a slot moves in the Tx that starts its run, so one still
+-- due did not start.
+DELETE FROM call_key WHERE state = 'making' AND key LIKE 'trigger:%';
 
 
 -- name: LoseCallKeys :exec

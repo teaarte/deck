@@ -34,6 +34,9 @@ func (s *Service) start(ctx context.Context, t db.Trigger, input map[string]any,
 	if err != nil {
 		return 0, err
 	}
+	if key != "" {
+		delete(input, registry.RetryKey)
+	}
 	raw, _ := json.Marshal(input)
 	act := registry.TriggerOf(p.WorkspaceID, p.ID, t.ID, parent, false)
 	out, err := s.Gateway.Call(ctx, gateway.Call{Who: act, Command: p.Name + "." + t.Command, Input: raw, Key: key})

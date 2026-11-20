@@ -417,8 +417,9 @@ func TestACPAgentThatStaysAfterItsTurnIsKilled(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)
 	f.StreamText(4, harness.AcpStream(harness.AcpInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
-		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`, `{"shell": "sleep 120"}`))
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`, `{"shell": "sleep 3600"}`))
 	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
+	start := time.Now()
 	if got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error"); got.State != "done" || string(got.Result) != `{"color":"blue"}` {
 		t.Fatalf("want the turn of an agent that stays done with its result: %+v", got)
 	}
@@ -428,6 +429,9 @@ func TestACPAgentThatStaysAfterItsTurnIsKilled(t *testing.T) {
 	}
 	defer alive.Close()
 	e.Until("deck to end the agent that stays", func() bool { return harness.Stopped(alive) })
+	if took := time.Since(start); took > harness.Within(time.Minute) {
+		t.Fatalf("the agent that stays ends after its linger, not on its own: %s", took)
+	}
 }
 
 // TestACPUpdatesOfAnotherSessionAreNotTheProcess: what the agent says in another session, such as a sub-agent's, is

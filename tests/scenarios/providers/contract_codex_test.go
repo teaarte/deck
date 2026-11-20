@@ -384,11 +384,14 @@ func codexLines(t *testing.T, fixture string) []string {
 func TestCodexHighUsageWithoutAReachedLimitIsNoLimit(t *testing.T) {
 	t.Parallel()
 	c := harness.NewCodex(t)
-	lines := codexLines(t, "ok.jsonl")
+	lines, high := codexLines(t, "ok.jsonl"), 0
 	for i, l := range lines {
-		if strings.Contains(l, "account/rateLimits/updated") {
-			lines[i] = strings.Replace(l, `"usedPercent": 18`, `"usedPercent": 97`, 1)
+		if strings.Contains(l, "account/rateLimits/updated") && strings.Contains(l, `"usedPercent": 18`) {
+			lines[i], high = strings.Replace(l, `"usedPercent": 18`, `"usedPercent": 97`, 1), high+1
 		}
+	}
+	if high == 0 {
+		t.Fatal("ok.jsonl has no rate-limit update to raise")
 	}
 	c.StreamText(1, strings.Join(lines, "\n"))
 	e := harness.New(t, harness.WithCodex(c))

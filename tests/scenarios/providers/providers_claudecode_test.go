@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
@@ -159,7 +160,7 @@ func TestTurnSucceedsOnlyStrictly(t *testing.T) {
 	}{
 		{name: "foreign session", fixture: "foreign_session.jsonl", want: "instead of"},
 		{name: "result without session", fixture: "no_session.jsonl", want: "without an id"},
-		{name: "error result", fixture: "error.jsonl", want: "API Error: 500", kind: "model.unavailable"},
+		{name: "error result", fixture: "error.jsonl", want: "API Error: 500", kind: fault.ModelUnavailable},
 		{name: "no result", after: "exit 1", want: "without a result"},
 		{name: "prompt not read", fixture: "ok.jsonl", skipStdin: true, prompt: big, want: "did not reach"},
 	} {

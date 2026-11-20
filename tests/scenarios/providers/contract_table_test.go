@@ -17,16 +17,16 @@ var providerContract = []struct{ situation, claudecode, codex, acp string }{
 	{"a session the program lost starts over",
 		"TestResumeAfterEarlyCrashStartsTheSessionAgain", "TestCodexLostThreadStartsTheSessionOver", "TestACPSessionTheAgentLostStartsOver"},
 	{"a usage limit pauses until its reset",
-		"TestClaudeCodeLimitPausesUntilItsReset", "TestCodexLostLoginAndLimit", "TestACPTurnSucceedsOnlyOnEndTurn/waiting:limit"},
+		"TestClaudeCodeLimitPausesUntilItsReset", "TestCodexLostLoginAndLimit", "TestACPTurnSucceedsOnlyOnEndTurn"},
 	{"a warning of a limit is not a limit",
 		"TestRateLimitWarningDoesNotPause", "TestCodexHighUsageWithoutAReachedLimitIsNoLimit",
 		"n/a: acp learns of a limit only from a 429 of the model API (internal/provider/acp/proxy.go)"},
 	{"a lost login or a refused key waits for the owner",
-		"TestLostLoginWaitsForOwnerAndRetries", "TestCodexLostLoginAndLimit", "TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal/waiting:sign_in"},
+		"TestLostLoginWaitsForOwnerAndRetries", "TestCodexLostLoginAndLimit", "TestACPTurnThatEndsOnARefusalOfTheModelIsTheRefusal"},
 	{"a model that did not answer is unavailable",
-		"TestTurnSucceedsOnlyStrictly/error_result", "TestCodexFailureOfItsModelOrTaskIsTyped", "TestACPServerErrorOfTheModelAPIIsUnavailable"},
+		"TestTurnSucceedsOnlyStrictly", "TestCodexFailureOfItsModelOrTaskIsTyped", "TestACPServerErrorOfTheModelAPIIsUnavailable"},
 	{"an error the agent reports fails the task",
-		"TestClaudeCodeErrorResultIsAFailedTask", "TestCodexFailureOfItsModelOrTaskIsTyped", "TestACPTurnSucceedsOnlyOnEndTurn/turn_failed"},
+		"TestClaudeCodeErrorResultIsAFailedTask", "TestCodexFailureOfItsModelOrTaskIsTyped", "TestACPTurnSucceedsOnlyOnEndTurn"},
 	{"a result handed in beats a failure after it",
 		"n/a: Claude Code has structured output, so it gets no result_submit (internal/provider/claudecode/claudecode.go caps)",
 		"TestCodexLimitReachedAfterItsTurnLeavesTheResult; TestCodexResultHandedInBeatsAnUnfinishedTurn",
@@ -40,11 +40,11 @@ var providerContract = []struct{ situation, claudecode, codex, acp string }{
 	{"events of sub-agents are not the process's",
 		"TestSubAgentEventsAreNotProcessEvents", "TestCodexSubAgentEventsAreNotProcessEvents", "TestACPUpdatesOfAnotherSessionAreNotTheProcess"},
 	{"tokens of the turn, only its own on resume",
-		"TestResumedClaudeCodeTurnCountsOnlyItsOwnTokens", "TestCodexSubAgentEventsAreNotProcessEvents", "TestACPCountsTokensOfCompressedReplies"},
+		"TestResumedClaudeCodeTurnCountsOnlyItsOwnTokens", "TestCodexSubAgentEventsAreNotProcessEvents", "n/a: deck's proxy counts each call of an ACP agent's model as it goes, so a resume counts only its own (internal/provider/acp/proxy.go)"},
 	{"deck's tools that never reached the agent fail the turn",
 		"TestAnAgentThatNeverGetsDecksToolsFails",
-		"n/a: only claudecode tells fault.DeckTools; deck's MCP goes into codex by its thread config (internal/provider/codex)",
-		"n/a: deck's MCP goes into acp with session/new (internal/provider/acp/turn.go)"},
+		"n/a: not detected: deck's MCP goes into codex by its thread config and only claudecode tells fault.DeckTools (internal/provider/codex)",
+		"n/a: not detected: deck's MCP goes into acp with session/new (internal/provider/acp/turn.go)"},
 	{"the fake rejects what the real program lacks",
 		"TestFakeCLIRejectsUnknownFlags", "TestFakeCodexRejectsWhatTheSchemaLacks", "TestFakeACPRejectsWhatTheSchemaLacks"},
 	{"the owner's stop cancels the turn",
@@ -83,8 +83,8 @@ func TestEverySituationOfAProviderHasItsTest(t *testing.T) {
 				continue
 			}
 			for _, name := range strings.Split(cell, "; ") {
-				if top, _, _ := strings.Cut(name, "/"); !known[top] {
-					t.Errorf("%q of %s names %s, which is no test under tests/scenarios", row.situation, provider, top)
+				if !known[name] {
+					t.Errorf("%q of %s names %s, which is no test under tests/scenarios (name a top-level test)", row.situation, provider, name)
 				}
 			}
 		}

@@ -718,3 +718,30 @@ func TestTheScheduleReadsInTheOrderOfADay(t *testing.T) {
 		t.Fatalf("a command after a paused schedule stands with it: %q, not %q", got, want)
 	}
 }
+
+// TestASlotOfATriggerStartsOnce: a slot a trigger ran is not run again when its trigger comes to that slot again, as
+// when its row is put back to it; the next slot runs.
+func TestASlotOfATriggerStartsOnce(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(harness.Ok), harness.WithClock())
+	e.Project("daily", harness.TestManifest([]string{harness.AgentCommand("job", "")}, []string{`{"command": "job", "cron": "0 9 * * *"}`}))
+	e.Clock.Add(25 * time.Hour)
+	var slot string
+	// The slot the trigger runs now, which deck shows nowhere.
+	if err := e.SQLRow(`SELECT next_run_at FROM "trigger" WHERE command = 'job'`).Scan(&slot); err != nil {
+		t.Fatal(err)
+	}
+	e.Schedule()
+	e.Until("the run of the slot", func() bool { return e.CountOf("job") == 1 })
+	e.Settle()
+	// The trigger at the slot it ran, as a base put back to before that run had it.
+	e.SQL(`UPDATE "trigger" SET next_run_at = ? WHERE command = 'job'`, slot)
+	e.Schedule()
+	e.Settle()
+	if n := e.CountOf("job"); n != 1 {
+		t.Fatalf("the slot that ran starts no second run: %d runs", n)
+	}
+	e.Clock.Add(24 * time.Hour)
+	e.Schedule()
+	e.Until("the run of the next slot", func() bool { return e.CountOf("job") == 2 })
+}

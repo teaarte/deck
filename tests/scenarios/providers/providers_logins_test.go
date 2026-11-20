@@ -218,7 +218,7 @@ func TestTheOwnersLoginRunsAsBeforeAfterTheMigrationOfLogins(t *testing.T) {
 	}
 	e.Must("deck.model_set", map[string]any{"connection": "claude-code", "model": "opus", "name": "opus"}, nil)
 	// The base of a deck before logins were connections, to be migrated.
-	e.SQL(`ALTER TABLE connection DROP COLUMN agent; ALTER TABLE chat_topic DROP COLUMN again_provider; ALTER TABLE chat_topic DROP COLUMN again_note; ALTER TABLE chat_topic DROP COLUMN again_follows`)
+	e.SQL(`ALTER TABLE connection DROP COLUMN agent; ALTER TABLE chat_topic DROP COLUMN again_provider; ALTER TABLE chat_topic DROP COLUMN again_note; ALTER TABLE chat_topic DROP COLUMN again_follows; DROP TABLE call_key`)
 	// The migration of the base, which deck shows nowhere.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 89`)
 	e = e.Restart()

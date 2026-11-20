@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -37,9 +38,15 @@ func (g *Gateway) made(ctx context.Context, call Call, act registry.Actor, c *re
 	}
 	right := needOf(v.Need)
 	l, err := g.before(ctx, call, act, c, project, input, v, right, params)
+	if err == nil && l.kept != nil {
+		err = errMadeAgain
+	}
 	if err != nil {
 		if v.Name == "pressed" {
 			g.giveBack(ctx, act, c, input)
+		}
+		if err == errMadeAgain {
+			return l.kept, nil
 		}
 		return nil, err
 	}
@@ -62,7 +69,7 @@ func (g *Gateway) made(ctx context.Context, call Call, act registry.Actor, c *re
 	if l.sent && sent.Reached == registry.Lost && err != nil && print == "" {
 		print = g.print(context.WithoutCancel(ctx), act.Workspace, project, c.Name, input)
 	}
-	g.after(ctx, call, act, c, project, right, params, l, sent, print, err, change)
+	g.after(ctx, call, act, c, project, right, params, l, out, sent, print, err, change)
 	if err != nil && v.Does == DoShow && v.Name == "pressed" {
 		g.giveBack(ctx, act, c, input)
 	}
@@ -96,11 +103,23 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 	read := g.brought(ctx, act, c, project, input)
 	taint, targets := g.taint(ctx, act, c, project, input, v)
 	lined := !c.Readable && call.journaled()
-	if read == "" && len(targets) == 0 && !lined {
+	l.key = keyOf(act, c, call.Key)
+	if read == "" && len(targets) == 0 && !lined && l.key == nil {
 		return l, nil
 	}
 	var refused error
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if l.key != nil {
+			kept, err := g.claim(ctx, q, *l.key)
+			var re *registry.Error
+			if errors.As(err, &re) {
+				refused = err
+				return nil
+			}
+			if l.kept = kept; err != nil || kept != nil {
+				return err
+			}
+		}
 		for _, id := range targets {
 			if err := q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{Untrusted: taint, ID: id}); err != nil {
 				return err
@@ -137,19 +156,24 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 // after writes, in one Tx, the outcome on the line or intent of a call, that its run wrote, and the change shown to
 // the owner; a failed Tx leaves the line making or started, which Recover makes unknown.
 func (g *Gateway) after(ctx context.Context, call Call, act registry.Actor, c *registry.Command, project int64, right registry.Need, params string, l *line,
-	sent registry.Sent, print string, err error, change *db.AddFeedParams) {
+	out any, sent registry.Sent, print string, err error, change *db.AddFeedParams) {
 	outcome, text := "done", ""
 	if err != nil {
 		outcome, text = "rejected", err.Error()
 	}
 	wrote := err == nil && writes(act, c)
 	lined := !l.own && call.journaled()
-	if !lined && !wrote && change == nil {
+	if !lined && !wrote && change == nil && l.key == nil {
 		return
 	}
 	terr := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		if wrote {
 			if err := q.MarkProcessWrote(ctx, act.ProcessID); err != nil {
+				return err
+			}
+		}
+		if l.key != nil {
+			if err := g.keepKey(ctx, q, *l.key, c, out, l.sent && sent.Reached == registry.Lost, err); err != nil {
 				return err
 			}
 		}
@@ -184,8 +208,10 @@ type line struct {
 	id   int64
 	tool string
 	own  bool
-	// sent marks the intent of a call that acts outside deck.
+	// sent marks the intent of a call that acts outside deck; key is the call's key, kept what a call of it gave.
 	sent bool
+	key  *db.TakeCallKeyParams
+	kept json.RawMessage
 }
 
 type lineKey struct{}

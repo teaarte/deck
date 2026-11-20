@@ -130,6 +130,9 @@ func (g *Gateway) Recover(ctx context.Context) error {
 	}
 	res, _ := json.Marshal(Outcome{Error: "deck stopped while making this call; it is listed for the owner as an unknown outcome"})
 	err = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := q.LoseCallKeys(ctx); err != nil {
+			return err
+		}
 		for _, r := range running {
 			a := r.Ask
 			if err := q.SettleDecision(ctx, db.SettleDecisionParams{Result: string(res), AskID: sql.NullInt64{Int64: a.ID, Valid: true}}); err != nil {

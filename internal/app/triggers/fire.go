@@ -18,24 +18,25 @@ import (
 	"deck2/internal/trigger"
 )
 
-// Fire starts the command of a trigger through the registry. Scheduled runs carry the trigger as their
-// retry key, so a run does not start while the previous one is still going.
+// Fire starts the command of a trigger through the gateway, keyed by its slot: a slot starts once, and a slot started
+// already gives no process of its own.
 func (s *Service) Fire(ctx context.Context, t db.Trigger, input map[string]any) (int64, error) {
-	if t.Kind == trigger.KindCron {
-		input[registry.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
-	}
-	return s.Start(ctx, t, input, 0)
+	return s.start(ctx, t, input, 0, fmt.Sprintf("trigger:%d:%s", t.ID, t.NextRunAt.String))
 }
 
 // Start starts the command of a trigger as the trigger, with parent as the process whose finish fired it.
 func (s *Service) Start(ctx context.Context, t db.Trigger, input map[string]any, parent int64) (int64, error) {
+	return s.start(ctx, t, input, parent, "")
+}
+
+func (s *Service) start(ctx context.Context, t db.Trigger, input map[string]any, parent int64, key string) (int64, error) {
 	p, err := s.St.Q.GetProject(ctx, t.ProjectID)
 	if err != nil {
 		return 0, err
 	}
 	raw, _ := json.Marshal(input)
 	act := registry.TriggerOf(p.WorkspaceID, p.ID, t.ID, parent, false)
-	out, err := s.Gateway.Call(ctx, gateway.Call{Who: act, Command: p.Name + "." + t.Command, Input: raw})
+	out, err := s.Gateway.Call(ctx, gateway.Call{Who: act, Command: p.Name + "." + t.Command, Input: raw, Key: key})
 	if err != nil {
 		return 0, err
 	}

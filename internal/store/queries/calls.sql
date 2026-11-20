@@ -99,3 +99,28 @@ UNION ALL
 SELECT c.project_id, 'money' AS need, '' AS subject, CAST(max(c.created_at) AS TEXT) AS used_at
 FROM llm_call c WHERE c.workspace_id = sqlc.arg(workspace_id) AND c.project_id IS NOT NULL AND c.subscription = 0
 GROUP BY c.project_id;
+
+
+-- name: ForgetCallKeys :exec
+DELETE FROM call_key WHERE created_at < sqlc.arg(before);
+
+
+-- name: GetCallKey :one
+SELECT * FROM call_key WHERE workspace_id = ? AND caller = ? AND key = ?;
+
+
+-- name: TakeCallKey :exec
+-- A key taken anew: a new one, or one of a refused call.
+INSERT INTO call_key (workspace_id, caller, key, command, state, result, created_at)
+VALUES (sqlc.arg(workspace_id), sqlc.arg(caller), sqlc.arg(key), sqlc.arg(command), 'making', '', sqlc.arg(created_at))
+ON CONFLICT (workspace_id, caller, key) DO UPDATE SET command = excluded.command, state = 'making', result = '', created_at = excluded.created_at;
+
+
+-- name: SettleCallKey :exec
+UPDATE call_key SET state = sqlc.arg(state), result = sqlc.arg(result)
+WHERE workspace_id = sqlc.arg(workspace_id) AND caller = sqlc.arg(caller) AND key = sqlc.arg(key) AND state = 'making';
+
+
+-- name: LoseCallKeys :exec
+-- The keys of calls deck was making when it stopped: their outcome is unknown.
+UPDATE call_key SET state = 'lost' WHERE state = 'making';

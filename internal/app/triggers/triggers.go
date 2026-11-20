@@ -260,7 +260,6 @@ func (s *Service) triggerRun(ctx context.Context, act registry.Actor, in trigger
 	if params == nil {
 		params = map[string]any{}
 	}
-	params[registry.RetryKey] = fmt.Sprintf("trigger:%d", t.ID)
 	raw, _ := json.Marshal(params)
 	as := registry.TriggerOf(p.WorkspaceID, p.ID, t.ID, 0, true)
 	return s.Gateway.Call(ctx, gateway.Call{Who: as, Command: name, Input: raw})

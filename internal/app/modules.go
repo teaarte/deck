@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -162,6 +163,10 @@ func (s *modules) startHandler(projectID int64, m *manifest.Manifest, command st
 		}
 		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Confirmed: act.Confirmed, Key: act.Key, Trial: act.Trial, Alone: act.Alone,
 			Same: turnOf(act)}
+		// A run of a trigger not after a process joins its run still going rather than starting beside it.
+		if act.Kind == registry.Trigger && act.ProcessID == 0 && o.Key == "" {
+			o.Key = fmt.Sprintf("trigger:%d", act.TriggerID)
+		}
 		// Only the owner's own press stands for their yes.
 		if act.Kind == registry.Owner && act.Allows != "" {
 			var as []gateway.Allow

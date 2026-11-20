@@ -90,7 +90,7 @@ func TestATokenOfCommandsReachesTheModulesItNamedAfterTheMigration(t *testing.T)
 	// A base an older deck left: its tokens listed names of commands and held no rights.
 	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 86`)
 	// Nor had it the column of the rights of a token.
-	e.SQL(`ALTER TABLE automation_token DROP COLUMN rights; DROP INDEX tool_call_project; ALTER TABLE tool_call DROP COLUMN subject; ALTER TABLE tool_call DROP COLUMN count; ALTER TABLE process DROP COLUMN opens; ALTER TABLE connection DROP COLUMN agent; ALTER TABLE chat_topic DROP COLUMN again_provider; ALTER TABLE chat_topic DROP COLUMN again_note; ALTER TABLE chat_topic DROP COLUMN again_follows`)
+	e.SQL(`ALTER TABLE automation_token DROP COLUMN rights; DROP INDEX tool_call_project; ALTER TABLE tool_call DROP COLUMN subject; ALTER TABLE tool_call DROP COLUMN count; ALTER TABLE process DROP COLUMN opens; ALTER TABLE connection DROP COLUMN agent; ALTER TABLE chat_topic DROP COLUMN again_provider; ALTER TABLE chat_topic DROP COLUMN again_note; ALTER TABLE chat_topic DROP COLUMN again_follows; DROP TABLE call_key`)
 	for _, row := range [][2]string{{"board", `["dec.next","dec.status"]`}, {"orchestrator", `["dec.status","dec.add","deck.record_update"]`},
 		{"everything", `["*"]`}, {"menu", `["deck.menu_get"]`}, {"wide", `["notes.*","dec.add"]`}} {
 		// A token as an older deck made it, by the names of its commands.

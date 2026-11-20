@@ -182,6 +182,9 @@ func (c *Command) Fresh(when func(ctx context.Context, a Actor, input json.RawMe
 	return c
 }
 
+// Trusts says calls of the command change deck's trust for long, so what one gives, as a token, is not given twice.
+func (c *Command) Trusts() bool { return c.fresh != nil }
+
 // Gated says a call of the command may need a right of the catalog, so the gateway decides it.
 func (c *Command) Gated() bool { return c.Gate.Needs != nil }
 

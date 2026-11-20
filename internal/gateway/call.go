@@ -20,6 +20,9 @@ type Call struct {
 	// Inside marks a read a command makes in its own run, as a screen reads its blocks: its marks and its line are those
 	// of the call that made it, and it does not wait for the owner.
 	Inside bool
+	// Key is the caller's key of the call, the slot of a trigger or a press of the owner: a call with the key of one
+	// made gives what that one gave.
+	Key string
 	// answer is the ask whose yes makes the call; tool marks the one tool call its command lets through; sends marks a
 	// call of the owner that acts outside deck.
 	answer int64

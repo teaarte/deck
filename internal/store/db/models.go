@@ -51,6 +51,16 @@ type AutomationToken struct {
 	Rights      string
 }
 
+type CallKey struct {
+	WorkspaceID int64
+	Who         string
+	Key         string
+	Command     string
+	State       string
+	Result      string
+	CreatedAt   string
+}
+
 type ChatMessage struct {
 	ID         int64
 	TopicID    int64

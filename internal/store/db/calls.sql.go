@@ -34,6 +34,40 @@ func (q *Queries) FinishToolCall(ctx context.Context, arg FinishToolCallParams) 
 	return result.RowsAffected()
 }
 
+const forgetCallKeys = `-- name: ForgetCallKeys :exec
+DELETE FROM call_key WHERE created_at < ?1
+`
+
+func (q *Queries) ForgetCallKeys(ctx context.Context, before string) error {
+	_, err := q.db.ExecContext(ctx, forgetCallKeys, before)
+	return err
+}
+
+const getCallKey = `-- name: GetCallKey :one
+SELECT workspace_id, caller, "key", command, state, result, created_at FROM call_key WHERE workspace_id = ? AND caller = ? AND key = ?
+`
+
+type GetCallKeyParams struct {
+	WorkspaceID int64
+	Who         string
+	Key         string
+}
+
+func (q *Queries) GetCallKey(ctx context.Context, arg GetCallKeyParams) (CallKey, error) {
+	row := q.db.QueryRowContext(ctx, getCallKey, arg.WorkspaceID, arg.Who, arg.Key)
+	var i CallKey
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.Who,
+		&i.Key,
+		&i.Command,
+		&i.State,
+		&i.Result,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getToolCall = `-- name: GetToolCall :one
 SELECT id, workspace_id, project_id, process_id, actor, caller, tool, need, outcome, params, external_id, error, ask_id, run, result, created_at, subject, count FROM tool_call WHERE id = ?
 `
@@ -462,6 +496,16 @@ func (q *Queries) LogToolCall(ctx context.Context, arg LogToolCallParams) (int64
 	return id, err
 }
 
+const loseCallKeys = `-- name: LoseCallKeys :exec
+UPDATE call_key SET state = 'lost' WHERE state = 'making'
+`
+
+// The keys of calls deck was making when it stopped: their outcome is unknown.
+func (q *Queries) LoseCallKeys(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, loseCallKeys)
+	return err
+}
+
 const loseMadeCall = `-- name: LoseMadeCall :exec
 UPDATE tool_call SET outcome = 'unknown', error = ?1, ask_id = ?2 WHERE id = ?3 AND outcome = 'making'
 `
@@ -552,6 +596,30 @@ func (q *Queries) PurgeOldToolCalls(ctx context.Context, before string) error {
 	return err
 }
 
+const settleCallKey = `-- name: SettleCallKey :exec
+UPDATE call_key SET state = ?1, result = ?2
+WHERE workspace_id = ?3 AND caller = ?4 AND key = ?5 AND state = 'making'
+`
+
+type SettleCallKeyParams struct {
+	State       string
+	Result      string
+	WorkspaceID int64
+	Who         string
+	Key         string
+}
+
+func (q *Queries) SettleCallKey(ctx context.Context, arg SettleCallKeyParams) error {
+	_, err := q.db.ExecContext(ctx, settleCallKey,
+		arg.State,
+		arg.Result,
+		arg.WorkspaceID,
+		arg.Who,
+		arg.Key,
+	)
+	return err
+}
+
 const settleDecision = `-- name: SettleDecision :exec
 UPDATE tool_call SET run = 'settled', result = ? WHERE ask_id = ? AND run = 'running'
 `
@@ -619,6 +687,32 @@ func (q *Queries) StartedToolCalls(ctx context.Context) ([]ToolCall, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const takeCallKey = `-- name: TakeCallKey :exec
+INSERT INTO call_key (workspace_id, caller, key, command, state, result, created_at)
+VALUES (?1, ?2, ?3, ?4, 'making', '', ?5)
+ON CONFLICT (workspace_id, caller, key) DO UPDATE SET command = excluded.command, state = 'making', result = '', created_at = excluded.created_at
+`
+
+type TakeCallKeyParams struct {
+	WorkspaceID int64
+	Who         string
+	Key         string
+	Command     string
+	CreatedAt   string
+}
+
+// A key taken anew: a new one, or one of a refused call.
+func (q *Queries) TakeCallKey(ctx context.Context, arg TakeCallKeyParams) error {
+	_, err := q.db.ExecContext(ctx, takeCallKey,
+		arg.WorkspaceID,
+		arg.Who,
+		arg.Key,
+		arg.Command,
+		arg.CreatedAt,
+	)
+	return err
 }
 
 const takeToolCall = `-- name: TakeToolCall :execrows

@@ -70,6 +70,13 @@ func (e *entry) refused(res provider.Result) provider.Result {
 	}
 	if !provider.Refused(&res, a, e.now()) && a.Status >= 400 {
 		res.Refusal = fmt.Sprintf("%d %s", a.Status, untrusted.Line(a.Words, 500))
+		if strings.HasPrefix(strings.TrimSpace(res.Text), gooseError) {
+			// Goose's words of the refusal are no answer of the turn.
+			res.Text = ""
+		}
 	}
 	return res
 }
+
+// gooseError starts the text Goose ends its turn with when the model API refused its call.
+const gooseError = "Ran into this error"

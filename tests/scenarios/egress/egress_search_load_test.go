@@ -118,7 +118,7 @@ func TestASearchCachedForOneModuleIsNoneForAModuleWithoutSearch(t *testing.T) {
 	}
 }
 
-// TestSearchesGoTwoAtATimeAndARepeatedQueryIsAnsweredOnce:deck sends at most two searches at once, and the same
+// TestSearchesGoTwoAtATimeAndARepeatedQueryIsAnsweredOnce: deck sends at most two searches at once, and the same
 // query again within minutes is answered from what the search said.
 func TestSearchesGoTwoAtATimeAndARepeatedQueryIsAnsweredOnce(t *testing.T) {
 	t.Parallel()

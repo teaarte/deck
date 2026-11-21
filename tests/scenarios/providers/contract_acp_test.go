@@ -112,6 +112,31 @@ func TestACPTurnWithoutASchemaThatEndsOnARefusalHasNoAnswer(t *testing.T) {
 	}
 }
 
+// TestACPTurnThatSaysOnlyGoosesErrorAfterItsLastToolHasNoAnswer: words before the last tool call are no answer: a
+// turn that says only Goose's words of a refusal after it has none.
+func TestACPTurnThatSaysOnlyGoosesErrorAfterItsLastToolHasNoAnswer(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	llm := harness.NewLLM(t, func(n int, _ harness.ChatRequest) harness.ChatReply {
+		if n <= 3 {
+			return harness.TextReply("ok")
+		}
+		return harness.ChatReply{Status: 400, Body: `{"error": {"message": "tool call validation failed"}}`}
+	})
+	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Let me look at the files."}}}`,
+		`{"update": {"sessionUpdate": "tool_call", "toolCallId": "c1", "title": "read", "kind": "read", "status": "pending"}}`,
+		`{"update": {"sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "completed", "rawInput": {"path": "a.txt"}, "rawOutput": {"output": "text of a"}}}`,
+		harness.AcpModel,
+		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Ran into this error: tool call validation failed."}}}`,
+		`{"end": "end_turn"}`))
+	e := harness.New(t, harness.WithACP(f, llm))
+	got := e.WaitState(e.Run(e.AcpProject("open", harness.NoNetworkManifest), "work"), "done", "error")
+	if got.State != "error" || !strings.Contains(got.Error, "refused a call of the turn: 400") {
+		t.Fatalf("a turn with only Goose's error after its last tool has no answer: %+v", got)
+	}
+}
+
 // TestACPTurnWithoutASchemaThatAnsweredBeforeARefusalIsDone: a turn that gave its answer before a later call was
 // refused is done with that answer.
 func TestACPTurnWithoutASchemaThatAnsweredBeforeARefusalIsDone(t *testing.T) {

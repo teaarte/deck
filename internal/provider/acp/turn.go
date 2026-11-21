@@ -91,6 +91,10 @@ func (t *turn) run(ctx context.Context) (provider.Result, error) {
 	case sdk.StopReasonEndTurn:
 		// An agent may end its turn on an error of the model API, so the last answer of the API tells.
 		res = t.e.refused(res)
+		if res.Refusal != "" && answerless(t.c.last()) {
+			// The words before the last tool call are no answer of a turn the model API refused after it.
+			res.Text = ""
+		}
 	case sdk.StopReasonCancelled:
 		res = t.e.refused(provider.Fail(fault.TaskFailed, "acp: the turn was interrupted"))
 	default:

@@ -19,6 +19,8 @@ type client struct {
 	text    strings.Builder
 	thought strings.Builder
 	all     strings.Builder
+	// since is what the agent said after its last tool call.
+	since   strings.Builder
 	onEvent func(provider.Event)
 	// input marks tool calls whose arguments were reported.
 	input map[sdk.ToolCallId]bool
@@ -43,6 +45,13 @@ func (c *client) flush() {
 	if t = strings.TrimSpace(t); t != "" {
 		c.emit(provider.Event{Kind: provider.EventMessage, Text: t})
 	}
+}
+
+// last is what the agent said after its last tool call.
+func (c *client) last() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return strings.TrimSpace(c.since.String())
 }
 
 // said is all the agent said in the turn.
@@ -70,6 +79,7 @@ func (c *client) SessionUpdate(_ context.Context, n sdk.SessionNotification) err
 		}
 		c.text.WriteString(u.AgentMessageChunk.Content.Text.Text)
 		c.all.WriteString(u.AgentMessageChunk.Content.Text.Text)
+		c.since.WriteString(u.AgentMessageChunk.Content.Text.Text)
 		c.mu.Unlock()
 	case u.AgentThoughtChunk != nil && u.AgentThoughtChunk.Content.Text != nil:
 		c.mu.Lock()
@@ -88,6 +98,7 @@ func (c *client) SessionUpdate(_ context.Context, n sdk.SessionNotification) err
 			c.input = map[sdk.ToolCallId]bool{}
 		}
 		c.input[u.ToolCall.ToolCallId] = in != ""
+		c.since.Reset()
 		c.mu.Unlock()
 		c.emit(provider.Event{Kind: provider.EventTool, ID: string(u.ToolCall.ToolCallId), Title: u.ToolCall.Title, Text: in})
 	case u.ToolCallUpdate != nil:

@@ -5,7 +5,7 @@ var exceptions = map[string][]string{
 	// The trial of a command is the run of deck.command_try, which the gateway decided.
 	"handler": {"internal/app/project/drafts.go:95"},
 	"exec": {
-		"internal/app/updates/updates.go:19", "internal/provider/codex/gen/main.go:11",
+		"internal/app/updates/updates.go:18", "internal/provider/codex/gen/main.go:11",
 		"internal/script/runtime.go:7",
 	},
 	"read": {

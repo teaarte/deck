@@ -2,8 +2,9 @@ package process
 
 import (
 	"context"
-	"deck2/internal/settings"
 	"sync"
+
+	"deck2/internal/settings"
 )
 
 func (r *Runner) slotsOf(ctx context.Context, workspace int64) int {

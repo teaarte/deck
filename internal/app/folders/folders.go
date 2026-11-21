@@ -4,7 +4,6 @@ package folders
 
 import (
 	"context"
-	"deck2/internal/events"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"deck2/internal/access"
+	"deck2/internal/events"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/node"

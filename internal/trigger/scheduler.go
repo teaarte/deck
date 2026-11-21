@@ -3,7 +3,6 @@ package trigger
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/settings"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -15,6 +14,7 @@ import (
 	"deck2/internal/registry"
 
 	"deck2/internal/manifest"
+	"deck2/internal/settings"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )

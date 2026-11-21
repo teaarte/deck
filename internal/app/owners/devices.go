@@ -3,7 +3,6 @@ package owners
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/events"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -13,6 +12,7 @@ import (
 	"rsc.io/qr"
 
 	"deck2/internal/auth"
+	"deck2/internal/events"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"

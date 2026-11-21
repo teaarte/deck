@@ -4,7 +4,6 @@ package project
 
 import (
 	"context"
-	"deck2/internal/process"
 	"slices"
 
 	"deck2/internal/docs"
@@ -12,6 +11,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
+	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/script"
 	"deck2/internal/store"

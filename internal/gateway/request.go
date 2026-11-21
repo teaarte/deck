@@ -3,7 +3,6 @@ package gateway
 import (
 	"cmp"
 	"context"
-	"deck2/internal/settings"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -14,6 +13,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/settings"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"

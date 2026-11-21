@@ -5,7 +5,6 @@ package documents
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/process"
 	"errors"
 	"fmt"
 	"slices"
@@ -17,6 +16,7 @@ import (
 	"deck2/internal/docs"
 	"deck2/internal/home"
 	"deck2/internal/manifest"
+	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
 	"deck2/internal/store"

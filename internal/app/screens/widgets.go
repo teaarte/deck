@@ -2,7 +2,6 @@ package screens
 
 import (
 	"context"
-	"deck2/internal/settings"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"deck2/internal/access"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/settings"
 	"deck2/internal/store/db"
 	"deck2/internal/words"
 )

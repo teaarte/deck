@@ -3,7 +3,6 @@ package files
 import (
 	"context"
 	"crypto/sha256"
-	"deck2/internal/store"
 	"encoding/hex"
 	"fmt"
 	"log/slog"
@@ -14,6 +13,7 @@ import (
 	"deck2/internal/files"
 	"deck2/internal/home"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 

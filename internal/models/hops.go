@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"deck2/internal/store"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +21,7 @@ import (
 	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/untrusted"
 )
 

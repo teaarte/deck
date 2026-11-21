@@ -3,7 +3,6 @@ package screens
 import (
 	"cmp"
 	"context"
-	"deck2/internal/events"
 	"encoding/json"
 	"log/slog"
 	"slices"
@@ -12,6 +11,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"deck2/internal/events"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"

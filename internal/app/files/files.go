@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"deck2/internal/events"
 	"encoding/base64"
 	"errors"
 	"io"
@@ -19,6 +18,7 @@ import (
 	"sync"
 
 	"deck2/internal/access"
+	"deck2/internal/events"
 	"deck2/internal/files"
 	"deck2/internal/gateway"
 	"deck2/internal/home"

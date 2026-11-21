@@ -3,12 +3,12 @@ package chat
 import (
 	"context"
 	"database/sql"
-	"deck2/internal/settings"
 	"errors"
 	"regexp"
 	"strings"
 
 	"deck2/internal/registry"
+	"deck2/internal/settings"
 	"deck2/internal/store/db"
 )
 

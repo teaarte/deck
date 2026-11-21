@@ -5,7 +5,6 @@ package shots
 import (
 	"bytes"
 	"context"
-	"deck2/internal/fault"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/fault"
 	"deck2/internal/files"
 	"deck2/internal/home"
 	"deck2/internal/mcphost"

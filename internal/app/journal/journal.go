@@ -4,8 +4,6 @@ package journal
 import (
 	"cmp"
 	"context"
-	"deck2/internal/events"
-	"deck2/internal/settings"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -16,9 +14,11 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
+	"deck2/internal/events"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/settings"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/words"

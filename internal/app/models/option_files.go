@@ -2,7 +2,6 @@ package models
 
 import (
 	"context"
-	"deck2/internal/fault"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -10,6 +9,7 @@ import (
 	"strings"
 
 	"deck2/internal/access"
+	"deck2/internal/fault"
 	"deck2/internal/home"
 	"deck2/internal/registry"
 	"deck2/internal/store"

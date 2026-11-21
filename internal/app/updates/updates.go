@@ -7,7 +7,6 @@ import (
 	"crypto/ed25519"
 	"crypto/sha256"
 	"database/sql"
-	"deck2/internal/events"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -25,6 +24,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/egress"
+	"deck2/internal/events"
 	"deck2/internal/health"
 	"deck2/internal/home"
 	"deck2/internal/registry"

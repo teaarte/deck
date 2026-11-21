@@ -2,7 +2,6 @@ package themes
 
 import (
 	"context"
-	"deck2/internal/settings"
 	"fmt"
 	"slices"
 	"strings"
@@ -10,6 +9,7 @@ import (
 	"deck2/internal/files"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
+	"deck2/internal/settings"
 	"deck2/internal/store/db"
 	"deck2/internal/words"
 )

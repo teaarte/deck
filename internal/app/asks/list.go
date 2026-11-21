@@ -3,7 +3,6 @@ package asks
 import (
 	"cmp"
 	"context"
-	"deck2/internal/events"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -12,6 +11,7 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/ask"
+	"deck2/internal/events"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"

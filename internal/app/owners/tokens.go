@@ -5,7 +5,6 @@ package owners
 import (
 	"context"
 	"crypto/sha256"
-	"deck2/internal/events"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -15,6 +14,7 @@ import (
 	"strings"
 
 	"deck2/internal/auth"
+	"deck2/internal/events"
 	"deck2/internal/manifest"
 	"deck2/internal/node"
 	"deck2/internal/nonce"

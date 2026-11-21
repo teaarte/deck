@@ -2,12 +2,12 @@ package providers
 
 import (
 	"context"
-	"deck2/internal/settings"
 
 	"deck2/internal/health"
 	"deck2/internal/models"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
+	"deck2/internal/settings"
 	"deck2/internal/store/db"
 )
 

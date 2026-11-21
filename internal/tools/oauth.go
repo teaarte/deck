@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"deck2/internal/store"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +16,7 @@ import (
 	"deck2/internal/manifest"
 	"deck2/internal/nonce"
 	"deck2/internal/registry"
+	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
 

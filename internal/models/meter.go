@@ -2,13 +2,13 @@ package models
 
 import (
 	"bytes"
-	"deck2/internal/store"
 	"encoding/json"
 	"io"
 	"time"
 	"unicode/utf8"
 
 	"deck2/internal/provider"
+	"deck2/internal/store"
 )
 
 // metered passes an answer of a model API through and calls done with the usage it reports once it is read.

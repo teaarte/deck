@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"deck2/internal/ask"
+	"deck2/internal/docs"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -102,11 +103,15 @@ func (g *Gateway) Later(ctx context.Context, act registry.Actor, command string,
 	}
 	module := act
 	module.ProcessID = 0
-	_, err := g.startRequest(ctx, module, command, missing, func(ctx context.Context, q *db.Queries, needs []registry.Need) ([]registry.Need, error) {
+	_, err := g.startRequest(ctx, module, command, missing, func(ctx context.Context, q *db.Queries, needs []registry.Need) ([]registry.Need, db.Ask, error) {
 		open, err := q.ListOpenProjectAsks(ctx, store.ID(act.ProjectID))
+		if err != nil {
+			return nil, db.Ask{}, err
+		}
+		m, now, err := docs.Rights(ctx, q, act.ProjectID)
 		return slices.DeleteFunc(needs, func(n registry.Need) bool {
-			return slices.ContainsFunc(open, func(a db.Ask) bool { return a.State == ask.StateOpen && startOf(a, n) })
-		}), err
+			return m.Holds(now, n) || now.Denies(n) || slices.ContainsFunc(open, func(a db.Ask) bool { return a.State == ask.StateOpen && startOf(a, n) })
+		}), db.Ask{}, err
 	})
 	return hosts, err
 }
@@ -135,32 +140,34 @@ func NeedsSay(needs []registry.Need) []string {
 // needRequest is the open request for need of the process of act, else a new one: the owner's answer for its work
 // or always lets its next call through.
 func (g *Gateway) needRequest(ctx context.Context, act registry.Actor, command string, n registry.Need) (int64, error) {
-	asks, err := g.st.Q.ListOpenProjectAsks(ctx, store.ID(act.ProjectID))
-	if act.ProcessID != 0 {
-		asks, err = g.st.Q.ListOpenAsksOfProcess(ctx, act.ProcessID)
-	}
-	if err != nil {
-		return 0, err
-	}
-	if i := slices.IndexFunc(asks, func(a db.Ask) bool { return startOf(a, n) }); i >= 0 {
-		return asks[i].ID, nil
-	}
-	return g.startRequest(ctx, act, command, []registry.Need{n})
+	return g.startRequest(ctx, act, command, []registry.Need{n}, func(ctx context.Context, q *db.Queries, needs []registry.Need) ([]registry.Need, db.Ask, error) {
+		asks, err := q.ListOpenProjectAsks(ctx, store.ID(act.ProjectID))
+		if act.ProcessID != 0 {
+			asks, err = q.ListOpenAsksOfProcess(ctx, act.ProcessID)
+		}
+		if i := slices.IndexFunc(asks, func(a db.Ask) bool { return startOf(a, n) }); err == nil && i >= 0 {
+			return nil, asks[i], nil
+		}
+		return needs, db.Ask{}, err
+	})
 }
 
+// unasked keeps in a Tx the needs of a request still to ask, or names the open request that asks them.
+type unasked func(ctx context.Context, q *db.Queries, needs []registry.Need) ([]registry.Need, db.Ask, error)
+
 // startRequest asks the owner in one request for the rights a run of the process of act needs before it starts.
-// unasked, when given, keeps in the same Tx the needs no open request asks for yet; none left asks nothing.
-func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command string, needs []registry.Need,
-	unasked ...func(context.Context, *db.Queries, []registry.Need) ([]registry.Need, error)) (int64, error) {
+// unasked, when given, keeps in the same Tx the needs still to ask, or names the open request that asks them.
+func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command string, needs []registry.Need, unasked ...unasked) (int64, error) {
 	var expires time.Time
 	if ttl := g.confirmTTL(ctx, act.Workspace); ttl > 0 {
 		expires = g.st.Now().Add(ttl)
 	}
 	a, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {
 		for _, keep := range unasked {
+			var open db.Ask
 			var err error
-			if needs, err = keep(ctx, q, needs); err != nil || len(needs) == 0 {
-				return db.Ask{}, err
+			if needs, open, err = keep(ctx, q, needs); err != nil || open.ID != 0 || len(needs) == 0 {
+				return open, err
 			}
 		}
 		f := Freeze(act, command, []byte(`{}`))

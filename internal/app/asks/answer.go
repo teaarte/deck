@@ -137,6 +137,8 @@ func (s *Service) decide(ctx context.Context, act registry.Actor, q db.Ask, answ
 			return map[string]any{"ok": true, "in_force": true}, nil
 		case got == gateway.Changed:
 			return nil, gateway.ErrStale
+		case got == gateway.Refused:
+			return nil, gateway.ErrRefused
 		}
 	}
 	out, err := s.Gateway.Decide(ctx, act, q, answer)

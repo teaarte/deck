@@ -44,6 +44,12 @@ func (s *Service) settle(ctx context.Context, a db.Ask, answering bool) (int, er
 			return got, err
 		}
 		return gateway.AsAsked, err
+	case gateway.Refused:
+		closed, err := s.Gateway.Refuse(ctx, a)
+		if closed {
+			return got, err
+		}
+		return gateway.AsAsked, err
 	case gateway.Changed:
 		closed, err := s.Gateway.Stale(ctx, a)
 		if closed {

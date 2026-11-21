@@ -20,6 +20,8 @@ const (
 	InForce
 	// Changed is a call whose subject changed: a yes to it would act on what the owner did not see.
 	Changed
+	// Refused is a request of a module whose rights the owner answered since, saying no to one.
+	Refused
 )
 
 // ErrStale tells the owner a call they answer is out of date; deck closed it and the caller heard so.
@@ -32,8 +34,8 @@ func (g *Gateway) Freshness(ctx context.Context, a db.Ask, probe bool) int {
 	if err != nil {
 		return AsAsked
 	}
-	if f.As == AsStart && f.Who.Process == 0 && g.answered(ctx, f) {
-		return InForce
+	if f.As == AsStart && f.Who.Process == 0 {
+		return g.answered(ctx, f)
 	}
 	c, err := g.reg.Lookup(ctx, f.Who.Workspace, f.Call.Command)
 	if err != nil {
@@ -52,15 +54,36 @@ func (g *Gateway) Freshness(ctx context.Context, a db.Ask, probe bool) int {
 	return AsAsked
 }
 
-// answered says the owner answered each right a start request of a module asks for since, in its rights.
-func (g *Gateway) answered(ctx context.Context, f Frozen) bool {
+// answered is what became of a start request of a module by its rights now: InForce when each is held, Refused when
+// each is answered and one is a no, else AsAsked.
+func (g *Gateway) answered(ctx context.Context, f Frozen) int {
 	m, granted, err := docs.Rights(ctx, g.st.Q, f.Who.Project)
 	if err != nil {
-		return false
+		return AsAsked
 	}
-	return !slices.ContainsFunc(f.Needs(), func(n registry.Need) bool {
-		return m.Declares(n) && !m.Holds(granted, n) && !granted.Denies(n)
-	})
+	needs := f.Needs()
+	switch {
+	case slices.ContainsFunc(needs, func(n registry.Need) bool { return m.Declares(n) && !m.Holds(granted, n) && !granted.Denies(n) }):
+		return AsAsked
+	case slices.ContainsFunc(needs, func(n registry.Need) bool { return m.Declares(n) && granted.Denies(n) }):
+		return Refused
+	}
+	return InForce
+}
+
+// ErrRefused tells the owner a request they answer was closed by their no to its rights given since.
+var ErrRefused = registry.Conflict("this request is closed: you said no to its rights in the module's rights since it was asked for")
+
+// Refuse closes a frozen call whose rights the owner refused since as refused.
+func (g *Gateway) Refuse(ctx context.Context, a db.Ask) (bool, error) {
+	if err := g.asks.Answer(ctx, a.ID, "deny"); err != nil {
+		if err == ask.ErrNotOpen {
+			return false, nil
+		}
+		return false, err
+	}
+	g.Record(ctx, a, "rejected", "the owner said no to it in the rights of the module")
+	return true, nil
 }
 
 // inForce is what a call whose change is so already gives its caller.

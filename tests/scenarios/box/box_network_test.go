@@ -147,8 +147,9 @@ func TestRunsOfTriggersAtOnceLeaveOneRequest(t *testing.T) {
 // answers its hosts in the rights of the module, and a no to it keeps a yes given since.
 func TestAModuleRequestForHostsClosesOnceTheyAreAnswered(t *testing.T) {
 	t.Parallel()
-	for _, late := range []bool{false, true} {
-		t.Run(fmt.Sprint("no after a yes ", late), func(t *testing.T) {
+	for _, way := range []string{"yes", "no after a yes", "no in rights"} {
+		late, refused := way == "no after a yes", way == "no in rights"
+		t.Run(way, func(t *testing.T) {
 			t.Parallel()
 			e := harness.New(t)
 			old, b, c := harness.Served(t), harness.Served(t), harness.Served(t)
@@ -170,6 +171,20 @@ func TestAModuleRequestForHostsClosesOnceTheyAreAnswered(t *testing.T) {
 			asks := e.Asks()
 			if len(asks) != 1 {
 				t.Fatalf("one request of the module: %+v", asks)
+			}
+			if refused {
+				for _, h := range []string{b.URL, c.URL} {
+					e.Must("deck.right_set", map[string]any{"project": "tools", "right": "network", "subject": host(h), "answer": "no"}, nil)
+				}
+				e.Until("the request to close", func() bool { return len(e.Asks()) == 0 })
+				var calls []struct{ Outcome, Subject, Error string }
+				e.Must("deck.calls_list", map[string]any{"project": "tools"}, &calls)
+				for _, c := range calls {
+					if c.Subject == host(b.URL) && c.Outcome != "waiting" && (c.Outcome != "rejected" || strings.Contains(c.Error, "in force")) {
+						t.Fatalf("a request whose hosts the owner refused closes refused: %+v", calls)
+					}
+				}
+				return
 			}
 			e.Must("deck.right_set", map[string]any{"project": "tools", "right": "network", "subject": host(b.URL), "answer": "always"}, nil)
 			if !late {

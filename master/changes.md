@@ -749,3 +749,7 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
 - 2026-11-22: `deck.web_search` takes no results of a SearXNG whose `/config` it cannot read, while engines did not
   answer, as a search that did not answer; no results while engines did not answer are not kept for the same query.
   Modules: nothing to change.
+- 2026-11-22: A request of a module for hosts whose every host the owner answered in its rights, one with a no,
+  closes refused, not as done; a run of a trigger asks for no host granted or refused a moment before, and requests
+  of a right at first use made at once are one.
+  Modules: nothing to change.

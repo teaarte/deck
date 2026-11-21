@@ -186,9 +186,8 @@ func (s *Service) allDown(ctx context.Context, act registry.Actor, h models.Hop,
 	})
 }
 
-// webEngines are the engines a SearXNG asks for a plain query by its /config, kept for engineFor, false when it could
-// not be read: the enabled ones of general that are web too, since those also of translate or currency answer only
-// queries of their own pattern.
+// webEngines are the engines of /config a SearXNG asks for a plain query, kept for engineFor, false when unread: the
+// enabled of general that are web too, since those of translate or currency answer only queries of their pattern.
 func (s *Service) webEngines(ctx context.Context, key string, h models.Hop) ([]string, bool) {
 	s.mu.Lock()
 	k, ok := s.engines[key]

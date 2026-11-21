@@ -18,7 +18,7 @@ func (g *Gateway) Reach(ctx context.Context, base string) error {
 	txguard.Check(ctx, "a reach of deck's MCP server")
 	who := registry.ModuleOf(0, 0)
 	who.Commands = []string{}
-	tok, err := g.Open(ctx, &Session{Who: who})
+	tok, err := g.Open(ctx, &Session{Who: who, Approve: true})
 	if err != nil {
 		return err
 	}

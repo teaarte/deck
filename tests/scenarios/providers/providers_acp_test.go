@@ -833,3 +833,19 @@ func TestAModelThatTakesFewToolsIsNotOfferedTheMaster(t *testing.T) {
 		t.Fatalf("another model of the API leaves the limit of the old one: %d", n)
 	}
 }
+
+// TestAnACPAgentHasNoPermissionTool: the permission tool of deck is Claude Code's and Codex's way to ask about their
+// own tools; an ACP agent does not see it, so it makes no request of the owner by it.
+func TestAnACPAgentHasNoPermissionTool(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"mcp": {"tool": "approve", "arguments": {"tool_name": "deck__result_submit", "input": {}}}}`,
+		`{"mcp": {"tool": "result_submit", "arguments": {"result": {"color": "blue"}}}}`, `{"end": "end_turn"}`))
+	e := harness.New(t, harness.WithACP(f, harness.AcpLLM(t)))
+	got := e.WaitState(e.Run(e.AcpProject("paint", harness.ColorManifest), "work"), "done", "error", "waiting:answer")
+	calls := harness.JsonLines[map[string]any](f.Files(4)("mcp.jsonl"))
+	if got.State != "done" || len(calls) != 2 || calls[0]["error"] == nil && calls[0]["is_error"] != true || len(e.Asks()) != 0 {
+		t.Fatalf("an ACP agent calls no permission tool: %+v %v %+v", got, calls, e.Asks())
+	}
+}

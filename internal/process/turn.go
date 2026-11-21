@@ -186,7 +186,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	who := registry.ProcessOf(p, proj)
 	who.Commands = t.cmd.Executor.Calls
 	u, f := r.begin(ctx, *t, proj, &gateway.Session{Who: who, Submit: a.sub,
-		Question: pv.QuestionTool(), Wait: callLimit(pv),
+		Question: pv.QuestionTool(), Approve: provider.Prompts(pv), Wait: callLimit(pv),
 		Heard: func() { r.answered(t.process); reached.Do(func() { r.reached(ctx, t.process) }) }})
 	if f != nil {
 		fail(f)

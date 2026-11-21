@@ -236,6 +236,15 @@ type Provider interface {
 	Run(ctx context.Context, req Request) (Result, error)
 }
 
+// Prompter is a provider whose CLI asks deck's permission tool (Request.PermissionMCP) about its own tool calls.
+type Prompter interface{ Prompts() bool }
+
+// Prompts says p asks deck's permission tool about its own tool calls; its agent alone sees that tool.
+func Prompts(p Provider) bool {
+	pr, ok := p.(Prompter)
+	return ok && pr.Prompts()
+}
+
 // Run is the turn of p, which the guard of a transaction stops first; deck runs the turns of processes through it.
 func Run(ctx context.Context, p Provider, req Request) (Result, error) {
 	txguard.Check(ctx, "the turn of provider "+p.Name())

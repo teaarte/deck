@@ -132,6 +132,9 @@ func (f *Fake) Caps() provider.Caps {
 	return c
 }
 
+// Prompts: the fake stands for Claude Code, which asks deck's permission tool.
+func (f *Fake) Prompts() bool { return true }
+
 func (f *Fake) QuestionTool() string {
 	if f.NoQuestions {
 		return ""

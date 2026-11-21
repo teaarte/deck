@@ -38,6 +38,8 @@ type Session struct {
 	Submit *Submit
 	// Question is the question tool of the provider; the ask tool of the gateway is added for provider.AskTool.
 	Question string
+	// Approve serves the permission tool, for a provider whose CLI asks it about its own tools (provider.Prompts).
+	Approve bool
 	// Wait caps how long a call of the session waits for the owner, for a provider whose tool calls time out.
 	Wait time.Duration
 	// Heard hears each call of a tool of the session, a sign of the model that makes it.
@@ -319,15 +321,17 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 			return next(ctx, method, req)
 		}
 	})
-	srv.AddTool(&mcp.Tool{
-		Name:        ApproveTool,
-		Description: "Permission prompt handler used by deck.",
-		InputSchema: map[string]any{"type": "object", "properties": map[string]any{
-			"tool_name": map[string]any{"type": "string"}, "input": map[string]any{"type": "object"},
-			"tool_use_id": map[string]any{"type": "string"}}, "required": []string{"tool_name", "input"}},
-	}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return g.approve(ctx, s, req.Params.Arguments)
-	})
+	if s.Approve {
+		srv.AddTool(&mcp.Tool{
+			Name:        ApproveTool,
+			Description: "Permission prompt handler used by deck.",
+			InputSchema: map[string]any{"type": "object", "properties": map[string]any{
+				"tool_name": map[string]any{"type": "string"}, "input": map[string]any{"type": "object"},
+				"tool_use_id": map[string]any{"type": "string"}}, "required": []string{"tool_name", "input"}},
+		}, func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return g.approve(ctx, s, req.Params.Arguments)
+		})
+	}
 	allowed, tools, err := g.addCommands(ctx, srv, s)
 	if s.Question == provider.AskTool {
 		srv.AddTool(askTool(), func(ctx context.Context, req *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -344,14 +348,17 @@ func (g *Gateway) newServer(ctx context.Context, tok string, s *Session) (*mcp.S
 	return srv, allowed, tools, err
 }
 
-// Count is how many tools a session would have: its commands, the approval, and the tools of a question and of the
-// result it asks for.
+// Count is how many tools a session would have: its commands, the approval it serves, and the tools of a question and
+// of the result it asks for.
 func (g *Gateway) Count(ctx context.Context, s *Session) int {
 	cmds, err := g.reg.List(ctx, s.caller())
 	if err != nil {
 		return 0
 	}
-	n := 1 + len(cmds)
+	n := len(cmds)
+	if s.Approve {
+		n++
+	}
 	if s.Question == provider.AskTool {
 		n++
 	}

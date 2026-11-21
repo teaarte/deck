@@ -727,3 +727,7 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   or "no" answers each. The start of an agent asks its login and its agents' hosts in one request too, where it asked
   one at a time. A host the proxy refused a script that ended well is a line `deck: the proxy refused: …` of its log.
   Modules: nothing to change; declare every host a script reaches under network in rights.
+- 2026-11-21: deck's MCP server lists its permission tool `approve` only to Claude Code and Codex, which ask it about
+  their own tools; an ACP agent such as Goose no longer sees it, where calling it made a request of the owner that
+  meant nothing.
+  Modules: nothing to change.

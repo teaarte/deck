@@ -66,6 +66,7 @@ func Name(base, node string) string { return base + "@" + node }
 func (p *Provider) Name() string         { return Name(p.cfg.Base.Name(), p.cfg.Node) }
 func (p *Provider) Caps() provider.Caps  { return p.cfg.Base.Caps() }
 func (p *Provider) QuestionTool() string { return p.cfg.Base.QuestionTool() }
+func (p *Provider) Prompts() bool        { return provider.Prompts(p.cfg.Base) }
 
 // NodeOf is the node the provider runs on, by its device.
 func (p *Provider) NodeOf() int64 { return p.cfg.Device }

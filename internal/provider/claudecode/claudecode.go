@@ -101,6 +101,9 @@ func (a *Adapter) OnLogin() string { return cmp.Or(a.login, builtin) }
 
 func (a *Adapter) QuestionTool() string { return "AskUserQuestion" }
 
+// Prompts: the CLI asks deck's permission tool by --permission-prompt-tool.
+func (a *Adapter) Prompts() bool { return true }
+
 // Terminal goes on with a session of deck in the owner's own Claude Code, in the folder of the turn; a session in
 // the home of its project, whose login is deck's, has none.
 func (a *Adapter) Terminal(_ int64, session string) (string, error) {

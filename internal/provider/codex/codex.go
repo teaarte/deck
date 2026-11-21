@@ -278,3 +278,6 @@ func (a *Adapter) Move(project int64, session string) error {
 	}
 	return nil
 }
+
+// Prompts: the adapter answers the approvals Codex asks for by deck's permission tool.
+func (a *Adapter) Prompts() bool { return true }

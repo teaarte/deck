@@ -92,10 +92,13 @@ func (s *Service) able(ctx context.Context, pl *pool, p db.Project, cmd *manifes
 	return names, left
 }
 
-// turnTools are the tools a turn on pv carries beside deck's commands: the question of the gateway, the result
-// tool of a provider without output by schema, and the agent's own.
+// turnTools are the tools a turn on pv carries beside deck's commands: the permission tool of a provider that
+// prompts with it, the question of the gateway, the result tool of a provider without output by schema, the agent's own.
 func turnTools(pv provider.Provider, cmd *manifest.Command) int {
 	n := 0
+	if provider.Prompts(pv) {
+		n++
+	}
 	if pv.QuestionTool() == provider.AskTool {
 		n++
 	}

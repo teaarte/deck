@@ -11,11 +11,10 @@ export async function authed(url: string, init: RequestInit = {}): Promise<Respo
   return r;
 }
 
-// Answer is the JSON result of a command and, for a read, the topics after which it gives another.
-// Effect is what a call did, as deck says it in Deck-Effect: done, started a process, waits for the owner's answer, or
-// changed nothing as it is so already.
+// Effect is what a call did, as deck says it in Deck-Effect: done, started, waits for the owner, or changed nothing.
 export type Effect = 'done' | 'started' | 'waiting' | 'unchanged';
 
+// Answer is the JSON result of a command and, for a read, the topics after which it gives another; what the call did.
 export interface Answer<T> { data: T; topics: string[]; effect: Effect }
 
 // Refusal is a call deck refused or failed, with its HTTP status: 410 says what it acted on is over already.

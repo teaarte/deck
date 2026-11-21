@@ -111,7 +111,7 @@ func wakers() map[string]waker {
 		WaitProvider: {
 			key: func(h db.ListHeldRow) string { return "provider:" + h.Process.Provider },
 			free: func(r *Runner, ctx context.Context, h db.ListHeldRow) (bool, *slot) {
-				return r.deps.Goes(ctx, h.WorkspaceID, h.Process.Provider), nil
+				return r.deps.Router.State(ctx, h.WorkspaceID, h.Process.Provider).Goes, nil
 			},
 			busy: func(r *Runner, ctx context.Context, h db.ListHeldRow) { r.reassigned(ctx, h.WorkspaceID, h.Process) }},
 		WaitRight: {

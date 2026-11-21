@@ -16,7 +16,6 @@ import (
 	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/home"
-	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/script"
 	"deck2/internal/store"
@@ -178,29 +177,8 @@ type Deps struct {
 	Asks *ask.Broker
 	// Hooks hear of processes that close, park or end a turn, in this order.
 	Hooks []Hook
-	// For picks the provider a command starts on.
-	For func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
-	// Next is the provider of a command's assignment after the one that refused its turn; empty for none.
-	Next func(ctx context.Context, projectID int64, cmd *manifest.Command, after string) string
-	// Ahead is the provider of a command's assignment that is up and stands before the one a process runs on, or any
-	// when that one is assigned no longer; empty for none.
-	Ahead func(ctx context.Context, projectID int64, cmd *manifest.Command, current string) string
-	// Named is the provider a process started on; its session belongs to it.
-	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
-	// Goes reports whether a turn of the workspace may run on the provider now; the runner never picks.
-	Goes func(ctx context.Context, workspace int64, name string) bool
-	// Down is the status and text of the health of a provider that went on a pause or red, so no turn goes on
-	// on it; empty when it is up.
-	Down func(ctx context.Context, workspace int64, name string) (status, text string)
-	// Broke hears that a turn on the provider failed or lost its login.
-	Broke func(ctx context.Context, name string)
-	// Limited pauses the scope of a provider's usage limit until ends (unix seconds, zero when the answer said no
-	// reset) and says when the provider is called again; retry is a first limit without a reset, which pauses nothing.
-	Limited func(ctx context.Context, workspace int64, name string, ends int64, words string) (until time.Time, retry bool)
-	// Answered hears whether a turn of a provider answered and the windows of the subscription a turn of a CLI told;
-	// Subscription is the connection of the CLI a provider runs on, empty for any other.
-	Answered     func(ctx context.Context, workspace int64, name string, ok bool, ws []provider.Window)
-	Subscription func(ctx context.Context, workspace int64, name string) string
+	// Router says who answers a turn.
+	Router Router
 	// Brief is what deck gives a turn, Places where the work of a project runs.
 	Brief  Brief
 	Places Places

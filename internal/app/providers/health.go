@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"deck2/internal/health"
+	"deck2/internal/process"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -19,9 +20,16 @@ func (s *Service) Up(ctx context.Context, workspace int64, name string) bool {
 		h.Status != health.NeedsLogin
 }
 
-// Goes reports whether a turn already started may run on a provider: not in a self-check, a broken adapter or a
+// State is what the health of a provider says for the turns of a workspace (process.Router): whether a turn already
+// started goes on it, and the status and text of its own health when it is down.
+func (s *Service) State(ctx context.Context, workspace int64, name string) process.Standing {
+	status, text := s.down(ctx, workspace, name)
+	return process.Standing{Goes: s.goes(ctx, workspace, name), Down: status, Why: text}
+}
+
+// goes reports whether a turn already started may run on a provider: not in a self-check, a broken adapter or a
 // limit; a lost login or a weak model holds no turn.
-func (s *Service) Goes(ctx context.Context, workspace int64, name string) bool {
+func (s *Service) goes(ctx context.Context, workspace int64, name string) bool {
 	if s.away(ctx, workspace, name) {
 		return false
 	}
@@ -32,9 +40,9 @@ func (s *Service) Goes(ctx context.Context, workspace int64, name string) bool {
 	return err != nil || h.Status != health.Checking && (!down(h) || nearlySpent(h))
 }
 
-// Down is the status and text of the own health of a provider that is paused or red by its adapter, so no turn goes
+// down is the status and text of the own health of a provider that is paused or red by its adapter, so no turn goes
 // on on it; empty when it is up. A pause of its scope holds new turns only: the turn under way meets its own limit.
-func (s *Service) Down(ctx context.Context, workspace int64, name string) (string, string) {
+func (s *Service) down(ctx context.Context, workspace int64, name string) (string, string) {
 	if h, err := s.own(ctx, workspace, name); err == nil && down(h) {
 		return h.Status, h.Error
 	}

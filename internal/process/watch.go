@@ -167,7 +167,8 @@ func (r *Runner) watchTurns(ctx context.Context, now time.Time) {
 			quiet = quietLocal
 		}
 		var l *leaving
-		if status, text := r.deps.Down(ctx, x.w.workspace, name); status != "" {
+		if st := r.deps.Router.State(ctx, x.w.workspace, name); st.Down != "" {
+			status, text := st.Down, st.Why
 			t, went := fault.ModelUnavailable, "%s went red during the turn: %s"
 			if status == health.Paused {
 				t, went = fault.ModelLimit, "%s went on a pause during the turn: %s"

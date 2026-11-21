@@ -117,7 +117,7 @@ func (r *Runner) apply(ctx context.Context, processID int64, o Outcome) {
 			r.warn(ctx, processID, d.Warn)
 		}
 		if f, ok := o.(Fail); ok && f.Broke != "" {
-			r.deps.Broke(ctx, f.Broke)
+			r.deps.Router.Heard(ctx, 0, f.Broke, Heard{Broke: true})
 		}
 	case Settle:
 		if o.Said {
@@ -132,10 +132,9 @@ func (r *Runner) apply(ctx context.Context, processID int64, o Outcome) {
 	case Pause:
 		r.pause(ctx, o.Provider, processID, o.Until)
 	case Limit:
-		until, _ := r.deps.Limited(ctx, o.Workspace, o.Provider.Name(), o.ResetsAt, o.Text)
+		until, stay := r.deps.Router.Limit(ctx, o.Workspace, o.Provider.Name(), o.ResetsAt, o.Text)
 		pause := Pause{Provider: o.Provider, Until: until}
-		// A short limit of a subscription waits on the same login: another one would take the burst and lose the cache.
-		if r.deps.Subscription(ctx, o.Workspace, o.Provider.Name()) != "" && !until.After(r.now().Add(shortLimit)) {
+		if stay {
 			r.apply(ctx, processID, pause)
 			return
 		}
@@ -148,7 +147,7 @@ func (r *Runner) apply(ctx context.Context, processID int64, o Outcome) {
 			return
 		}
 		if o.Broke {
-			r.deps.Broke(ctx, o.From.Name())
+			r.deps.Router.Heard(ctx, 0, o.From.Name(), Heard{Broke: true})
 		}
 	case Hold:
 		r.warnOf(ctx, processID, o.Warn, health.Provider(o.Provider))

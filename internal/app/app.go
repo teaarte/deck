@@ -157,9 +157,8 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Runner = process.New(
 		process.Config{Home: h, MCPBase: cfg.MCPBase, Hold: a.Files.Hold},
 		process.Deps{Store: st, Gateway: a.Gateway, Bus: a.Bus, Scripts: a.Scripts, Asks: a.Asks,
-			Hooks: []process.Hook{a.Chats.Hook(), a.Processes.Hook(), a.Triggers.Hook(), a.Answers.Hook()},
-			For:   a.Models.For, Next: a.Models.Next, Ahead: a.Models.Ahead, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Limited: a.Providers.Limited, Answered: a.Providers.Answered, Subscription: a.Providers.Subscription,
-			Brief: brief{&a.Documents, &a.Chats}, Places: places{&a.Folders, &a.Signins, &a.Documents}})
+			Hooks:  []process.Hook{a.Chats.Hook(), a.Processes.Hook(), a.Triggers.Hook(), a.Answers.Hook()},
+			Router: router{&a.Models, &a.Providers}, Brief: brief{&a.Documents, &a.Chats}, Places: places{&a.Folders, &a.Signins, &a.Documents}})
 	a.Scheduler = trigger.New(st, a.Triggers.Fire)
 
 	a.Secrets = secrets.Service{St: st, Emit: a.Bus.Emit, Home: h}

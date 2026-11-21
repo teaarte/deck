@@ -51,7 +51,7 @@ func (r *Runner) needLogin(ctx context.Context, pv provider.Provider, processID 
 		r.apply(ctx, processID, Fail{F: fault.New(fault.ModelLogin, fmt.Sprintf("needs login: %s", text))})
 		return
 	}
-	r.deps.Broke(ctx, pv.Name())
+	r.deps.Router.Heard(ctx, 0, pv.Name(), Heard{Broke: true})
 }
 
 // errNotRunning rolls back a write for a process that left running meanwhile.
@@ -76,7 +76,7 @@ func (r *Runner) lostTools(ctx context.Context, t turn, pv provider.Provider, er
 		r.apply(ctx, t.process, Fail{F: fault.Of(txErr)})
 		return
 	}
-	r.deps.Broke(ctx, pv.Name())
+	r.deps.Router.Heard(ctx, 0, pv.Name(), Heard{Broke: true})
 }
 
 // blocked reports whether the owner still owes the agent an answer; a result produced meanwhile is

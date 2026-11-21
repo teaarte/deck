@@ -27,6 +27,8 @@ type rule struct {
 var rules = []rule{
 	{"now", "the wall clock outside the clock of deck: take Store.Now, store.Wall for the world outside or store.Start for a wait or a meter",
 		[]string{"internal/", "cmd/"}, []string{"internal/store/clock.go"}, timeNow},
+	{"port", "an interface of more than 6 methods: a port names what its consumer needs, split it", []string{"internal/", "cmd/"},
+		[]string{"internal/provider/codex/gen/"}, bigPort},
 	{"go", "a bare go statement in a domain: run it through Go of the background", []string{"internal/app/"}, nil, goStmt},
 	// fault names its types deck.<kind> and home its files deck.db, neither a command; deck.localhost is a host.
 	{"deck", "a name of deck's command written out: take registry.Deck or registry.IsBuiltin", []string{"internal/", "cmd/"},
@@ -205,6 +207,26 @@ func timeNow(f *ast.File, fset *token.FileSet) []int {
 }
 
 // goStmt are the lines of go statements.
+// bigPort are the lines of the interfaces that declare more than 6 methods.
+func bigPort(f *ast.File, fset *token.FileSet) []int {
+	var out []int
+	ast.Inspect(f, func(n ast.Node) bool {
+		if it, ok := n.(*ast.InterfaceType); ok && it.Methods != nil {
+			methods := 0
+			for _, m := range it.Methods.List {
+				if _, ok := m.Type.(*ast.FuncType); ok {
+					methods += len(m.Names)
+				}
+			}
+			if methods > 6 {
+				out = append(out, fset.Position(it.Pos()).Line)
+			}
+		}
+		return true
+	})
+	return out
+}
+
 func goStmt(f *ast.File, fset *token.FileSet) []int {
 	var out []int
 	ast.Inspect(f, func(n ast.Node) bool {

@@ -104,7 +104,7 @@ func (r *Runner) runAgent(ctx context.Context, t *turn, p db.Process, trial bool
 // prepare gets a turn its provider, folder and slot, or leaves it waiting for them, then its folders, gateway
 // session, log and request; false when the turn does not go on.
 func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool, fail func(*fault.F)) (*agentTurn, bool) {
-	pv, err := r.deps.Named(ctx, t.project, p.Provider)
+	pv, err := r.deps.Router.Named(ctx, t.project, p.Provider)
 	if err != nil {
 		fail(fault.Of(err))
 		return nil, false
@@ -122,7 +122,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	if !r.started(ctx, t, p, proj, fail) {
 		return nil, false
 	}
-	if !r.deps.Goes(ctx, proj.WorkspaceID, pv.Name()) {
+	if !r.deps.Router.State(ctx, proj.WorkspaceID, pv.Name()).Goes {
 		r.hold(ctx, *t, wait{reason: WaitProvider, on: pv.Name(), silence: SilenceFail + fault.ModelUnavailable, until: r.now().Add(providerTerm)})
 		return nil, false
 	}
@@ -304,7 +304,7 @@ func (r *Runner) converse(ctx context.Context, t *turn, a *agentTurn) {
 			_ = r.st.Tx(bg, func(ctx context.Context, q *db.Queries) error { return asks.mark(ctx, q, r.now()) })
 			asks = told{}
 			r.providerHealth(bg, pv, f.res, f.err)
-			r.deps.Answered(bg, a.proj.WorkspaceID, pv.Name(), f.err == nil && f.res.Fault == nil, f.res.Quota)
+			r.deps.Router.Heard(bg, a.proj.WorkspaceID, pv.Name(), Heard{OK: f.err == nil && f.res.Fault == nil, Windows: f.res.Quota})
 			settled := f.err == nil && f.res.Fault == nil
 			if a.sub != nil && settled {
 				var spent bool

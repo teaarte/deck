@@ -9,6 +9,7 @@ import (
 
 	"deck2/internal/health"
 	"deck2/internal/manifest"
+	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/provider/remote"
 	"deck2/internal/registry"
@@ -37,40 +38,18 @@ func (s *Service) first(ctx context.Context, pl *pool, fits []provider.Provider,
 	return fits[0]
 }
 
-// Next is the provider of a command's assignment after the one that refused its turn, the first that fits and is up;
-// empty when the owner assigned the command no other.
-func (s *Service) Next(ctx context.Context, projectID int64, cmd *manifest.Command, after string) string {
+// Chain is the assignment of a command (process.Router): the providers that fit it in order, each with whether a new
+// start may pick it; empty when the owner assigned the command nothing.
+func (s *Service) Chain(ctx context.Context, projectID int64, cmd *manifest.Command) []process.Candidate {
 	ws, fits, assigned, err := s.fitting(ctx, projectID, cmd)
 	if err != nil || !assigned {
-		return ""
+		return nil
 	}
-	if i := slices.IndexFunc(fits, func(pv provider.Provider) bool { return pv.Name() == after }); i >= 0 {
-		fits = fits[i+1:]
-	}
+	out := make([]process.Candidate, 0, len(fits))
 	for _, pv := range fits {
-		if pv.Name() != after && s.Up(ctx, ws, pv.Name()) {
-			return pv.Name()
-		}
+		out = append(out, process.Candidate{Name: pv.Name(), Up: s.Up(ctx, ws, pv.Name())})
 	}
-	return ""
-}
-
-// Ahead is the provider of a command's assignment that fits, is up and stands before the one a process runs on, any
-// when that one is assigned no longer; empty for none or a command the owner assigned nothing.
-func (s *Service) Ahead(ctx context.Context, projectID int64, cmd *manifest.Command, current string) string {
-	ws, fits, assigned, err := s.fitting(ctx, projectID, cmd)
-	if err != nil || !assigned {
-		return ""
-	}
-	if i := slices.IndexFunc(fits, func(pv provider.Provider) bool { return pv.Name() == current }); i >= 0 {
-		fits = fits[:i]
-	}
-	for _, pv := range fits {
-		if s.Up(ctx, ws, pv.Name()) {
-			return pv.Name()
-		}
-	}
-	return ""
+	return out
 }
 
 // Able are the providers of a workspace that have what a command of project p requires, whether it is assigned to

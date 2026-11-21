@@ -158,9 +158,9 @@ func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Man
 	at := placed{kind: cmd.Executor.Type, session: uuid.NewString()}
 	switch at.kind {
 	case KindAgent:
-		pv, err := r.deps.For(ctx, projectID, cmd)
+		pv, err := r.deps.Router.For(ctx, projectID, cmd)
 		if o.Provider != "" {
-			if pv, err = r.deps.Named(ctx, projectID, o.Provider); err == nil {
+			if pv, err = r.deps.Router.Named(ctx, projectID, o.Provider); err == nil {
 				if missing := pv.Caps().Missing(cmd.Requires); len(missing) > 0 {
 					err = registry.Invalid("provider %s lacks %s for %s", o.Provider, strings.Join(missing, ", "), cmd.Name)
 				}

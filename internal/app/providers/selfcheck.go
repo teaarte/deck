@@ -126,9 +126,9 @@ func (s *Service) clearCheck(ctx context.Context, name string) {
 	})
 }
 
-// Broke checks a provider whose turn failed or lost its login, unless it was checked within selfCheckRetry; a red
+// broke checks a provider whose turn failed or lost its login, unless it was checked within selfCheckRetry; a red
 // one or one without a login is then checked once that time is over.
-func (s *Service) Broke(ctx context.Context, name string) {
+func (s *Service) broke(ctx context.Context, name string) {
 	h, err := health.Get(ctx, s.St.Q, health.Of{}, health.Provider(name))
 	red := err == nil && (h.Status == health.Error || h.Status == health.NeedsLogin)
 	s.mu.Lock()

@@ -25,7 +25,7 @@ func (r *Runner) handOn(ctx context.Context, t turn, pv provider.Provider, f *fa
 	if !r.handsOn(ctx, t) {
 		return false
 	}
-	next := r.deps.Next(ctx, t.project, t.cmd, pv.Name())
+	next := next(r.deps.Router.Chain(ctx, t.project, t.cmd), pv.Name())
 	if next == "" {
 		return false
 	}
@@ -114,8 +114,8 @@ func (r *Runner) reassigned(ctx context.Context, workspace int64, p db.Process) 
 	if err != nil || !r.handsOn(ctx, t) {
 		return false
 	}
-	next := r.deps.Ahead(ctx, p.ProjectID, t.cmd, p.Provider)
-	if next == "" || !r.deps.Goes(ctx, workspace, next) {
+	next := ahead(r.deps.Router.Chain(ctx, p.ProjectID, t.cmd), p.Provider)
+	if next == "" || !r.deps.Router.State(ctx, workspace, next).Goes {
 		return false
 	}
 	if ok, err := r.claim(ctx, p.ID, p.WaitReason); err != nil || !ok {

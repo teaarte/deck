@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/process"
 	"errors"
 	"fmt"
 	"strings"
@@ -161,9 +162,23 @@ func (s *Service) Limited(ctx context.Context, workspace int64, name string, end
 	return until, false
 }
 
-// Subscription is the connection of the CLI whose subscription a provider runs on, on a node too; empty for any other.
-func (s *Service) Subscription(ctx context.Context, workspace int64, name string) string {
-	return s.cliOf(ctx, workspace, name)
+// shortLimit is the longest limit of a subscription a turn waits out on the same login, not handed on.
+const shortLimit = time.Minute
+
+// Limit is Limited for the turn of a process (process.Router): a short limit of a subscription waits on the same
+// login, as another one would take the burst and lose the cache.
+func (s *Service) Limit(ctx context.Context, workspace int64, name string, ends int64, words string) (until time.Time, stay bool) {
+	until, _ = s.Limited(ctx, workspace, name, ends, words)
+	return until, s.cliOf(ctx, workspace, name) != "" && !until.After(s.St.Now().Add(shortLimit))
+}
+
+// Heard hears what a turn told of its provider (process.Router).
+func (s *Service) Heard(ctx context.Context, workspace int64, name string, h process.Heard) {
+	if h.Broke {
+		s.broke(ctx, name)
+		return
+	}
+	s.Answered(ctx, workspace, name, h.OK, h.Windows)
 }
 
 // nearly is the share of a window of a subscription past which a new turn goes to the next model.

@@ -202,13 +202,20 @@ func (g *Gateway) Deny(ctx context.Context, owner registry.Actor, a db.Ask, answ
 	if err != nil {
 		return err
 	}
+	if a.State != ask.StateOpen {
+		return ask.ErrNotOpen
+	}
+	// The no is kept before the ask closes: the call its process makes again on waking sees it.
+	if err := g.keep(ctx, owner, a, f, answer); err != nil {
+		return err
+	}
 	if err := g.asks.Answer(ctx, a.ID, answer); err != nil {
 		return err
 	}
 	if f.As != AsTurn {
 		g.Record(ctx, a, "rejected", "the owner said no")
 	}
-	return g.keep(ctx, owner, a, f, answer)
+	return nil
 }
 
 // term is how long a question about a call of c stays open: its own term, else the workspace's.

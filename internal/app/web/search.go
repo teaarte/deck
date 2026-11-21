@@ -38,6 +38,8 @@ type found struct {
 	at      time.Time
 	search  string
 	results []searchView
+	// missed says engines did not answer, so no results may only be theirs to give.
+	missed bool
 }
 
 const (
@@ -83,7 +85,9 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 		if f, err = s.search(ctx, act, hops, in.Query); err != nil {
 			return nil, err
 		}
-		s.keep(key, f)
+		if !f.missed || len(f.results) > 0 {
+			s.keep(key, f)
+		}
 	}
 	read["search"] = f.search
 	out, urls := f.results[:min(count, len(f.results))], []string{}
@@ -166,35 +170,37 @@ func (s *Service) answer(ctx context.Context, act registry.Actor, h models.Hop, 
 		}
 		return found{}, models.Unread(said)
 	}
-	f := found{at: s.St.Now(), search: h.Name, results: []searchView{}}
+	f := found{at: s.St.Now(), search: h.Name, results: []searchView{}, missed: len(v.Unresponsive) > 0}
 	for _, r := range v.Results[:min(len(v.Results), maxResults)] {
 		f.results = append(f.results, searchView{Title: untrusted.Cut(r.Title, 300), URL: r.URL, Snippet: untrusted.Cut(r.Content, 1000)})
 	}
 	return f, nil
 }
 
-// allDown says every web engine the SearXNG of h asks did not answer; one that names no such engine is not down.
+// allDown says every web engine the SearXNG of h asks did not answer, or its /config could not be read; one that
+// names no such engine is not down.
 func (s *Service) allDown(ctx context.Context, act registry.Actor, h models.Hop, unresponsive [][]string) bool {
-	web := s.webEngines(ctx, fmt.Sprint(act.Workspace, "\x00", h.Connection), h)
-	return len(web) > 0 && !slices.ContainsFunc(web, func(name string) bool {
+	web, ok := s.webEngines(ctx, fmt.Sprint(act.Workspace, "\x00", h.Connection), h)
+	return !ok || len(web) > 0 && !slices.ContainsFunc(web, func(name string) bool {
 		return !slices.ContainsFunc(unresponsive, func(u []string) bool { return len(u) > 0 && u[0] == name })
 	})
 }
 
-// webEngines are the engines a SearXNG asks for a plain query by its /config, kept for engineFor: the enabled ones
-// of general that are web too, since those also of translate or currency answer only queries of their own pattern.
-func (s *Service) webEngines(ctx context.Context, key string, h models.Hop) []string {
+// webEngines are the engines a SearXNG asks for a plain query by its /config, kept for engineFor, false when it could
+// not be read: the enabled ones of general that are web too, since those also of translate or currency answer only
+// queries of their own pattern.
+func (s *Service) webEngines(ctx context.Context, key string, h models.Hop) ([]string, bool) {
 	s.mu.Lock()
 	k, ok := s.engines[key]
 	s.mu.Unlock()
 	if ok && s.St.Now().Sub(k.at) < engineFor {
-		return k.names
+		return k.names, true
 	}
 	ctx, cancel := context.WithTimeout(ctx, configFor)
 	defer cancel()
 	resp, err := models.Send(ctx, h.Target, models.Call{Method: http.MethodGet, Path: "config", Header: http.Header{"Accept": {"application/json"}}})
 	if err != nil {
-		return nil
+		return nil, false
 	}
 	defer resp.Body.Close()
 	var c struct {
@@ -205,7 +211,7 @@ func (s *Service) webEngines(ctx context.Context, key string, h models.Hop) []st
 		}
 	}
 	if resp.StatusCode >= 400 || json.NewDecoder(io.LimitReader(resp.Body, maxPage)).Decode(&c) != nil {
-		return nil
+		return nil, false
 	}
 	names := []string{}
 	for _, e := range c.Engines {
@@ -219,7 +225,7 @@ func (s *Service) webEngines(ctx context.Context, key string, h models.Hop) []st
 	}
 	s.engines[key] = engines{at: s.St.Now(), names: names}
 	s.mu.Unlock()
-	return names
+	return names, true
 }
 
 // engines are the web engines of a SearXNG as it said at.

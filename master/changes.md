@@ -746,3 +746,6 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   of the role without blaming the busy one; it counts as engines a SearXNG asks the enabled ones of `general` that
   are `web` too, by its `/config` read once in 5 minutes, and a SearXNG that names none answers no results as an answer.
   Modules: nothing to change.
+- 2026-11-22: `deck.web_search` takes no results of a SearXNG whose `/config` it cannot read, while engines did not
+  answer, as a search that did not answer; no results while engines did not answer are not kept for the same query.
+  Modules: nothing to change.

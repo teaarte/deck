@@ -88,6 +88,35 @@ func TestASearchThatOneEngineMissedMayFindNothing(t *testing.T) {
 			t.Fatalf("a search one engine missed is not red: %+v", h)
 		}
 	}
+	e.Must("deck.web_search", map[string]any{"query": "zxqv"}, &got)
+	if n := len(slow.To("/search")); n != 2 {
+		t.Fatalf("an empty answer an engine missed is not kept for the same query: %d searches", n)
+	}
+}
+
+// TestASearchWhoseConfigIsUnreadableAndEnginesDownHandsOn: no results while every engine named did not answer and
+// /config cannot be read is a search that did not answer: the next search takes the query, nothing is kept.
+func TestASearchWhoseConfigIsUnreadableAndEnginesDownHandsOn(t *testing.T) {
+	t.Parallel()
+	down := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		if r.URL.Path == "/config" {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		harness.JsonReply(w, `{"results": [], "unresponsive_engines": [["google cse", "too many requests"]]}`)
+	})
+	var failing atomic.Int32
+	spare := searxng(t, &failing)
+	e := harness.New(t)
+	useSearch(e, "searxng", down.URL)
+	useSearch(e, "spare", spare.URL)
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng", "spare"}}, nil)
+	var got struct{ Search string }
+	e.Must("deck.web_search", map[string]any{"query": "deck"}, &got)
+	if got.Search != "spare" {
+		t.Fatalf("a search that may be down hands the query on: %+v", got)
+	}
+	e.WaitHealth("model:searxng", "error")
 }
 
 // TestASearchThatDoesNotTellItsWebEnginesMayFindNothing: a SearXNG whose /config names no web engine, as an older

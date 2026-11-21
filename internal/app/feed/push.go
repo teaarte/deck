@@ -140,7 +140,7 @@ type pushSource struct {
 // say, only the module each is of when hidden.
 func (s *Service) pushSources(hidden bool) []pushSource {
 	sayOf := func(ctx context.Context, ws, process int64) map[string]string {
-		return words.In(s.Lang(ctx, ws, process))
+		return words.In(s.Langs.Gives(ctx, ws, process))
 	}
 	id := func(str string) int64 { n, _ := strconv.ParseInt(str, 10, 64); return n }
 	return []pushSource{

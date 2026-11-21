@@ -63,7 +63,7 @@ func (s *Service) projectDelete(ctx context.Context, act registry.Actor, in proj
 	if err != nil {
 		return nil, err
 	}
-	if err := s.DropSecrets(p.WorkspaceID, p.Name); err != nil {
+	if err := s.Secrets.Drop(p.WorkspaceID, p.Name); err != nil {
 		slog.Error("delete the secrets of a project", "project", p.Name, "err", err)
 	}
 	// The outbox takes deck's folder of the project; the folders of its runs go here, else in the daily cleanup.

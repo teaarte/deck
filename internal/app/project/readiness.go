@@ -62,7 +62,7 @@ func (s *Service) needs(ctx context.Context, p db.Project, m *manifest.Manifest,
 		return out
 	}
 	for _, str := range m.Secrets() {
-		out = append(out, needView{Kind: "secret", What: str, Done: s.Secret(p.WorkspaceID, p.Name, str)})
+		out = append(out, needView{Kind: "secret", What: str, Done: s.Secrets.Has(p.WorkspaceID, p.Name, str)})
 	}
 	missing := s.Missing(ctx, p.ID, m)
 	for _, name := range slices.Sorted(maps.Keys(missing)) {

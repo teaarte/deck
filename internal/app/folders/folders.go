@@ -29,13 +29,18 @@ import (
 type Service struct {
 	St   *store.Store
 	Home home.Layout
-	// Node is the node of a workspace by its name; Probe asks a node about the folders of its machine; Online says a
-	// node is connected now.
-	Node   func(ctx context.Context, workspace int64, name string) (int64, error)
-	Probe  func(ctx context.Context, device int64, addresses, paths []string) (node.Probed, error)
-	Online func(device int64) bool
+	// Probe asks a node about the folders of its machine; Online says a node is connected now.
+	Probe     func(ctx context.Context, device int64, addresses, paths []string) (node.Probed, error)
+	Online    func(device int64) bool
+	Providers Nodes
+}
+
+// Nodes are the nodes of the providers of a workspace.
+type Nodes interface {
+	// NodeNamed is the node of a workspace by its name.
+	NodeNamed(ctx context.Context, workspace int64, name string) (int64, error)
 	// Scripts runs scripts on a node.
-	Scripts func(device int64, name string) *remote.Scripts
+	Scripts(device int64, name string) *remote.Scripts
 }
 
 // Row is a folder of a project by its name, on deck's machine or on that of Node; a repository may be on several.
@@ -104,7 +109,7 @@ func (s *Service) folderAdd(ctx context.Context, act registry.Actor, in folderAd
 		_, err := os.Stat(filepath.Join(real, ".git"))
 		repo = err == nil
 	} else {
-		if device, err = s.Node(ctx, p.WorkspaceID, in.Node); err != nil {
+		if device, err = s.Providers.NodeNamed(ctx, p.WorkspaceID, in.Node); err != nil {
 			return nil, err
 		}
 		if _, err := home.Abs(in.Path); err != nil {
@@ -177,7 +182,7 @@ func (s *Service) folderRemove(ctx context.Context, act registry.Actor, in folde
 	}
 	var device int64
 	if in.Node != "" {
-		if device, err = s.Node(ctx, p.WorkspaceID, in.Node); err != nil {
+		if device, err = s.Providers.NodeNamed(ctx, p.WorkspaceID, in.Node); err != nil {
 			return nil, err
 		}
 	}
@@ -264,7 +269,7 @@ func (s *Service) Folder(ctx context.Context, projectID int64, f manifest.Folder
 	var device int64
 	machine := "deck's machine"
 	if _, at, ok := provider.AtNode(pv); ok {
-		if device, err = s.Node(ctx, p.WorkspaceID, at); err != nil {
+		if device, err = s.Providers.NodeNamed(ctx, p.WorkspaceID, at); err != nil {
 			return "", err
 		}
 		machine = "node " + at
@@ -365,7 +370,7 @@ func (s *Service) ScriptsAt(ctx context.Context, projectID int64) (process.Place
 			break
 		}
 	}
-	return process.Place{On: s.Scripts(device, s.nodeNames(ctx)[device]), Folders: s.Paths(ctx, projectID, device)}, nil
+	return process.Place{On: s.Providers.Scripts(device, s.nodeNames(ctx)[device]), Folders: s.Paths(ctx, projectID, device)}, nil
 }
 
 // names are the names of folders in their order, each once.

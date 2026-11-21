@@ -25,14 +25,13 @@ import (
 	"deck2/internal/sandbox"
 )
 
-// Service is the browser deck opens its own pages in; Lend gives it a token of the caller's rights for a while.
+// Service is the browser deck opens its own pages in; its Owners lend it a token of the caller's rights for a while.
 type Service struct {
 	Host   *mcphost.Host
 	Argv   []string
 	Home   home.Layout
 	Base   string
-	Lend   func(registry.Actor, time.Duration) string
-	Return func(string)
+	Owners Lender
 	Themed func(ctx context.Context, workspace int64, name string) bool
 
 	mu sync.Mutex
@@ -96,8 +95,8 @@ func (s *Service) shot(ctx context.Context, act registry.Actor, in screenCapture
 	if _, err := s.Host.Tools(ctx, key, spec); err != nil {
 		return nil, fault.Wrap("deck: the browser of the shots", err)
 	}
-	token := s.Lend(act, 2*time.Minute)
-	defer s.Return(token)
+	token := s.Owners.Lend(act, 2*time.Minute)
+	defer s.Owners.Return(token)
 	// The page leaves on every way out, so it hears no more of the workspace once its token is back.
 	defer func() {
 		_, _ = s.call(context.WithoutCancel(ctx), key, spec, "browser_navigate", map[string]any{"url": "about:blank"})
@@ -243,4 +242,12 @@ func (s *Service) Commands() []*registry.Command {
 	return []*registry.Command{registry.Def("screen_capture", "Screen shot",
 		"Draws a screen of deck's client in deck's own browser under the caller's rights, as a computer or a phone, light or dark, in a theme to try; answers the picture as a file of the calling process (file, and path to read it) and ms, how long the screen took to draw, with error when it failed.",
 		registry.OwnerSide, s.shot).Brings(registry.FromData).Stays()}
+}
+
+// Lender lends a token of an actor's rights for a while.
+type Lender interface {
+	// Lend gives a token of the actor's rights for d.
+	Lend(act registry.Actor, d time.Duration) string
+	// Return ends a token Lend gave.
+	Return(token string)
 }

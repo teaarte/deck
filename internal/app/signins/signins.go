@@ -37,10 +37,7 @@ type Service struct {
 	Browser *tools.Browser
 	MCP     *tools.MCP
 	OAuth   *tools.OAuth
-	// Agent is the provider a sign-in of a workspace by name goes to: a built-in CLI or a model on a login of one, nil
-	// for none; Check runs its self-check again.
-	Agent func(ctx context.Context, workspace int64, name string) provider.Provider
-	Check func(name string)
+	Agents  Agents
 	// Emit tells the clients a topic changed that no write of the store announced, such as a sign-in from deck.
 	Emit func(events.Event)
 	// Go runs work beside the calls; false once deck stops.
@@ -323,4 +320,13 @@ func (s *Service) Servers(ctx context.Context, projectID int64) {
 	if len(m.Held(g, manifest.Network, manifest.Programs)) > 0 {
 		s.Browser.Ensure(ctx)
 	}
+}
+
+// Agents are the providers a sign-in goes to.
+type Agents interface {
+	// Signer is the provider a sign-in of a workspace by name goes to: a built-in CLI or a model on a login of one, nil
+	// for none.
+	Signer(ctx context.Context, workspace int64, name string) provider.Provider
+	// Check runs the self-check of a provider again.
+	Check(name string)
 }

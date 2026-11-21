@@ -15,8 +15,8 @@ import (
 	"deck2/internal/store/db"
 )
 
-// Service keeps the settings; DefaultTTL is deck's own wait of a confirmation, Wake lets turns waiting for a
-// slot go on once there are more.
+// Service holds the commands of the settings; DefaultTTL is deck's own wait of a confirmation, Wake lets turns
+// waiting for a slot go on once there are more.
 type Service struct {
 	St         *store.Store
 	DefaultTTL time.Duration

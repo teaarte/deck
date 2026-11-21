@@ -84,11 +84,11 @@ func (s *Service) putPicture(ctx context.Context, act registry.Actor, p db.Proje
 		return 0, err
 	}
 	defer f.Close()
-	id, err := s.Keep(ctx, owner, p.Name, ref.Name, ref.Type, f)
+	id, err := s.Files.Keep(ctx, owner, p.Name, ref.Name, ref.Type, f)
 	if err != nil {
 		return 0, err
 	}
-	thumb, light := s.Thumb(ctx, owner, p.Name, id)
+	thumb, light := s.Files.Thumb(ctx, owner, p.Name, id)
 	cur := s.Current(ctx, act.Workspace)
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if err := s.keep(ctx, q, p.ID, slot, theme, scheme, cur); err != nil {
@@ -110,7 +110,7 @@ func (s *Service) putPicture(ctx context.Context, act registry.Actor, p db.Proje
 		return nil
 	})
 	if err != nil {
-		s.Drop(ctx, id, thumb.Int64)
+		s.Files.Drop(ctx, id, thumb.Int64)
 		return 0, err
 	}
 	return id, nil
@@ -197,7 +197,7 @@ func (s *Service) Thumbs(ctx context.Context) {
 		if err != nil {
 			continue
 		}
-		thumb, light := s.Thumb(ctx, registry.OwnerIn(p.WorkspaceID), p.Name, pic.FileID)
+		thumb, light := s.Files.Thumb(ctx, registry.OwnerIn(p.WorkspaceID), p.Name, pic.FileID)
 		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			if err := q.SetPictureThumb(ctx, db.SetPictureThumbParams{ThumbID: thumb, Color: light.Color, ID: pic.ID, FileID: pic.FileID}); err != nil {
 				return err
@@ -209,7 +209,7 @@ func (s *Service) Thumbs(ctx context.Context) {
 			return err
 		})
 		if err != nil {
-			s.Drop(ctx, thumb.Int64)
+			s.Files.Drop(ctx, thumb.Int64)
 			slog.Error("themes: light copy of a picture", "picture", pic.ID, "err", err)
 		}
 	}

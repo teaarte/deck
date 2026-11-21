@@ -46,7 +46,7 @@ type agentLoginIn struct {
 
 // agentLogin starts the sign-in of a CLI agent and gives its link, once its program printed one.
 func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLoginIn) (any, error) {
-	si, ok := s.Agent(ctx, act.Workspace, in.Provider).(provider.SignIn)
+	si, ok := s.Agents.Signer(ctx, act.Workspace, in.Provider).(provider.SignIn)
 	if !ok {
 		return nil, registry.Invalid("%s is not a CLI agent deck signs in to", in.Provider)
 	}
@@ -154,7 +154,7 @@ func (s *Service) agentLogin(ctx context.Context, act registry.Actor, in agentLo
 		s.mu.Unlock()
 		s.Emit(events.Event{Topic: events.Health})
 		if err == nil {
-			s.Check(in.Provider)
+			s.Agents.Check(in.Provider)
 		}
 	})
 	select {

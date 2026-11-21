@@ -30,12 +30,17 @@ type Service struct {
 	St        *store.Store
 	Scheduler *trigger.Scheduler
 	Gateway   *gateway.Gateway
-	// IsFailure says whether a process is an open failure, as the cockpit counts them.
-	IsFailure func(ctx context.Context, act registry.Actor, process int64) (bool, error)
 	// Works looks up the model that does the work of a command, on the models of a workspace, prices in a language.
-	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
+	Works    func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
+	Failures Failures
+}
+
+// Failures are the failures of processes as the cockpit keeps them.
+type Failures interface {
+	// IsFailure says whether a process is an open failure, as the cockpit counts them.
+	IsFailure(ctx context.Context, act registry.Actor, process int64) (bool, error)
 	// Incident hands the master what went wrong around a process, such as a step after it that did not start.
-	Incident func(ctx context.Context, p db.Process, kind, text string) error
+	Incident(ctx context.Context, p db.Process, kind, text string) error
 }
 
 // ownTrigger loads a trigger of the actor's workspace; agents reach only their own project.
@@ -151,7 +156,7 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 				v.LastWord, v.LastTone = shown.Word, shown.Tone
 				// A failure the cockpit no longer counts, closed, made good or old, is no red line here either.
 				if v.LastTone == "error" {
-					switch open, _ := s.IsFailure(ctx, act, lp.ID); {
+					switch open, _ := s.Failures.IsFailure(ctx, act, lp.ID); {
 					case open:
 						v.Failure = manifest.TrText(ws, cmp.Or(lp.Error, shown.Word))
 					case s.madeGood(ctx, lp.ID):

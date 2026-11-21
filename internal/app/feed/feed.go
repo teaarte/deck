@@ -40,9 +40,7 @@ type Service struct {
 	FailingChecks func(ctx context.Context, act registry.Actor, project string) ([]health.FailingCheck, error)
 	// Waiting are how many things wait for the owner, by project, as the menu counts them.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
-	// Hidden says the owner's pushes show only the module they are of; Lang is the language a push of a process
-	Lang  func(ctx context.Context, workspace, process int64) string
-	Reads func(ctx context.Context, workspace, process int64) string
+	Langs   Langs
 	// Tailnet is the https address of deck on the owner's tailnet, empty while it is not on one.
 	Tailnet atomic.Pointer[string]
 
@@ -202,7 +200,7 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 	for _, f := range rows {
 		ws, ok := langs[f.ProcessID.Int64]
 		if !ok {
-			ws = words.In(s.Reads(ctx, act.Workspace, f.ProcessID.Int64))
+			ws = words.In(s.Langs.LangOf(ctx, act.Workspace, f.ProcessID.Int64))
 			langs[f.ProcessID.Int64] = ws
 		}
 		r := feedView{ID: f.ID, Kind: f.Kind, Project: names[f.ProjectID], Author: f.Author, Text: deckText(ws, f.Kind, f.Author, f.Text), Screen: f.Screen,
@@ -250,7 +248,7 @@ func (s *Service) feedList(ctx context.Context, act registry.Actor, in feedListI
 					}
 					mans[f.ProjectID] = m
 				}
-				if r.Buttons[i] = outward(r.Buttons[i], m, s.Reads(ctx, act.Workspace, f.ProcessID.Int64), f.ID, i); registry.IsBuiltin(r.Buttons[i].Command) {
+				if r.Buttons[i] = outward(r.Buttons[i], m, s.Langs.LangOf(ctx, act.Workspace, f.ProcessID.Int64), f.ID, i); registry.IsBuiltin(r.Buttons[i].Command) {
 					continue
 				}
 			}
@@ -457,4 +455,12 @@ func (s *Service) feedCommands() []*registry.Command {
 			"Marks a note of the feed read, or with all every unread one.",
 			registry.OwnerOnly, s.feedRead).Stays(),
 	}
+}
+
+// Langs are the languages of what a process says.
+type Langs interface {
+	// Gives is the language a push of a process speaks, that of its topic or of the settings.
+	Gives(ctx context.Context, workspace, process int64) string
+	// LangOf is the language a reader reads a row of a process in.
+	LangOf(ctx context.Context, workspace, process int64) string
 }

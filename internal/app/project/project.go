@@ -44,9 +44,7 @@ type Service struct {
 	Unassigned func(ctx context.Context, workspace, project int64, m *manifest.Manifest) map[string]string
 	// Missing reports the scripts of a project whose programs are not on the machine they run on, by script name.
 	Missing func(ctx context.Context, projectID int64, m *manifest.Manifest) map[string]error
-	// Secret reports whether a secret of a project is set; DropSecrets deletes the secrets of a project.
-	Secret      func(workspace int64, project, name string) bool
-	DropSecrets func(workspace int64, project string) error
+	Secrets Secrets
 	// Theme is the theme a workspace wears.
 	Theme func(ctx context.Context, workspace int64) string
 	// Ungranted are the rights a manifest declares the owner has not answered, in deck's words.
@@ -56,12 +54,26 @@ type Service struct {
 	Grant         func(ctx context.Context, q *db.Queries, act registry.Actor, p db.Project, m *manifest.Manifest, give func(registry.Need) bool) error
 	// TellRights tells the master once what format 17 did to the rights of its modules.
 	TellRights func(ctx context.Context, workspace int64)
-	// Starter, ReadUpload and ReadFolder read the files of a module to import, what deck cannot take in skipped;
+	// Starter and ReadFolder read the files of a module to import, what deck cannot take in skipped.
+	Starter    func(name string) ([]docs.File, error)
+	ReadFolder func(top, rel string) (files []docs.File, skipped []string, err error)
+	Uploads    Uploads
+}
+
+// Secrets are the secrets of projects.
+type Secrets interface {
+	// Has reports whether a secret of a project is set.
+	Has(workspace int64, project, name string) bool
+	// Drop deletes the secrets of a project.
+	Drop(workspace int64, project string) error
+}
+
+// Uploads are the .zip files of modules the owner uploaded.
+type Uploads interface {
+	// ReadUpload reads the files of a module to import, what deck cannot take in skipped.
+	ReadUpload(ctx context.Context, act registry.Actor, ref string) (files []docs.File, skipped []string, name string, err error)
 	// RestoreUpload brings back the data of an uploaded .zip into the project made of it.
-	Starter       func(name string) ([]docs.File, error)
-	ReadUpload    func(ctx context.Context, act registry.Actor, ref string) (files []docs.File, skipped []string, name string, err error)
-	ReadFolder    func(top, rel string) (files []docs.File, skipped []string, err error)
-	RestoreUpload func(ctx context.Context, act registry.Actor, p db.Project, ref string) (int, error)
+	RestoreUpload(ctx context.Context, act registry.Actor, p db.Project, ref string) (int, error)
 }
 
 // Commands are the commands of projects.

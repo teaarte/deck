@@ -166,8 +166,8 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Journal = journal.Service{St: st, Groups: a.Models.Groups, Explain: a.Gateway.Explain}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake, Rezone: a.Scheduler.Rezone}
 	a.Themes = themes.Service{St: st, Home: h, Tell: a.Chats.Tell,
-		Keep: a.Files.Keep, Thumb: a.Files.Thumb, Drop: a.Files.Drop}
-	a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Models.Works, Incident: a.Processes.Incident, IsFailure: a.Processes.IsFailure}
+		Files: &a.Files}
+	a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Models.Works, Failures: &a.Processes}
 	a.Documents = documents.Service{St: st, Sandbox: cfg.Sandbox, Missing: a.missingPrograms, Go: a.bg.Go,
 		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted, Home: h, Fits: a.Models.Fits, Runner: a.Runner}
 	a.Snapshots = snapshots.Service{St: st, Emit: a.Bus.Emit, Home: h, Budget: cfg.SnapshotBudget, Still: a.Files.Still,
@@ -179,7 +179,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		}
 	})
 	a.Nodes.Denied = func(device int64) { a.Owners.NodeChanged(device, true) }
-	a.Folders = folders.Service{St: st, Home: h, Node: a.Providers.NodeNamed, Probe: a.Nodes.Probe, Scripts: a.Providers.Scripts,
+	a.Folders = folders.Service{St: st, Home: h, Providers: &a.Providers, Probe: a.Nodes.Probe,
 		Online: func(device int64) bool { return a.Nodes.State(device).Online }}
 	a.Providers = providers.Service{St: st, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		Nodes: a.Nodes, NodeWait: cfg.NodeWait, NodeDenied: a.Nodes.Denied, Low: func(ctx context.Context, text string) {
@@ -211,14 +211,14 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			return a.Chats.AnswerShown(ctx, act, q, answer)
 		}}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP,
-		Agent: a.Providers.Signer, Check: a.Providers.Check, Emit: a.Bus.Emit, Go: a.bg.Go}
+		Agents: &a.Providers, Emit: a.Bus.Emit, Go: a.bg.Go}
 	a.Chats = chat.Service{St: st, Emit: a.Bus.Emit, Asks: a.Asks, Runner: a.Runner, For: a.Models.For,
 		Named: a.Providers.Named, Fits: a.Models.Fits, Able: a.Models.Able, Facts: a.Models.Facts, Go: a.bg.Go, Lookup: a.Registry.Lookup,
 		Decisions: func(ctx context.Context, act registry.Actor, ps []int64, lang string) (any, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}
 	a.Feed = feed.Service{St: st,
-		Home: h, Call: a.Gateway.Call, Waiting: a.Answers.Waiting, Lang: a.Chats.Gives, Reads: a.Chats.LangOf,
+		Home: h, Call: a.Gateway.Call, Waiting: a.Answers.Waiting, Langs: &a.Chats,
 		FailedRuns: a.Processes.FailedRuns, FailingChecks: a.Health.FailingChecks}
 	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Gateway: a.Gateway, Lookup: a.Registry.Lookup, Await: a.Bus.Await,
 		Works: a.Models.Works}
@@ -232,7 +232,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Auth = auth.New(auth.Config{Home: h, Origins: cfg.Origins}, auth.Deps{Store: st})
 	a.Owners = owners.Service{St: st, MCPBase: cfg.MCPBase, Auth: a.Auth,
 		Origins: cfg.Origins.List, PushNew: a.Feed.PushNew, Hub: a.Nodes, Go: a.bg.Go}
-	a.Shots = shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Owners.Lend, Return: a.Owners.Return,
+	a.Shots = shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Owners: &a.Owners,
 		Themed: a.Themes.Exists}
 	a.Updates = updates.Service{St: st, Source: cfg.Releases, Version: cfg.Version, Commit: cfg.Commit, Variant: cfg.Variant, Image: cfg.Image,
 		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: a.bg.Go,
@@ -240,10 +240,10 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Projects = project.Service{St: st, Emit: a.Bus.Emit, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Scheduler: a.Scheduler, Scripts: a.Scripts, Runner: a.Runner, StopServer: a.Host.Stop, Snapshot: a.Snapshots.BeforeDelete,
 		PrepareLater: a.Documents.PrepareLater, Noted: a.Feed.Noted, CheckScreens: a.Screens.CheckScreens,
-		Unassigned: a.Models.Unassigned, Missing: a.missingPrograms, Secret: a.Secrets.Has, DropSecrets: a.Secrets.Drop,
+		Unassigned: a.Models.Unassigned, Missing: a.missingPrograms, Secrets: &a.Secrets,
 		Theme:     a.Themes.Current,
 		Ungranted: a.Rights.Ungranted, GrantDeclared: a.Rights.GrantDeclared, Grant: a.Rights.Grant, TellRights: a.Rights.TellRights,
-		Starter: appmodules.Starter, ReadUpload: a.Modules.ReadUpload, ReadFolder: appmodules.ReadFolder, RestoreUpload: a.Modules.RestoreUpload}
+		Starter: appmodules.Starter, Uploads: &a.Modules, ReadFolder: appmodules.ReadFolder}
 	a.Rights = rights.Service{St: st, Registry: a.Registry, StopServer: a.Host.Stop}
 	a.Modules = appmodules.Service{St: st, Home: h, Gateway: a.Gateway, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep}
 	a.addBuiltins()

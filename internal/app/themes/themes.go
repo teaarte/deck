@@ -29,13 +29,19 @@ import (
 type Service struct {
 	St *store.Store
 	// Tell sends the owner's words to the master in a new topic of the chat.
-	Tell func(ctx context.Context, act registry.Actor, text, model string) (any, error)
-	Home home.Layout
-	// Keep stores a file for a project as an upload; Thumb stores the light copy of a stored picture with its size
-	// and main color; Drop deletes the uploads a picture did not take.
-	Keep  func(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error)
-	Thumb func(ctx context.Context, owner registry.Actor, project string, file int64) (sql.NullInt64, files.Light)
-	Drop  func(ctx context.Context, ids ...int64)
+	Tell  func(ctx context.Context, act registry.Actor, text, model string) (any, error)
+	Home  home.Layout
+	Files Files
+}
+
+// Files keep the pictures of a theme.
+type Files interface {
+	// Keep stores a file for a project as an upload.
+	Keep(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error)
+	// Thumb stores the light copy of a stored picture with its size and main color.
+	Thumb(ctx context.Context, owner registry.Actor, project string, file int64) (sql.NullInt64, files.Light)
+	// Drop deletes the uploads a picture did not take.
+	Drop(ctx context.Context, ids ...int64)
 }
 
 // Format is the schema of a theme.

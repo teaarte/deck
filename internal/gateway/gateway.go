@@ -64,8 +64,8 @@ func (s *Session) becomes(act registry.Actor) {
 type Config struct {
 	QuestionWait time.Duration
 	ConfirmWait  time.Duration
-	// ConfirmTTL is how long an unanswered confirmation of a workspace stays open unless its tool sets its own;
-	// zero keeps it open.
+	// ConfirmTTL is deck's own wait of an unanswered confirmation when the owner set none and its tool sets no
+	// term; zero keeps it open.
 	ConfirmTTL time.Duration
 	// Models is deck's proxy of models for a script of an actor.
 	Models func(act registry.Actor) http.Handler

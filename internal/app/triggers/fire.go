@@ -109,7 +109,7 @@ func (s *Service) after(ctx context.Context, done db.Process) error {
 					return err
 				}
 				return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.St.Now()), ProjectID: p.ID, Text: text})
-			}), s.Incident(ctx, done, process.IncidentAfter, text))
+			}), s.Failures.Incident(ctx, done, process.IncidentAfter, text))
 		}
 	}
 	return errors.Join(errs...)

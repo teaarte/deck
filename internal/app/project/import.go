@@ -88,7 +88,7 @@ func (s *Service) projectImport(ctx context.Context, act registry.Actor, in proj
 		from, name = "starter "+in.Starter, in.Starter
 	case in.File != "":
 		var err error
-		if files, skipped, name, err = s.ReadUpload(ctx, act, in.File); err != nil {
+		if files, skipped, name, err = s.Uploads.ReadUpload(ctx, act, in.File); err != nil {
 			return nil, err
 		}
 		from = "file " + name
@@ -121,7 +121,7 @@ func (s *Service) projectImport(ctx context.Context, act registry.Actor, in proj
 	if err != nil {
 		return out, err
 	}
-	n, err := s.RestoreUpload(ctx, act, p, in.File)
+	n, err := s.Uploads.RestoreUpload(ctx, act, p, in.File)
 	if err != nil {
 		return nil, fmt.Errorf("deck: draft %s was made, its data did not come back: %w", p.Name, err)
 	}

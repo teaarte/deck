@@ -95,3 +95,4 @@ func TestRealBrowserWidgetsFitTheirCards(t *testing.T) {
 		}
 	}
 }
+

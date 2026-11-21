@@ -771,3 +771,8 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   mark what it writes and that its command refuses (an edit whose old text is not there, a document that is not) is
   refused before it marks anything, and an agent's call naming another module marks nothing.
   Modules: nothing to change.
+- 2026-11-22: The mark of the modules a call writes goes with its first write: a call refused before it writes (no
+  right on the module, a revision behind, a kind it may not save) marks nothing. A module's command reads and writes
+  its own module, whatever its input names by a field of format `project`. A change of instructions is cut short for
+  the owner past 6000 characters or a line past 300, as past 60 lines, and a yes to it then keeps the mark.
+  Modules: nothing to change.

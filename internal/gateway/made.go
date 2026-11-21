@@ -49,7 +49,11 @@ func (g *Gateway) made(ctx context.Context, call Call, act registry.Actor, c *re
 		}
 		return nil, err
 	}
-	out, sent, err := g.run(ctx, act, c, input)
+	run := ctx
+	if l.marks != nil {
+		run = store.WithWrites(ctx, l.marks)
+	}
+	out, sent, err := g.run(run, act, c, input)
 	var change *db.AddFeedParams
 	if err == nil && v.Does == DoShow {
 		what := cmp.Or(v.Subject.Where, untrusted.Cut(Canonical(input), 300))
@@ -92,8 +96,8 @@ func (g *Gateway) run(ctx context.Context, act registry.Actor, c *registry.Comma
 	return out, registry.Sent{}, err
 }
 
-// before writes, in one Tx before a call runs, its marks and its line in the journal, making or the intent of a call
-// outside deck, but for one the journal does not keep; a failed Tx or an identical open intent refuses the call.
+// before writes, in one Tx before a call runs, the mark of what it brings and its line or intent in the journal; a failed
+// Tx or an identical open intent refuses the call. The modules it writes are marked with its first write (l.marks).
 func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict, right registry.Need, params string) (*line, error) {
 	l := &line{sent: c.Sender != nil}
 	if call.Inside {
@@ -103,7 +107,17 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 	taint, taintFrom, targets := g.taint(ctx, act, c, project, input, v, call.answer != 0 && !call.cut)
 	lined := !c.Readable && call.journaled()
 	l.key = keyOf(act, c, input, call.Key)
-	if read == "" && len(targets) == 0 && !lined && l.key == nil {
+	if len(targets) > 0 {
+		l.marks = func(ctx context.Context, q *db.Queries) error {
+			for _, id := range targets {
+				if err := q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{Untrusted: taint, ReadFrom: taintFrom.String(), ID: id}); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}
+	if read == "" && !lined && l.key == nil {
 		return l, nil
 	}
 	var refused error
@@ -115,11 +129,6 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 				return nil
 			}
 			if l.kept = kept; err != nil || kept != nil {
-				return err
-			}
-		}
-		for _, id := range targets {
-			if err := q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{Untrusted: taint, ReadFrom: taintFrom.String(), ID: id}); err != nil {
 				return err
 			}
 		}
@@ -221,6 +230,8 @@ type line struct {
 	sent bool
 	key  *db.TakeCallKeyParams
 	kept *registry.Result
+	// marks writes the mark of the modules the call writes, with its first write.
+	marks func(ctx context.Context, q *db.Queries) error
 }
 
 // Making is the outcome of the line of a call deck is making; an intent to act outside deck makes it started.

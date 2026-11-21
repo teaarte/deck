@@ -284,6 +284,20 @@ func TxGet[T any](s *Store, ctx context.Context, f func(ctx context.Context, q *
 	return out, err
 }
 
+// writesKey carries what a call adds to the first transaction of its own that writes.
+type writesKey struct{}
+
+type writes struct {
+	fn   func(ctx context.Context, q *db.Queries) error
+	done atomic.Bool
+}
+
+// WithWrites is ctx whose first transaction that writes runs fn too, before it commits: what goes with a write of a
+// call only when it writes.
+func WithWrites(ctx context.Context, fn func(ctx context.Context, q *db.Queries) error) context.Context {
+	return context.WithValue(ctx, writesKey{}, &writes{fn: fn})
+}
+
 // Tx runs f in one transaction and commits when it returns nil. Inside f, use only q and the ctx it gets.
 func (s *Store) Tx(ctx context.Context, f func(ctx context.Context, q *db.Queries) error) error {
 	check(ctx)
@@ -304,7 +318,13 @@ func (s *Store) Tx(ctx context.Context, f func(ctx context.Context, q *db.Querie
 	}()
 	in, end := txguard.Within(ctx)
 	defer end()
-	err = f(in, s.Q.WithTx(tx))
+	q := s.Q.WithTx(tx)
+	err = f(in, q)
+	w, _ := ctx.Value(writesKey{}).(*writes)
+	ran := err == nil && w != nil && !w.done.Load() && s.changes.wrote()
+	if ran {
+		err = w.fn(in, q)
+	}
 	end()
 	if err != nil {
 		_ = tx.Rollback()
@@ -314,6 +334,9 @@ func (s *Store) Tx(ctx context.Context, f func(ctx context.Context, q *db.Querie
 	cs := resolve(ctx, tx.QueryRowContext, ws, places)
 	if err := tx.Commit(); err != nil {
 		return err
+	}
+	if ran {
+		w.done.Store(true)
 	}
 	// Writes of no transaction of deck's, such as a statement run on the base by hand, are found after their commit.
 	cs = append(cs, resolve(ctx, s.reads.QueryRowContext, s.changes.take(), nil)...)

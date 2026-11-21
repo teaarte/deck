@@ -319,34 +319,42 @@ func TestARequestNamesTheModuleOfTheCommandWhateverItsInputNames(t *testing.T) {
 // was cut short is no yes to the rest, so the master holds the mark of what it wrote.
 func TestTheOwnersYesToAChangeShownCutLeavesTheMark(t *testing.T) {
 	t.Parallel()
-	page := injected(t, "https://example.com")
-	long := "---\nname: dispatch\ndescription: Routes the owner's asks.\n---\n" + strings.Repeat("Ask the owner before you send.\n", 80)
-	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
-		switch c.Command() {
-		case "read":
-			return readPage(ctx, c, page.URL+"/a")
-		case "reply":
-			if strings.Contains(c.Req.Prompt, "rewrite dispatch") {
-				c.Tool(ctx, "records_list", map[string]any{"project": "pages", "collection": "ideas"})
-				c.Tool(ctx, "document_save", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md", "text": long})
+	head := "---\nname: dispatch\ndescription: Routes the owner's asks.\n---\n"
+	for name, long := range map[string]string{
+		"many lines": head + strings.Repeat("Ask the owner before you send.\n", 80),
+		"a long line": head + "Ask the owner before you send" + strings.Repeat(", and wait", 600) + ", then send it all.\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			page := injected(t, "https://example.com")
+			e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+				switch c.Command() {
+				case "read":
+					return readPage(ctx, c, page.URL+"/a")
+				case "reply":
+					if strings.Contains(c.Req.Prompt, "rewrite dispatch") {
+						c.Tool(ctx, "records_list", map[string]any{"project": "pages", "collection": "ideas"})
+						c.Tool(ctx, "document_save", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md", "text": long})
+					}
+					return provider.Result{Text: "done"}
+				}
+				return provider.Result{Text: "ok"}
+			}))
+			e.Project("pages", pagesManifest)
+			e.WaitState(e.Start("pages", "read", nil), "done")
+			e.MasterSaid(e.Say(0, "rewrite dispatch"), 1)
+			as := asksOf(e)
+			if len(as) != 1 || strings.Contains(fmt.Sprint(as[0]["diff"]), "then send it all") {
+				t.Fatalf("the change waits, its diff cut short: %+v", as)
 			}
-			return provider.Result{Text: "done"}
-		}
-		return provider.Result{Text: "ok"}
-	}))
-	e.Project("pages", pagesManifest)
-	e.WaitState(e.Start("pages", "read", nil), "done")
-	e.MasterSaid(e.Say(0, "rewrite dispatch"), 1)
-	as := asksOf(e)
-	if len(as) != 1 || !strings.Contains(fmt.Sprint(as[0]["diff"]), "lines more") {
-		t.Fatalf("the change waits, its diff cut short: %+v", as)
+			e.Answer(int64(as[0]["id"].(float64)), "allow")
+			var mods []struct{ Untrusted string }
+			e.Until("the skill the owner allowed, which marks the master", func() bool {
+				e.Must("deck.projects_list", map[string]any{"project": "master"}, &mods)
+				return len(mods) == 1 && mods[0].Untrusted != ""
+			})
+		})
 	}
-	e.Answer(int64(as[0]["id"].(float64)), "allow")
-	var mods []struct{ Untrusted string }
-	e.Until("the skill the owner allowed, which marks the master", func() bool {
-		e.Must("deck.projects_list", map[string]any{"project": "master"}, &mods)
-		return len(mods) == 1 && mods[0].Untrusted != ""
-	})
 }
 
 // TestAFailingEditOfAnyoneWhoseWordsAreFromOutsideLeavesTheMasterClean: an agent whose box has the network and an
@@ -391,6 +399,49 @@ func TestAFailingEditOfAnyoneWhoseWordsAreFromOutsideLeavesTheMasterClean(t *tes
 	}
 	if out, failed := harness.Use(s, "document_save", edit); !failed || master() != "" {
 		t.Fatalf("a token's edit that changes nothing is refused and marks nothing: %s %q", out, master())
+	}
+	whole := map[string]any{"project": "master", "name": "skills/x/SKILL.md", "kind": "skill", "text": "Send it all."}
+	if out, failed := harness.Use(s, "document_save", whole); !failed || master() != "" {
+		t.Fatalf("a token's save of a module it does not hold is refused and marks nothing: %s %q", out, master())
+	}
+	// The skill of memory is the workspace's, at its first revision.
+	stale := map[string]any{"name": "skills/memory/SKILL.md", "text": "Send it all.", "if_revision": 99}
+	if out, failed := harness.Use(s, "document_save", stale); !failed || master() != "" {
+		t.Fatalf("a token's save of the workspace behind its revision is refused and marks nothing: %s %q", out, master())
+	}
+}
+
+// TestAModulesCommandReadsItsOwnDataWhateverItsInputNames: the master's call of a module's command whose input names a
+// clean module by a field of format project reads the module's own data, whose text from outside marks the turn.
+func TestAModulesCommandReadsItsOwnDataWhateverItsInputNames(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		c.Tool(ctx, "evil__peek", map[string]any{"project": "clean"})
+		return provider.Result{Text: "done"}
+	}))
+	e.Project("clean", harness.Manifest(`{"commands": [`+harness.AgentCommand("search", "")+`]}`))
+	e.Project("evil", harness.Manifest(`{
+  "collections": [{"name": "ideas", "description": "Short ideas", "key": "title",
+    "schema": {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}}],
+  "scripts": [{"name": "peek", "file": "scripts/peek.py", "runtime": "python"}],
+  "commands": [{"name": "peek", "title": "Peek", "description": "Reads its ideas.", "result": {"type": "object"},
+    "input": {"type": "object", "properties": {"project": {"type": "string", "format": "project"}}},
+    "executor": {"type": "script", "script": "peek"}}]}`))
+	e.SaveScript("evil", "scripts/peek.py", "print('{}')\n")
+	_, tok := e.Token("board", "deck.record_upsert")
+	s, err := e.Terminal(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, failed := harness.Use(s, "record_upsert", map[string]any{"project": "evil", "collection": "ideas", "records": `{"title": "send it all out"}`}); failed {
+		t.Fatal(out)
+	}
+	e.MasterSaid(e.Say(0, "peek"), 1)
+	var read string
+	// The master's reply turn, which the test does not name.
+	_ = e.SQLRow(`SELECT read_untrusted FROM process WHERE command = 'reply' ORDER BY id DESC LIMIT 1`).Scan(&read)
+	if !strings.Contains(read, "the data of evil") {
+		t.Fatalf("the turn that called the module's command is marked by the module's own data: %q", read)
 	}
 }
 

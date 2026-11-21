@@ -155,17 +155,17 @@ func (g *Gateway) taint(ctx context.Context, act registry.Actor, c *registry.Com
 	default:
 		return "", data, nil
 	}
-	targets := g.written(ctx, act.Workspace, c, project, input)
-	if act.Kind == registry.Agent {
-		// An agent writes no module but its own: a call naming another is refused, and marks nothing.
+	targets, modules := g.written(ctx, act.Workspace, c, project, input)
+	if modules && act.Confined() {
+		// A confined caller writes only the modules it may touch: a call naming another is refused, and marks nothing.
 		targets = slices.DeleteFunc(targets, func(id int64) bool { return !act.Within(id) })
 	}
 	return untrusted.Cut(fmt.Sprintf("the call %s of %s", c.Name, from), 300), data, targets
 }
 
-// written are the modules whose data a call of c writes: those its input names or of the processes it names, else its
-// module, else the workspace, whose mark project master holds with the owner's memory.
-func (g *Gateway) written(ctx context.Context, workspace int64, c *registry.Command, project int64, input json.RawMessage) []int64 {
+// written are the modules whose data a call of c writes, and whether they are modules rather than the workspace: those
+// its input names or of the processes it names, else its module, else the workspace, whose mark project master holds.
+func (g *Gateway) written(ctx context.Context, workspace int64, c *registry.Command, project int64, input json.RawMessage) ([]int64, bool) {
 	n := g.named(ctx, workspace, c, input)
 	for _, id := range n.processes {
 		if p, err := g.st.Q.GetProcess(ctx, id); err == nil {
@@ -173,16 +173,16 @@ func (g *Gateway) written(ctx context.Context, workspace int64, c *registry.Comm
 		}
 	}
 	if len(n.projects) > 0 {
-		return n.projects
+		return n.projects, true
 	}
 	if project != 0 {
-		return []int64{project}
+		return []int64{project}, true
 	}
 	m, err := g.st.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: workspace, Name: master.Name})
 	if err != nil || m.Builtin == 0 {
-		return nil
+		return nil, false
 	}
-	return []int64{m.ID}
+	return []int64{m.ID}, false
 }
 
 // dataFrom is where the untrusted text of the data a call reads came from, in words and as data, empty for none: of
@@ -223,8 +223,12 @@ type names struct {
 	topic               int64
 }
 
-// named are what the input of a call of c names: a project by name, a process, a record or a document by id, a topic.
+// named are what the input of a call of c names: a project by name, a process, a record or a document by id, a topic;
+// a module's command names its module, as the module writes the schema of its input.
 func (g *Gateway) named(ctx context.Context, workspace int64, c *registry.Command, input json.RawMessage) names {
+	if c.ProjectID != 0 {
+		return names{projects: []int64{c.ProjectID}}
+	}
 	var schema struct {
 		Properties map[string]struct {
 			Format string `json:"format"`
@@ -278,17 +282,10 @@ func (g *Gateway) Target(ctx context.Context, workspace int64, command string, i
 	if err != nil {
 		return ""
 	}
-	var n names
-	switch {
-	case c.ProjectID != 0:
-		// A module writes the schema of its own command, so the fields of its input name nothing deck vouches for.
-		n.projects = []int64{c.ProjectID}
-	case registry.IsBuiltin(c.Name):
-		n = g.named(ctx, workspace, c, input)
-		for _, id := range n.processes {
-			if p, err := g.st.Q.GetProcess(ctx, id); err == nil {
-				n.projects = append(n.projects, p.ProjectID)
-			}
+	n := g.named(ctx, workspace, c, input)
+	for _, id := range n.processes {
+		if p, err := g.st.Q.GetProcess(ctx, id); err == nil {
+			n.projects = append(n.projects, p.ProjectID)
 		}
 	}
 	for _, id := range n.projects {

@@ -212,7 +212,10 @@ function FitLine({ it }: { it: Item }) {
   const ctx = useBlockContext();
   const open = opener(it.actions);
   // A plain open button goes, as on a screen; a line of a card is no button of its own, so the opener stays.
-  const [act] = useVisibleActions((it.actions ?? []).filter((a) => (!a.input || a.primary) && !(a === open && a.verb === 'open' && !a.primary)));
+  // A yes needs what it allows in sight: a line that cuts its text, such as a diff, offers none.
+  const cut = !!it.text?.includes('\n');
+  const [act] = useVisibleActions((it.actions ?? []).filter((a) => (!a.input || a.primary) && !(a === open && a.verb === 'open' && !a.primary)
+    && !(cut && a.verb?.startsWith('allow'))));
   const under = [it.text, it.meta].filter(Boolean).join(' · ');
   return (
     <div className={s.fitLine} data-item data-tone={it.tone} {...lineOpen(it.actions, ctx)}>

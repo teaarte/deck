@@ -250,6 +250,13 @@ func (c *changes) rollback() {
 	c.mu.Unlock()
 }
 
+// wrote says the transaction about to commit wrote a row.
+func (c *changes) wrote() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.pending) > 0
+}
+
 // open takes the writes of the transaction about to commit, with where the rows others lead through were.
 func (c *changes) open() ([]rowWrite, map[string]map[int64]place) {
 	c.mu.Lock()

@@ -101,7 +101,7 @@ func (s *Service) tell(ctx context.Context, a db.Ask, answer string) bool {
 	if _, needs := m.CommandNeed(t.Command); m.Command(t.Command) == nil || needs {
 		err = registry.Invalid("%s is not a command that runs without the owner", t.Command)
 	} else {
-		_, err = s.Start(context.WithoutCancel(ctx), proj.ID, m, t.Command, input, process.Origin{Key: key})
+		_, err = s.Runner.Start(context.WithoutCancel(ctx), proj.ID, m, t.Command, input, process.Origin{Key: key})
 	}
 	if err != nil {
 		slog.Error("trigger on ask", "project", proj.Name, "command", t.Command, "ask", a.ID, "err", err)

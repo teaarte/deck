@@ -156,7 +156,7 @@ func (s *Service) LateAnswer(ctx context.Context, q db.Ask) {
 	if !q.ProcessID.Valid {
 		return
 	}
-	if err := s.Deliver(ctx, q.ProcessID.Int64); err != nil {
+	if err := s.Runner.Deliver(ctx, q.ProcessID.Int64); err != nil {
 		slog.Error("deliver answer", "process", q.ProcessID.Int64, "err", err)
 	}
 	p, err := s.St.Q.GetProcess(ctx, q.ProcessID.Int64)

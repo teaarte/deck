@@ -171,7 +171,7 @@ func (s *Service) processRetry(ctx context.Context, act registry.Actor, in proce
 		input = json.RawMessage("{}")
 	}
 	before := store.Time(s.St.Now())
-	out, err := s.Call(ctx, gateway.Call{Who: act, Command: fmt.Sprintf("%s.%s", proj.Name, p.Command), Input: input})
+	out, err := s.Gateway.Call(ctx, gateway.Call{Who: act, Command: fmt.Sprintf("%s.%s", proj.Name, p.Command), Input: input})
 	if err != nil {
 		return out, err
 	}

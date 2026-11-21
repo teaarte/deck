@@ -4,6 +4,7 @@ package project
 
 import (
 	"context"
+	"deck2/internal/process"
 	"slices"
 
 	"deck2/internal/docs"
@@ -20,7 +21,8 @@ import (
 
 // Service keeps projects: their lifecycle, and their manifests with the checks, migrations and grants of a save.
 type Service struct {
-	St *store.Store
+	Runner *process.Runner
+	St     *store.Store
 	// Emit tells deck's observers of a change no write of the store tells.
 	Emit      func(events.Event)
 	Home      home.Layout
@@ -28,16 +30,12 @@ type Service struct {
 	Gateway   *gateway.Gateway
 	Scheduler *trigger.Scheduler
 	Scripts   *script.Exec
-	// LogPath is the log of a process; StopServer stops a running MCP server by its key.
-	LogPath    func(id int64) string
+	// StopServer stops a running MCP server by its key.
 	StopServer func(key string)
 	// Snapshot writes a snapshot before a delete.
 	Snapshot func(ctx context.Context, project int64) (string, error)
 	// PrepareLater records the health of the script commands of a project in the background.
 	PrepareLater func(projectID int64)
-	// Saw notes the revision of a document a running turn read or saved; Seen gives it back, 0 when none.
-	Saw  func(ctx context.Context, turn, doc, revision int64)
-	Seen func(ctx context.Context, q *db.Queries, turn, doc int64) (int64, error)
 	// Noted lists a change made without the owner.
 	Noted func(ctx context.Context, q *db.Queries, act registry.Actor, projectID int64, prev db.Document, n int64, text, what, reason string) error
 	// CheckScreens names the blocks of the screens of a saved manifest that fail on the data there is now.

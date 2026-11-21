@@ -169,8 +169,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Keep: a.Files.Keep, Thumb: a.Files.Thumb, Drop: a.Files.Drop}
 	a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Models.Works, Incident: a.Processes.Incident, IsFailure: a.Processes.IsFailure}
 	a.Documents = documents.Service{St: st, Sandbox: cfg.Sandbox, Missing: a.missingPrograms, Go: a.bg.Go,
-		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted, Home: h, Fits: a.Models.Fits,
-		Saw: a.Runner.Saw, Seen: a.Runner.Seen}
+		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted, Home: h, Fits: a.Models.Fits, Runner: a.Runner}
 	a.Snapshots = snapshots.Service{St: st, Emit: a.Bus.Emit, Home: h, Budget: cfg.SnapshotBudget, Still: a.Files.Still,
 		Expire: a.Records.Expire}
 	a.Nodes = node.NewHub(st.Now, func(device int64, online bool) {
@@ -206,8 +205,8 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			return a.Gateway.Count(ctx, &gateway.Session{Who: who})
 		}}
 	a.Web = web.Service{St: st, Route: a.Models.Route}
-	a.Answers = asks.Service{St: st, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver, Await: a.Bus.Await,
-		Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start, Lang: a.Chats.LangOf,
+	a.Answers = asks.Service{St: st, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Runner: a.Runner, Await: a.Bus.Await,
+		Go: a.bg.Go, Lang: a.Chats.LangOf,
 		Shown: func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, bool, error) {
 			return a.Chats.AnswerShown(ctx, act, q, answer)
 		}}
@@ -221,8 +220,8 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Feed = feed.Service{St: st,
 		Home: h, Call: a.Gateway.Call, Waiting: a.Answers.Waiting, Lang: a.Chats.Gives, Reads: a.Chats.LangOf,
 		FailedRuns: a.Processes.FailedRuns, FailingChecks: a.Health.FailingChecks}
-	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Call: a.Gateway.Call, Lookup: a.Registry.Lookup, Await: a.Bus.Await,
-		Works: a.Models.Works, Waits: a.Gateway.Waits}
+	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Gateway: a.Gateway, Lookup: a.Registry.Lookup, Await: a.Bus.Await,
+		Works: a.Models.Works}
 	a.Health = apphealth.Service{St: st, Image: cfg.Image != "", Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Models.Unassigned, NoSearch: a.Models.NoSearch, Missing: a.Models.Missing,
 		Works: a.Models.Works, Places: a.Models.Places, Go: a.bg.Go}
 	a.Screens = screens.Service{St: st, Registry: a.Registry, Call: a.Gateway.Call, Tell: a.Chats.Tell, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
@@ -231,18 +230,18 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Theme: a.Themes.Current}
 	a.Records = records.Service{St: st, Stop: a.Runner.Cancel}
 	a.Auth = auth.New(auth.Config{Home: h, Origins: cfg.Origins}, auth.Deps{Store: st})
-	a.Owners = owners.Service{St: st, MCPBase: cfg.MCPBase, Code: a.Auth.Code, Kick: a.Auth.Kick,
-		Origins: cfg.Origins.List, PushNew: a.Feed.PushNew, Node: a.Nodes.State, Probe: a.Nodes.Probe, Go: a.bg.Go}
+	a.Owners = owners.Service{St: st, MCPBase: cfg.MCPBase, Auth: a.Auth,
+		Origins: cfg.Origins.List, PushNew: a.Feed.PushNew, Hub: a.Nodes, Go: a.bg.Go}
 	a.Shots = shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Owners.Lend, Return: a.Owners.Return,
 		Themed: a.Themes.Exists}
 	a.Updates = updates.Service{St: st, Source: cfg.Releases, Version: cfg.Version, Commit: cfg.Commit, Variant: cfg.Variant, Image: cfg.Image,
 		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: a.bg.Go,
 		Snapshot: func(ctx context.Context) error { _, err := a.Snapshots.Snapshot(ctx); return err }}
 	a.Projects = project.Service{St: st, Emit: a.Bus.Emit, Home: h, Registry: a.Registry,
-		Gateway: a.Gateway, Scheduler: a.Scheduler, Scripts: a.Scripts, LogPath: a.Runner.LogPath, StopServer: a.Host.Stop, Snapshot: a.Snapshots.BeforeDelete,
+		Gateway: a.Gateway, Scheduler: a.Scheduler, Scripts: a.Scripts, Runner: a.Runner, StopServer: a.Host.Stop, Snapshot: a.Snapshots.BeforeDelete,
 		PrepareLater: a.Documents.PrepareLater, Noted: a.Feed.Noted, CheckScreens: a.Screens.CheckScreens,
 		Unassigned: a.Models.Unassigned, Missing: a.missingPrograms, Secret: a.Secrets.Has, DropSecrets: a.Secrets.Drop,
-		Theme: a.Themes.Current, Saw: a.Runner.Saw, Seen: a.Runner.Seen,
+		Theme:     a.Themes.Current,
 		Ungranted: a.Rights.Ungranted, GrantDeclared: a.Rights.GrantDeclared, Grant: a.Rights.Grant, TellRights: a.Rights.TellRights,
 		Starter: appmodules.Starter, ReadUpload: a.Modules.ReadUpload, ReadFolder: appmodules.ReadFolder, RestoreUpload: a.Modules.RestoreUpload}
 	a.Rights = rights.Service{St: st, Registry: a.Registry, StopServer: a.Host.Stop}

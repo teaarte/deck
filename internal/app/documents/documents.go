@@ -5,6 +5,7 @@ package documents
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/process"
 	"errors"
 	"fmt"
 	"slices"
@@ -24,6 +25,7 @@ import (
 
 // Service keeps the documents; Go runs the checks of scripts in the background.
 type Service struct {
+	Runner  *process.Runner
 	St      *store.Store
 	Sandbox *sandbox.Sandbox
 	// Missing reports the scripts of a project whose programs are not on the machine they run on, by script name.
@@ -37,9 +39,6 @@ type Service struct {
 	// Home is where the picture of the memory map is written; Fits are the models a command starts on, in order.
 	Home home.Layout
 	Fits func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
-	// Saw notes the revision of a document a running turn read or saved; Seen gives it back, 0 when none.
-	Saw  func(ctx context.Context, turn, doc, revision int64)
-	Seen func(ctx context.Context, q *db.Queries, turn, doc int64) (int64, error)
 }
 
 type documentView struct {
@@ -240,7 +239,7 @@ func (s *Service) documentGet(ctx context.Context, act registry.Actor, in docume
 	v := s.docView(ctx, d)
 	v.Revision, v.Text = r.N, r.Text
 	if r.N == d.Current && act.Live && act.ProcessID != 0 {
-		s.Saw(ctx, act.ProcessID, d.ID, r.N)
+		s.Runner.Saw(ctx, act.ProcessID, d.ID, r.N)
 	}
 	if r.N == d.Current {
 		if err := docs.CheckMemory(d.Kind, d.Name, r.Text); err != nil {
@@ -333,7 +332,7 @@ func (s *Service) documentSave(ctx context.Context, act registry.Actor, in docum
 		return nil, err
 	}
 	if act.Live && act.ProcessID != 0 && saved != 0 {
-		s.Saw(ctx, act.ProcessID, d.ID, saved)
+		s.Runner.Saw(ctx, act.ProcessID, d.ID, saved)
 	}
 	v := s.docView(ctx, d)
 	v.Warning = lessonWarning(ctx, s.St.Q, d, in.Text)
@@ -453,7 +452,7 @@ func (s *Service) behind(ctx context.Context, q *db.Queries, act registry.Actor,
 	if err != nil {
 		return err
 	}
-	seen, err := s.Seen(ctx, q, act.ProcessID, d.ID)
+	seen, err := s.Runner.Seen(ctx, q, act.ProcessID, d.ID)
 	if err != nil {
 		return err
 	}

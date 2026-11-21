@@ -241,9 +241,7 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		Payload: json.RawMessage(cmp.Or(q.Payload, "null")), CreatedAt: q.CreatedAt, ExpiresAt: q.ExpiresAt.String, Expired: q.State == ask.StateExpired, Link: ask.Link(q.ID)}
 	if q.ProcessID.Valid {
 		r.Who, r.By = s.processWho(ctx, q.ProcessID.Int64), s.processName(ctx, q.ProcessID.Int64)
-		if s.Said != nil {
-			r.Why = s.Said(q.ProcessID.Int64)
-		}
+		r.Why = s.Runner.Said(q.ProcessID.Int64)
 	}
 	switch q.Kind {
 	case ask.KindQuestion:

@@ -13,7 +13,6 @@ import (
 	"regexp"
 	"slices"
 	"strings"
-	"time"
 
 	"deck2/internal/auth"
 	"deck2/internal/manifest"
@@ -36,21 +35,16 @@ var (
 
 // Service keeps the devices and tokens.
 type Service struct {
+	Hub     *node.Hub
+	Auth    *auth.Auth
 	St      *store.Store
 	MCPBase string
 	loans   loans
-	// Code makes a code that pairs a device; Kick ends the open connections of a revoked device; Origins are the
-	// addresses of deck.
-	Code    func(workspace int64, kind, name string) (string, time.Time, error)
-	Kick    func(device int64)
+	// Origins are the addresses of deck.
 	Origins func() []auth.Origin
 	// PushNew pushes what came since the last push of a workspace.
 	PushNew func(ctx context.Context, workspace int64)
-	// Node is the state of the connection of a node; Probe asks a node which addresses of its machine answer and what
-	// of its folders deck may use.
-	Node  func(device int64) node.State
-	Probe func(ctx context.Context, device int64, addresses, paths []string) (node.Probed, error)
-	Go    func(func(ctx context.Context)) bool
+	Go      func(func(ctx context.Context)) bool
 }
 
 func tokenHash(raw string) string {

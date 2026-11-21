@@ -49,7 +49,7 @@ func (s *Service) manifestGet(ctx context.Context, act registry.Actor, in manife
 		return manifestView{}, err
 	}
 	if act.Live && act.ProcessID != 0 {
-		s.Saw(ctx, act.ProcessID, d.ID, d.Current)
+		s.Runner.Saw(ctx, act.ProcessID, d.ID, d.Current)
 	}
 	v := manifestView{Project: p.Name, Document: d.ID, Revision: d.Current, Manifest: r.Text}
 	v.Warnings = append(v.Warnings, s.problems(ctx, p)...)
@@ -83,7 +83,7 @@ func (s *Service) manifestSave(ctx context.Context, act registry.Actor, in manif
 	}
 	if whole && act.Live && act.ProcessID != 0 {
 		// A whole manifest of a turn goes only over the revision the turn read.
-		base, err := s.Seen(ctx, s.St.Q, act.ProcessID, d.ID)
+		base, err := s.Runner.Seen(ctx, s.St.Q, act.ProcessID, d.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -94,7 +94,7 @@ func (s *Service) manifestSave(ctx context.Context, act registry.Actor, in manif
 	}
 	saved, err := s.SaveManifest(ctx, act, p, []byte(in.Manifest), in.Reason, 0, in.IfRevision)
 	if err == nil && act.Live && act.ProcessID != 0 && saved.Revision != 0 {
-		s.Saw(ctx, act.ProcessID, d.ID, saved.Revision)
+		s.Runner.Saw(ctx, act.ProcessID, d.ID, saved.Revision)
 	}
 	return saved, err
 }

@@ -97,7 +97,7 @@ func (s *Service) deviceRevoke(ctx context.Context, act registry.Actor, in devic
 	if n == 0 {
 		return nil, registry.NotFound("no device %d that may still sign in", in.Device)
 	}
-	s.Kick(in.Device)
+	s.Auth.Kick(in.Device)
 	return registry.Result{Data: map[string]any{"revoked": in.Device}, Line: &registry.Line{Params: fmt.Sprintf(`{"device": %d}`, in.Device)}}, nil
 }
 
@@ -189,7 +189,7 @@ func (s *Service) passkeyRevoke(ctx context.Context, act registry.Actor, in pass
 		return nil, registry.NotFound("no passkey %d that may still sign in", in.Passkey)
 	}
 	for _, d := range devices {
-		s.Kick(d)
+		s.Auth.Kick(d)
 	}
 	return registry.Result{Data: map[string]any{"revoked": in.Passkey, "devices": devices},
 		Line: &registry.Line{Params: fmt.Sprintf(`{"passkey": %d}`, in.Passkey)}}, nil
@@ -218,7 +218,7 @@ func (s *Service) pairLink(ctx context.Context, act registry.Actor, in pairLinkI
 	if in.Kind == auth.Browser && len(auth.Links(s.Origins(), "")) == 0 {
 		return nil, registry.Refuse("a browser pairs with deck only over https or at deck.localhost on its machine, and deck has neither here; see Health for how to give deck an https address")
 	}
-	code, until, err := s.Code(act.Workspace, in.Kind, untrusted.Cut(strings.TrimSpace(in.Name), 80))
+	code, until, err := s.Auth.Code(act.Workspace, in.Kind, untrusted.Cut(strings.TrimSpace(in.Name), 80))
 	if err != nil {
 		return nil, err
 	}
@@ -265,7 +265,7 @@ func (s *Service) Welcome(ctx context.Context, signed bool) ([]string, error) {
 	if err != nil || len(spaces) == 0 {
 		return nil, err
 	}
-	code, _, err := s.Code(spaces[0], auth.Browser, "")
+	code, _, err := s.Auth.Code(spaces[0], auth.Browser, "")
 	if err != nil {
 		return nil, err
 	}

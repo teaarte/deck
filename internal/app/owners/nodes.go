@@ -53,7 +53,7 @@ func (s *Service) Nodes(ctx context.Context) {
 		return
 	}
 	for _, d := range nodes {
-		if !d.RevokedAt.Valid && !s.Node(d.ID).Online {
+		if !d.RevokedAt.Valid && !s.Hub.State(d.ID).Online {
 			s.nodeHealth(ctx, d.ID)
 		}
 	}
@@ -81,7 +81,7 @@ func (s *Service) nodeHealth(ctx context.Context, device int64) {
 	if err != nil {
 		return
 	}
-	st := s.Node(device)
+	st := s.Hub.State(device)
 	since := st.Since
 	if since.IsZero() {
 		since = parsed(cmp.Or(d.SeenAt.String, d.CreatedAt))
@@ -106,7 +106,7 @@ func (s *Service) nodeHealth(ctx context.Context, device int64) {
 			}
 		}
 		pctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		got, err := s.Probe(pctx, device, addrs, paths)
+		got, err := s.Hub.Probe(pctx, device, addrs, paths)
 		cancel()
 		var serves, silent, ports []string
 		for _, c := range conns {

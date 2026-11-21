@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/events"
+	"deck2/internal/settings"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -26,8 +27,6 @@ import (
 // Service reads the journal.
 type Service struct {
 	St *store.Store
-	// Zone is the owner's time zone of a workspace, whose days count.
-	Zone func(ctx context.Context, workspace int64) *time.Location
 	// Groups give the group of a model of a workspace where models are listed, in a language, and its place.
 	Groups func(ctx context.Context, workspace int64, lang string) func(model string) (string, int)
 	// Explain is how the gateway would decide a call now.
@@ -225,7 +224,7 @@ func day(loc *time.Location, minute string) string {
 
 // spendDaily is the tokens and cost of model calls of the last days by day, provider, project or both.
 func (s *Service) spendDaily(ctx context.Context, act registry.Actor, in spendDaysListIn) ([]spendDayView, error) {
-	loc := s.Zone(ctx, act.Workspace)
+	loc := settings.Zone(ctx, s.St.Q, act.Workspace)
 	since, days := s.window(loc, in.Days)
 	rows, err := s.St.Q.SpendSince(ctx, db.SpendSinceParams{WorkspaceID: act.Workspace, Since: since})
 	if err != nil {

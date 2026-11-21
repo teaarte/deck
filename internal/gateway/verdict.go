@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"context"
+	"deck2/internal/settings"
 	"encoding/json"
 	"slices"
 	"strings"
@@ -185,7 +186,7 @@ func (g *Gateway) exit(ctx context.Context, act registry.Actor, m *manifest.Mani
 	case m != nil && m.Names(n):
 		return false
 	}
-	return !(act.Kind == registry.Master && g.cfg.MarkedWeb != nil && g.cfg.MarkedWeb(ctx, act.Workspace))
+	return !(act.Kind == registry.Master && settings.MarkedWeb(ctx, g.st.Q, act.Workspace))
 }
 
 // over says the run of act has spent the least cap per run its module declares on the money needs spend: the cost

@@ -3,6 +3,7 @@ package gateway
 import (
 	"cmp"
 	"context"
+	"deck2/internal/settings"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -236,10 +237,7 @@ func (g *Gateway) term(ctx context.Context, c *registry.Command, workspace int64
 }
 
 func (g *Gateway) confirmTTL(ctx context.Context, workspace int64) time.Duration {
-	if g.cfg.ConfirmTTL == nil {
-		return 0
-	}
-	return g.cfg.ConfirmTTL(ctx, workspace)
+	return settings.ConfirmTTL(ctx, g.st.Q, workspace, g.cfg.ConfirmTTL)
 }
 
 // reasonOf is the reason the input of one of deck's commands gives, as document_propose does.

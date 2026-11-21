@@ -2,11 +2,12 @@ package process
 
 import (
 	"context"
+	"deck2/internal/settings"
 	"sync"
 )
 
 func (r *Runner) slotsOf(ctx context.Context, workspace int64) int {
-	return r.cfg.AgentSlots(ctx, workspace)
+	return settings.AgentSlots(ctx, r.st.Q, workspace)
 }
 
 // slot is the hold of a turn on one of the agent slots of a workspace; it goes back once, however often it is

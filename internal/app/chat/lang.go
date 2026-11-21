@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/settings"
 	"errors"
 	"regexp"
 	"strings"
@@ -46,7 +47,7 @@ func (s *Service) gives(ctx context.Context, workspace, topic int64) string {
 			return t.Lang
 		}
 	}
-	if l := s.Language(ctx, workspace); l != "auto" {
+	if l := settings.Language(ctx, s.St.Q, workspace); l != "auto" {
 		return l
 	}
 	return ""

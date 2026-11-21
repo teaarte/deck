@@ -100,10 +100,6 @@ type Config struct {
 	MCPBase string
 	// Hold keeps a snapshot from copying the base between the row of a kept file and its blob, until the func it gives.
 	Hold func() func()
-	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
-	AgentSlots func(ctx context.Context, workspace int64) int
-	// Zone is the owner's zone of a workspace, whose wall clock a cron slot reads.
-	Zone func(ctx context.Context, q *db.Queries, workspace int64) *time.Location
 }
 
 // Runner owns process lifecycles; its state is in the base. In memory it keeps handles and what a restart may lose,

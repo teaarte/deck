@@ -3,6 +3,7 @@ package trigger
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/settings"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -38,17 +39,15 @@ const (
 type Scheduler struct {
 	st    *store.Store
 	start Fire
-	// Zone is the owner's zone of a workspace; deck's own when nil.
-	Zone func(ctx context.Context, q *db.Queries, workspace int64) *time.Location
 }
 
 // at is t in the owner's zone of a project.
 func (s *Scheduler) at(ctx context.Context, q *db.Queries, project int64, t time.Time) time.Time {
 	p, err := q.GetProject(ctx, project)
-	if s.Zone == nil || err != nil {
+	if err != nil {
 		return t.In(time.Local)
 	}
-	return t.In(s.Zone(ctx, q, p.WorkspaceID))
+	return t.In(settings.Zone(ctx, q, p.WorkspaceID))
 }
 
 // Rezone moves the cron triggers of a workspace to their next slots in its zone, which the owner changed.

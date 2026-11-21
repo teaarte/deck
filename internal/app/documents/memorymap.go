@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"deck2/internal/events"
+	"deck2/internal/settings"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -317,10 +318,7 @@ func tone(on bool, t string) string {
 // picture writes the picture of what feeds what in the data folder of the master when it changed, in the language of
 // the workspace; its name with the version of its text.
 func (s *Service) picture(ctx context.Context, mp db.Project, m memoryMap) (string, error) {
-	lang := ""
-	if s.Language != nil {
-		lang = s.Language(ctx, mp.WorkspaceID)
-	}
+	lang := settings.Language(ctx, s.St.Q, mp.WorkspaceID)
 	svg := []byte(mapSVG(m, words.In(lang)))
 	sum := sha256.Sum256(svg)
 	dir := s.Home.Data(mp.ID)

@@ -41,10 +41,8 @@ type Service struct {
 	// Waiting are how many things wait for the owner, by project, as the menu counts them.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
 	// Hidden says the owner's pushes show only the module they are of; Lang is the language a push of a process
-	// speaks, that of its topic or of the settings, and Reads the one a reader reads a row of it in.
-	Hidden func(ctx context.Context, workspace int64) bool
-	Lang   func(ctx context.Context, workspace, process int64) string
-	Reads  func(ctx context.Context, workspace, process int64) string
+	Lang  func(ctx context.Context, workspace, process int64) string
+	Reads func(ctx context.Context, workspace, process int64) string
 	// Tailnet is the https address of deck on the owner's tailnet, empty while it is not on one.
 	Tailnet atomic.Pointer[string]
 

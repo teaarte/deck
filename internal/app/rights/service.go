@@ -3,9 +3,7 @@
 package rights
 
 import (
-	"context"
 	"slices"
-	"time"
 
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -13,9 +11,7 @@ import (
 
 // Service keeps the rights of the modules of a workspace and the owner's answers to them.
 type Service struct {
-	St *store.Store
-	// Zone is the owner's time zone of a workspace, whose days count.
-	Zone     func(ctx context.Context, workspace int64) *time.Location
+	St       *store.Store
 	Registry *registry.Registry
 	// StopServer stops a running MCP server by its key.
 	StopServer func(key string)

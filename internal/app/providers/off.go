@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"deck2/internal/settings"
 
 	"deck2/internal/health"
 	"deck2/internal/models"
@@ -35,7 +36,7 @@ func (s *Service) Off(ctx context.Context, workspace int64, name string) string 
 	if i, ok := pv.(provider.Installed); ok && !i.Installed() {
 		return health.Missing
 	}
-	if s.TurnedOff(ctx, workspace, pv.Name()) {
+	if settings.ProviderOff(ctx, s.St.Q, workspace, pv.Name()) {
 		return health.Off
 	}
 	return ""
@@ -78,7 +79,7 @@ func (s *Service) providerSwitch(ctx context.Context, act registry.Actor, in pro
 		return nil, registry.Invalid("%q is no built-in provider; a model of an agent is removed in Settings → Models", in.Provider)
 	}
 	if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return s.TurnOff(ctx, q, act.Workspace, in.Provider, in.Off)
+		return settings.SetProviderOff(ctx, q, act.Workspace, in.Provider, in.Off)
 	}); err != nil {
 		return nil, err
 	}

@@ -3,6 +3,7 @@ package rights
 import (
 	"cmp"
 	"context"
+	"deck2/internal/settings"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -57,7 +58,7 @@ func (s *Service) rightsReport(ctx context.Context, act registry.Actor, in right
 	if days < 1 || days > 180 {
 		return nil, registry.Invalid("days: from 1 to 180")
 	}
-	loc := s.Zone(ctx, act.Workspace)
+	loc := settings.Zone(ctx, s.St.Q, act.Workspace)
 	y, m, d := s.St.Now().In(loc).Date()
 	since := store.Time(time.Date(y, m, d-int(days-1), 0, 0, 0, 0, loc))
 	ws := words.In(registry.Lang(ctx))

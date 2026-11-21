@@ -55,8 +55,6 @@ type Service struct {
 	Facts func(ctx context.Context, workspace int64, lang string) func(model string) (note, logo, group string)
 	// Go runs work beside the calls unless deck stops; the replies it leaves go at the next tick.
 	Go func(func(context.Context)) bool
-	// Language is the language of the interface the workspace picked: auto, en or ru.
-	Language func(ctx context.Context, workspace int64) string
 	// Lookup is a command by name.
 	Lookup func(ctx context.Context, workspace int64, name string) (*registry.Command, error)
 	// Decisions are what processes wait for the owner to decide but their questions, each with its buttons.

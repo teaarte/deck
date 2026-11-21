@@ -37,8 +37,6 @@ type Service struct {
 	// Home is where the picture of the memory map is written; Fits are the models a command starts on, in order.
 	Home home.Layout
 	Fits func(ctx context.Context, projectID int64, cmd *manifest.Command) []string
-	// Language is the language of the interface of a workspace, the picture's.
-	Language func(ctx context.Context, workspace int64) string
 	// Saw notes the revision of a document a running turn read or saved; Seen gives it back, 0 when none.
 	Saw  func(ctx context.Context, turn, doc, revision int64)
 	Seen func(ctx context.Context, q *db.Queries, turn, doc int64) (int64, error)

@@ -1,22 +1,18 @@
-// Package settings keeps the settings the owner changes on the General tab; every other value of the
-// configuration stays in code.
+// Package settings holds the commands of the settings the owner changes on the General tab; internal/settings reads
+// them.
 package settings
 
 import (
-	"cmp"
 	"context"
-	"deck2/internal/events"
 	"encoding/json"
-	"fmt"
-	"slices"
-	"strconv"
 	"strings"
 	"time"
 
+	"deck2/internal/events"
 	"deck2/internal/registry"
+	"deck2/internal/settings"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
-	"deck2/internal/words"
 )
 
 // Service keeps the settings; DefaultTTL is deck's own wait of a confirmation, Wake lets turns waiting for a
@@ -27,157 +23,6 @@ type Service struct {
 	Wake       func(ctx context.Context)
 	// Rezone moves the schedules of a workspace to the zone the owner set.
 	Rezone func(ctx context.Context, workspace int64) error
-}
-
-// agentLimit is how many agent turns a workspace runs at once unless the owner set it.
-const agentLimit = 3
-
-// settingDef is a setting the owner changes in Settings; every other value of Config stays in code. A number lies from
-// min to max, steps the values offered to pick; a text is one of options.
-type settingDef struct {
-	name, title    string
-	min, max       int64
-	steps, options []string
-	// zone marks a setting whose value is the name of a time zone.
-	zone bool
-	def  func(s *Service) any
-}
-
-var settingDefs = []settingDef{
-	{name: "confirm_hours", title: "How long a confirmation or a question of an agent waits for the owner, hours", min: 1, max: 720,
-		steps: []string{"1", "2", "6", "12", "24", "48", "72", "168", "336", "720"},
-		def:   func(s *Service) any { return int64(s.DefaultTTL / time.Hour) }},
-	{name: "agent_limit", title: "Agent processes that run at once; scripts and tools do not count", min: 1, max: 20,
-		steps: []string{"1", "2", "3", "4", "5", "6", "8", "10", "15", "20"},
-		def:   func(*Service) any { return int64(agentLimit) }},
-	{name: "language", title: "Language of the interface; auto follows the device", options: []string{"auto", "en", "ru"},
-		def: func(*Service) any { return "auto" }},
-	{name: "push_text", title: "What a push shows on a locked screen", options: []string{"full", "hidden"},
-		def: func(*Service) any { return "full" }},
-	{name: "master_web", title: "Pages the master reads after it read text from outside: it asks you for each, or reads them by its right", options: []string{"ask", "always"},
-		def: func(*Service) any { return "ask" }},
-	{name: "time_zone", title: "Time zone of schedules and of the day, such as Europe/Oslo; deck's own when not set", zone: true,
-		steps: []string{"UTC", "Europe/London", "Europe/Berlin", "Europe/Oslo", "Europe/Kyiv", "Europe/Moscow", "Asia/Dubai", "Asia/Kolkata",
-			"Asia/Shanghai", "Asia/Tokyo", "Australia/Sydney", "America/Sao_Paulo", "America/New_York", "America/Chicago", "America/Los_Angeles"},
-		def: func(*Service) any { return "" }},
-}
-
-// setting is the value of a setting of a workspace, its default when the owner set none.
-func (s *Service) setting(ctx context.Context, workspace int64, name string) any {
-	return s.settingIn(ctx, s.St.Q, workspace, name)
-}
-
-// settingIn is setting read by q, as inside a transaction.
-func (s *Service) settingIn(ctx context.Context, q *db.Queries, workspace int64, name string) any {
-	d := settingDefs[slices.IndexFunc(settingDefs, func(d settingDef) bool { return d.name == name })]
-	v, err := q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: "setting:" + name})
-	switch {
-	case err != nil || v == "":
-		return d.def(s)
-	case d.options != nil || d.zone:
-		return v
-	}
-	if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
-		return n
-	}
-	return d.def(s)
-}
-
-// Language is the language of the interface the workspace picked: auto, en or ru.
-func (s *Service) Language(ctx context.Context, workspace int64) string {
-	return fmt.Sprint(s.setting(ctx, workspace, "language"))
-}
-
-// PushHidden says the pushes of the workspace show only the module they are of, not their text.
-func (s *Service) PushHidden(ctx context.Context, workspace int64) bool {
-	return s.setting(ctx, workspace, "push_text") == "hidden"
-}
-
-// AgentSlots is how many agent turns the workspace runs at once.
-func (s *Service) AgentSlots(ctx context.Context, workspace int64) int {
-	return int(s.setting(ctx, workspace, "agent_limit").(int64))
-}
-
-// MarkedWeb says the owner lets the master read pages by its right of always on a turn that read text from outside.
-func (s *Service) MarkedWeb(ctx context.Context, workspace int64) bool {
-	return s.setting(ctx, workspace, "master_web") == "always"
-}
-
-// Zone is the owner's time zone of the workspace, whose wall clock schedules and the day read; deck's own when unset.
-func (s *Service) Zone(ctx context.Context, workspace int64) *time.Location {
-	return s.ZoneIn(ctx, s.St.Q, workspace)
-}
-
-// ZoneIn is Zone read by q, as inside a transaction.
-func (s *Service) ZoneIn(ctx context.Context, q *db.Queries, workspace int64) *time.Location {
-	name := fmt.Sprint(s.settingIn(ctx, q, workspace, "time_zone"))
-	if loc, err := time.LoadLocation(name); err == nil && name != "" {
-		return loc
-	}
-	return time.Local
-}
-
-// ConfirmTTL is how long a confirmation of the workspace waits for the owner unless its tool sets its own.
-func (s *Service) ConfirmTTL(ctx context.Context, workspace int64) time.Duration {
-	return time.Duration(s.setting(ctx, workspace, "confirm_hours").(int64)) * time.Hour
-}
-
-// The owner's choices kept beside the settings of the list: the theme a workspace wears and the built-in providers
-// it turned off.
-const themeKey = "theme"
-
-func offKey(provider string) string { return "off:" + provider }
-
-// Theme is the name of the theme the workspace picked; empty when it picked none.
-func (s *Service) Theme(ctx context.Context, workspace int64) string {
-	v, _ := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: themeKey})
-	return v
-}
-
-// SetTheme puts a theme on the workspace.
-func (s *Service) SetTheme(ctx context.Context, q *db.Queries, workspace int64, name string) error {
-	return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: workspace, Key: themeKey, Value: name})
-}
-
-// ProviderOff says the owner turned a built-in provider of the workspace off.
-func (s *Service) ProviderOff(ctx context.Context, workspace int64, provider string) bool {
-	v, err := s.St.Q.GetSetting(ctx, db.GetSettingParams{WorkspaceID: workspace, Key: offKey(provider)})
-	return err == nil && v == "1"
-}
-
-// SetProviderOff turns a built-in provider of the workspace off or on again.
-func (s *Service) SetProviderOff(ctx context.Context, q *db.Queries, workspace int64, provider string, off bool) error {
-	value := ""
-	if off {
-		value = "1"
-	}
-	return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: workspace, Key: offKey(provider), Value: value})
-}
-
-// value is the stored text of a setting given as text; empty when it is not given.
-func (d settingDef) value(text string) (string, error) {
-	text = strings.TrimSpace(text)
-	if d.zone {
-		loc, err := time.LoadLocation(text)
-		if err != nil || text == "" {
-			return "", registry.Invalid("%s is the name of a time zone, such as Europe/Oslo or UTC, or Local for deck's own", d.name)
-		}
-		return loc.String(), nil
-	}
-	if text == "" || text == "0" && d.options == nil {
-		return "", nil
-	}
-	if d.options != nil {
-		if !slices.Contains(d.options, text) {
-			return "", registry.Invalid("%s is one of %s", d.name, strings.Join(d.options, ", "))
-		}
-		return text, nil
-	}
-	n, err := strconv.ParseInt(text, 10, 64)
-	if err != nil || n < d.min || n > d.max {
-		return "", registry.Invalid("%s is from %d to %d", d.name, d.min, d.max)
-	}
-	return strconv.FormatInt(n, 10), nil
 }
 
 type settingSetIn struct {
@@ -196,19 +41,12 @@ func widens(_ context.Context, _ registry.Actor, input json.RawMessage) (bool, e
 }
 
 func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settingSetIn) (any, error) {
-	i := slices.IndexFunc(settingDefs, func(d settingDef) bool { return d.name == in.Name })
-	if i < 0 {
-		return nil, registry.Invalid("no setting %q; deck.settings_list names them", in.Name)
-	}
-	v, err := settingDefs[i].value(in.Value)
+	v, err := settings.Value(in.Name, in.Value)
 	if err != nil {
 		return nil, err
 	}
-	if v == "" {
-		return nil, registry.Invalid("give %s a value", in.Name)
-	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.SetSetting(ctx, db.SetSettingParams{WorkspaceID: act.Workspace, Key: "setting:" + in.Name, Value: v})
+		return settings.Set(ctx, q, act.Workspace, in.Name, v)
 	})
 	if err != nil {
 		return nil, err
@@ -224,27 +62,12 @@ func (s *Service) settingsSet(ctx context.Context, act registry.Actor, in settin
 	return s.settingsList(ctx, act, settingsListIn{})
 }
 
-// settingRow is a setting of the workspace with its value and its default.
-type settingView struct {
-	Name    string `json:"name"`
-	Title   string `json:"title"`
-	Value   any    `json:"value"`
-	Default any    `json:"default"`
-	// Options are the values a setting takes from a list, or those offered for a number.
-	Options []string `json:"options,omitempty"`
-}
-
 type settingsListIn struct {
 	Lang string `opt:"" desc:"Language of the titles, such as ru; English without one"`
 }
 
-func (s *Service) settingsList(ctx context.Context, act registry.Actor, in settingsListIn) ([]settingView, error) {
-	out := make([]settingView, 0, len(settingDefs))
-	ws := words.In(registry.Lang(ctx))
-	for _, d := range settingDefs {
-		out = append(out, settingView{Name: d.name, Title: cmp.Or(ws[d.title], d.title), Value: s.setting(ctx, act.Workspace, d.name), Default: d.def(s), Options: append(d.options, d.steps...)})
-	}
-	return out, nil
+func (s *Service) settingsList(ctx context.Context, act registry.Actor, _ settingsListIn) ([]settings.View, error) {
+	return settings.List(ctx, s.St.Q, act.Workspace, s.DefaultTTL, registry.Lang(ctx)), nil
 }
 
 // Commands are the commands of settings.
@@ -256,14 +79,6 @@ func (s *Service) Commands() []*registry.Command {
 		registry.Def("setting_set", "Change setting",
 			"Sets one setting of the workspace to a value.",
 			registry.OwnerOnly, s.settingsSet).Stays().Fresh(widens).
-			Enum("name", names()...),
+			Enum("name", settings.Names()...),
 	}
-}
-
-func names() []string {
-	out := make([]string, 0, len(settingDefs))
-	for _, d := range settingDefs {
-		out = append(out, d.name)
-	}
-	return out
 }

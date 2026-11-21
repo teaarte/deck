@@ -5,6 +5,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/events"
+	"deck2/internal/settings"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -26,9 +27,7 @@ import (
 
 // Service keeps the triggers; the scheduler fires them, the gateway runs a trigger now.
 type Service struct {
-	St *store.Store
-	// Zone is the owner's time zone of a workspace, whose days count.
-	Zone      func(ctx context.Context, workspace int64) *time.Location
+	St        *store.Store
 	Scheduler *trigger.Scheduler
 	Gateway   *gateway.Gateway
 	// IsFailure says whether a process is an open failure, as the cockpit counts them.
@@ -178,7 +177,7 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		}
 		out = append(out, v)
 	}
-	ordered(out, s.St.Now().In(s.Zone(ctx, act.Workspace)))
+	ordered(out, s.St.Now().In(settings.Zone(ctx, s.St.Q, act.Workspace)))
 	return out, nil
 }
 

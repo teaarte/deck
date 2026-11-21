@@ -20,7 +20,7 @@ type Config struct {
 	ConfirmWait  time.Duration
 	// ConfirmTTL is how long a confirmation waits unless the owner set it; zero keeps it open.
 	ConfirmTTL time.Duration
-	// Now is the deck clock; every deadline is written and checked by it.
+	// Now is the clock the store of deck opens with, its one clock; the wall clock when nil.
 	Now func() time.Time
 	// Sandbox runs every foreign program in its box; the one of this machine when nil.
 	Sandbox *sandbox.Sandbox

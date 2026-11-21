@@ -3,7 +3,6 @@ package screens
 import (
 	"context"
 	"slices"
-	"time"
 
 	"deck2/internal/gateway"
 	"deck2/internal/provider"
@@ -15,9 +14,7 @@ import (
 // Service draws deck's screens and the menu: it reads as the viewer through the registry and counts through the
 // functions of the other services.
 type Service struct {
-	St *store.Store
-	// Zone is the owner's time zone of a workspace, whose days count.
-	Zone     func(ctx context.Context, workspace int64) *time.Location
+	St       *store.Store
 	Registry *registry.Registry
 	// Call makes a call through the gateway, as a block reads its source; Tell sends the owner's words to the master.
 	Call func(ctx context.Context, call gateway.Call) (registry.Result, error)
@@ -37,8 +34,6 @@ type Service struct {
 	ScreenFailed func(ctx context.Context, p db.Project, revision int64, name string, errs []string)
 	ScreenDrawn  func(ctx context.Context, p db.Project, name string, good []string)
 	File         func(ctx context.Context, p db.Project, ref any) (map[string]any, error)
-	// Language is the language of the interface the workspace picked.
-	Language func(ctx context.Context, workspace int64) string
 	// Theme is the name of the theme the workspace wears.
 	Theme func(ctx context.Context, workspace int64) string
 }

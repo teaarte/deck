@@ -2,6 +2,7 @@ package screens
 
 import (
 	"context"
+	"deck2/internal/settings"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -32,7 +33,7 @@ func (s *Service) widgetDraw(ctx context.Context, act registry.Actor, in widgetD
 	if _, _, ok := manifest.Size(in.Size); !ok {
 		return nil, registry.Invalid("a size of cells such as 4x2, not %q", in.Size)
 	}
-	ws := words.In(s.Language(ctx, act.Workspace))
+	ws := words.In(settings.Language(ctx, s.St.Q, act.Workspace))
 	b := []string{manifest.TrText(ws, fmt.Sprintf("Make a view of the card of module %s on the tiles for the size %s, columns by rows of cells: a widget of its manifest with min %s, of stat, list and chart blocks, that shows on this size what matters most of the module, by the skill widgets; save it with manifest_save.", p.Name, in.Size, in.Size))}
 	if w := strings.TrimSpace(in.Wish); w != "" {
 		b = append(b, manifest.TrText(ws, fmt.Sprintf("The owner wishes: %s", w)))

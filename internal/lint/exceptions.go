@@ -9,7 +9,7 @@ var exceptions = map[string][]string{
 		"internal/script/runtime.go:7",
 	},
 	"read": {
-		"cmd/deck-release/main.go:60", "internal/app/feed/push.go:66",
+		"cmd/deck-release/main.go:60", "internal/app/feed/push.go:67",
 		"internal/app/files/files.go:249", "internal/app/files/light.go:19", "internal/app/files/resource.go:72",
 		"internal/app/files/thumbs.go:88", "internal/app/files/thumbs.go:100", "internal/app/modules/module_data.go:338",
 		"internal/app/modules/module_zip.go:41", "internal/app/secrets/move.go:100", "internal/app/secrets/move.go:68", "internal/app/snapshots/snapshot.go:129",
@@ -35,8 +35,8 @@ var exceptions = map[string][]string{
 	},
 	"dropped": {
 		"internal/app/asks/consent.go:45", "internal/app/asks/consent.go:102", "internal/app/asks/heard.go:46",
-		"internal/app/asks/heard.go:109", "internal/app/feed/push.go:192",
-		"internal/app/feed/push.go:194", "internal/app/feed/push.go:319", "internal/app/files/files.go:203",
+		"internal/app/asks/heard.go:109", "internal/app/feed/push.go:193",
+		"internal/app/feed/push.go:195", "internal/app/feed/push.go:320", "internal/app/files/files.go:203",
 		"internal/app/files/outbox.go:37", "internal/app/files/outbox.go:40", "internal/app/processes/failures.go:123",
 		"internal/app/processes/failures.go:177", "internal/app/providers/agents.go:17", "internal/app/providers/agents.go:38",
 		"internal/app/providers/limit.go:146", "internal/app/providers/limit.go:203",

@@ -2,6 +2,7 @@ package themes
 
 import (
 	"context"
+	"deck2/internal/settings"
 	"fmt"
 	"slices"
 	"strings"
@@ -21,9 +22,9 @@ type coverDrawIn struct {
 
 // draw tells the master to draw covers in the mood of the theme in use, for its schemes; deck draws nothing itself.
 func (s *Service) draw(ctx context.Context, act registry.Actor, in coverDrawIn) (any, error) {
-	ws := words.In(s.Language(ctx, act.Workspace))
+	ws := words.In(settings.Language(ctx, s.St.Q, act.Workspace))
 	cur := s.Current(ctx, act.Workspace)
-	l, err := s.look(ctx, act.Workspace, cur, s.Language(ctx, act.Workspace))
+	l, err := s.look(ctx, act.Workspace, cur, settings.Language(ctx, s.St.Q, act.Workspace))
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +110,7 @@ type themeDrawIn struct {
 // drawPictures tells the master to draw the pictures of the theme in use: the scene of Today and what is behind the
 // page; deck draws nothing itself.
 func (s *Service) drawPictures(ctx context.Context, act registry.Actor, in themeDrawIn) (any, error) {
-	lang := s.Language(ctx, act.Workspace)
+	lang := settings.Language(ctx, s.St.Q, act.Workspace)
 	ws := words.In(lang)
 	cur := s.Current(ctx, act.Workspace)
 	l, err := s.look(ctx, act.Workspace, cur, lang)

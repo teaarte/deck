@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"deck2/internal/events"
+	"deck2/internal/settings"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,12 +29,8 @@ import (
 type Service struct {
 	St *store.Store
 	// Tell sends the owner's words to the master in a new topic of the chat.
-	Tell     func(ctx context.Context, act registry.Actor, text, model string) (any, error)
-	Language func(ctx context.Context, workspace int64) string
-	// Picked is the theme the owner put on a workspace, empty for none; Pick puts one on it.
-	Picked func(ctx context.Context, workspace int64) string
-	Pick   func(ctx context.Context, q *db.Queries, workspace int64, name string) error
-	Home   home.Layout
+	Tell func(ctx context.Context, act registry.Actor, text, model string) (any, error)
+	Home home.Layout
 	// Keep stores a file for a project as an upload; Thumb stores the light copy of a stored picture with its size
 	// and main color; Drop deletes the uploads a picture did not take.
 	Keep  func(ctx context.Context, act registry.Actor, project, name, ctype string, body io.Reader) (int64, error)
@@ -60,7 +57,7 @@ func (s *Service) text(ctx context.Context, q *db.Queries, ws int64, name string
 
 // Current is the name of the theme a workspace wears; a deleted one gives way to the default.
 func (s *Service) Current(ctx context.Context, ws int64) string {
-	name := s.Picked(ctx, ws)
+	name := settings.Theme(ctx, s.St.Q, ws)
 	if name == "" {
 		return theme.Default
 	}
@@ -350,7 +347,7 @@ func (s *Service) use(ctx context.Context, act registry.Actor, in themeNameIn) (
 		return nil, registry.Invalid("%v", err)
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return s.Pick(ctx, q, act.Workspace, in.Name)
+		return settings.SetTheme(ctx, q, act.Workspace, in.Name)
 	})
 	if err != nil {
 		return nil, err
@@ -421,7 +418,7 @@ func (s *Service) Settle(ctx context.Context) {
 		return
 	}
 	for _, ws := range wss {
-		name := s.Picked(ctx, ws)
+		name := settings.Theme(ctx, s.St.Q, ws)
 		if name == "" || s.Exists(ctx, ws, name) {
 			continue
 		}
@@ -430,7 +427,7 @@ func (s *Service) Settle(ctx context.Context) {
 			continue
 		}
 		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			if err := s.Pick(ctx, q, ws, theme.Default); err != nil {
+			if err := settings.SetTheme(ctx, q, ws, theme.Default); err != nil {
 				return err
 			}
 			return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.St.Now()), ProjectID: m.ID,

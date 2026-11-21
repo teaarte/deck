@@ -3,6 +3,7 @@ package screens
 import (
 	"context"
 	"deck2/internal/events"
+	"deck2/internal/settings"
 	"slices"
 
 	"deck2/internal/docs"
@@ -80,7 +81,7 @@ type menuGetIn struct {
 
 func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (menuOut, error) {
 	out := menuOut{Deck: menuEntry{Title: "deck"}, Projects: []menuEntry{}, System: []menuGroup{},
-		Language: s.Language(ctx, act.Workspace)}
+		Language: settings.Language(ctx, s.St.Q, act.Workspace)}
 	deckWords := wordsOf(registry.Lang(ctx), nil)
 	for _, name := range shipped().Menu {
 		sc := manifest.DeckScreen(name)

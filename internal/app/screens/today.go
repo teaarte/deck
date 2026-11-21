@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/events"
+	"deck2/internal/settings"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -92,7 +93,7 @@ func (s *Service) today(ctx context.Context, act registry.Actor, in todayGetIn) 
 		out = append(out, todayLineView{ID: "calm", Kind: "calm", Title: tr("All is well: nothing to decide, no failures."), Icon: "check", Tone: "ok"})
 	}
 	// The day is the owner's, in their zone, as the schedule and the spend count it.
-	loc := s.Zone(ctx, act.Workspace)
+	loc := settings.Zone(ctx, s.St.Q, act.Workspace)
 	y, m, d := s.St.Now().In(loc).Date()
 	done, err := s.St.Q.CountDoneSince(ctx, db.CountDoneSinceParams{Since: store.Time(time.Date(y, m, d, 0, 0, 0, 0, loc)), WorkspaceID: act.Workspace})
 	if err != nil {

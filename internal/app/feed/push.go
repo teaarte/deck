@@ -6,6 +6,7 @@ import (
 	"cmp"
 	"context"
 	"deck2/internal/events"
+	"deck2/internal/settings"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -208,7 +209,7 @@ func (s *Service) PushNew(ctx context.Context, workspace int64) {
 		}
 		return n
 	})
-	hidden := s.Hidden(ctx, workspace)
+	hidden := settings.PushHidden(ctx, s.St.Q, workspace)
 	for _, sub := range subs {
 	sources:
 		for _, src := range s.pushSources(hidden) {

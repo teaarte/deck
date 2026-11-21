@@ -31,9 +31,10 @@ type Service struct {
 	// Route finds where an actor's call of a model goes, the search of deck's settings for @search.
 	Route func(ctx context.Context, act registry.Actor, ask models.Ask) ([]models.Hop, error)
 
-	mu    sync.Mutex
-	slot  map[string]chan struct{}
-	cache map[string]found
+	mu      sync.Mutex
+	slot    map[string]chan struct{}
+	engines map[string]engines
+	cache   map[string]found
 }
 
 // Commands are the web of deck's agents.

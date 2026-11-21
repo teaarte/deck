@@ -742,3 +742,7 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   the owner answers each of its hosts in the module's rights; a no to it keeps the yes the owner gave one of its hosts
   since. Runs of triggers at once leave one such request.
   Modules: nothing to change.
+- 2026-11-22: `deck.web_search` waits at most 10 seconds for a busy search connection, then goes to the next search
+  of the role without blaming the busy one; it counts as engines a SearXNG asks the enabled ones of `general` that
+  are `web` too, by its `/config` read once in 5 minutes, and a SearXNG that names none answers no results as an answer.
+  Modules: nothing to change.

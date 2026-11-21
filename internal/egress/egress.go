@@ -354,5 +354,8 @@ func tunnel(ctx context.Context, w http.ResponseWriter, r *http.Request, target 
 func Unsent(err error) bool {
 	var op *net.OpError
 	var dns *net.DNSError
-	return errors.As(err, &op) && op.Op == "dial" || errors.As(err, &dns)
+	return errors.As(err, &op) && op.Op == "dial" || errors.As(err, &dns) || errors.Is(err, Held)
 }
+
+// Held is a request deck held back and did not send, such as one that waited too long for its turn.
+var Held = errors.New("the request waited too long for its turn and was not sent")

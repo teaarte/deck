@@ -90,6 +90,34 @@ func TestASearchThatOneEngineMissedMayFindNothing(t *testing.T) {
 	}
 }
 
+// TestASearchThatDoesNotTellItsWebEnginesMayFindNothing: a SearXNG whose /config names no web engine, as an older
+// one, answers no results as an answer; deck reads its /config once for a while.
+func TestASearchThatDoesNotTellItsWebEnginesMayFindNothing(t *testing.T) {
+	t.Parallel()
+	var configs atomic.Int32
+	old := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		if r.URL.Path == "/config" {
+			configs.Add(1)
+			harness.JsonReply(w, `{"engines": [{"name": "google", "categories": ["general"], "enabled": true}]}`)
+			return
+		}
+		harness.JsonReply(w, `{"results": [], "unresponsive_engines": [["google", "timeout"]]}`)
+	})
+	e := harness.New(t)
+	useSearch(e, "searxng", old.URL)
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
+	for _, q := range []string{"zxqv", "qvzx"} {
+		var got struct{ Results []any }
+		e.Must("deck.web_search", map[string]any{"query": q}, &got)
+		if len(got.Results) != 0 {
+			t.Fatalf("an empty answer: %+v", got)
+		}
+	}
+	if n := configs.Load(); n != 1 {
+		t.Fatalf("deck reads /config of a search once for a while: %d", n)
+	}
+}
+
 // TestASearchCachedForOneModuleIsNoneForAModuleWithoutSearch: a query a module searched is not answered from the
 // cache to a module whose search assignment differs.
 func TestASearchCachedForOneModuleIsNoneForAModuleWithoutSearch(t *testing.T) {
@@ -115,6 +143,42 @@ func TestASearchCachedForOneModuleIsNoneForAModuleWithoutSearch(t *testing.T) {
 	defer mu.Unlock()
 	if !strings.HasPrefix(got["look"], "false ") || !strings.HasPrefix(got["peek"], "true ") || !strings.Contains(got["peek"], "no search is set up") {
 		t.Fatalf("the module without search gets no search from the cache: %v", got)
+	}
+}
+
+// TestASearchThatWaitsTooLongForItsServiceGoesToTheNext: a query that waits too long for a busy search service goes
+// to the next search, and the busy one is not blamed for it.
+func TestASearchThatWaitsTooLongForItsServiceGoesToTheNext(t *testing.T) {
+	t.Parallel()
+	var held atomic.Int32
+	busy := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		held.Add(1)
+		select {
+		case <-r.Context().Done():
+		case <-time.After(time.Minute):
+		}
+	})
+	var failing atomic.Int32
+	spare := searxng(t, &failing)
+	e := harness.New(t)
+	useSearch(e, "busy", busy.URL)
+	useSearch(e, "spare", spare.URL)
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"busy", "spare"}}, nil)
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	for i := range 2 {
+		wg.Go(func() { _, _ = e.Call("deck.web_search", map[string]any{"query": fmt.Sprint("hold ", i)}) })
+	}
+	e.Until("both slots of the busy search held", func() bool { return held.Load() == 2 })
+	var got struct{ Search string }
+	e.Must("deck.web_search", map[string]any{"query": "deck"}, &got)
+	if got.Search != "spare" {
+		t.Fatalf("a query that waited too long goes to the next search: %+v", got)
+	}
+	for _, h := range e.Health() {
+		if h.Subject == "model:busy" && strings.Contains(h.Error, "broke off") {
+			t.Fatalf("the busy search is not blamed for a query it never got: %+v", h)
+		}
 	}
 }
 

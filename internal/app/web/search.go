@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"deck2/internal/egress"
 	"deck2/internal/fault"
 	"deck2/internal/health"
 	"deck2/internal/models"
@@ -45,6 +46,11 @@ const (
 	// takes; cacheFor how long a query is answered by its last results.
 	searching = 2
 	searchFor = 30 * time.Second
+	// slotWait is how long a search waits for a busy connection before it goes to the next.
+	slotWait = 10 * time.Second
+	// configFor is the most a read of the /config of a SearXNG takes; engineFor how long deck keeps what it said.
+	configFor = 5 * time.Second
+	engineFor = 5 * time.Minute
 	cacheFor  = 10 * time.Minute
 	cacheMax  = 500
 )
@@ -140,7 +146,7 @@ func (s *Service) answer(ctx context.Context, act registry.Actor, h models.Hop, 
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return found{}, fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: search %s answered what is not JSON; SearXNG needs json in search.formats of its settings: %s", h.Name, untrusted.Cut(string(raw), 300)))
 	}
-	if len(v.Results) == 0 && len(v.Unresponsive) > 0 && allDown(ctx, h, v.Unresponsive) {
+	if len(v.Results) == 0 && len(v.Unresponsive) > 0 && s.allDown(ctx, act, h, v.Unresponsive) {
 		engines := make([]string, 0, len(v.Unresponsive))
 		for _, e := range v.Unresponsive {
 			switch {
@@ -167,12 +173,28 @@ func (s *Service) answer(ctx context.Context, act registry.Actor, h models.Hop, 
 	return f, nil
 }
 
-// allDown says none of the web engines of the SearXNG of h answered, by its /config; a search that does not tell
-// its engines is taken as down.
-func allDown(ctx context.Context, h models.Hop, unresponsive [][]string) bool {
+// allDown says every web engine the SearXNG of h asks did not answer; one that names no such engine is not down.
+func (s *Service) allDown(ctx context.Context, act registry.Actor, h models.Hop, unresponsive [][]string) bool {
+	web := s.webEngines(ctx, fmt.Sprint(act.Workspace, "\x00", h.Connection), h)
+	return len(web) > 0 && !slices.ContainsFunc(web, func(name string) bool {
+		return !slices.ContainsFunc(unresponsive, func(u []string) bool { return len(u) > 0 && u[0] == name })
+	})
+}
+
+// webEngines are the engines a SearXNG asks for a plain query by its /config, kept for engineFor: the enabled ones
+// of general that are web too, since those also of translate or currency answer only queries of their own pattern.
+func (s *Service) webEngines(ctx context.Context, key string, h models.Hop) []string {
+	s.mu.Lock()
+	k, ok := s.engines[key]
+	s.mu.Unlock()
+	if ok && s.St.Now().Sub(k.at) < engineFor {
+		return k.names
+	}
+	ctx, cancel := context.WithTimeout(ctx, configFor)
+	defer cancel()
 	resp, err := models.Send(ctx, h.Target, models.Call{Method: http.MethodGet, Path: "config", Header: http.Header{"Accept": {"application/json"}}})
 	if err != nil {
-		return true
+		return nil
 	}
 	defer resp.Body.Close()
 	var c struct {
@@ -183,17 +205,27 @@ func allDown(ctx context.Context, h models.Hop, unresponsive [][]string) bool {
 		}
 	}
 	if resp.StatusCode >= 400 || json.NewDecoder(io.LimitReader(resp.Body, maxPage)).Decode(&c) != nil {
-		return true
+		return nil
 	}
+	names := []string{}
 	for _, e := range c.Engines {
-		if !e.Enabled || !slices.Contains(e.Categories, "general") || !slices.Contains(e.Categories, "web") {
-			continue
-		}
-		if !slices.ContainsFunc(unresponsive, func(u []string) bool { return len(u) > 0 && u[0] == e.Name }) {
-			return false
+		if e.Enabled && slices.Contains(e.Categories, "general") && slices.Contains(e.Categories, "web") {
+			names = append(names, e.Name)
 		}
 	}
-	return true
+	s.mu.Lock()
+	if s.engines == nil {
+		s.engines = map[string]engines{}
+	}
+	s.engines[key] = engines{at: s.St.Now(), names: names}
+	s.mu.Unlock()
+	return names
+}
+
+// engines are the web engines of a SearXNG as it said at.
+type engines struct {
+	at    time.Time
+	names []string
 }
 
 // slotted is the transport of a search connection that sends searching requests at once; a slot is free again once
@@ -204,8 +236,12 @@ type slotted struct {
 }
 
 func (t slotted) RoundTrip(r *http.Request) (*http.Response, error) {
+	wait := time.NewTimer(slotWait)
+	defer wait.Stop()
 	select {
 	case t.slots <- struct{}{}:
+	case <-wait.C:
+		return nil, egress.Held
 	case <-r.Context().Done():
 		return nil, r.Context().Err()
 	}

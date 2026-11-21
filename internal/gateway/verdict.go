@@ -62,6 +62,9 @@ func (g *Gateway) verdict(ctx context.Context, call Call, c *registry.Command, p
 			if c.Gate.Subject != nil {
 				v.Subject = c.Gate.Subject(ctx, registry.At{Workspace: act.Workspace, Project: project, Look: look}, input)
 				f.Marked, f.Instructs = true, v.Subject.Instructs
+				if v.err = v.Subject.Refused; v.err != nil {
+					f.Refused = v.err.Error()
+				}
 			}
 			// Its input goes out with a program of the module that holds a way out always.
 			n, ok, err := g.conduit(ctx, c)

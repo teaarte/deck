@@ -58,6 +58,8 @@ type Subject struct {
 	Unseen bool `json:"-"`
 	// Instructs says the call rewrites what deck runs: an instruction of an enabled module or of the workspace.
 	Instructs bool `json:"-"`
+	// Refused is the command's own refusal of the change, seen before the call is made.
+	Refused error `json:"-"`
 }
 
 // At is where a call's subject is looked at: its workspace and project, and whether deck may reach out to see it.

@@ -45,7 +45,7 @@ func (s *Service) saveSubject(ctx context.Context, at registry.At, input json.Ra
 			return registry.Subject{}
 		}
 		if next, err = docs.Edit(cur, in.Old, in.New, docs.Loose(in.Kind, in.Name)); err != nil {
-			return registry.Subject{}
+			return registry.Subject{Refused: err}
 		}
 	}
 	return docs.Rewrites(ctx, s.St.Q, sc, in.Kind, in.Name, next, false)

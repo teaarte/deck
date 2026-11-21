@@ -179,6 +179,66 @@ func TestAMarkedTurnChangesWhatAnEnabledModuleRunsOnlyByTheOwnersYes(t *testing.
 	})
 }
 
+// TestTheOwnersYesToAMarkedTurnsSkillOfTheMasterLeavesTheMasterClean: a marked turn's save of a skill of the master
+// waits with its change; the owner's yes writes it as the owner's, so the master's next turn that reads it is clean.
+func TestTheOwnersYesToAMarkedTurnsSkillOfTheMasterLeavesTheMasterClean(t *testing.T) {
+	t.Parallel()
+	page := injected(t, "https://example.com")
+	skill := "---\nname: dispatch\ndescription: Routes the owner's asks.\n---\nAsk the owner before you send."
+	var mu sync.Mutex
+	var saved string
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		switch c.Command() {
+		case "read":
+			return readPage(ctx, c, page.URL+"/a")
+		case "reply":
+			if strings.Contains(c.Req.Prompt, "rewrite dispatch") {
+				c.Tool(ctx, "records_list", map[string]any{"project": "pages", "collection": "ideas"})
+				// An edit whose old text occurs twice changes nothing.
+				bad, _ := c.Tool(ctx, "document_save", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md", "old": []string{"---"}, "new": []string{"--"}})
+				got, _ := c.Tool(ctx, "document_save", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md", "text": skill})
+				mu.Lock()
+				saved = bad + " " + got
+				mu.Unlock()
+			}
+			return provider.Result{Text: "done"}
+		}
+		return provider.Result{Text: "ok"}
+	}))
+	e.Project("pages", pagesManifest)
+	e.WaitState(e.Start("pages", "read", nil), "done")
+	e.MasterSaid(e.Say(0, "rewrite dispatch"), 1)
+	mu.Lock()
+	got := saved
+	mu.Unlock()
+	as := asksOf(e)
+	if !strings.Contains(got, "occurs 2 times") || !strings.Contains(got, `"waiting"`) || len(as) != 1 || !strings.Contains(fmt.Sprint(as[0]["change"]), "+ Ask the owner before you send.") {
+		t.Fatalf("a marked turn's edit that changes nothing is refused, its save of a skill of the master waits with its change: %s %+v", got, as)
+	}
+	var mods []struct{ Untrusted string }
+	e.Must("deck.projects_list", map[string]any{"project": "master"}, &mods)
+	if len(mods) != 1 || mods[0].Untrusted != "" {
+		t.Fatalf("a refused edit and a waiting save leave the master without a mark: %+v", mods)
+	}
+	e.Answer(int64(as[0]["id"].(float64)), "allow")
+	var d struct{ Text string }
+	e.Until("the skill the owner allowed", func() bool {
+		e.Must("deck.document_get", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md"}, &d)
+		return d.Text == skill
+	})
+	e.Must("deck.projects_list", map[string]any{"project": "master"}, &mods)
+	if len(mods) != 1 || mods[0].Untrusted != "" {
+		t.Fatalf("what the owner's yes wrote is the owner's: the master holds no mark: %+v", mods)
+	}
+	e.MasterSaid(e.Say(0, "hello"), 1)
+	var read string
+	// The reply's process, which the test does not hold.
+	_ = e.SQLRow(`SELECT read_untrusted FROM process WHERE command = 'reply' ORDER BY id DESC LIMIT 1`).Scan(&read)
+	if read != "" {
+		t.Fatalf("the master's next turn reads the skill the owner allowed and is clean: %q", read)
+	}
+}
+
 // TestAMarkedTurnSendsOnlyByTheOwnersOnceAndReadsANamedHostFreely: an agent that read a page sends by a tool allowed
 // always only by the owner's once, which offers no always; a host its module names it reads by its right.
 func TestAMarkedTurnSendsOnlyByTheOwnersOnceAndReadsANamedHostFreely(t *testing.T) {

@@ -70,12 +70,12 @@ func decide(f Facts) Row {
 		return Row{"owner", DoRun, "the owner's own call"}
 	case f.Marked && f.Instructs && !f.Cleared:
 		return Row{"instructs", DoAsk, "this turn read text from outside deck and holds something of value: it changes what an enabled module runs only with the owner's yes to this very change"}
-	case !f.Needs:
-		return Row{"in_deck", DoRun, "it needs no right of deck's catalog: it stays in deck"}
 	case f.Cleared:
 		return Row{"cleared", DoRun, "the owner's answer to its request, or the command it is the tool of, let it through"}
 	case f.Refused != "":
 		return Row{"refused", DoRefuse, f.Refused}
+	case !f.Needs:
+		return Row{"in_deck", DoRun, "it needs no right of deck's catalog: it stays in deck"}
 	case f.Draft && !f.Looks:
 		return Row{"draft", DoRefuse, "a draft or a trial run holds no answer of the owner, so it was declined"}
 	case f.Draft:

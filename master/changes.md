@@ -752,4 +752,8 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
 - 2026-11-22: A request of a module for hosts whose every host the owner answered in its rights, one with a no,
   closes refused, not as done; a run of a trigger asks for no host granted or refused a moment before, and requests
   of a right at first use made at once are one.
+- 2026-11-21: A change of what a module runs (a prompt, a skill, a script) that a turn which read text from outside
+  made by the owner's yes is the owner's: it no longer marks the module or the master, so the turns that read it later
+  are not marked by it. An edit of such a turn whose old text does not occur once is refused before anything is
+  asked or marked, with the same error as before.
   Modules: nothing to change.

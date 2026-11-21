@@ -172,6 +172,8 @@ func (s *Server) invoke(w http.ResponseWriter, r *http.Request) {
 		fail(w, err)
 		return
 	}
+	// What the call did: done, started a process, waits for the owner, changed nothing.
+	w.Header().Set("Deck-Effect", string(out.Effect))
 	// A read says the topics after which the client reads it again.
 	if c := registry.ReadOf(r.PathValue("name")); c != nil {
 		w.Header().Set("Deck-Topics", strings.Join(c.Topics, ","))

@@ -62,14 +62,14 @@ func (g *Gateway) automationEntry(token int64) *automationEntry {
 
 // CallTool makes the one call of the tool command command: a tool of the project is let through by the call of its
 // command when that command needs a right too; a builtin of deck, or any in a trial or a draft, is decided as any call.
-func (g *Gateway) CallTool(ctx context.Context, act registry.Actor, command, tool string, args []byte) (any, error) {
+func (g *Gateway) CallTool(ctx context.Context, act registry.Actor, command, tool string, args []byte) (registry.Result, error) {
 	c, err := g.reg.Lookup(ctx, act.Workspace, command)
 	if err != nil {
-		return nil, err
+		return registry.Result{}, err
 	}
 	p, err := g.st.Q.GetProject(ctx, act.ProjectID)
 	if err != nil {
-		return nil, err
+		return registry.Result{}, err
 	}
 	if t, err := g.reg.Lookup(ctx, act.Workspace, tool); err == nil && t.ProjectID == p.ID && !act.Trial && p.Status != store.ProjectDraft &&
 		c.Gated() {

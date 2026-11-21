@@ -38,7 +38,7 @@ type Service struct {
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
 	Now   func() time.Time
 	// Call makes a call through the gateway, as the owner's retry of a run starts its command again.
-	Call func(ctx context.Context, call gateway.Call) (any, error)
+	Call func(ctx context.Context, call gateway.Call) (registry.Result, error)
 	// Lookup is a command of the registry by its full name.
 	Lookup func(ctx context.Context, workspace int64, name string) (*registry.Command, error)
 	// Works is the work of the commands of a workspace in a language: its model and the models that could take it.

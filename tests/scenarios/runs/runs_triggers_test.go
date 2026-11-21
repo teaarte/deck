@@ -768,3 +768,25 @@ func TestTheOwnersZoneSetsTheClockOfSchedules(t *testing.T) {
 	e.Schedule()
 	e.Until("the run at 9:00 in the zone", func() bool { return e.CountOf("job") == 1 })
 }
+
+// TestAScheduleThatWaitsForTheOwnerSaysSo: a cron trigger whose call waits for the owner's yes tells it in the health
+// of its project, naming the request, rather than as a run that started nothing; the yes makes the call.
+func TestAScheduleThatWaitsForTheOwnerSaysSo(t *testing.T) {
+	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"id": "n"}`) })
+	e := harness.New(t, harness.WithClock())
+	e.Project("feed", harness.Manifest(fmt.Sprintf(`{"commands": [
+    {"name": "send", "title": "Send", "description": "Sends out.", "executor": {"type": "tool", "tool": "note"}}],
+  "triggers": [{"command": "send", "cron": "0 9 * * *"}],
+  "tools": {"http": [{"name": "note", "description": "d", "method": "POST", "url": "%s/n"}]},
+  "rights": [{"right": "send", "what": ["send", "note"], "why": "sends notes"}]}`, svc.URL)))
+	e.Clock.Add(25 * time.Hour)
+	e.Schedule()
+	a := e.WaitAsk()
+	h := e.WaitHealth("trigger:feed.send", "warning")
+	if want := fmt.Sprintf("waits for your answer to request #%d", a.ID); !strings.Contains(h.Error, want) || len(svc.Requests()) != 0 {
+		t.Fatalf("the schedule's health names the request it waits on (%q): %+v, %d requests", want, h, len(svc.Requests()))
+	}
+	e.Answer(a.ID, "allow")
+	e.Until("the call the yes makes", func() bool { return len(svc.Requests()) == 1 })
+}

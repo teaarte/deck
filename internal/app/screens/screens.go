@@ -20,7 +20,7 @@ type Service struct {
 	Zone     func(ctx context.Context, workspace int64) *time.Location
 	Registry *registry.Registry
 	// Call makes a call through the gateway, as a block reads its source; Tell sends the owner's words to the master.
-	Call func(ctx context.Context, call gateway.Call) (any, error)
+	Call func(ctx context.Context, call gateway.Call) (registry.Result, error)
 	Tell func(ctx context.Context, act registry.Actor, text, model string) (any, error)
 	// Waiting, Open and Failing count by project what waits for the owner, runs and fails; Failed and Unread are the
 	// failed runs and the notes not read.

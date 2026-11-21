@@ -175,15 +175,13 @@ func (s *Service) processRetry(ctx context.Context, act registry.Actor, in proce
 	if err != nil {
 		return out, err
 	}
-	var started struct{ Process int64 }
 	// A run already going under the same retry key is not one this retry started.
-	if b, err := json.Marshal(out); err == nil && json.Unmarshal(b, &started) == nil && started.Process != 0 && started.Process != p.ID &&
-		s.startedSince(ctx, started.Process, before) {
+	if started := out.Process; out.Effect == registry.Started && started != p.ID && s.startedSince(ctx, started, before) {
 		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			return q.SetFollows(ctx, db.SetFollowsParams{Follows: store.ID(p.ID), ID: started.Process})
+			return q.SetFollows(ctx, db.SetFollowsParams{Follows: store.ID(p.ID), ID: started})
 		})
 		if err == nil {
-			s.Runner.Carries(ctx, started.Process, process.Source{Process: p.ID, OfProcess: "the work it continues of process %d, which read %s"})
+			s.Runner.Carries(ctx, started, process.Source{Process: p.ID, OfProcess: "the work it continues of process %d, which read %s"})
 		}
 		return out, err
 	}

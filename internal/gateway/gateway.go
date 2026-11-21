@@ -428,13 +428,25 @@ func (g *Gateway) invoke(ctx context.Context, s *Session, name string, args json
 		return &mcp.CallToolResult{IsError: true, Content: []mcp.Content{&mcp.TextContent{Text: err.Error()}}}
 	}
 	b, _ := json.Marshal(out)
-	res := &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}}
-	if p, ok := out.(registry.Pictured); ok {
+	res := &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(b)}}, Meta: effectOf(out)}
+	if p, ok := out.Data.(registry.Pictured); ok {
 		for _, pic := range p.Pictures() {
 			res.Content = append(res.Content, &mcp.ImageContent{MIMEType: pic.Type, Data: pic.Data})
 		}
 	}
 	return res
+}
+
+// effectOf is the _meta of an answer of a tool: what the call did, the process it started, the ask it waits on.
+func effectOf(r registry.Result) mcp.Meta {
+	m := mcp.Meta{"effect": string(r.Effect)}
+	if r.Process != 0 {
+		m["process"] = r.Process
+	}
+	if r.Ask != 0 {
+		m["ask"] = r.Ask
+	}
+	return m
 }
 
 func (g *Gateway) log(ctx context.Context, s *Session, tool string, right registry.Need, outcome, params string) {

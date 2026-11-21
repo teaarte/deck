@@ -101,7 +101,7 @@ func (r *Runner) runCall(ctx context.Context, t turn, p db.Process, tool bool, c
 	}
 	defer u.close(r)
 	act := registry.ProcessOf(p, proj)
-	var out any
+	var out registry.Result
 	if tool {
 		out, err = r.gw.CallTool(ctx, act, proj.Name+"."+t.cmd.Name, name, input)
 	} else {
@@ -114,7 +114,7 @@ func (r *Runner) runCall(ctx context.Context, t turn, p db.Process, tool bool, c
 		r.apply(bg, u.process, Settle{Run: u, F: fault.OfCall(err)})
 		return
 	}
-	if _, ok := out.(gateway.Waiting); ok {
+	if out.Effect == registry.Waiting {
 		r.park(bg, id)
 		return
 	}

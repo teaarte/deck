@@ -45,7 +45,7 @@ func (g *Gateway) made(ctx context.Context, call Call, act registry.Actor, c *re
 			g.giveBack(ctx, act, c, input)
 		}
 		if err == errMadeAgain {
-			return l.kept, nil
+			return *l.kept, nil
 		}
 		return nil, err
 	}
@@ -209,7 +209,7 @@ type line struct {
 	// sent marks the intent of a call that acts outside deck; key is the call's key, kept what a call of it gave.
 	sent bool
 	key  *db.TakeCallKeyParams
-	kept json.RawMessage
+	kept *registry.Result
 }
 
 type lineKey struct{}

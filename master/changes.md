@@ -697,3 +697,10 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   Europe/Oslo): cron triggers run by its wall clock and move to it when it is set, and Today, the journal and the
   report of rights count the owner's day in it; deck's own zone (the `TZ` of its process) while it is not set.
   Modules: a cron of a manifest reads the owner's clock as before.
+- 2026-11-21: A call says what it did: the answer of `POST /api/commands/<name>` carries the header `Deck-Effect`
+  (`done`, `started`, `waiting` for the owner's answer, `unchanged`), and the answer of a tool of deck's MCP server
+  `_meta.effect` beside the process it started (`_meta.process`) or the request it waits on (`_meta.ask`); the data
+  of the answer is as before. A cron trigger whose call waits for the owner's answer says so in the health of its
+  project (`trigger:<project>.<command>`, a warning naming the request) until a run of it starts, where it said
+  nothing; a slot fired again after deck stopped names the run it started then.
+  Modules: nothing to change; a master that reads the health sees the trigger waiting for the owner.

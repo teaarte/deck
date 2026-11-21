@@ -32,7 +32,7 @@ type Call struct {
 
 // Call makes a call by the stages of an entry, the owner's too: entry, resolve, decide by the table, then before, run
 // and after, or waiting for the owner, or refused; the journal keeps it with the right it needs.
-func (g *Gateway) Call(ctx context.Context, call Call) (any, error) {
+func (g *Gateway) Call(ctx context.Context, call Call) (registry.Result, error) {
 	return g.call(ctx, call)
 }
 
@@ -42,7 +42,13 @@ func (call Call) journaled() bool {
 	return (call.Who.Kind != registry.Owner || call.answer != 0 || call.sends) && !call.Inside
 }
 
-func (g *Gateway) call(ctx context.Context, call Call) (any, error) {
+// call gives what the stages of a call gave as its result, with the effect its data says of itself.
+func (g *Gateway) call(ctx context.Context, call Call) (registry.Result, error) {
+	out, err := g.stages(ctx, call)
+	return registry.ResultOf(out), err
+}
+
+func (g *Gateway) stages(ctx context.Context, call Call) (any, error) {
 	act, name := call.Who, call.Command
 	act.Live = call.Live
 	act.Why = cmp.Or(act.Why, registry.WhyOf(call.Input))

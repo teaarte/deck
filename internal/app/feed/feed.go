@@ -35,7 +35,7 @@ type Service struct {
 	Now  func() time.Time
 	Home home.Layout
 	// Call makes a call through the gateway: the undo of a change, a button of a note as the caller that wrote it.
-	Call func(ctx context.Context, call gateway.Call) (any, error)
+	Call func(ctx context.Context, call gateway.Call) (registry.Result, error)
 	// FailedRuns are the open failed runs of a project, of every one for ""; FailingChecks its failing checks of
 	// health the owner has not read.
 	FailedRuns    func(ctx context.Context, act registry.Actor, project string) ([]process.FailedRun, error)

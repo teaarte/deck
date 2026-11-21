@@ -20,31 +20,26 @@ import (
 
 // Fire starts the command of a trigger through the gateway, keyed by its slot: a slot starts once, and a slot started
 // already gives no process of its own.
-func (s *Service) Fire(ctx context.Context, t db.Trigger, input map[string]any) (int64, error) {
+func (s *Service) Fire(ctx context.Context, t db.Trigger, input map[string]any) (registry.Result, error) {
 	return s.start(ctx, t, input, 0, fmt.Sprintf("trigger:%d:%s", t.ID, t.NextRunAt.String))
 }
 
 // Start starts the command of a trigger as the trigger, with parent as the process whose finish fired it.
-func (s *Service) Start(ctx context.Context, t db.Trigger, input map[string]any, parent int64) (int64, error) {
+func (s *Service) Start(ctx context.Context, t db.Trigger, input map[string]any, parent int64) (registry.Result, error) {
 	return s.start(ctx, t, input, parent, "")
 }
 
-func (s *Service) start(ctx context.Context, t db.Trigger, input map[string]any, parent int64, key string) (int64, error) {
+func (s *Service) start(ctx context.Context, t db.Trigger, input map[string]any, parent int64, key string) (registry.Result, error) {
 	p, err := s.St.Q.GetProject(ctx, t.ProjectID)
 	if err != nil {
-		return 0, err
+		return registry.Result{}, err
 	}
 	if key != "" {
 		delete(input, registry.RetryKey)
 	}
 	raw, _ := json.Marshal(input)
 	act := registry.TriggerOf(p.WorkspaceID, p.ID, t.ID, parent, false)
-	out, err := s.Gateway.Call(ctx, gateway.Call{Who: act, Command: p.Name + "." + t.Command, Input: raw, Key: key})
-	if err != nil {
-		return 0, err
-	}
-	started, _ := out.(process.Started)
-	return started.Process, nil
+	return s.Gateway.Call(ctx, gateway.Call{Who: act, Command: p.Name + "." + t.Command, Input: raw, Key: key})
 }
 
 // Hook fires the triggers that follow a command which handed in a result by its schema, or finished done with one;

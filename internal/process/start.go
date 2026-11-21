@@ -32,6 +32,8 @@ type Started struct {
 	Note string `json:"note,omitempty"`
 }
 
+func (s Started) Effect() (registry.Effect, int64) { return registry.Started, s.Process }
+
 // Origin is who started a process: the process that called or triggered it, the trigger, the retry key;
 // Trial asks for a trial run, which processes of a draft and children of a trial run always are.
 type Origin struct {

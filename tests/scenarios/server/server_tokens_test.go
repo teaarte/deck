@@ -308,7 +308,7 @@ func TestACallOfATokenThatWaitsForTheOwnerIsKept(t *testing.T) {
 func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
 	t.Parallel()
 	var inner atomic.Int64
-	var nested any
+	var nested registry.Result
 	var e *harness.Env
 	in := harness.Sends(registry.Def("inner_send", "Send inside", "Sends something outside deck.", registry.OwnerSide,
 		func(context.Context, registry.Actor, struct{}) (any, error) {
@@ -328,7 +328,7 @@ func TestAClearedCallDoesNotClearTheCallsItMakes(t *testing.T) {
 		t.Fatalf("the outer call waits for the owner: %d %s", code, body)
 	}
 	e.Answer(held.Waiting, "allow")
-	if w, ok := nested.(gateway.Waiting); inner.Load() != 0 || !ok || w.Ask == held.Waiting {
+	if inner.Load() != 0 || nested.Effect != registry.Waiting || nested.Ask == held.Waiting {
 		t.Fatalf("the yes to the outer call does not make the inner one, which waits for its own: %d calls, %v", inner.Load(), nested)
 	}
 }

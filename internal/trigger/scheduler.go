@@ -11,6 +11,7 @@ import (
 	"github.com/robfig/cron/v3"
 
 	"deck2/internal/health"
+	"deck2/internal/registry"
 
 	"deck2/internal/manifest"
 	"deck2/internal/store"
@@ -22,8 +23,9 @@ const (
 	KindAfter = "after"
 )
 
-// Fire starts the command of a trigger row with the given input.
-type Fire func(ctx context.Context, t db.Trigger, input map[string]any) (int64, error)
+// Fire starts the command of a trigger row with the given input: its result names the process it started or the ask
+// it waits on.
+type Fire func(ctx context.Context, t db.Trigger, input map[string]any) (registry.Result, error)
 
 // spread spaces missed runs apart; grace is how late a run may be before it counts as missed.
 const (
@@ -266,19 +268,30 @@ func (s *Scheduler) goesOn(ctx context.Context, t db.Trigger, id int64) bool {
 	return err == nil && p.TriggerID.Int64 != t.ID
 }
 
-// fire starts the command of a trigger and moves it on; why it did not start, or the run still going that took its
-// slot, is in the health of its project until a run of it starts.
+// fire starts the command of a trigger and moves it on; why it did not start, the owner's answer it waits for, or the
+// run still going that took its slot, is in the health of its project until a run of it starts.
 func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 	params, err := manifest.DecodeObject([]byte(t.Params))
-	var id int64
+	var res registry.Result
 	if err == nil {
-		id, err = s.start(ctx, t, params)
+		res, err = s.start(ctx, t, params)
 	}
 	if ctx.Err() != nil {
 		return
 	}
+	id := res.Process
 	p, perr := s.st.Q.GetProject(ctx, t.ProjectID)
 	subject := health.Trigger(p.Name, t.Command)
+	if err == nil && res.Effect == registry.Waiting {
+		s.after(ctx, t, now)
+		if perr == nil {
+			if err := health.Write(ctx, s.st, health.Project(p), subject, health.Warning,
+				fmt.Sprintf("the %s trigger did not start %s at %s: it waits for your answer to request #%d", t.Kind, t.Command, t.NextRunAt.String, res.Ask)); err != nil {
+				slog.Error("write health", "err", err)
+			}
+		}
+		return
+	}
 	if err == nil && id != 0 && s.goesOn(ctx, t, id) {
 		s.after(ctx, t, now)
 		if perr == nil {
@@ -295,7 +308,7 @@ func (s *Scheduler) fire(ctx context.Context, t db.Trigger, now time.Time) {
 				return health.Clear(ctx, q, health.Project(p), subject)
 			})
 		}
-		// The run moved its slot with it; a call held for the owner started none.
+		// The run moved its slot with it; a call that changed nothing started none.
 		if id == 0 {
 			s.after(ctx, t, now)
 		}

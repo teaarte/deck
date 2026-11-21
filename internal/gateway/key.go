@@ -31,7 +31,7 @@ func keyOf(act registry.Actor, c *registry.Command, input json.RawMessage, key s
 
 // claim takes the key of a call in the Tx of before, or gives what the call of that key gave; a key of a call still
 // being made, of one deck stopped making or of another command refuses the call.
-func (g *Gateway) claim(ctx context.Context, q *db.Queries, k db.TakeCallKeyParams) (json.RawMessage, error) {
+func (g *Gateway) claim(ctx context.Context, q *db.Queries, k db.TakeCallKeyParams) (*registry.Result, error) {
 	now := g.cfg.Now()
 	if err := q.ForgetCallKeys(ctx, store.Time(now.Add(-KeyKept))); err != nil {
 		return nil, err
@@ -50,7 +50,11 @@ func (g *Gateway) claim(ctx context.Context, q *db.Queries, k db.TakeCallKeyPara
 	case old.Result == "":
 		return nil, registry.Refuse("%s was made by this key already; what it gave is not given twice", k.Command)
 	default:
-		return json.RawMessage(old.Result), nil
+		var r kept
+		if err := json.Unmarshal([]byte(old.Result), &r); err != nil {
+			return nil, err
+		}
+		return &registry.Result{Effect: r.Effect, Data: r.Data, Process: r.Process, Ask: r.Ask}, nil
 	}
 	k.CreatedAt = store.Time(now)
 	return nil, q.TakeCallKey(ctx, k)
@@ -66,9 +70,19 @@ func (g *Gateway) keepKey(ctx context.Context, q *db.Queries, k db.TakeCallKeyPa
 	case err != nil:
 		state = "rejected"
 	default:
-		if b, merr := json.Marshal(out); merr == nil && len(b) <= maxKept && !c.Secret() {
+		r := registry.ResultOf(out)
+		if data, merr := json.Marshal(r); merr == nil && len(data) <= maxKept && !c.Secret() {
+			b, _ := json.Marshal(kept{Effect: r.Effect, Process: r.Process, Ask: r.Ask, Data: data})
 			result = string(b)
 		}
 	}
 	return q.SettleCallKey(ctx, db.SettleCallKeyParams{State: state, Result: result, WorkspaceID: k.WorkspaceID, Who: k.Who, Key: k.Key})
+}
+
+// kept is what a call of a key gave as deck keeps it: the effect with the data.
+type kept struct {
+	Effect  registry.Effect `json:"effect"`
+	Process int64           `json:"process,omitempty"`
+	Ask     int64           `json:"ask,omitempty"`
+	Data    json.RawMessage `json:"data"`
 }

@@ -24,6 +24,8 @@ type Waiting struct {
 	Link string `json:"link"`
 }
 
+func (w Waiting) Effect() (registry.Effect, int64) { return registry.Waiting, w.Ask }
+
 // Ref names the caller of a frozen call, so deck derives the caller again, by who, when it makes the call later: a
 // process, a token or a trigger with the process whose finish fired it; otherwise its kind in its project.
 type Ref struct {
@@ -195,6 +197,8 @@ type Unchanged struct {
 	Text      string `json:"text"`
 }
 
+func (Unchanged) Effect() (registry.Effect, int64) { return registry.Unchanged, 0 }
+
 // Outcome is what a frozen call gave when deck made it: the result, or the error text.
 type Outcome struct {
 	Result json.RawMessage `json:"result,omitempty"`
@@ -223,19 +227,19 @@ func (g *Gateway) print(ctx context.Context, workspace, project int64, name stri
 
 // Decide keeps the owner's answer to the right of a frozen call, then makes the call once and keeps what it gave; a
 // failing keep or owner's call opens the ask again. A call of the agent's turn gets the answer alone, not the call.
-func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, answer string) (any, error) {
+func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, answer string) (registry.Result, error) {
 	f, err := ask.Decode[Frozen](a.Payload)
 	if err != nil {
-		return nil, err
+		return registry.Result{}, err
 	}
 	if err := offered(f, answer); err != nil {
-		return nil, err
+		return registry.Result{}, err
 	}
 	if f.As == AsTurn || f.As == AsStart {
-		return nil, g.answerKept(ctx, owner, a, f, answer)
+		return registry.Result{}, g.answerKept(ctx, owner, a, f, answer)
 	}
 	if f.Tool != g.print(ctx, f.Who.Workspace, f.Who.Project, f.Call.Command, f.Call.Input) {
-		return nil, ErrChanged
+		return registry.Result{}, ErrChanged
 	}
 	n, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
 		n, err := q.ClaimDecision(ctx, db.ClaimDecisionParams{Answer: answer, ID: a.ID, Now: store.Time(g.cfg.Now())})
@@ -245,10 +249,10 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 		return n, q.StartDecision(ctx, sql.NullInt64{Int64: a.ID, Valid: true})
 	})
 	if err != nil {
-		return nil, err
+		return registry.Result{}, err
 	}
 	if n == 0 {
-		return nil, ask.ErrNotOpen
+		return registry.Result{}, ask.ErrNotOpen
 	}
 	reopen := func() {
 		_ = g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
@@ -257,7 +261,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 	}
 	if err := g.keep(ctx, owner, a, f, answer); err != nil {
 		reopen()
-		return nil, err
+		return registry.Result{}, err
 	}
 	act, err := owner, error(nil)
 	act.ProjectID = a.ProjectID.Int64
@@ -268,14 +272,14 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 			g.journal(ctx, act, a.ProjectID.Int64, f.Call.Command, needOf(f.Need), "rejected", string(f.Call.Input), err.Error())
 		}
 	}
-	var out any
+	var out registry.Result
 	if err == nil {
 		run := context.WithValue(context.WithoutCancel(ctx), approvedKey{}, f.Tool)
 		out, err = g.call(run, Call{Who: act, Command: f.Call.Command, Input: f.Call.Input, answer: a.ID})
 	}
 	if err != nil && f.As == AsOwner {
 		reopen()
-		return nil, err
+		return registry.Result{}, err
 	}
 	var o Outcome
 	if err != nil {

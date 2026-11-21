@@ -38,7 +38,7 @@ type Service struct {
 	// Go runs work beside the calls unless deck stops.
 	Go func(func(context.Context)) bool
 	// Call makes a call through the gateway, as the manager reads deck's lists.
-	Call func(ctx context.Context, call gateway.Call) (any, error)
+	Call func(ctx context.Context, call gateway.Call) (registry.Result, error)
 	// draining keeps one drain of the outbox at a time.
 	draining sync.Mutex
 	mu       sync.RWMutex

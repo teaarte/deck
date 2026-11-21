@@ -31,7 +31,7 @@ func (g *Gateway) Handler(tok string) http.Handler {
 			http.Error(w, err.Error(), fault.Status(err))
 			return
 		}
-		if _, ok := out.(Waiting); ok {
+		if out.Effect == registry.Waiting {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusAccepted)
 		}

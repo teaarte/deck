@@ -50,9 +50,10 @@ func (g *Gateway) claim(ctx context.Context, q *db.Queries, k db.TakeCallKeyPara
 	case old.Result == "":
 		return nil, registry.Refuse("%s was made by this key already; what it gave is not given twice", k.Command)
 	default:
+		// A key kept before deck kept the effect holds the data alone, done.
 		var r kept
-		if err := json.Unmarshal([]byte(old.Result), &r); err != nil {
-			return nil, err
+		if json.Unmarshal([]byte(old.Result), &r) != nil || r.Effect == "" {
+			return &registry.Result{Effect: registry.Done, Data: json.RawMessage(old.Result)}, nil
 		}
 		return &registry.Result{Effect: r.Effect, Data: r.Data, Process: r.Process, Ask: r.Ask}, nil
 	}

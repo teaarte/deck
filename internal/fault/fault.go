@@ -3,8 +3,6 @@
 package fault
 
 import (
-	"cmp"
-	"errors"
 	"net/http"
 	"slices"
 	"strings"
@@ -62,11 +60,26 @@ var refusals = map[string]int{
 	CallLimited: http.StatusTooManyRequests, CallUnkeyed: http.StatusPreconditionRequired,
 }
 
-// Refusal is the refusal at its entry err carries, nil for any other error.
-func Refusal(err error) *F {
-	var f *F
-	if errors.As(err, &f) && refusals[f.Type] != 0 {
+// Refusal is the refusal at its entry err carries anywhere in its chain, nil for none.
+func Refusal(err error) *F { return find(err, true) }
+
+// failure is the first failure err carries in its chain that is not a refusal, nil for none.
+func failure(err error) *F { return find(err, false) }
+
+// find is the first *F in the chain of err that is a refusal or is not, depth first as errors.As goes.
+func find(err error, refused bool) *F {
+	if f, ok := err.(*F); ok && (refusals[f.Type] != 0) == refused {
 		return f
+	}
+	switch u := err.(type) {
+	case interface{ Unwrap() error }:
+		return find(u.Unwrap(), refused)
+	case interface{ Unwrap() []error }:
+		for _, e := range u.Unwrap() {
+			if f := find(e, refused); f != nil {
+				return f
+			}
+		}
 	}
 	return nil
 }
@@ -120,8 +133,7 @@ func Of(err error) *F {
 	if err == nil {
 		return nil
 	}
-	var f *F
-	if errors.As(err, &f) && refusals[f.Type] == 0 {
+	if f := failure(err); f != nil {
 		return f
 	}
 	return &F{Type: DeckInternal, Text: err.Error()}
@@ -129,12 +141,11 @@ func Of(err error) *F {
 
 // OfCall is the failure of a call deck made: its own, a refusal's by its status, any other deck's own.
 func OfCall(err error) *F {
-	var f *F
-	switch {
-	case errors.As(err, &f) && refusals[f.Type] != 0:
-		return &F{Type: OfStatus(refusals[f.Type], false), Text: err.Error()}
-	case errors.As(err, &f):
+	if f := failure(err); f != nil {
 		return &F{Type: f.Type, Text: err.Error()}
+	}
+	if r := Refusal(err); r != nil {
+		return &F{Type: OfStatus(refusals[r.Type], false), Text: err.Error()}
 	}
 	return &F{Type: DeckInternal, Text: err.Error()}
 }
@@ -148,11 +159,13 @@ var statuses = map[string]int{
 // Status is the HTTP status deck answers a failed call with: a refusal's by its kind, a failure's by its type, else
 // 500.
 func Status(err error) int {
-	var f *F
-	if !errors.As(err, &f) {
-		return http.StatusInternalServerError
+	if r := Refusal(err); r != nil {
+		return refusals[r.Type]
 	}
-	return cmp.Or(refusals[f.Type], statuses[f.Type], http.StatusInternalServerError)
+	if f := failure(err); f != nil && statuses[f.Type] != 0 {
+		return statuses[f.Type]
+	}
+	return http.StatusInternalServerError
 }
 
 // Wrap keeps the failure of err under a prefix of what deck was doing.

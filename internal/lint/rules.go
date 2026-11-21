@@ -31,7 +31,7 @@ var rules = []rule{
 	{"deck", "a name of deck's command written out: take registry.Deck or registry.IsBuiltin", []string{"internal/", "cmd/"},
 		[]string{"internal/registry/", "internal/fault/", "internal/home/", "internal/lint/"}, deckName},
 	{"refusal", "a refusal built by hand or read by its kind: take a constructor of registry, read it by fault.Status or fault.Refusal",
-		[]string{"internal/", "cmd/"}, []string{"internal/registry/", "internal/fault/"}, refusalLit},
+		[]string{"internal/", "cmd/"}, []string{"internal/registry/", "internal/fault/", "internal/lint/"}, refusalLit},
 	{"secret", "a reference to a secret written out: take manifest.SecretRef or SecretPrefix", []string{"internal/", "cmd/"},
 		[]string{"internal/manifest/", "internal/lint/"}, secretLit},
 	{"exec", "a process started or a program looked up outside the sandbox: os/exec, LookPath and Setpgid are internal/sandbox's (sandbox.Find)", []string{"internal/", "cmd/"},
@@ -282,17 +282,19 @@ func deckName(f *ast.File, fset *token.FileSet) []int {
 	return out
 }
 
-// refusalLit are the lines that name a kind of refusal of fault (fault.Call…).
+// refusalLit are the lines that name a kind of refusal of fault: its constant (fault.Call…) or its text ("call.…").
 func refusalLit(f *ast.File, fset *token.FileSet) []int {
 	name := importName(f, "deck2/internal/fault")
-	if name == "" {
-		return nil
-	}
 	var out []int
 	ast.Inspect(f, func(n ast.Node) bool {
-		if s, ok := n.(*ast.SelectorExpr); ok && strings.HasPrefix(s.Sel.Name, "Call") {
-			if x, ok := s.X.(*ast.Ident); ok && x.Name == name {
-				out = append(out, fset.Position(s.Pos()).Line)
+		switch v := n.(type) {
+		case *ast.SelectorExpr:
+			if x, ok := v.X.(*ast.Ident); ok && name != "" && x.Name == name && strings.HasPrefix(v.Sel.Name, "Call") {
+				out = append(out, fset.Position(v.Pos()).Line)
+			}
+		case *ast.BasicLit:
+			if s, err := strconv.Unquote(v.Value); v.Kind == token.STRING && err == nil && strings.HasPrefix(s, "call.") {
+				out = append(out, fset.Position(v.Pos()).Line)
 			}
 		}
 		return true

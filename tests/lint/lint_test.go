@@ -72,7 +72,8 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		got = append(got, v.String())
 	}
 	all := strings.Join(got, "\n")
-	for _, not := range []string{"internal/app/z/z.go:10:", "internal/app/z/z.go:11:", "internal/app/z/z.go:14:", "internal/tools/t.go:18:", "internal/app/y/y.go:10:", "internal/app/y/y.go:11:", "q.sql:6:", "00099_x.sql:3:"} {
+	for _, not := range []string{"internal/app/z/z.go:10:", "internal/app/z/z.go:11:", "internal/app/z/z.go:14:", "internal/tools/t.go:18:", "internal/app/y/y.go:10:", "internal/app/y/y.go:11:", "q.sql:6:", "00099_x.sql:3:",
+		"internal/app/w/w.go:7:", "internal/app/w/w.go:8:"} {
 		if strings.Contains(all, not) {
 			t.Errorf("a line that breaks no rule is taken for a violation: %s in:\n%s", not, all)
 		}
@@ -94,6 +95,8 @@ func TestRulesOfGoCatchViolations(t *testing.T) {
 		"internal/app/y/y.go:7: a topic of events written out",
 		"internal/app/y/y.go:8: a topic of events written out",
 		"internal/app/y/y.go:9: a topic of events written out",
+		"internal/app/w/w.go:5: a refusal built by hand or read by its kind",
+		"internal/app/w/w.go:6: a refusal built by hand or read by its kind",
 		"internal/app/z/z.go:4: the error of a transaction thrown away",
 		"internal/app/z/z.go:5: the error of a transaction thrown away",
 		"internal/app/z/z.go:6: the error of a transaction thrown away",

@@ -162,8 +162,8 @@ func (g *Gateway) opened(ctx context.Context, q *db.Queries, c *registry.Command
 }
 
 // keep keeps the owner's answer to the right of a frozen call: always and no for its module, work for its process, and
-// once of a call the turn makes for that very call.
-func (g *Gateway) keep(ctx context.Context, owner registry.Actor, a db.Ask, f Frozen, answer string) error {
+// once of a call the turn makes for that very call; open refuses it when the ask has closed meanwhile.
+func (g *Gateway) keep(ctx context.Context, owner registry.Actor, a db.Ask, f Frozen, answer string, open bool) error {
 	var add *Allow
 	switch {
 	case (answer == AllowWork || answer == "allow" && f.As == AsStart) && f.Need != nil:
@@ -178,6 +178,9 @@ func (g *Gateway) keep(ctx context.Context, owner registry.Actor, a db.Ask, f Fr
 			kept = manifest.No
 		}
 		return g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+			if err := stillOpen(ctx, q, a.ID, open); err != nil {
+				return err
+			}
 			return docs.Grant(ctx, q, owner, a.ProjectID.Int64, *f.Need, kept, g.cfg.Now())
 		})
 	}
@@ -185,6 +188,9 @@ func (g *Gateway) keep(ctx context.Context, owner registry.Actor, a db.Ask, f Fr
 		return nil
 	}
 	return g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := stillOpen(ctx, q, a.ID, open); err != nil {
+			return err
+		}
 		p, err := q.GetProcess(ctx, f.Who.Process)
 		if err != nil {
 			return err
@@ -202,11 +208,8 @@ func (g *Gateway) Deny(ctx context.Context, owner registry.Actor, a db.Ask, answ
 	if err != nil {
 		return err
 	}
-	if a.State != ask.StateOpen {
-		return ask.ErrNotOpen
-	}
 	// The no is kept before the ask closes: the call its process makes again on waking sees it.
-	if err := g.keep(ctx, owner, a, f, answer); err != nil {
+	if err := g.keep(ctx, owner, a, f, answer, true); err != nil {
 		return err
 	}
 	if err := g.asks.Answer(ctx, a.ID, answer); err != nil {
@@ -214,6 +217,17 @@ func (g *Gateway) Deny(ctx context.Context, owner registry.Actor, a db.Ask, answ
 	}
 	if f.As != AsTurn {
 		g.Record(ctx, a, "rejected", "the owner said no")
+	}
+	return nil
+}
+
+// stillOpen refuses, when open asks it, a keep for an ask that another answer or its term closed meanwhile.
+func stillOpen(ctx context.Context, q *db.Queries, id int64, open bool) error {
+	if !open {
+		return nil
+	}
+	if a, err := q.GetAsk(ctx, id); err != nil || a.State != ask.StateOpen {
+		return cmp.Or(err, ask.ErrNotOpen)
 	}
 	return nil
 }

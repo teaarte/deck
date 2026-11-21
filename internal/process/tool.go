@@ -20,7 +20,7 @@ func (r *Runner) runTool(ctx context.Context, t turn, p db.Process) {
 		if !registry.IsBuiltin(name) {
 			name = proj.Name + "." + name
 		}
-		r.deps.Servers(context.WithoutCancel(ctx), t.project)
+		r.deps.Places.Servers(context.WithoutCancel(ctx), t.project)
 		tool, err := r.gw.Command(context.WithoutCancel(ctx), proj.WorkspaceID, name)
 		if err == nil {
 			err = manifest.FitsTool(*t.cmd, name, tool.Input)

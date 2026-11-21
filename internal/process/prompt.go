@@ -65,7 +65,7 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	if err != nil {
 		return "", err
 	}
-	instructions, err := r.deps.Prompt(ctx, t.project)
+	instructions, err := r.deps.Brief.Prompt(ctx, t.project)
 	if err != nil {
 		return "", err
 	}
@@ -77,7 +77,7 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	v.Writable = proj.Builtin == 0 && slices.Contains(tools, "document_save")
 	v.Learns = slices.Contains(tools, "document_save")
 	v.Writes, v.Data, v.Folder, v.StartNote = strings.Join(t.m.Writes, ", "), data, t.folder, proc.StartNote
-	memory, lessons, err := r.deps.Memory(ctx, proc, again)
+	memory, lessons, err := r.deps.Brief.Memory(ctx, proc, again)
 	if err != nil {
 		return "", err
 	}
@@ -86,7 +86,7 @@ func (r *Runner) firstPrompt(ctx context.Context, proj db.Project, t turn, tools
 	v.Memory, v.Lessons, v.Thread = memory.Body, lessons.Body, thread.Body
 	if t.m.EventCommand(manifest.OnMessage) != t.cmd.Name {
 		// The command that answers the owner's messages gets the language with each of them.
-		v.Language = words.Name(r.deps.Lang(ctx, proj.WorkspaceID, proc.ID))
+		v.Language = words.Name(r.deps.Brief.Gives(ctx, proj.WorkspaceID, proc.ID))
 	}
 	return master.Text("command", v), nil
 }

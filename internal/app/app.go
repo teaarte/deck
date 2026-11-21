@@ -158,10 +158,8 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		process.Config{Home: h, MCPBase: cfg.MCPBase, Hold: a.Files.Hold},
 		process.Deps{Store: st, Gateway: a.Gateway, Bus: a.Bus, Scripts: a.Scripts, Asks: a.Asks,
 			Hooks: []process.Hook{a.Chats.Hook(), a.Processes.Hook(), a.Triggers.Hook(), a.Answers.Hook()},
-			For:   a.Models.For, Next: a.Models.Next, Ahead: a.Models.Ahead, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Limited: a.Providers.Limited, Answered: a.Providers.Answered, Subscription: a.Providers.Subscription, Prompt: a.Documents.Prompt,
-			Text: a.Documents.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
-			Folders: a.Folders.Paths, ScriptsAt: a.Folders.ScriptsAt,
-			Memory: a.Chats.Memory, Lang: a.Chats.Gives, Programs: a.Documents.Programs})
+			For:   a.Models.For, Next: a.Models.Next, Ahead: a.Models.Ahead, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Limited: a.Providers.Limited, Answered: a.Providers.Answered, Subscription: a.Providers.Subscription,
+			Brief: brief{&a.Documents, &a.Chats}, Places: places{&a.Folders, &a.Signins, &a.Documents}})
 	a.Scheduler = trigger.New(st, a.Triggers.Fire)
 
 	a.Secrets = secrets.Service{St: st, Emit: a.Bus.Emit, Home: h}

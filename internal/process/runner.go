@@ -201,26 +201,9 @@ type Deps struct {
 	// Subscription is the connection of the CLI a provider runs on, empty for any other.
 	Answered     func(ctx context.Context, workspace int64, name string, ok bool, ws []provider.Window)
 	Subscription func(ctx context.Context, workspace int64, name string) string
-	Prompt       func(ctx context.Context, projectID int64) (string, error)
-	// Text is the current text of a project document of the kind, of any kind for ""; empty when missing.
-	Text func(ctx context.Context, projectID int64, kind, name string) (string, error)
-	// Skills are the files of the named skills: the project's own, else the workspace's, whose mark from holds.
-	Skills func(ctx context.Context, projectID int64, names []string) (files map[string]Text, err error)
-	// Servers starts the MCP servers of a project whose tools deck has not listed yet.
-	Servers func(ctx context.Context, projectID int64)
-	// Folder is the real path of the project folder an agent command works in, on the machine of its provider.
-	Folder func(ctx context.Context, projectID int64, f manifest.Folder, provider string) (string, error)
-	// Folders are the paths of the folders of a project on the machine of a node, deck's own for 0.
-	Folders func(ctx context.Context, projectID, node int64) []string
-	// ScriptsAt is where the scripts of a project run: on the node that holds its folders, else on deck.
-	ScriptsAt func(ctx context.Context, projectID int64) (Place, error)
-	// Memory is the memory a fresh session of the process gets, as data: the indexes and the lessons of its command
-	// in the memory of its project; empty when there are none. again is the same turn asking anew, its reads counted.
-	Memory func(ctx context.Context, p db.Process, again bool) (memory, lessons Text, err error)
-	// Lang is the language the owner reads what a process says in, as a code; "" when deck does not know it.
-	Lang func(ctx context.Context, workspace, process int64) string
-	// Programs looks for the programs of the scripts of a project again and writes the health of its commands.
-	Programs func(ctx context.Context, projectID int64) error
+	// Brief is what deck gives a turn, Places where the work of a project runs.
+	Brief  Brief
+	Places Places
 }
 
 func New(cfg Config, deps Deps) *Runner {

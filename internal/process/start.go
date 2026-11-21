@@ -173,7 +173,7 @@ func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Man
 		if _, err := r.commandBody(ctx, projectID, cmd); err != nil {
 			return at, err
 		}
-		if _, err := r.deps.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
+		if _, err := r.deps.Brief.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
 			return at, err
 		}
 		if o.Session != "" {
@@ -183,7 +183,7 @@ func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Man
 			if err := r.holdsFolder(ctx, projectID, m, cmd); err != nil {
 				return at, err
 			}
-			if at.folder, err = r.deps.Folder(ctx, projectID, cmd.Executor.Folder, at.provider); err != nil {
+			if at.folder, err = r.deps.Places.Folder(ctx, projectID, cmd.Executor.Folder, at.provider); err != nil {
 				return at, err
 			}
 		}
@@ -494,7 +494,7 @@ func ancestor(ctx context.Context, q *db.Queries, of, id int64) (bool, error) {
 // scriptSource is the current text of the script a command runs.
 func (r *Runner) scriptSource(ctx context.Context, projectID int64, m *manifest.Manifest, cmd *manifest.Command) (string, error) {
 	s := m.Script(cmd.Executor.Script)
-	src, err := r.deps.Text(ctx, projectID, "script", s.File)
+	src, err := r.deps.Brief.Text(ctx, projectID, "script", s.File)
 	if err != nil {
 		return "", err
 	}
@@ -508,7 +508,7 @@ func (r *Runner) commandBody(ctx context.Context, projectID int64, cmd *manifest
 	if cmd.Executor.PromptFile == "" {
 		return cmd.Executor.Prompt, nil
 	}
-	body, err := r.deps.Text(ctx, projectID, "", cmd.Executor.PromptFile)
+	body, err := r.deps.Brief.Text(ctx, projectID, "", cmd.Executor.PromptFile)
 	if err != nil {
 		return "", err
 	}

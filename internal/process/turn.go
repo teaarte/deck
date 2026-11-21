@@ -173,7 +173,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		fail(fault.Of(err))
 		return nil, false
 	}
-	r.deps.Servers(ctx, t.project)
+	r.deps.Places.Servers(ctx, t.project)
 	if len(t.cmd.Result) > 0 && !slices.Contains(pv.Caps(), provider.StructuredOutput) {
 		processID := t.process
 		a.sub = &gateway.Submit{Schema: t.cmd.Result, Validate: func(raw json.RawMessage) error { return validate(t.cmd, raw) },
@@ -195,7 +195,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 	a.run, a.tools = u, r.gw.Tools(u.tok)
 	tok, stream := u.tok, u.stream
 	a.cleanup = func() { u.close(r) }
-	read := r.deps.Folders(ctx, t.project, node)
+	read := r.deps.Places.Paths(ctx, t.project, node)
 	var box sandbox.Box
 	_, login := pv.(provider.Subscribed)
 	if now, granted, err := docs.Rights(ctx, r.st.Q, t.project); err == nil {
@@ -244,7 +244,7 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 		}
 	}
 	var skills map[string]Text
-	if skills, err = r.deps.Skills(ctx, t.project, t.cmd.Executor.Skills); err == nil {
+	if skills, err = r.deps.Brief.Skills(ctx, t.project, t.cmd.Executor.Skills); err == nil {
 		a.req.Skills = r.given(ctx, processID, skills)
 		t.input, _, err = r.inputFiles(ctx, t.cmd, t.project, processID, t.input, true)
 	}

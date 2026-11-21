@@ -44,8 +44,8 @@ func (r *Runner) runScript(ctx context.Context, t turn, p db.Process) {
 		fail(fault.New(fault.ScriptFailed, err.Error()))
 		return
 	}
-	r.deps.Servers(bg, t.project)
-	_ = r.deps.Programs(bg, t.project)
+	r.deps.Places.Servers(bg, t.project)
+	_ = r.deps.Places.Programs(bg, t.project)
 	u, f := r.begin(bg, t, proj, &gateway.Session{Who: registry.ProcessOf(p, proj)})
 	if f != nil {
 		u = &run{turn: t}
@@ -58,7 +58,7 @@ func (r *Runner) runScript(ctx context.Context, t turn, p db.Process) {
 		fail(fault.New(fault.InputInvalid, err.Error()))
 		return
 	}
-	place, err := r.deps.ScriptsAt(bg, t.project)
+	place, err := r.deps.Places.ScriptsAt(bg, t.project)
 	if err != nil {
 		fail(fault.OfCall(err))
 		return
@@ -111,7 +111,7 @@ func (r *Runner) onNode(ctx context.Context, t turn) bool {
 	if t.cmd.Executor.Type != KindScript {
 		return false
 	}
-	place, err := r.deps.ScriptsAt(ctx, t.project)
+	place, err := r.deps.Places.ScriptsAt(ctx, t.project)
 	return err == nil && place.On != nil && !r.callsItself(ctx, t.process)
 }
 

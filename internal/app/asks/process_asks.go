@@ -3,6 +3,7 @@ package asks
 import (
 	"context"
 	"database/sql"
+	"deck2/internal/store"
 	"encoding/json"
 	"errors"
 	"slices"
@@ -78,23 +79,23 @@ func (s *Service) pressAsks(ctx context.Context, act registry.Actor, in processA
 		out, _, err := s.asksOf(ctx, act, p.ID, p.ProjectID, registry.Lang(ctx))
 		return out, err
 	}
-	until, quiet, seen := time.Now().Add(processAsksWait), time.Now(), 0
+	watch, quiet, seen := store.Start(), time.Duration(0), 0
 	var out []pressAsk
 	err = s.Await(ctx, act.Workspace, []string{events.Asks, events.Processes}, func() (bool, time.Duration, error) {
 		var ended bool
 		var err error
-		now := time.Now()
+		now := watch.Elapsed()
 		if out, ended, err = s.asksOf(ctx, act, p.ID, p.ProjectID, registry.Lang(ctx)); len(out) != seen {
 			quiet, seen = now, len(out)
 		}
-		if err != nil || ended || !now.Before(until) || seen > 0 && now.Sub(quiet) > processAsksQuiet {
+		if err != nil || ended || now >= processAsksWait || seen > 0 && now-quiet > processAsksQuiet {
 			return true, 0, err
 		}
 		// Asks that stay as they are for the quiet window are all the run makes before it waits.
 		if seen > 0 {
-			return false, min(quiet.Add(processAsksQuiet+time.Millisecond).Sub(now), until.Sub(now)), nil
+			return false, min(quiet+processAsksQuiet+time.Millisecond-now, processAsksWait-now), nil
 		}
-		return false, until.Sub(now), nil
+		return false, processAsksWait - now, nil
 	})
 	return out, err
 }

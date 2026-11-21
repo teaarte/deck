@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"deck2/internal/store"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -76,7 +77,7 @@ func (o *OAuth) Access(ctx context.Context, p db.Project, domains []string, a ma
 	if err := json.Unmarshal([]byte(raw), &tok); err != nil || tok.AccessToken == "" {
 		return "", &ErrSignIn{Why: "the stored token does not parse"}
 	}
-	if !force && (tok.Expiry.IsZero() || time.Until(tok.Expiry) > time.Minute) {
+	if !force && (tok.Expiry.IsZero() || tok.Expiry.Sub(store.Wall()) > time.Minute) {
 		return tok.AccessToken, nil
 	}
 	if tok.RefreshToken == "" {
@@ -87,7 +88,7 @@ func (o *OAuth) Access(ctx context.Context, p db.Project, domains []string, a ma
 		return "", err
 	}
 	old := tok
-	old.Expiry = time.Now().Add(-time.Hour)
+	old.Expiry = store.Wall().Add(-time.Hour)
 	next, err := conf.TokenSource(context.WithValue(ctx, oauth2.HTTPClient, tokenClient(conf, domains)), &old).Token()
 	if err != nil {
 		var re *oauth2.RetrieveError

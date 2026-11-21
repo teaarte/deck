@@ -3,6 +3,7 @@ package files
 import (
 	"context"
 	"crypto/sha256"
+	"deck2/internal/store"
 	"encoding/hex"
 	"fmt"
 	"log/slog"
@@ -28,8 +29,8 @@ const (
 
 // Thumbs makes the light copies of the stored pictures deck has not tried yet, batch by batch for thumbsFor.
 func (s *Service) Thumbs(ctx context.Context) {
-	until, tried := time.Now().Add(thumbsFor), map[int64]bool{}
-	for ctx.Err() == nil && time.Now().Before(until) {
+	watch, tried := store.Start(), map[int64]bool{}
+	for ctx.Err() == nil && watch.Elapsed() < thumbsFor {
 		fs, err := s.St.Q.ListImagesWithoutThumb(ctx)
 		if err != nil || len(fs) == 0 || tried[fs[0].ID] {
 			return

@@ -25,7 +25,8 @@ type rule struct {
 }
 
 var rules = []rule{
-	{"now", "the wall clock outside the clock of deck: take Now of the config", []string{"internal/", "cmd/"}, nil, timeNow},
+	{"now", "the wall clock outside the clock of deck: take Store.Now, store.Wall for the world outside or store.Start for a wait or a meter",
+		[]string{"internal/", "cmd/"}, []string{"internal/store/clock.go"}, timeNow},
 	{"go", "a bare go statement in a domain: run it through Go of the background", []string{"internal/app/"}, nil, goStmt},
 	// fault names its types deck.<kind> and home its files deck.db, neither a command; deck.localhost is a host.
 	{"deck", "a name of deck's command written out: take registry.Deck or registry.IsBuiltin", []string{"internal/", "cmd/"},

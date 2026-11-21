@@ -2,15 +2,6 @@ package lint
 
 // exceptions are the places that break a rule today, by file:line; the lists only shrink.
 var exceptions = map[string][]string{
-	"now": {
-		"internal/app/asks/process_asks.go:81", "internal/app/asks/process_asks.go:86",
-		"internal/store/clock.go:10", "internal/app/files/thumbs.go:31",
-		"internal/app/files/thumbs.go:32", "internal/app/processes/processes.go:346",
-		"internal/app/processes/processes.go:343", "internal/app/processes/processes.go:366",
-		"internal/models/hops.go:214", "internal/models/hops.go:224",
-		"internal/models/meter.go:23", "internal/models/meter.go:32",
-		"internal/tools/oauth.go:79", "internal/tools/oauth.go:90",
-	},
 	// The trial of a command is the run of deck.command_try, which the gateway decided.
 	"handler": {"internal/app/project/drafts.go:95"},
 	"exec": {
@@ -20,7 +11,7 @@ var exceptions = map[string][]string{
 	"read": {
 		"cmd/deck-release/main.go:60", "internal/app/feed/push.go:66",
 		"internal/app/files/files.go:249", "internal/app/files/light.go:19", "internal/app/files/resource.go:72",
-		"internal/app/files/thumbs.go:87", "internal/app/files/thumbs.go:99", "internal/app/modules/module_data.go:338",
+		"internal/app/files/thumbs.go:88", "internal/app/files/thumbs.go:100", "internal/app/modules/module_data.go:338",
 		"internal/app/modules/module_zip.go:41", "internal/app/secrets/move.go:100", "internal/app/secrets/move.go:68", "internal/app/snapshots/snapshot.go:129",
 		"internal/app/secrets/secrets.go:124", "internal/app/secrets/secrets.go:52", "internal/app/secrets/secrets.go:77",
 		"internal/app/updates/updates.go:345", "internal/app/updates/updates.go:360",
@@ -72,12 +63,12 @@ var exceptions = map[string][]string{
 		"internal/egress/node.go:91", "internal/egress/node.go:94", "internal/files/files.go:105",
 		"internal/files/files.go:109", "internal/files/files.go:115", "internal/files/files.go:126",
 		"internal/files/light.go:43", "internal/files/light.go:57", "internal/home/home.go:140",
-		"internal/models/hops.go:404", "internal/node/hub.go:262", "internal/tools/body.go:99",
+		"internal/models/hops.go:405", "internal/node/hub.go:262", "internal/tools/body.go:99",
 		"internal/tools/browser.go:286", "internal/tools/content.go:21", "internal/tools/content.go:64",
 		"internal/tools/http.go:88", "internal/tools/http.go:162", "internal/tools/http.go:167",
 		"internal/tools/http.go:170", "internal/tools/http.go:177", "internal/tools/http.go:185",
-		"internal/tools/oauth.go:167", "internal/tools/oauth.go:171",
-		"internal/tools/oauth.go:97",
+		"internal/tools/oauth.go:168", "internal/tools/oauth.go:172",
+		"internal/tools/oauth.go:98",
 	},
 	"layers": {
 		"internal/tsnet/config.go:3", "internal/tsnet/off.go:3", "internal/tsnet/tsnet.go:3",

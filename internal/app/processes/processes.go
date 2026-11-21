@@ -340,10 +340,10 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		return processView{}, err
 	}
 	turn := act.Live && act.ProcessID != 0 && act.ProcessID != p.ID
-	until := time.Now().Add(min(time.Duration(max(in.Wait, 0))*time.Second, waitLimit(act)))
+	watch, until := store.Start(), min(time.Duration(max(in.Wait, 0))*time.Second, waitLimit(act))
 	if self, err := s.St.Q.GetProcess(ctx, act.ProcessID); act.ProcessID != 0 && err == nil && self.DeadlineMs.Valid {
 		left := time.UnixMilli(self.DeadlineMs.Int64).Sub(s.St.Now()) - ceilingMargin
-		if end := time.Now().Add(max(left, 0)); end.Before(until) {
+		if end := max(left, 0); end < until {
 			until = end
 		}
 	}
@@ -363,8 +363,8 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 			}
 		}
 		first = false
-		now := time.Now()
-		if !now.Before(until) {
+		now := watch.Elapsed()
+		if now >= until {
 			return true, 0, nil
 		}
 		// A wait goes on through the process another model took the work over to.
@@ -385,9 +385,9 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 		}
 		// A process that may hand on is looked at again once its grace may be over.
 		if soon {
-			return false, min(handOnGrace, until.Sub(now)), nil
+			return false, min(handOnGrace, until-now), nil
 		}
-		return false, until.Sub(now), nil
+		return false, until - now, nil
 	})
 	if err != nil {
 		return processView{}, err

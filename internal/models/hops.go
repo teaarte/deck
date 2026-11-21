@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"deck2/internal/store"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -211,7 +212,7 @@ func sendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 		if err != nil {
 			return nil, i, err
 		}
-		start := time.Now()
+		watch := store.Start()
 		resp, err := Send(ctx, h.Target, c)
 		if err == nil && c.Retry != nil && (resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusMethodNotAllowed) {
 			_ = resp.Body.Close()
@@ -221,7 +222,7 @@ func sendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 			release()
 			text := fmt.Sprintf("deck: %s: %v", h.Connection, err)
 			if h.Queue {
-				text = fmt.Sprintf("deck: the local model %s did not answer in %s (%d calls waited for it before): %v", h.Name, time.Since(start).Round(time.Second), waited, err)
+				text = fmt.Sprintf("deck: the local model %s did not answer in %s (%d calls waited for it before): %v", h.Name, watch.Elapsed().Round(time.Second), waited, err)
 			}
 			last = fault.New(fault.ModelUnavailable, text)
 			if egress.Unsent(err) {
@@ -280,7 +281,7 @@ func sendHops(ctx context.Context, hops []Hop, build func(Hop) (Call, error)) (*
 			continue
 		}
 		done, status := context.WithoutCancel(ctx), resp.StatusCode
-		resp.Body = &releasing{metered(resp.Body, start, chars(c.Body), func(u *provider.Usage) { h.Done(done, status, u) }), release}
+		resp.Body = &releasing{metered(resp.Body, watch, chars(c.Body), func(u *provider.Usage) { h.Done(done, status, u) }), release}
 		return resp, i, nil
 	}
 	return nil, -1, last

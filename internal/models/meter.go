@@ -2,6 +2,7 @@ package models
 
 import (
 	"bytes"
+	"deck2/internal/store"
 	"encoding/json"
 	"io"
 	"time"
@@ -11,7 +12,7 @@ import (
 )
 
 // metered passes an answer of a model API through and calls done with the usage it reports once it is read.
-func metered(body io.ReadCloser, start time.Time, sent int64, done func(*provider.Usage)) io.ReadCloser {
+func metered(body io.ReadCloser, watch store.Watch, sent int64, done func(*provider.Usage)) io.ReadCloser {
 	return &meter{body: body, done: func(model string, u *apiUsage) {
 		if u == nil && sent == 0 {
 			done(nil)
@@ -20,7 +21,7 @@ func metered(body io.ReadCloser, start time.Time, sent int64, done func(*provide
 		if u == nil {
 			u = &apiUsage{}
 		}
-		pu := u.usage(model, time.Since(start))
+		pu := u.usage(model, watch.Elapsed())
 		pu.Chars = sent
 		done(&pu)
 	}}
@@ -29,7 +30,7 @@ func metered(body io.ReadCloser, start time.Time, sent int64, done func(*provide
 // UsageOf is the usage an answer of a model API reports, such as the last poll of a job; nil when it says none.
 func UsageOf(raw []byte) *provider.Usage {
 	var got *provider.Usage
-	m := metered(io.NopCloser(bytes.NewReader(raw)), time.Now(), 0, func(u *provider.Usage) { got = u })
+	m := metered(io.NopCloser(bytes.NewReader(raw)), store.Start(), 0, func(u *provider.Usage) { got = u })
 	_, _ = io.Copy(io.Discard, m)
 	_ = m.Close()
 	return got

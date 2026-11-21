@@ -12,8 +12,8 @@ import (
 
 	"deck2/internal/access"
 	"deck2/internal/ask"
+	"deck2/internal/fault"
 	"deck2/internal/process"
-	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -53,7 +53,7 @@ func (s *Service) unheard(ctx context.Context, p db.Process, a db.Ask, why strin
 		return err
 	}
 	mp, err := access.Master(ctx, s.St.Q, proj.WorkspaceID)
-	if none := new(registry.Error); errors.As(err, &none) {
+	if fault.Refusal(err) != nil {
 		return nil
 	} else if err != nil {
 		return err

@@ -148,7 +148,7 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 	})
 	if err != nil && unread != nil && errors.Is(err, unread) && in.Kind == RoleTTS && merged(maps.Clone(h.Options), options)["voice"] == nil {
 		hint := fmt.Sprintf("model %s got no voice; when its service needs one, set voice in the options of the model (Settings, Models, edit)", h.Name)
-		if f := (*fault.F)(nil); errors.As(err, &f) {
+		if f := (*fault.F)(nil); errors.As(err, &f) && fault.Refusal(err) == nil {
 			err = fault.With(f.Type, err.Error(), hint)
 		} else {
 			err = registry.Invalid("%v\ndeck: %s", err, hint)

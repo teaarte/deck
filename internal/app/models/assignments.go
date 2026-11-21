@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"deck2/internal/docs"
+	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
 	"deck2/internal/models"
@@ -465,9 +466,8 @@ func (s *Service) Unassigned(ctx context.Context, workspace, project int64, m *m
 	out, pl := map[string]string{}, s.pool(workspace)
 	for _, c := range m.Commands {
 		if c.Executor.Type == "agent" {
-			var refused *registry.Error
 			fits, _, err := s.fittingIn(ctx, pl, project, &c)
-			if errors.As(err, &refused) {
+			if refused := fault.Refusal(err); refused != nil {
 				out[c.Name] = refused.Error()
 			} else if err == nil && c.Executor.Calls != nil && registry.Permits(c.Executor.Calls, registry.Deck("web_search")) {
 				// The first model that fits, as health tells of the assignment and not of who is up now.

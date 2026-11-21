@@ -16,7 +16,6 @@ import (
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/process"
-	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/untrusted"
@@ -221,7 +220,7 @@ func (s *Service) handOver(ctx context.Context, proj db.Project, on, key string,
 		})
 	}
 	mp, err := access.Master(ctx, s.St.Q, proj.WorkspaceID)
-	if none := new(registry.Error); errors.As(err, &none) {
+	if fault.Refusal(err) != nil {
 		return untaken("there is no master")
 	} else if err != nil {
 		return err

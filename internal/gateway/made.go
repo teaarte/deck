@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 
@@ -111,8 +110,7 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		if l.key != nil {
 			kept, err := g.claim(ctx, q, *l.key)
-			var re *registry.Error
-			if errors.As(err, &re) {
+			if fault.Refusal(err) != nil {
 				refused = err
 				return nil
 			}

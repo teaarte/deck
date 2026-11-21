@@ -17,6 +17,7 @@ var Tabled = map[string][]string{
 	"internal/api":      {"way"},
 	"internal/boxes":    {"For"},
 	"internal/egress":   {"Public", "listed", "destination"},
+	"internal/fault":    {"Status"},
 	"internal/gateway":  {"decide"},
 	"internal/home":     {"Within", "Resolve", "ReadIn", "Unpack", "RemoveIn", "Fresh"},
 	"internal/manifest": {"ToolRight", "Covers", "Keyed"},

@@ -30,8 +30,8 @@ var rules = []rule{
 	// fault names its types deck.<kind> and home its files deck.db, neither a command; deck.localhost is a host.
 	{"deck", "a name of deck's command written out: take registry.Deck or registry.IsBuiltin", []string{"internal/", "cmd/"},
 		[]string{"internal/registry/", "internal/fault/", "internal/home/", "internal/lint/"}, deckName},
-	{"refusal", "a refusal built by hand: take a constructor of registry or a failure of fault", []string{"internal/", "cmd/"},
-		[]string{"internal/registry/"}, refusalLit},
+	{"refusal", "a refusal built by hand or read by its kind: take a constructor of registry, read it by fault.Status or fault.Refusal",
+		[]string{"internal/", "cmd/"}, []string{"internal/registry/", "internal/fault/"}, refusalLit},
 	{"secret", "a reference to a secret written out: take manifest.SecretRef or SecretPrefix", []string{"internal/", "cmd/"},
 		[]string{"internal/manifest/", "internal/lint/"}, secretLit},
 	{"exec", "a process started or a program looked up outside the sandbox: os/exec, LookPath and Setpgid are internal/sandbox's (sandbox.Find)", []string{"internal/", "cmd/"},
@@ -282,19 +282,17 @@ func deckName(f *ast.File, fset *token.FileSet) []int {
 	return out
 }
 
-// refusalLit are the lines of composite literals of registry.Error.
+// refusalLit are the lines that name a kind of refusal of fault (fault.Call…).
 func refusalLit(f *ast.File, fset *token.FileSet) []int {
-	name := importName(f, "deck2/internal/registry")
+	name := importName(f, "deck2/internal/fault")
 	if name == "" {
 		return nil
 	}
 	var out []int
 	ast.Inspect(f, func(n ast.Node) bool {
-		if c, ok := n.(*ast.CompositeLit); ok {
-			if s, ok := c.Type.(*ast.SelectorExpr); ok && s.Sel.Name == "Error" {
-				if x, ok := s.X.(*ast.Ident); ok && x.Name == name {
-					out = append(out, fset.Position(c.Pos()).Line)
-				}
+		if s, ok := n.(*ast.SelectorExpr); ok && strings.HasPrefix(s.Sel.Name, "Call") {
+			if x, ok := s.X.(*ast.Ident); ok && x.Name == name {
+				out = append(out, fset.Position(s.Pos()).Line)
 			}
 		}
 		return true

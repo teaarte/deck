@@ -3,6 +3,7 @@
 package fault
 
 import (
+	"cmp"
 	"errors"
 	"net/http"
 	"slices"
@@ -35,6 +36,40 @@ const (
 	Killed  = "killed"
 	Stopped = "stopped"
 )
+
+// The kinds of a call refused at its entry, by who calls, what or the input; the text goes verbatim to the owner and
+// the agent. Only the constructors of registry make them.
+const (
+	CallRefused  = "call.refused"
+	CallInvalid  = "call.invalid"
+	CallNotFound = "call.not_found"
+	// CallConflict is a call made on a state that changed or ended since the caller read it.
+	CallConflict = "call.conflict"
+	// CallGone is a call on what is over already: the caller reads it again rather than tells it.
+	CallGone = "call.gone"
+	// CallUnsigned is a call from no one deck knows.
+	CallUnsigned = "call.unsigned"
+	// CallLimited is a call from an address that used up its tries for a while.
+	CallLimited = "call.limited"
+	// CallUnkeyed is a call of the owner that takes a passkey touched lately, from a session that has none.
+	CallUnkeyed = "call.unkeyed"
+)
+
+// refusals are the HTTP statuses of the kinds of a refusal.
+var refusals = map[string]int{
+	CallRefused: http.StatusForbidden, CallInvalid: http.StatusUnprocessableEntity, CallNotFound: http.StatusNotFound,
+	CallConflict: http.StatusConflict, CallGone: http.StatusGone, CallUnsigned: http.StatusUnauthorized,
+	CallLimited: http.StatusTooManyRequests, CallUnkeyed: http.StatusPreconditionRequired,
+}
+
+// Refusal is the refusal at its entry err carries, nil for any other error.
+func Refusal(err error) *F {
+	var f *F
+	if errors.As(err, &f) && refusals[f.Type] != 0 {
+		return f
+	}
+	return nil
+}
 
 // Whose a failure is.
 const (
@@ -80,13 +115,13 @@ func New(t, text string) *F { return &F{Type: t, Text: text} }
 // With is a failure of type t with its details.
 func With(t, text, details string) *F { return &F{Type: t, Text: text, Details: details} }
 
-// Of is the failure an error carries, or deck's own one with its text.
+// Of is the failure an error carries, or deck's own one with its text; a refusal is deck's own too.
 func Of(err error) *F {
 	if err == nil {
 		return nil
 	}
 	var f *F
-	if errors.As(err, &f) {
+	if errors.As(err, &f) && refusals[f.Type] == 0 {
 		return f
 	}
 	return &F{Type: DeckInternal, Text: err.Error()}
@@ -95,18 +130,14 @@ func Of(err error) *F {
 // OfCall is the failure of a call deck made: its own, a refusal's by its status, any other deck's own.
 func OfCall(err error) *F {
 	var f *F
-	var r refusal
 	switch {
+	case errors.As(err, &f) && refusals[f.Type] != 0:
+		return &F{Type: OfStatus(refusals[f.Type], false), Text: err.Error()}
 	case errors.As(err, &f):
 		return &F{Type: f.Type, Text: err.Error()}
-	case errors.As(err, &r):
-		return &F{Type: OfStatus(r.Refused(), false), Text: err.Error()}
 	}
 	return &F{Type: DeckInternal, Text: err.Error()}
 }
-
-// refusal is a call refused at its entry with a status of its own: the registry's refusal of the caller or the input.
-type refusal interface{ Refused() int }
 
 // statuses are the HTTP statuses of failures by type; any other is 500.
 var statuses = map[string]int{
@@ -114,17 +145,14 @@ var statuses = map[string]int{
 	Network: http.StatusBadGateway, RightsDenied: http.StatusForbidden, InputInvalid: http.StatusUnprocessableEntity,
 }
 
-// Status is the HTTP status deck answers a failed call with: a refusal's own, a failure's by its type, else 500.
+// Status is the HTTP status deck answers a failed call with: a refusal's by its kind, a failure's by its type, else
+// 500.
 func Status(err error) int {
-	var r refusal
 	var f *F
-	switch {
-	case errors.As(err, &r):
-		return r.Refused()
-	case errors.As(err, &f) && statuses[f.Type] != 0:
-		return statuses[f.Type]
+	if !errors.As(err, &f) {
+		return http.StatusInternalServerError
 	}
-	return http.StatusInternalServerError
+	return cmp.Or(refusals[f.Type], statuses[f.Type], http.StatusInternalServerError)
 }
 
 // Wrap keeps the failure of err under a prefix of what deck was doing.

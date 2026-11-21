@@ -30,8 +30,6 @@ import (
 // Service reads the web for deck's agents; the gateway journals each read.
 type Service struct {
 	St *store.Store
-	// Journal writes the line of a command that keeps its own in the journal of the gateway, a read of the web.
-	Journal func(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string)
 	// Route finds where an actor's call of a model goes, the search of deck's settings for @search.
 	Route func(ctx context.Context, act registry.Actor, ask models.Ask) ([]models.Hop, error)
 }
@@ -98,9 +96,9 @@ type searchView struct {
 
 // webSearch asks the search services assigned to search, the fallbacks after the first; the journal keeps the query,
 // the service and the address of each result.
-func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearchIn) (_ any, err error) {
+func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearchIn) (got any, err error) {
 	read := map[string]any{"query": in.Query}
-	defer func() { s.journalRead(ctx, act, "web_search", read, err) }()
+	defer func() { got = lineOf(act, got, read) }()
 	if strings.TrimSpace(in.Query) == "" {
 		return nil, registry.Invalid("a search needs a query")
 	}
@@ -164,9 +162,9 @@ type webFetchIn struct {
 
 // webFetch reads a page of the caller's sites as text: the words of an HTML page, a text or JSON one as it is; the
 // journal keeps the address asked and the one read after redirects.
-func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchIn) (_ any, err error) {
+func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchIn) (got any, err error) {
 	read := map[string]any{"url": in.URL}
-	defer func() { s.journalRead(ctx, act, "web_fetch", read, err) }()
+	defer func() { got = lineOf(act, got, read) }()
 	domains, err := s.webDomains(ctx, act)
 	if err != nil {
 		return nil, err
@@ -199,14 +197,9 @@ func (s *Service) webFetch(ctx context.Context, act registry.Actor, in webFetchI
 		"truncated": len(text) > maxPageText}, nil
 }
 
-// journalRead writes a read of the web to the journal of the gateway with what it read, done or rejected; a read cut
-// short is written too.
-func (s *Service) journalRead(ctx context.Context, act registry.Actor, name string, read map[string]any, err error) {
-	ctx = context.WithoutCancel(ctx)
-	outcome, text := "done", ""
-	if err != nil {
-		outcome, text = "rejected", err.Error()
-	}
+// lineOf is the result of a read of the web with its own line of the journal: what it read, done or rejected, with
+// the host it read as the subject of the network; a read cut short keeps its line too.
+func lineOf(act registry.Actor, out any, read map[string]any) registry.Result {
 	raw, _ := json.Marshal(read)
 	n := registry.Need{Right: manifest.Network, Who: manifest.Agents}
 	if u, ok := read["url"].(string); ok {
@@ -214,7 +207,7 @@ func (s *Service) journalRead(ctx context.Context, act registry.Actor, name stri
 			n.Subject = at.Hostname()
 		}
 	}
-	s.Journal(ctx, act, act.ProjectID, registry.Deck(name), n, outcome, string(raw), text)
+	return registry.Result{Data: out, Line: &registry.Line{Need: n, Params: string(raw), Project: act.ProjectID}}
 }
 
 // skipped are the elements whose content is no text of a page.

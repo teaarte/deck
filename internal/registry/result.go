@@ -14,12 +14,21 @@ const (
 )
 
 // Result is what a call gives: its effect, the data by the command's result schema, the process it started and the
-// ask it waits on. Its JSON is the data alone.
+// ask it waits on; a command that keeps its own line of the journal gives it as Line. Its JSON is the data alone.
 type Result struct {
 	Effect  Effect
 	Data    any
 	Process int64
 	Ask     int64
+	Line    *Line
+}
+
+// Line is the line of the journal a command keeps of its call itself, failed too: the right with the subject it acted
+// on and the params it shows in place of its input; Project is the project of the line, 0 for its workspace.
+type Line struct {
+	Need    Need
+	Params  string
+	Project int64
 }
 
 func (r Result) MarshalJSON() ([]byte, error) { return json.Marshal(r.Data) }
@@ -32,6 +41,11 @@ type Effected interface{ Effect() (Effect, int64) }
 func ResultOf(out any) Result {
 	switch v := out.(type) {
 	case Result:
+		if v.Effect == "" {
+			r := ResultOf(v.Data)
+			r.Line = v.Line
+			return r
+		}
 		return v
 	case Effected:
 		e, id := v.Effect()

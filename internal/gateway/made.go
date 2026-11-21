@@ -49,7 +49,7 @@ func (g *Gateway) made(ctx context.Context, call Call, act registry.Actor, c *re
 		}
 		return nil, err
 	}
-	out, sent, err := g.run(context.WithValue(ctx, lineKey{}, l), act, c, input)
+	out, sent, err := g.run(ctx, act, c, input)
 	var change *db.AddFeedParams
 	if err == nil && v.Does == DoShow {
 		what := cmp.Or(v.Subject.Where, untrusted.Cut(Canonical(input), 300))
@@ -95,7 +95,7 @@ func (g *Gateway) run(ctx context.Context, act registry.Actor, c *registry.Comma
 // before writes, in one Tx before a call runs, its marks and its line in the journal, making or the intent of a call
 // outside deck, but for one the journal does not keep; a failed Tx or an identical open intent refuses the call.
 func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict, right registry.Need, params string) (*line, error) {
-	l := &line{tool: c.Name, sent: c.Sender != nil}
+	l := &line{sent: c.Sender != nil}
 	if call.Inside {
 		return l, nil
 	}
@@ -151,8 +151,8 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 	return l, nil
 }
 
-// after writes, in one Tx, the outcome on the line or intent of a call, that its run wrote, and the change shown to
-// the owner; a failed Tx leaves the line making or started, which Recover makes unknown.
+// after writes, in one Tx, the outcome of a call on its line or intent, or the line its command keeps, that it wrote,
+// and the change shown to the owner; a failed Tx leaves the line making or started, which Recover makes unknown.
 func (g *Gateway) after(ctx context.Context, call Call, act registry.Actor, c *registry.Command, project int64, right registry.Need, params string, l *line,
 	out any, sent registry.Sent, print string, err error, change *db.AddFeedParams) {
 	outcome, text := "done", ""
@@ -160,7 +160,8 @@ func (g *Gateway) after(ctx context.Context, call Call, act registry.Actor, c *r
 		outcome, text = "rejected", err.Error()
 	}
 	wrote := err == nil && writes(act, c)
-	lined := !l.own && call.journaled()
+	own := registry.ResultOf(out).Line
+	lined := own != nil || call.journaled()
 	if !lined && !wrote && change == nil && l.key == nil {
 		return
 	}
@@ -179,6 +180,18 @@ func (g *Gateway) after(ctx context.Context, call Call, act registry.Actor, c *r
 		case !lined:
 		case l.sent && l.id != 0:
 			if err := g.settle(ctx, q, l.id, sent, err, print); err != nil {
+				return err
+			}
+		case own != nil:
+			// The line before wrote is gone when the call took its project along.
+			if l.id != 0 {
+				n, err := q.TakeToolCall(ctx, db.TakeToolCallParams{ProjectID: store.ID(own.Project), Need: own.Need.Right, Subject: own.Need.Subject,
+					Params: own.Params, Outcome: outcome, Error: text, ID: l.id})
+				if err != nil || n == 1 {
+					return err
+				}
+			}
+			if _, err := q.LogToolCall(ctx, g.lineOf(act, own.Project, c.Name, own.Need, outcome, own.Params, text)); err != nil {
 				return err
 			}
 		case l.id != 0:
@@ -201,29 +214,14 @@ func (g *Gateway) after(ctx context.Context, call Call, act registry.Actor, c *r
 }
 
 // line is the line of a call in the journal: before writes it making, or started as the intent of a call that acts
-// outside deck, and a command that keeps its own line writes that on it.
+// outside deck, and after its outcome, or the line its command keeps itself.
 type line struct {
-	id   int64
-	tool string
-	own  bool
+	id int64
 	// sent marks the intent of a call that acts outside deck; key is the call's key, kept what a call of it gave.
 	sent bool
 	key  *db.TakeCallKeyParams
 	kept *registry.Result
 }
 
-type lineKey struct{}
-
 // Making is the outcome of the line of a call deck is making; an intent to act outside deck makes it started.
 const Making = "making"
-
-// ownLine is the line of the call of ctx when its command keeps its own line of tool, nil for another; the call's
-// outcome no longer goes on it.
-func ownLine(ctx context.Context, tool string) *line {
-	l, ok := ctx.Value(lineKey{}).(*line)
-	if !ok || l.tool != tool {
-		return nil
-	}
-	l.own = true
-	return l
-}

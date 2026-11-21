@@ -453,27 +453,6 @@ func (g *Gateway) log(ctx context.Context, s *Session, tool string, right regist
 	g.journal(ctx, s.Who, s.Who.ProjectID, tool, right, outcome, params, "")
 }
 
-// Journal writes a call to the journal for a command that writes its own line, on the line before wrote if any: one
-// the owner made past the gateway, such as a delete from a screen, or a read of the web with the address it read.
-func (g *Gateway) Journal(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string) {
-	if l := ownLine(ctx, tool); l != nil && l.id != 0 {
-		var n int64
-		err := g.st.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
-			var err error
-			n, err = q.TakeToolCall(ctx, db.TakeToolCallParams{ProjectID: store.ID(project), Need: right.Right, Subject: right.Subject, Params: params,
-				Outcome: outcome, Error: errText, ID: l.id})
-			return err
-		})
-		if err != nil {
-			slog.Error("journal", "tool", tool, "err", err)
-		}
-		if err != nil || n == 1 {
-			return
-		}
-	}
-	g.journal(ctx, act, project, tool, right, outcome, params, errText)
-}
-
 // journal writes a line of a call with the right it needs and the subject of that right.
 func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string) {
 	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {

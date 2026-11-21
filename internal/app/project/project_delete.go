@@ -76,12 +76,11 @@ func (s *Service) projectDelete(ctx context.Context, act registry.Actor, in proj
 		}
 	}
 	params, _ := json.Marshal(map[string]any{"project": p.Name, "snapshot": snapshot})
-	s.Gateway.Journal(ctx, act, 0, registry.Deck("project_delete"), registry.Need{}, "done", string(params), "")
 	out := map[string]any{"deleted": p.Name, "snapshot": snapshot}
 	if left != "" {
 		out["folder"] = left
 	}
-	return out, nil
+	return registry.Result{Data: out, Line: &registry.Line{Params: string(params)}}, nil
 }
 
 // leftInMaster is the folder in the data of the master a draft was imported from, which deck leaves; when

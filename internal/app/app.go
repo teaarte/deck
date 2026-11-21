@@ -210,7 +210,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			}
 			return a.Gateway.Count(ctx, &gateway.Session{Who: who})
 		}}
-	a.Web = web.Service{St: st, Journal: a.Gateway.Journal, Route: a.Models.Route}
+	a.Web = web.Service{St: st, Route: a.Models.Route}
 	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver, Await: a.Bus.Await,
 		Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start, Lang: a.Chats.LangOf,
 		Shown: func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, bool, error) {
@@ -236,7 +236,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Theme: a.Themes.Current}
 	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
 	a.Auth = auth.New(auth.Config{Now: cfg.Now, Home: h, Origins: cfg.Origins}, auth.Deps{Store: st})
-	a.Owners = owners.Service{St: st, Now: cfg.Now, MCPBase: cfg.MCPBase, Journal: a.Gateway.Journal, Code: a.Auth.Code, Kick: a.Auth.Kick,
+	a.Owners = owners.Service{St: st, Now: cfg.Now, MCPBase: cfg.MCPBase, Code: a.Auth.Code, Kick: a.Auth.Kick,
 		Origins: cfg.Origins.List, PushNew: a.Feed.PushNew, Node: a.Nodes.State, Probe: a.Nodes.Probe, Go: a.bg.Go}
 	a.Shots = shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Owners.Lend, Return: a.Owners.Return,
 		Themed: a.Themes.Exists}

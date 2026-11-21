@@ -34,13 +34,12 @@ var (
 	moduleSubject = regexp.MustCompile(`^(\*|[a-z][a-z0-9-]*(\.[a-z][a-z0-9_]*)?)$`)
 )
 
-// Service keeps the devices and tokens; Journal writes a call to the journal of the gateway.
+// Service keeps the devices and tokens.
 type Service struct {
 	St      *store.Store
 	Now     func() time.Time
 	MCPBase string
 	loans   loans
-	Journal func(ctx context.Context, act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string)
 	// Code makes a code that pairs a device; Kick ends the open connections of a revoked device; Origins are the
 	// addresses of deck.
 	Code    func(workspace int64, kind, name string) (string, time.Time, error)
@@ -236,8 +235,7 @@ func (s *Service) tokenRevoke(ctx context.Context, act registry.Actor, in tokenR
 	if n == 0 {
 		return nil, registry.NotFound("no active token %d", in.Token)
 	}
-	s.Journal(ctx, act, 0, registry.Deck("token_revoke"), registry.Need{}, "done", fmt.Sprintf(`{"token": %d}`, in.Token), "")
-	return map[string]any{"revoked": in.Token}, nil
+	return registry.Result{Data: map[string]any{"revoked": in.Token}, Line: &registry.Line{Params: fmt.Sprintf(`{"token": %d}`, in.Token)}}, nil
 }
 
 // Commands are the commands of devices, pushes and tokens.
@@ -284,6 +282,6 @@ func (s *Service) tokenTrust(ctx context.Context, act registry.Actor, in tokenTr
 	if n == 0 {
 		return nil, registry.NotFound("no active token %d", in.Token)
 	}
-	s.Journal(ctx, act, 0, registry.Deck("token_trust"), registry.Need{}, "done", fmt.Sprintf(`{"token": %d, "trusted": %t}`, in.Token, in.Trusted), "")
-	return map[string]any{"token": in.Token, "trusted": in.Trusted}, nil
+	return registry.Result{Data: map[string]any{"token": in.Token, "trusted": in.Trusted},
+		Line: &registry.Line{Params: fmt.Sprintf(`{"token": %d, "trusted": %t}`, in.Token, in.Trusted)}}, nil
 }

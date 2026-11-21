@@ -84,28 +84,41 @@ func Read[In, Out any](name, title, desc string, callers []string, h func(ctx co
 	whole := c.Handler
 	sh := shapeOf(reflect.TypeFor[Out]())
 	c.Handler = func(ctx context.Context, a Actor, in json.RawMessage) (any, error) {
-		out, err := whole(ctx, a, in)
+		got, err := whole(ctx, a, in)
+		// A result with its own line of the journal keeps it; the fields cut its data.
+		res, wrapped := got.(Result)
+		out := got
+		if wrapped {
+			out = res.Data
+		}
+		give := func(v any) any {
+			if !wrapped {
+				return v
+			}
+			res.Data = v
+			return res
+		}
 		var f struct{ Fields []string }
 		if err != nil || json.Unmarshal(in, &f) != nil {
-			return out, err
+			return got, err
 		}
 		if len(f.Fields) == 0 {
 			if len(c.brief) == 0 {
-				return out, nil
+				return got, nil
 			}
 			f.Fields = c.brief
 		}
 		v, err := plain(out)
 		if err != nil {
-			return nil, err
+			return give(nil), err
 		}
 		if bad, names := sh.unknown(v, f.Fields); len(bad) > 0 {
-			return nil, Invalid("%s has no field %s; its fields are %s", c.Name, strings.Join(bad, ", "), strings.Join(names, ", "))
+			return give(nil), Invalid("%s has no field %s; its fields are %s", c.Name, strings.Join(bad, ", "), strings.Join(names, ", "))
 		}
 		if p, ok := out.(Pictured); ok && len(p.Pictures()) > 0 {
-			return pictured{cut(v, sh.fields(f.Fields)), p.Pictures()}, nil
+			return give(pictured{cut(v, sh.fields(f.Fields)), p.Pictures()}), nil
 		}
-		return cut(v, sh.fields(f.Fields)), nil
+		return give(cut(v, sh.fields(f.Fields))), nil
 	}
 	return c
 }

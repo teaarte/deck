@@ -376,9 +376,10 @@ func agentFailed(f *facts) Outcome {
 	return Fail{F: fault.With(fault.TaskFailed, fmt.Sprintf("the agent reported an error: %s", untrusted.Flat(text, 200)), text), Result: text, Broke: f.pv.Name()}
 }
 
-// apiRefused: the model API refused a call and no result fits, so the work goes on on the next model, else it fails.
+// apiRefused: the model API refused the last call of the turn and no result by a schema fits, so the turn has no
+// answer: the work goes on on the next model, else it fails.
 func apiRefused(f *facts) Outcome {
-	if f.heard.blocked || f.heard.invalid == nil || f.res.Refusal == "" {
+	if f.heard.blocked || f.res.Refusal == "" || (f.heard.invalid == nil && len(f.t.cmd.Result) > 0) {
 		return nil
 	}
 	rf := fault.With(fault.ModelUnavailable, fmt.Sprintf("%s refused a call of the turn: %s", f.pv.Name(), untrusted.Flat(f.res.Refusal, 200)), f.res.Refusal)

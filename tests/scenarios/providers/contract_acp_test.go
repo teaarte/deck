@@ -91,7 +91,28 @@ func TestACPRefusalOfTheModelAPIIsTheEndOfATurnWithoutItsResult(t *testing.T) {
 	}
 }
 
-// TestACPSessionTheAgentLostStartsOver: a resume the agent refuses for a session it no longer lists starts anew.
+// TestACPTurnWithoutASchemaThatEndsOnARefusalHasNoAnswer: a turn whose answer is its text and whose last call the
+// model API refused, told in the agent's words, is no answer: it fails as its model unavailable.
+func TestACPTurnWithoutASchemaThatEndsOnARefusalHasNoAnswer(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	llm := harness.NewLLM(t, func(n int, _ harness.ChatRequest) harness.ChatReply {
+		if n <= 3 {
+			return harness.TextReply("ok")
+		}
+		return harness.ChatReply{Status: 400, Body: `{"error": {"message": "tool call validation failed: attempted to call tool 'web_search' which was not in request.tools"}}`}
+	})
+	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`, harness.AcpModel,
+		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Ran into this error: tool call validation failed."}}}`,
+		`{"end": "end_turn"}`))
+	e := harness.New(t, harness.WithACP(f, llm))
+	got := e.WaitState(e.Run(e.AcpProject("open", harness.NoNetworkManifest), "work"), "done", "error")
+	if got.State != "error" || !strings.Contains(got.Error, "refused a call of the turn: 400") {
+		t.Fatalf("a turn that ends on a refusal of the model API has no answer: %+v", got)
+	}
+}
+
+// TestACPSessionTheAgentLostStartsOver:a resume the agent refuses for a session it no longer lists starts anew.
 func TestACPSessionTheAgentLostStartsOver(t *testing.T) {
 	t.Parallel()
 	f := harness.NewACP(t)

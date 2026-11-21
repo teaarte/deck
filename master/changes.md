@@ -709,3 +709,8 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   same skill or fact, the owner's edit stands where both changed the same place, and you get a note of what of deck's
   new text it lacks to tell the owner.
   Modules: nothing to change.
+- 2026-11-21: A turn of an agent whose last call the model API refused (a 400 such as a tool the model named that
+  was not given) has no answer, a result schema or not: the work goes on on the next model of its role, else the run
+  fails with `model.unavailable` and the words of the API, where a command without a result schema ended done with the
+  agent's text of the error.
+  Modules: nothing to change; a script that read such a "done" text as a result now sees the run fail.

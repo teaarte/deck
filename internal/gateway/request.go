@@ -32,11 +32,12 @@ func (g *Gateway) request(ctx context.Context, act registry.Actor, c *registry.C
 	}
 	f := Freeze(act, c.Name, input)
 	f.Tool, f.Target, f.Changes, f.Sets, f.Reason, f.Need = v.Subject.Print, v.Subject.Where, v.Subject.Changes, v.Subject.Sets, why, v.Need
+	f.Diff, f.Cut = v.Subject.Diff, v.Subject.Cut
 	f.Offers = offers(act, v)
 	marked := v.Facts.Marked && (v.Facts.Exit || v.Facts.Instructs)
 	if marked {
 		if p, ok := g.turn(ctx, act); ok {
-			f.Read = untrusted.Cut(p.ReadUntrusted, 300)
+			f.Read, f.From = untrusted.Cut(p.ReadUntrusted, 300), fromOf(p.ReadFrom)
 		}
 	}
 	process := act.ProcessID

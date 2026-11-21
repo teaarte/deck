@@ -22,6 +22,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 const (
@@ -113,7 +114,7 @@ type Gateway struct {
 // Rows writes the marks and the ceiling of the row of a process, which the runner of processes alone writes: what a
 // call brought and that it wrote, in the transaction of the call, and the ceiling paused while calls wait for the owner.
 type Rows interface {
-	MarkRead(ctx context.Context, q *db.Queries, process int64, from string) error
+	MarkRead(ctx context.Context, q *db.Queries, process int64, text string, from untrusted.From) error
 	MarkWrote(ctx context.Context, q *db.Queries, process int64) error
 	Ceiling(ctx context.Context, process int64, paused bool)
 }

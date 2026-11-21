@@ -5,13 +5,14 @@ import (
 	"log/slog"
 
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // rows writes, for the gateway, the marks and the ceiling of the row of a process, of which process is the one writer.
 type rows struct{ r *Runner }
 
-func (w rows) MarkRead(ctx context.Context, q *db.Queries, process int64, from string) error {
-	return mark(ctx, q, process, from)
+func (w rows) MarkRead(ctx context.Context, q *db.Queries, process int64, text string, from untrusted.From) error {
+	return mark(ctx, q, process, text, from)
 }
 
 func (w rows) MarkWrote(ctx context.Context, q *db.Queries, process int64) error {

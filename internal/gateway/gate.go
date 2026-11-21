@@ -14,6 +14,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // Waiting is what a caller gets for a call that waits for the owner's answer.
@@ -115,6 +116,8 @@ type Frozen struct {
 	// Changes are the places it changes, a line each, when its command can tell; Sets the places it sets.
 	Changes []string `json:"changes,omitempty"`
 	Sets    []string `json:"sets,omitempty"`
+	// Diff are the lines of the change of a document.
+	Diff []string `json:"diff,omitempty"`
 	// Need is the right of the catalog the owner's answer goes to; More the other rights of a start it answers too.
 	Need *registry.Need  `json:"need,omitempty"`
 	More []registry.Need `json:"more,omitempty"`
@@ -124,8 +127,12 @@ type Frozen struct {
 	Reason string `json:"reason,omitempty"`
 	// Replaces are the calls of the same caller this one took the place of while they waited.
 	Replaces []int64 `json:"replaces,omitempty"`
-	// Read is the untrusted text the turn that calls read, for which its way out goes by the owner's once.
-	Read string `json:"read,omitempty"`
+	// Read is the untrusted text the turn that calls read, for which its way out goes by the owner's once; From is
+	// where it came from as data, nil for a mark written before deck kept it.
+	Read string          `json:"read,omitempty"`
+	From *untrusted.From `json:"from,omitempty"`
+	// Cut marks changes cut short, so the owner's yes did not see the whole change.
+	Cut bool `json:"cut,omitempty"`
 }
 
 // UnmarshalJSON reads a frozen call; one asked before v0.3.2 names its caller by "caller", read until v0.3.3.
@@ -296,7 +303,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 	var out registry.Result
 	if err == nil {
 		run := context.WithValue(context.WithoutCancel(ctx), approvedKey{}, f.Tool)
-		out, err = g.call(run, Call{Who: act, Command: f.Call.Command, Input: f.Call.Input, answer: a.ID})
+		out, err = g.call(run, Call{Who: act, Command: f.Call.Command, Input: f.Call.Input, answer: a.ID, cut: f.Cut})
 	}
 	if err != nil && f.As == AsOwner {
 		reopen()

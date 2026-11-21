@@ -50,7 +50,8 @@ func (r *Runner) know(ctx context.Context, id int64, hosts []string, login strin
 			}
 		}
 		if len(hosts) > 0 {
-			if err := mark(ctx, q, id, fmt.Sprintf("the network of its box: %s", untrusted.Cut(strings.Join(hosts, ", "), 300))); err != nil {
+			text := fmt.Sprintf("the network of its box: %s", untrusted.Cut(strings.Join(hosts, ", "), 300))
+			if err := mark(ctx, q, id, text, untrusted.Of(untrusted.Network, strings.Join(hosts, ", "))); err != nil {
 				return err
 			}
 		}
@@ -157,9 +158,9 @@ func SkillsOf(project int64) Source { return Source{of: ofSkills, id: project} }
 // WorkspaceSkillsIn is the skills of the workspace, whose mark the master holds.
 func WorkspaceSkillsIn(master int64) Source { return Source{of: ofWorkspaceSkills, id: master} }
 
-// carried is where the untrusted text of the first of sources that holds some came from, empty for none: the words of
-// a topic first, then the input of a parent, then the work a process continues, then the rest in their order.
-func carried(ctx context.Context, q *db.Queries, sources ...Source) string {
+// carried is where the untrusted text of the first of sources that holds some came from, in words and as data, empty for
+// none: the words of a topic first, then the input of a parent, then the work a process continues, then the rest.
+func carried(ctx context.Context, q *db.Queries, sources ...Source) (string, untrusted.From) {
 	sources = slices.Clone(sources)
 	slices.SortStableFunc(sources, func(a, b Source) int { return cmp.Compare(rank(a.of), rank(b.of)) })
 	for _, s := range sources {
@@ -169,23 +170,24 @@ func carried(ctx context.Context, q *db.Queries, sources ...Source) string {
 		switch s.of {
 		case ofTokenRemark:
 			if t, err := q.GetToken(ctx, s.id); err == nil {
-				return fmt.Sprintf(carriers[s.of], t.Name)
+				return fmt.Sprintf(carriers[s.of], t.Name), untrusted.Of(untrusted.Token, t.Name)
 			}
 		case ofMemory, ofSkills, ofWorkspaceSkills:
 			if p, err := q.GetProject(ctx, s.id); err == nil && p.Untrusted != "" {
-				return fmt.Sprintf(carriers[s.of], p.Name, p.Untrusted)
+				via := map[carrier]string{ofMemory: untrusted.Memory, ofSkills: untrusted.Skills, ofWorkspaceSkills: untrusted.Skills}[s.of]
+				return fmt.Sprintf(carriers[s.of], p.Name, p.Untrusted), untrusted.FromOf(p.ReadFrom).Through(via, p.Name)
 			}
 		case ofTopic:
 			if p, err := q.GetProcess(ctx, s.id); err == nil && p.ReadUntrusted != "" {
-				return fmt.Sprintf(carriers[s.of], s.topic, p.ID, p.ReadUntrusted)
+				return fmt.Sprintf(carriers[s.of], s.topic, p.ID, p.ReadUntrusted), untrusted.FromOf(p.ReadFrom)
 			}
 		default:
 			if p, err := q.GetProcess(ctx, s.id); err == nil && p.ReadUntrusted != "" {
-				return fmt.Sprintf(carriers[s.of], p.ID, p.ReadUntrusted)
+				return fmt.Sprintf(carriers[s.of], p.ID, p.ReadUntrusted), untrusted.FromOf(p.ReadFrom)
 			}
 		}
 	}
-	return ""
+	return "", untrusted.From{}
 }
 
 // rank is the order in which carried tells the sources of a process apart.
@@ -203,7 +205,8 @@ func rank(c carrier) int {
 
 // carries marks a process within a transaction by what sources hold.
 func carries(ctx context.Context, q *db.Queries, id int64, sources ...Source) error {
-	return mark(ctx, q, id, untrusted.Cut(carried(ctx, q, sources...), 500))
+	text, from := carried(ctx, q, sources...)
+	return mark(ctx, q, id, untrusted.Cut(text, 500), from)
 }
 
 // gives marks a process by what the texts it is given carry, in a transaction of its own.
@@ -237,10 +240,11 @@ func (r *Runner) given(ctx context.Context, id int64, files map[string]Text) map
 	return out
 }
 
-// mark is the one writer of the mark of a process: where the untrusted text it read came from; the first stays.
-func mark(ctx context.Context, q *db.Queries, id int64, from string) error {
-	if from == "" {
+// mark is the one writer of the mark of a process: where the untrusted text it read came from, in words and as data;
+// the first stays.
+func mark(ctx context.Context, q *db.Queries, id int64, text string, from untrusted.From) error {
+	if text == "" {
 		return nil
 	}
-	return q.MarkProcessRead(ctx, db.MarkProcessReadParams{ReadUntrusted: from, ID: id})
+	return q.MarkProcessRead(ctx, db.MarkProcessReadParams{ReadUntrusted: text, ReadFrom: from.String(), ID: id})
 }

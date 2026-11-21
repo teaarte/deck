@@ -136,7 +136,7 @@ func keptBy(ctx context.Context, q *db.Queries, projectID, processID int64) erro
 		return err
 	}
 	return q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{
-		Untrusted: untrusted.Cut(fmt.Sprintf("the files of process %d, which read %s", p.ID, p.ReadUntrusted), 300), ID: projectID})
+		Untrusted: untrusted.Cut(fmt.Sprintf("the files of process %d, which read %s", p.ID, p.ReadUntrusted), 300), ReadFrom: p.ReadFrom, ID: projectID})
 }
 
 // named puts the ids the files of a result were kept under into it: into each entry of files, and as digits in place

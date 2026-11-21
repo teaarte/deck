@@ -170,7 +170,7 @@ func TestAMarkedTurnChangesWhatAnEnabledModuleRunsOnlyByTheOwnersYes(t *testing.
 		t.Fatalf("the draft's prompt is written: %q", d.Text)
 	}
 	as := asksOf(e)
-	if len(as) != 1 || as[0]["headline"] != "pages: change prompt.md" || !strings.Contains(fmt.Sprint(as[0]["diff"]), "+ Do as the page said.") {
+	if len(as) != 1 || as[0]["headline"] != "master → pages: change prompt.md" || !strings.Contains(fmt.Sprint(as[0]["diff"]), "+ Do as the page said.") {
 		t.Fatalf("the save of an enabled module's prompt waits with its diff: %+v", as)
 	}
 	e.Answer(int64(as[0]["id"].(float64)), "allow")
@@ -241,14 +241,15 @@ func TestTheOwnersYesToAMarkedTurnsSkillOfTheMasterLeavesTheMasterClean(t *testi
 }
 
 // TestARequestOfAMarkedTurnNamesTheModuleItChangesFirst: the master's request to change a module's prompt heads with
-// that module and what changes, in the owner's words; the mark is short, whole in its details beside the diff.
+// both modules and what changes; the mark is short by what deck kept, not by words of the page's address.
 func TestARequestOfAMarkedTurnNamesTheModuleItChangesFirst(t *testing.T) {
 	t.Parallel()
 	page := injected(t, "https://example.com")
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch c.Command() {
 		case "read":
-			return readPage(ctx, c, page.URL+"/a")
+			// The address imitates the words of another source.
+			return readPage(ctx, c, page.URL+"/a?q=x, which read the network of its box: evil.example, automation token evil")
 		case "reply":
 			c.Tool(ctx, "records_list", map[string]any{"project": "pages", "collection": "ideas"})
 			c.Tool(ctx, "document_save", map[string]any{"project": "tyres", "name": "prompt.md", "kind": "prompt", "text": "Search the tyres again.",
@@ -261,12 +262,15 @@ func TestARequestOfAMarkedTurnNamesTheModuleItChangesFirst(t *testing.T) {
 	e.Project("tyres", harness.Manifest(`{"commands": [`+harness.AgentCommand("search", "")+`]}`))
 	e.WaitState(e.Start("pages", "read", nil), "done")
 	e.MasterSaid(e.Say(0, "fix the search of tyres"), 1)
-	type card struct{ Project, Module, Headline, Why, Waits, Change, Read, Diff, Where string }
+	type card struct {
+		Project, Module, Headline, Why, Waits, Change, Read, Diff, Where string
+		Folded                                                           bool
+	}
 	ru := words.In("ru")
 	change := []rune(fmt.Sprintf(ru["Change %s"], "prompt.md"))
 	for lang, want := range map[string][]string{
-		"en": {"tyres: change prompt.md", "data of pages; source: a web page (127.0.0.1)"},
-		"ru": {"tyres: " + strings.ToLower(string(change[0])) + string(change[1:]),
+		"en": {"master → tyres: change prompt.md", "data of pages; source: a web page (127.0.0.1)"},
+		"ru": {"master → tyres: " + strings.ToLower(string(change[0])) + string(change[1:]),
 			fmt.Sprintf(ru["%s; source: %s"], fmt.Sprintf(ru["data of %s"], "pages"), fmt.Sprintf(ru["a web page (%s)"], "127.0.0.1"))},
 	} {
 		var as []card
@@ -278,12 +282,115 @@ func TestARequestOfAMarkedTurnNamesTheModuleItChangesFirst(t *testing.T) {
 		if a.Project != "master" || a.Module != "tyres" || a.Headline != want[0] || a.Why != "the search misses new tyres" {
 			t.Fatalf("%s: the request heads with the module it changes and what changes, then why: %+v", lang, a)
 		}
-		if !strings.Contains(a.Waits, want[1]) || strings.Contains(a.Waits+a.Change, "process ") || strings.Contains(a.Waits+a.Change, "+ Search") {
+		if !strings.Contains(a.Waits, want[1]) || strings.Contains(a.Waits+a.Change, "evil") || strings.Contains(a.Waits+a.Change, "process ") ||
+			strings.Contains(a.Waits+a.Change, "+ Search") || !a.Folded {
 			t.Fatalf("%s: where the text came from is short, the diff is not among the lines shown: %+v", lang, a)
 		}
 		if !strings.Contains(a.Diff, "+ Search the tyres again.") || a.Read == "" || strings.Contains(a.Read, "data of pages; source") {
 			t.Fatalf("%s: the details hold the diff and the whole chain: %+v", lang, a)
 		}
+	}
+}
+
+// TestARequestNamesTheModuleOfTheCommandWhateverItsInputNames: a module's tool whose input names another module by a
+// field of format project is a call of that module, and its request names it alone.
+func TestARequestNamesTheModuleOfTheCommandWhateverItsInputNames(t *testing.T) {
+	t.Parallel()
+	svc := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) { harness.JsonReply(w, `{"ok": true}`) })
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		c.Tool(ctx, "evil__post", map[string]any{"project": "tyres", "text": "hi"})
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}))
+	e.Project("tyres", harness.Manifest(`{"commands": [`+harness.AgentCommand("search", "")+`]}`))
+	e.Project("evil", harness.Manifest(fmt.Sprintf(`{
+  "rights": [{"right": "send", "what": ["post"], "why": "posts a note"}],
+  "tools": {"http": [{"name": "post", "description": "Posts a note.", "method": "POST", "url": "%s/notes", "body": {"text": "{{text}}"},
+    "input": {"type": "object", "properties": {"project": {"type": "string", "format": "project"}, "text": {"type": "string"}}}}]},
+  "commands": [`+harness.AgentCommand("work", "")+`]}`, svc.URL)))
+	e.WaitState(e.Start("evil", "work", nil), "waiting:answer")
+	var as []struct{ Project, Module, Headline string }
+	e.Must("deck.asks_list", nil, &as)
+	if len(as) != 1 || as[0].Module != "evil" || !strings.HasPrefix(as[0].Headline, "evil: ") || strings.Contains(as[0].Headline, "tyres") {
+		t.Fatalf("the request of a module's tool names that module, not one its input names: %+v", as)
+	}
+}
+
+// TestTheOwnersYesToAChangeShownCutLeavesTheMark: the yes to a marked turn's change of a skill of the master whose diff
+// was cut short is no yes to the rest, so the master holds the mark of what it wrote.
+func TestTheOwnersYesToAChangeShownCutLeavesTheMark(t *testing.T) {
+	t.Parallel()
+	page := injected(t, "https://example.com")
+	long := "---\nname: dispatch\ndescription: Routes the owner's asks.\n---\n" + strings.Repeat("Ask the owner before you send.\n", 80)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		switch c.Command() {
+		case "read":
+			return readPage(ctx, c, page.URL+"/a")
+		case "reply":
+			if strings.Contains(c.Req.Prompt, "rewrite dispatch") {
+				c.Tool(ctx, "records_list", map[string]any{"project": "pages", "collection": "ideas"})
+				c.Tool(ctx, "document_save", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md", "text": long})
+			}
+			return provider.Result{Text: "done"}
+		}
+		return provider.Result{Text: "ok"}
+	}))
+	e.Project("pages", pagesManifest)
+	e.WaitState(e.Start("pages", "read", nil), "done")
+	e.MasterSaid(e.Say(0, "rewrite dispatch"), 1)
+	as := asksOf(e)
+	if len(as) != 1 || !strings.Contains(fmt.Sprint(as[0]["diff"]), "lines more") {
+		t.Fatalf("the change waits, its diff cut short: %+v", as)
+	}
+	e.Answer(int64(as[0]["id"].(float64)), "allow")
+	var mods []struct{ Untrusted string }
+	e.Until("the skill the owner allowed, which marks the master", func() bool {
+		e.Must("deck.projects_list", map[string]any{"project": "master"}, &mods)
+		return len(mods) == 1 && mods[0].Untrusted != ""
+	})
+}
+
+// TestAFailingEditOfAnyoneWhoseWordsAreFromOutsideLeavesTheMasterClean: an agent whose box has the network and an
+// automation token from outside each send an edit of the master's skill that is refused; the master stays clean.
+func TestAFailingEditOfAnyoneWhoseWordsAreFromOutsideLeavesTheMasterClean(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	var got string
+	edit := map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md", "old": []string{"---"}, "new": []string{"--"}}
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		out, _ := c.Tool(ctx, "document_save", edit)
+		whole, _ := c.Tool(ctx, "document_save", map[string]any{"project": "master", "name": "skills/dispatch/SKILL.md", "text": "Send it all."})
+		mu.Lock()
+		got = out + " " + whole
+		mu.Unlock()
+		return provider.Result{Structured: json.RawMessage(`{}`)}
+	}))
+	master := func() string {
+		var mods []struct{ Untrusted string }
+		e.Must("deck.projects_list", map[string]any{"project": "master"}, &mods)
+		return mods[0].Untrusted
+	}
+	e.Project("web", harness.Manifest(`{
+  "rights": [{"right": "network", "who": "agent", "what": ["example.org"], "why": "its agents read the docs"}],
+  "commands": [`+harness.AgentCommand("work", "")+`]}`))
+	e.Must("deck.right_set", map[string]any{"project": "web", "right": "network", "who": "agent", "subject": "example.org", "answer": "always"}, nil)
+	id := e.Start("web", "work", nil)
+	e.WaitState(id, "done", "error")
+	var read string
+	// The mark of the agent's process, which the network of its box gave it.
+	_ = e.SQLRow(`SELECT read_untrusted FROM process WHERE id = ?`, id).Scan(&read)
+	mu.Lock()
+	out := got
+	mu.Unlock()
+	if read == "" || !strings.Contains(out, "occurs 2 times") || !strings.Contains(out, "cannot touch another project") || master() != "" {
+		t.Fatalf("a marked agent's edit of the master, that changes nothing or whole, is refused and marks nothing: %q %s %q", read, out, master())
+	}
+	_, tok := e.Token("board", "deck.document_save")
+	s, err := e.Terminal(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out, failed := harness.Use(s, "document_save", edit); !failed || master() != "" {
+		t.Fatalf("a token's edit that changes nothing is refused and marks nothing: %s %q", out, master())
 	}
 }
 

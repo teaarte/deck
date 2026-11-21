@@ -40,9 +40,9 @@ export function PressAsks() {
   const a = asks[0];
   const shown = !!a;
   const always = a?.actions?.find((x) => x.verb === 'allow_always');
-  // The input of a call is shown whole, but for a change of a document, which folds with its diff.
+  // The input of a call is shown whole, but for a change of a document whose diff shows it, which folds.
   const input = a?.payload !== undefined && a?.payload !== null ? JSON.stringify(a?.payload, null, 2) : '';
-  const details = a ? [a.read ?? '', a.diff ?? '', a.diff ? input : ''].filter(Boolean).join('\n') : '';
+  const details = a ? [a.read ?? '', a.folded ? input : ''].filter(Boolean).join('\n') : '';
   useEffect(() => (shown ? followAsks() : undefined), [shown]);
   if (!a) return null;
   return (
@@ -58,7 +58,8 @@ export function PressAsks() {
           {a.waits && <Text size="sm" c="var(--deck-text-2)" data-press-waits>{a.waits}</Text>}
           {a.change && <Text size="sm" className="deck-pre" data-press-change>{a.change}</Text>}
           {a.where && !a.diff && <Text size="sm" className="deck-wrap" data-press-where>{a.where}</Text>}
-          {input && !a.diff && <Code block mah={160} style={{ overflow: 'auto' }} data-press-input>{input}</Code>}
+          {a.diff && <Code block mah={240} style={{ overflow: 'auto' }} data-press-diff>{a.diff}</Code>}
+          {input && !a.folded && <Code block mah={160} style={{ overflow: 'auto' }} data-press-input>{input}</Code>}
           {details && <Details text={details} />}
           {a.who && <Text size="xs" c="dimmed">{a.who}</Text>}
           {error && <Text size="sm" c="red" data-press-error>{error}</Text>}

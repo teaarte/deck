@@ -105,7 +105,7 @@ print(json.dumps({"got": got}))
 }
 
 // TestRealBrowserARequestOfAMarkedTurnHeadsWithTheModuleItChanges: on Today the master's request to change a module's
-// prompt heads with that module and what changes, then why and the mark in short; its diff is folded under details.
+// prompt heads with both modules and what changes, then why, the mark in short and the diff; the whole mark is folded.
 func TestRealBrowserARequestOfAMarkedTurnHeadsWithTheModuleItChanges(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()
@@ -134,7 +134,7 @@ func TestRealBrowserARequestOfAMarkedTurnHeadsWithTheModuleItChanges(t *testing.
 	e.WaitState(e.Start("pages", "read", nil), "done")
 	e.MasterSaid(e.Say(0, "fix the search of tyres"), 1)
 	card := `document.querySelector('[data-focus-card]')`
-	shownDiff := `[...` + card + `.querySelectorAll('code, pre')].some((c) => c.getBoundingClientRect().height > 0 && c.innerText.includes('+ Search the tyres again.'))`
+	head := "master → tyres: change prompt.md"
 	b := Open(t)
 	for _, size := range []struct {
 		name string
@@ -142,12 +142,13 @@ func TestRealBrowserARequestOfAMarkedTurnHeadsWithTheModuleItChanges(t *testing.
 	}{{"desktop", 1440, 900}, {"390", 390, 844}} {
 		b.call("browser_resize", map[string]any{"width": size.w, "height": size.h})
 		b.Open(e, "#/deck/cockpit")
-		b.until(size.name+": the card heads with the module it changes, then why, then the mark in short, the diff folded",
-			`((t) => t.indexOf('tyres: change prompt.md') >= 0 && t.indexOf('tyres: change prompt.md') < t.indexOf('the search misses new tyres') &&
-			t.indexOf('the search misses new tyres') < t.indexOf('data of pages; source: a web page (127.0.0.1)') && !t.includes('which read'))(`+card+`?.innerText ?? '') && !`+shownDiff)
+		b.until(size.name+": the card heads with both modules and what changes, then why, the mark in short and the diff",
+			`((t) => t.indexOf('`+head+`') >= 0 && t.indexOf('`+head+`') < t.indexOf('the search misses new tyres') &&
+			t.indexOf('the search misses new tyres') < t.indexOf('data of pages; source: a web page (127.0.0.1)') &&
+			t.indexOf('data of pages; source: a web page (127.0.0.1)') < t.indexOf('+ Search the tyres again.') && !t.includes('which read'))(`+card+`?.innerText ?? '')`)
 		b.shot("marked-ask-" + size.name)
 		b.eval(`(` + card + `.querySelector('[data-details]').click(), '')`)
-		b.until(size.name+": the details hold the diff and the whole mark", shownDiff+` && `+card+`.innerText.includes('which read')`)
+		b.until(size.name+": the details hold the whole mark", card+`.innerText.includes('which read')`)
 		b.shot("marked-ask-details-" + size.name)
 		b.eval(`(` + card + `.querySelector('[data-details]').click(), '')`)
 	}

@@ -58,6 +58,9 @@ type Subject struct {
 	Unseen bool `json:"-"`
 	// Instructs says the call rewrites what deck runs: an instruction of an enabled module or of the workspace.
 	Instructs bool `json:"-"`
+	// Diff are the lines of the change of a document, Cut when they stop short of its end.
+	Diff []string `json:"diff,omitempty"`
+	Cut  bool     `json:"-"`
 	// Refused is the command's own refusal of the change, seen before the call is made.
 	Refused error `json:"-"`
 }

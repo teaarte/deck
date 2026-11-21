@@ -57,15 +57,17 @@ func (g *Gateway) verdict(ctx context.Context, call Call, c *registry.Command, p
 	}
 	if !c.Gated() || f.Owner {
 		f.Needs = c.Gated()
-		if !f.Owner && !f.Cleared && (c.Gate.Subject != nil || c.ProjectID != 0) && g.marked(ctx, act) {
-			// A marked turn changes what an enabled module runs only with the owner's yes to the change.
-			if c.Gate.Subject != nil {
-				v.Subject = c.Gate.Subject(ctx, registry.At{Workspace: act.Workspace, Project: project, Look: look}, input)
-				f.Marked, f.Instructs = true, v.Subject.Instructs
-				if v.err = v.Subject.Refused; v.err != nil {
-					f.Refused = v.err.Error()
-				}
+		marked := !f.Owner && !f.Cleared && g.marked(ctx, act)
+		if !f.Owner && !f.Cleared && c.Gate.Subject != nil && (marked || g.taints(ctx, act)) {
+			// A marked turn changes what an enabled module runs only with the owner's yes to the change, and a call that
+			// would mark what it writes is refused first when its command refuses the change.
+			v.Subject = c.Gate.Subject(ctx, registry.At{Workspace: act.Workspace, Project: project, Look: look}, input)
+			f.Marked, f.Instructs = marked, marked && v.Subject.Instructs
+			if v.err = v.Subject.Refused; v.err != nil {
+				f.Refused = v.err.Error()
 			}
+		}
+		if marked && (c.Gate.Subject != nil || c.ProjectID != 0) {
 			// Its input goes out with a program of the module that holds a way out always.
 			n, ok, err := g.conduit(ctx, c)
 			if err != nil {

@@ -2,7 +2,9 @@ package documents
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"deck2/internal/docs"
@@ -39,6 +41,14 @@ func (s *Service) saveSubject(ctx context.Context, at registry.At, input json.Ra
 		return registry.Subject{}
 	}
 	next := in.Text
+	if _, err := docs.Find(ctx, s.St.Q, docs.Ref{Scope: sc, Name: in.Name}); errors.Is(err, sql.ErrNoRows) {
+		switch {
+		case len(in.Old) > 0:
+			return registry.Subject{Refused: registry.NotFound("no document %q to change; save it with its full text", in.Name)}
+		case in.Kind == "":
+			return registry.Subject{Refused: registry.Invalid("no document %q yet; give its kind to create it", in.Name)}
+		}
+	}
 	if len(in.Old) > 0 {
 		cur, err := docs.CurrentText(ctx, s.St.Q, sc, "", in.Name)
 		if err != nil {

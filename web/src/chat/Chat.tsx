@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
-import { Group, Stack, Text, UnstyledButton } from '@mantine/core';
+import { Code, Group, Stack, Text, UnstyledButton } from '@mantine/core';
 import { IconArrowUpRight, IconHandStop, IconPlayerPlay, IconSparkles } from '@tabler/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useRoute } from '../app/router';
@@ -67,7 +67,7 @@ function DecisionCard({ d }: { d: Decision }) {
   const [held, setHeld] = useState(false);
   if (held) return null;
   const change = d.change || (d.diff ? '' : d.where);
-  const details = [d.read ?? '', d.diff ?? '', d.by ?? '', d.command ?? '', d.change && d.where !== d.change ? d.where : '',
+  const details = [d.read ?? '', d.by ?? '', d.command ?? '', d.change && d.where !== d.change ? d.where : '',
     d.payload !== undefined && d.payload !== null ? JSON.stringify(d.payload, null, 2) : ''].filter(Boolean).join('\n');
   return (
     <Stack gap={8} className={s.decision} data-chat-ask={d.id} data-kind={d.kind}>
@@ -83,6 +83,7 @@ function DecisionCard({ d }: { d: Decision }) {
         {d.why && <Text size="sm" c="var(--deck-text-2)" className="deck-wrap" data-why>{d.why}</Text>}
         {d.waits && <Text size="sm" c="var(--deck-text-2)" className="deck-wrap" data-waits>{d.waits}</Text>}
         {change && <Text size="sm" className="deck-pre" data-change>{change}</Text>}
+        {d.diff && <Code block mah={240} style={{ overflow: 'auto' }} data-diff>{d.diff}</Code>}
         <Text size="xs" c="dimmed">{[d.who && t('Asked by {{who}}', { who: d.who }), d.project].filter(Boolean).join(' · ')}</Text>
       </Stack>
       {details && <Details text={details} />}

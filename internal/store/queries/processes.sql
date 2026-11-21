@@ -481,7 +481,7 @@ WHERE finished_at IS NOT NULL AND finished_at < CAST(sqlc.arg(before) AS TEXT)
 
 -- name: MarkProcessRead :exec
 -- A process read untrusted text: what and from where, the first that marked it.
-UPDATE process SET read_untrusted = ? WHERE id = ? AND read_untrusted = '';
+UPDATE process SET read_untrusted = ?, read_from = ? WHERE id = ? AND read_untrusted = '';
 
 
 -- name: SetProcessValued :exec
@@ -494,13 +494,14 @@ UPDATE process SET opens = ? WHERE id = ?;
 
 -- name: SessionRead :one
 -- What untrusted text a process of the same session read, which the session keeps.
-SELECT CAST(coalesce(max(read_untrusted), '') AS TEXT) FROM process
-WHERE session_id = sqlc.arg(session) AND session_id != '' AND read_untrusted != '' AND id != sqlc.arg(id);
+SELECT read_untrusted, read_from FROM process
+WHERE session_id = sqlc.arg(session) AND session_id != '' AND read_untrusted != '' AND id != sqlc.arg(id)
+ORDER BY read_untrusted DESC LIMIT 1;
 
 
 -- name: TopicRead :one
 -- A process with untrusted text whose words a topic holds, and what it read.
-SELECT p.id, p.read_untrusted FROM chat_message m JOIN process p ON p.id = m.process_id
+SELECT p.id, p.read_untrusted, p.read_from FROM chat_message m JOIN process p ON p.id = m.process_id
 WHERE m.topic_id = ? AND m.process_id != 0 AND p.read_untrusted != '' ORDER BY m.id LIMIT 1;
 
 

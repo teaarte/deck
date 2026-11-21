@@ -428,18 +428,18 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 // inherit marks a process with the untrusted text what it was given carries: its note and message, the input or work
 // of a marked process it starts from, the session of a marked process it goes on, files given with it.
 func inherit(ctx context.Context, q *db.Queries, id int64, o Origin) error {
-	from := carried(ctx, q, append(append([]Source{inputOf(o.Parent), workOf(o.Follows)}, o.Note.From...), o.Message.From...)...)
-	if from == "" && o.Resume && o.Session != "" {
+	text, from := carried(ctx, q, append(append([]Source{inputOf(o.Parent), workOf(o.Follows)}, o.Note.From...), o.Message.From...)...)
+	if text == "" && o.Resume && o.Session != "" {
 		read, err := q.SessionRead(ctx, db.SessionReadParams{Session: o.Session, ID: id})
-		if err != nil {
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
-		from = read
+		text, from = read.ReadUntrusted, untrusted.FromOf(read.ReadFrom)
 	}
-	if from == "" && len(o.Files) > 0 {
-		from = "files given with the message"
+	if text == "" && len(o.Files) > 0 {
+		text, from = "files given with the message", untrusted.Of(untrusted.File, "")
 	}
-	return mark(ctx, q, id, untrusted.Cut(from, 500))
+	return mark(ctx, q, id, untrusted.Cut(text, 500), from)
 }
 
 // launch hands the process admitted to its turn, after a joined agent hears its remark and the files of the call

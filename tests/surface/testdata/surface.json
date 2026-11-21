@@ -471,6 +471,9 @@
             "expires_at": {
               "type": "string"
             },
+            "folded": {
+              "type": "boolean"
+            },
             "headline": {
               "type": "string"
             },
@@ -991,6 +994,12 @@
           "subject": {
             "properties": {
               "changes": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "diff": {
                 "items": {
                   "type": "string"
                 },

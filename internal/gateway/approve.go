@@ -199,7 +199,7 @@ func (g *Gateway) turnRequest(ctx context.Context, act registry.Actor, tool stri
 	f.As = AsTurn
 	marked := false
 	if p, ok := g.turn(ctx, act); ok && Marked(p) {
-		marked, f.Read = true, untrusted.Cut(p.ReadUntrusted, 300)
+		marked, f.Read, f.From = true, untrusted.Cut(p.ReadUntrusted, 300), fromOf(p.ReadFrom)
 	}
 	if act.ProcessID != 0 && !act.Trial && !marked {
 		f.Offers = []string{Work}

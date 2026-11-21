@@ -1354,6 +1354,8 @@
   "the call %s of %s": "вызов %s, сделанный: %s",
   "the network of its box: %s": "сеть его песочницы: %s",
   "Change %s": "Изменить %s",
+  "… %d lines more": "… ещё строк: %d",
+  "files given with the message": "файлы, данные с сообщением",
   "data of %s": "данные %s",
   "memory of %s": "память %s",
   "skills of %s": "навыки %s",

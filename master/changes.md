@@ -763,3 +763,11 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   module it last passed through and its first source); `read` holds it whole. The diff of a change of a document is
   `diff`, no more among the lines of `change`, and on Today it is folded under the details.
   Modules: nothing to change; a master that reads requests reads the module they change in `module`.
+- 2026-11-21: A request heads with the module that asks and the module the call changes («evil → tyres: …») when they
+  differ; the module of a module's own command is always that module, whatever its input names. Where text from outside
+  came from is kept as data beside its words, so the short words on a request are deck's, not parsed from the chain.
+  The diff of a change of what a module runs shows on the request (`diff`, its input under the details when `folded`);
+  a yes to a diff cut short does not make the change the owner's, so it still marks what it writes. A call that would
+  mark what it writes and that its command refuses (an edit whose old text is not there, a document that is not) is
+  refused before it marks anything, and an agent's call naming another module marks nothing.
+  Modules: nothing to change.

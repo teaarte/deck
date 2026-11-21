@@ -373,6 +373,7 @@ type Process struct {
 	ReadUntrusted    string
 	HoldsValued      int64
 	Opens            string
+	ReadFrom         string
 }
 
 type ProcessRead struct {
@@ -400,6 +401,7 @@ type Project struct {
 	CreatedAt    string
 	ImportedFrom string
 	Untrusted    string
+	ReadFrom     string
 }
 
 type ProjectFolder struct {

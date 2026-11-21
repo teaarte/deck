@@ -99,8 +99,8 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 	if call.Inside {
 		return l, nil
 	}
-	read := g.brought(ctx, act, c, project, input)
-	taint, targets := g.taint(ctx, act, c, project, input, v, call.answer != 0)
+	read, readFrom := g.brought(ctx, act, c, project, input)
+	taint, taintFrom, targets := g.taint(ctx, act, c, project, input, v, call.answer != 0 && !call.cut)
 	lined := !c.Readable && call.journaled()
 	l.key = keyOf(act, c, input, call.Key)
 	if read == "" && len(targets) == 0 && !lined && l.key == nil {
@@ -119,12 +119,12 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 			}
 		}
 		for _, id := range targets {
-			if err := q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{Untrusted: taint, ID: id}); err != nil {
+			if err := q.MarkProjectUntrusted(ctx, db.MarkProjectUntrustedParams{Untrusted: taint, ReadFrom: taintFrom.String(), ID: id}); err != nil {
 				return err
 			}
 		}
 		if read != "" {
-			if err := g.rows.MarkRead(ctx, q, act.ProcessID, read); err != nil {
+			if err := g.rows.MarkRead(ctx, q, act.ProcessID, read, readFrom); err != nil {
 				return err
 			}
 		}

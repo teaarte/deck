@@ -46,13 +46,13 @@ UPDATE project SET imported_from = ? WHERE id = ?;
 
 -- name: MarkProjectUntrusted :exec
 -- The data of a project holds untrusted text: what wrote it, the first that marked it.
-UPDATE project SET untrusted = ? WHERE id = ? AND untrusted = '';
+UPDATE project SET untrusted = ?, read_from = ? WHERE id = ? AND untrusted = '';
 
 
 -- name: ClearProjectUntrusted :execrows
-UPDATE project SET untrusted = '' WHERE id = ? AND workspace_id = ? AND untrusted != '';
+UPDATE project SET untrusted = '', read_from = '' WHERE id = ? AND workspace_id = ? AND untrusted != '';
 
 
 -- name: FirstUntrustedProject :one
 -- The first project of a workspace whose data holds untrusted text.
-SELECT id, name, untrusted FROM project WHERE workspace_id = ? AND untrusted != '' ORDER BY id LIMIT 1;
+SELECT id, name, untrusted, read_from FROM project WHERE workspace_id = ? AND untrusted != '' ORDER BY id LIMIT 1;

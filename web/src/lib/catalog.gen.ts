@@ -1393,6 +1393,7 @@ export interface ChatValue {
      * the change of a document a yes makes
      */
     diff?: string;
+    folded?: boolean;
     text?: string;
     command?: string;
     by?: string;

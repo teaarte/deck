@@ -24,8 +24,9 @@ type Call struct {
 	// made gives what that one gave.
 	Key string
 	// answer is the ask whose yes makes the call; tool marks the one tool call its command lets through; sends marks a
-	// call of the owner that acts outside deck.
+	// call of the owner that acts outside deck; cut marks an answer to changes shown cut short.
 	answer int64
+	cut    bool
 	tool   bool
 	sends  bool
 }

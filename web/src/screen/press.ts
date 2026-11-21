@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { ComponentContext } from '@a2ui/web_core/v0_9';
-import { newKey, Refusal } from '../lib/api';
+import { newKey, Refusal, type Effect } from '../lib/api';
 import type { Action } from '../lib/catalog.gen';
 import i18n from '../lib/i18n';
 import { errorText } from '../lib/notify';
@@ -9,7 +9,7 @@ import { act } from './act';
 
 // Reply is what a screen says of a press at /press/<reply>: why the call failed, or its answer; gone, that what it acted
 // on was over already, so a button tells nothing; lost, that no answer came, so a press again keeps its key.
-export interface Reply { error?: string; result?: unknown; taken?: boolean; gone?: boolean; lost?: boolean }
+export interface Reply { error?: string; result?: unknown; effect?: Effect; taken?: boolean; gone?: boolean; lost?: boolean }
 
 export const PRESS = '/press/';
 
@@ -47,9 +47,9 @@ export function readBlock(ctx: ComponentContext, kind: 'filter' | 'more' | 'dial
 // error.
 export async function run(a: Action, key?: string): Promise<Reply> {
   try {
-    const result = await act(a, key);
+    const done = await act(a, key);
     if (a.undo) offerUndo(a.undo, a.label ?? '');
-    return { result };
+    return done;
   } catch (e) {
     // A proxy in front of deck that lost it answers 502 to 504: no answer of deck came.
     const lost = !(e instanceof Refusal) || e.status >= 502 && e.status <= 504;

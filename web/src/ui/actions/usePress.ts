@@ -11,8 +11,8 @@ import { Holding } from './undo';
 
 // told tells the owner what the run a press started came to, while the button stays busy: a run already going, its
 // end or failure, or that it goes on; the calls it waits to make come up by themselves.
-async function told(result: unknown, label: string) {
-  const o = outcome(result);
+async function told(done: Reply, label: string) {
+  const o = outcome(done);
   if (o.running) {
     notifyNote(i18n.t('{{label}}: already running', { label }));
     return;
@@ -54,7 +54,7 @@ export function usePress(act: Action) {
       setError(failed);
       if (act.hold && (r.taken || failed)) holding?.(false);
       if (act.hold && failed) notifyError(failed, label);
-      if (!r.error) await told(r.result, label);
+      if (!r.error) await told(r, label);
       return r;
     } finally {
       running.current = false;

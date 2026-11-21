@@ -72,7 +72,7 @@ export function Form({ value, still }: { value: FormValue; still?: boolean }) {
       const hidden = Object.keys(props).filter((k) => props[k].writeOnly);
       if (hidden.length && alive.current) form.forget(hidden);
       if (Object.values(form.files).some((f) => f.length)) await sharedSent();
-      const { started, topic } = outcome(res);
+      const { started, topic } = outcome(sent);
       // A command that answers with a chat topic, such as one telling the master, opens it.
       if (topic) openTopic(topic);
       if (!started) {

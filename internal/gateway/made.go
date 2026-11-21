@@ -100,7 +100,7 @@ func (g *Gateway) before(ctx context.Context, call Call, act registry.Actor, c *
 		return l, nil
 	}
 	read := g.brought(ctx, act, c, project, input)
-	taint, targets := g.taint(ctx, act, c, project, input, v)
+	taint, targets := g.taint(ctx, act, c, project, input, v, call.answer != 0)
 	lined := !c.Readable && call.journaled()
 	l.key = keyOf(act, c, input, call.Key)
 	if read == "" && len(targets) == 0 && !lined && l.key == nil {

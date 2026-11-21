@@ -87,9 +87,9 @@ func (g *Gateway) brought(ctx context.Context, act registry.Actor, c *registry.C
 }
 
 // taint is the mark a call of c puts on the data of the modules it writes, with them: by a process that read untrusted
-// text or a token the owner does not vouch for; none for a call the owner's answer let through.
-func (g *Gateway) taint(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict) (string, []int64) {
-	if c.Readable || act.Kind == registry.Owner || v.Name == "cleared" {
+// text or a token the owner does not vouch for; none for a call the owner's answer or its command's right let through.
+func (g *Gateway) taint(ctx context.Context, act registry.Actor, c *registry.Command, project int64, input json.RawMessage, v Verdict, answered bool) (string, []int64) {
+	if c.Readable || act.Kind == registry.Owner || v.Name == "cleared" && (answered || v.Facts.Needs) {
 		return "", nil
 	}
 	from := ""

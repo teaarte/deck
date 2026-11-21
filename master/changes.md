@@ -714,3 +714,10 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   fails with `model.unavailable` and the words of the API, where a command without a result schema ended done with the
   agent's text of the error.
   Modules: nothing to change; a script that read such a "done" text as a result now sees the run fail.
+- 2026-11-21: `deck.web_search` fails with `model.unavailable` naming the engines when a SearXNG answers no results
+  because its engines did not answer (`unresponsive_engines`, such as a suspension by a rate limit), where it gave an
+  empty list; that search is red in health and the next search of the role takes the query. deck sends at most two
+  searches at once and answers the same query of a workspace within 10 minutes by the results it got, its line of the
+  journal marked `cached`. SearXNG of compose.yaml asks Bing, Yahoo and Mojeek too.
+  Modules: an agent or script that took an empty list as "nothing on the web" now gets the failure; repeating a query
+  does not search again within 10 minutes, so change the query instead.

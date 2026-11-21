@@ -4,24 +4,22 @@ package web
 
 import (
 	"context"
-	"deck2/internal/fault"
-	"deck2/internal/manifest"
 	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
-	"net/http"
 	"net/url"
-	"slices"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"golang.org/x/net/html"
 
 	"deck2/internal/docs"
 	"deck2/internal/egress"
+	"deck2/internal/fault"
+	"deck2/internal/manifest"
 	"deck2/internal/models"
-	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/untrusted"
@@ -32,6 +30,10 @@ type Service struct {
 	St *store.Store
 	// Route finds where an actor's call of a model goes, the search of deck's settings for @search.
 	Route func(ctx context.Context, act registry.Actor, ask models.Ask) ([]models.Hop, error)
+
+	mu    sync.Mutex
+	slots chan struct{}
+	cache map[string]found
 }
 
 // Commands are the web of deck's agents.
@@ -81,79 +83,6 @@ func (s *Service) pageNeeds(ctx context.Context, act registry.Actor, _ registry.
 		return nil, registry.Refuse("%s is not of the hosts its module holds the network of; an agent reads the pages of the hosts its module holds the network of, which it declares in rights", n.Subject)
 	}
 	return []registry.Need{n}, nil
-}
-
-type webSearchIn struct {
-	Query string `desc:"What to search the web for"`
-	Count int64  `opt:"" desc:"How many results, 10 when left out, at most 20"`
-}
-
-type searchView struct {
-	Title   string `json:"title"`
-	URL     string `json:"url"`
-	Snippet string `json:"snippet"`
-}
-
-// webSearch asks the search services assigned to search, the fallbacks after the first; the journal keeps the query,
-// the service and the address of each result.
-func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearchIn) (got any, err error) {
-	read := map[string]any{"query": in.Query}
-	defer func() { got = lineOf(act, got, read) }()
-	if strings.TrimSpace(in.Query) == "" {
-		return nil, registry.Invalid("a search needs a query")
-	}
-	hops, err := s.Route(ctx, act, models.Ask{Connection: "@", Model: "@" + models.KindSearch})
-	if err != nil {
-		return nil, err
-	}
-	if act.Trial {
-		hops = slices.DeleteFunc(hops, func(h models.Hop) bool { return !h.Local && !h.Free })
-		if len(hops) == 0 {
-			return nil, registry.Refuse("trial run: no search of deck's settings is local or free, so a trial does not search")
-		}
-	}
-	for i := range hops {
-		done := hops[i].Done
-		hops[i].Done = func(ctx context.Context, status int, u *provider.Usage) {
-			if u == nil && status > 0 && status < 400 {
-				u = &provider.Usage{}
-			}
-			done(ctx, status, u)
-		}
-	}
-	query := url.Values{"q": {in.Query}, "format": {"json"}}.Encode()
-	resp, h, err := models.SendHops(ctx, hops, func(models.Hop) (models.Call, error) {
-		return models.Call{Method: http.MethodGet, Path: "search", Query: query, Header: http.Header{"Accept": {"application/json"}}}, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	read["search"] = h.Name
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxPage))
-	if resp.StatusCode >= 400 {
-		return nil, fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: search %s answered %s: %s", h.Name, resp.Status, untrusted.Cut(strings.TrimSpace(string(raw)), 500)))
-	}
-	var v struct {
-		Results []struct{ Title, URL, Content string }
-	}
-	if err := json.Unmarshal(raw, &v); err != nil {
-		return nil, fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: search %s answered what is not JSON; SearXNG needs json in search.formats of its settings: %s", h.Name, untrusted.Cut(string(raw), 300)))
-	}
-	count := int(in.Count)
-	if count <= 0 {
-		count = 10
-	}
-	out, urls := []searchView{}, []string{}
-	for _, r := range v.Results {
-		if len(out) == min(count, 20) {
-			break
-		}
-		out = append(out, searchView{Title: untrusted.Cut(r.Title, 300), URL: r.URL, Snippet: untrusted.Cut(r.Content, 1000)})
-		urls = append(urls, r.URL)
-	}
-	read["results"] = urls
-	return map[string]any{"results": out, "search": h.Name}, nil
 }
 
 type webFetchIn struct {

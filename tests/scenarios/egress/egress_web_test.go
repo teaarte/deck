@@ -99,7 +99,8 @@ func TestAgentsSearchAndReadPagesThroughDeck(t *testing.T) {
 	if len(hide) != 3 || !strings.HasPrefix(hide[0], "false ") || !strings.HasPrefix(hide[1], "true ") || !strings.HasPrefix(hide[2], "true ") {
 		t.Fatalf("a project without domains searches and reads no page: %v", hide)
 	}
-	if n := len(search.Requests()); n != 2 || len(page.Requests()) != 1 {
+	// The second search of the same query is answered from the first.
+	if n := len(search.Requests()); n != 1 || len(page.Requests()) != 1 {
 		t.Fatalf("both projects searched, only the open one read: %d searches, %d pages", n, len(page.Requests()))
 	}
 

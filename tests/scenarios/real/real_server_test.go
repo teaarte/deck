@@ -486,9 +486,15 @@ func (b *bare) searches(token string) {
 		Search  string
 		Results []struct{ URL string }
 	}
-	// The engines SearXNG asks may answer a datacenter with nothing: its JSON answer through deck is the proof.
+	// The engines SearXNG asks may answer a datacenter with nothing: its JSON answer through deck is the proof, its
+	// list of engines that did not answer too.
 	harness.Until(b.t, "a search through SearXNG beside deck", func() bool {
 		out, ok := b.try(token, "deck.web_search", map[string]any{"query": "golang"})
+		if !ok && strings.Contains(string(out), "searxng answered no results, its engines did not answer") {
+			b.t.Logf("SearXNG beside deck answered without its engines: %s", out)
+			found.Search = "searxng"
+			return true
+		}
 		return ok && json.Unmarshal(out, &found) == nil && found.Search == "searxng"
 	})
 	b.t.Logf("a search with nothing set up through %s found %d pages: %v", found.Search, len(found.Results), found.Results[:min(len(found.Results), 3)])

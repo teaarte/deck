@@ -249,16 +249,25 @@ func (b *Broker) drop(id int64) {
 	b.mu.Unlock()
 }
 
+// Answer closes ask id with answer and hands it on.
 func (b *Broker) Answer(ctx context.Context, id int64, answer string) error {
-	n, err := store.TxGet(b.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		return q.AnswerAsk(ctx, db.AnswerAskParams{Answer: answer, Now: store.Time(b.now()), ID: id})
-	})
-	if err != nil {
+	if err := b.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return b.AnswerIn(ctx, q, id, answer) }); err != nil {
 		return err
 	}
-	if n == 0 {
-		return ErrNotOpen
+	return b.Woken(ctx, id, answer)
+}
+
+// AnswerIn closes ask id with answer inside the caller's Tx; Woken after its commit hands the answer on.
+func (b *Broker) AnswerIn(ctx context.Context, q *db.Queries, id int64, answer string) error {
+	n, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: answer, Now: store.Time(b.now()), ID: id})
+	if err == nil && n == 0 {
+		err = ErrNotOpen
 	}
+	return err
+}
+
+// Woken hands a committed answer to the call that waits on ask id, else to the late hook.
+func (b *Broker) Woken(ctx context.Context, id int64, answer string) error {
 	b.mu.Lock()
 	ch := b.waiters[id]
 	if ch != nil {

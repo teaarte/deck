@@ -232,10 +232,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 		return nil, err
 	}
 	if f.As == AsTurn || f.As == AsStart {
-		if err := g.keep(ctx, owner, a, f, answer, true); err != nil {
-			return nil, err
-		}
-		return nil, g.asks.Answer(ctx, a.ID, answer)
+		return nil, g.answerKept(ctx, owner, a, f, answer)
 	}
 	if f.Tool != g.print(ctx, f.Who.Workspace, f.Who.Project, f.Call.Command, f.Call.Input) {
 		return nil, ErrChanged
@@ -258,7 +255,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 			return errors.Join(q.UndoDecision(ctx, sql.NullInt64{Int64: a.ID, Valid: true}), q.ReopenDecision(ctx, a.ID))
 		})
 	}
-	if err := g.keep(ctx, owner, a, f, answer, false); err != nil {
+	if err := g.keep(ctx, owner, a, f, answer); err != nil {
 		reopen()
 		return nil, err
 	}

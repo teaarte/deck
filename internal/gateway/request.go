@@ -161,9 +161,14 @@ func (g *Gateway) opened(ctx context.Context, q *db.Queries, c *registry.Command
 	return db.Ask{}, out, false
 }
 
-// keep keeps the owner's answer to the right of a frozen call: always and no for its module, work for its process, and
-// once of a call the turn makes for that very call; open refuses it when the ask has closed meanwhile.
-func (g *Gateway) keep(ctx context.Context, owner registry.Actor, a db.Ask, f Frozen, answer string, open bool) error {
+// keep keeps the owner's answer to the right of a frozen call in its own Tx.
+func (g *Gateway) keep(ctx context.Context, owner registry.Actor, a db.Ask, f Frozen, answer string) error {
+	return g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return g.keepIn(ctx, q, owner, a, f, answer) })
+}
+
+// keepIn keeps the owner's answer to the right of a frozen call: always and no for its module, work for its process,
+// and once of a call the turn makes for that very call.
+func (g *Gateway) keepIn(ctx context.Context, q *db.Queries, owner registry.Actor, a db.Ask, f Frozen, answer string) error {
 	var add *Allow
 	switch {
 	case (answer == AllowWork || answer == "allow" && f.As == AsStart) && f.Need != nil:
@@ -177,28 +182,33 @@ func (g *Gateway) keep(ctx context.Context, owner registry.Actor, a db.Ask, f Fr
 		if answer != AllowAlways {
 			kept = manifest.No
 		}
-		return g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			if err := stillOpen(ctx, q, a.ID, open); err != nil {
-				return err
-			}
-			return docs.Grant(ctx, q, owner, a.ProjectID.Int64, *f.Need, kept, g.cfg.Now())
-		})
+		return docs.Grant(ctx, q, owner, a.ProjectID.Int64, *f.Need, kept, g.cfg.Now())
 	}
 	if add == nil || f.Who.Process == 0 {
 		return nil
 	}
-	return g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := stillOpen(ctx, q, a.ID, open); err != nil {
+	p, err := q.GetProcess(ctx, f.Who.Process)
+	if err != nil {
+		return err
+	}
+	var as []Allow
+	_ = json.Unmarshal([]byte(p.Allows), &as)
+	return q.SetProcessAllows(ctx, db.SetProcessAllowsParams{Allows: allowsText(append(as, *add)), ID: p.ID})
+}
+
+// answerKept keeps the owner's answer and closes its ask in one Tx, then wakes the call that waits: a closed ask keeps
+// nothing, and the process woken sees what was kept.
+func (g *Gateway) answerKept(ctx context.Context, owner registry.Actor, a db.Ask, f Frozen, answer string) error {
+	err := g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := g.keepIn(ctx, q, owner, a, f, answer); err != nil {
 			return err
 		}
-		p, err := q.GetProcess(ctx, f.Who.Process)
-		if err != nil {
-			return err
-		}
-		var as []Allow
-		_ = json.Unmarshal([]byte(p.Allows), &as)
-		return q.SetProcessAllows(ctx, db.SetProcessAllowsParams{Allows: allowsText(append(as, *add)), ID: p.ID})
+		return g.asks.AnswerIn(ctx, q, a.ID, answer)
 	})
+	if err != nil {
+		return err
+	}
+	return g.asks.Woken(ctx, a.ID, answer)
 }
 
 // Deny answers a frozen call no: a plain no to a right the module declared is kept, so the module does not ask again;
@@ -208,26 +218,11 @@ func (g *Gateway) Deny(ctx context.Context, owner registry.Actor, a db.Ask, answ
 	if err != nil {
 		return err
 	}
-	// The no is kept before the ask closes: the call its process makes again on waking sees it.
-	if err := g.keep(ctx, owner, a, f, answer, true); err != nil {
-		return err
-	}
-	if err := g.asks.Answer(ctx, a.ID, answer); err != nil {
+	if err := g.answerKept(ctx, owner, a, f, answer); err != nil {
 		return err
 	}
 	if f.As != AsTurn {
 		g.Record(ctx, a, "rejected", "the owner said no")
-	}
-	return nil
-}
-
-// stillOpen refuses, when open asks it, a keep for an ask that another answer or its term closed meanwhile.
-func stillOpen(ctx context.Context, q *db.Queries, id int64, open bool) error {
-	if !open {
-		return nil
-	}
-	if a, err := q.GetAsk(ctx, id); err != nil || a.State != ask.StateOpen {
-		return cmp.Or(err, ask.ErrNotOpen)
 	}
 	return nil
 }

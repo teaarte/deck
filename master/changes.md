@@ -704,3 +704,8 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   project (`trigger:<project>.<command>`, a warning naming the request) until a run of it starts, where it said
   nothing; a slot fired again after deck stopped names the run it started then.
   Modules: nothing to change; a master that reads the health sees the trigger waiting for the owner.
+- 2026-11-21: A change `deck.document_propose` makes by the owner's yes is the owner's edit: its revision's author is
+  `owner` and its reason starts with who proposed it ("proposed by master: …"). So when deck ships a new text of the
+  same skill or fact, the owner's edit stands where both changed the same place, and you get a note of what of deck's
+  new text it lacks to tell the owner.
+  Modules: nothing to change.

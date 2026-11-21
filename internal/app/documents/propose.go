@@ -204,7 +204,12 @@ func (s *Service) documentPropose(ctx context.Context, act registry.Actor, in do
 			_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: store.At(s.Now()), ID: d.ID})
 			return err
 		}
-		_, n, changed, err = docs.Save(ctx, q, ref, d.Kind, in.Text, act.Author(), in.Reason)
+		// It applies only by the owner's yes, so it is the owner's edit; the reason says who proposed it.
+		reason := in.Reason
+		if act.Kind != registry.Owner {
+			reason = fmt.Sprintf("proposed by %s: %s", act.Author(), in.Reason)
+		}
+		_, n, changed, err = docs.Save(ctx, q, ref, d.Kind, in.Text, registry.Owner, reason)
 		return err
 	})
 	if err != nil {

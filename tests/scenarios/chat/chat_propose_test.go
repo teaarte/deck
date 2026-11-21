@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -117,8 +120,8 @@ func TestASkillChangesOnlyByTheOwnersYes(t *testing.T) {
 	e.Answer(as[0].ID, "allow")
 	e.Until("the skill changed", func() bool { return read().Text == next })
 	d := read()
-	if d.Revisions[0].Author != "master" || d.Revisions[0].Reason != reason {
-		t.Fatalf("the revision is the master's with the reason: %+v", d.Revisions[0])
+	if d.Revisions[0].Author != "owner" || d.Revisions[0].Reason != "proposed by master: "+reason {
+		t.Fatalf("the revision is the owner's, by their yes, with who proposed it and why: %+v", d.Revisions[0])
 	}
 	if got := ask(good); !strings.HasPrefix(got, "false ") || strings.Contains(got, "waiting") || len(waiting()) != 0 {
 		t.Fatalf("a proposal of the text the skill has is done without asking: %s", got)
@@ -283,8 +286,8 @@ func TestAFactOfTheOwnerChangesOnlyByTheirYes(t *testing.T) {
 	}
 	answer("memory/replies.md")
 	e.Until("the fact changed", func() bool { d, _ := read("memory/replies.md"); return d.Text == next })
-	if d, _ := read("memory/replies.md"); d.Revisions[0].Author != "master" || d.Revisions[0].Reason != quote {
-		t.Fatalf("the revision is the master's with the quote: %+v", d.Revisions[0])
+	if d, _ := read("memory/replies.md"); d.Revisions[0].Author != "owner" || d.Revisions[0].Reason != "proposed by master: "+quote {
+		t.Fatalf("the revision is the owner's, by their yes, with who proposed it and the quote: %+v", d.Revisions[0])
 	}
 
 	if got := ask(map[string]any{"name": "memory/replies.md", "delete": true, "reason": quote}); !strings.Contains(got, "waiting") {
@@ -312,5 +315,54 @@ func TestAFactOfTheOwnerChangesOnlyByTheirYes(t *testing.T) {
 	// How the ask closed, done or out of date, deck shows nowhere.
 	if err := e.SQLRow(`SELECT answer FROM ask WHERE id = ?`, id).Scan(&answered); err != nil || answered != "allow" {
 		t.Fatalf("a deletion done already closes as in force, not out of date: %q %v", answered, err)
+	}
+}
+
+// TestAnEditTheOwnerSaidYesToStandsOverWhatDeckShipsNext: the master's proposal the owner said yes to is the owner's
+// edit, so where deck's next text changes the same line the owner's stays and the master hears what of deck's it lacks.
+func TestAnEditTheOwnerSaidYesToStandsOverWhatDeckShipsNext(t *testing.T) {
+	t.Parallel()
+	const name = "skills/widgets/SKILL.md"
+	raw, err := os.ReadFile(filepath.Join(harness.Root, "master", name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	shipped := string(raw)
+	first := regexp.MustCompile(`(?m)^# .*$`).FindString(shipped)
+	older := strings.Replace(shipped, first, "# An older title", 1)
+	edit := strings.Replace(older, "# An older title", "# The title the owner approved", 1)
+	var proposal sync.Map
+	e := harness.New(t, harness.WithHome(t.TempDir()), harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if in, ok := proposal.LoadAndDelete("in"); ok {
+			c.Tool(ctx, "document_propose", in)
+			return provider.Result{Text: "proposed"}
+		}
+		return provider.Result{Text: "ok"}
+	}))
+	// The text an older deck shipped.
+	e.PlantRevision("master", name, older)
+	read := func(e *harness.Env) (text string, revision int64) {
+		var d struct {
+			Text     string
+			Revision int64
+		}
+		e.Must("deck.document_get", map[string]any{"project": "master", "name": name}, &d)
+		return d.Text, d.Revision
+	}
+	_, rev := read(e)
+	proposal.Store("in", map[string]any{"project": "master", "name": name, "text": edit, "reason": "lesson c", "if_revision": rev})
+	e.MasterSaid(e.Say(0, "propose"), 1)
+	e.Answer(e.WaitAsk().ID, "allow")
+	e.Until("the edit applied", func() bool { text, _ := read(e); return text == edit })
+
+	e = e.Restart()
+	if text, _ := read(e); text != edit {
+		t.Fatalf("the edit the owner said yes to stands over deck's new text: %.120q", text)
+	}
+	var note string
+	// Notes to the master wait for its next turn; no read lists them.
+	if err := e.SQLRow(`SELECT text FROM feed WHERE for_master = 1 AND text LIKE '%' || ? || '%' ORDER BY id DESC LIMIT 1`, name).Scan(&note); err != nil ||
+		!strings.Contains(note, "their text stands") || !strings.Contains(note, first) {
+		t.Fatalf("the master hears what of deck's new text the owner's edit lacks: %q %v", note, err)
 	}
 }

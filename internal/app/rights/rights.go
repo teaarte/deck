@@ -121,7 +121,7 @@ func (s *Service) rightSet(ctx context.Context, act registry.Actor, in rightSetI
 	})
 	switch {
 	case in.Answer == "revoke" && !answered:
-		return map[string]any{"ok": true, "unchanged": true}, nil
+		return kept{OK: true, Unchanged: true}, nil
 	case in.Answer != "revoke" && !declared && !answered:
 		return nil, registry.Invalid("%s does not declare the right %s on %s; a module asks only for what its manifest declares", p.Name, n.Right, n.Subject)
 	}
@@ -281,5 +281,18 @@ func (s *Service) projectTrust(ctx context.Context, act registry.Actor, in proje
 	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"ok": true, "unchanged": n == 0}, nil
+	return kept{OK: true, Unchanged: n == 0}, nil
+}
+
+// kept is the answer to a right that was kept, or changed nothing as it was so already.
+type kept struct {
+	OK        bool `json:"ok"`
+	Unchanged bool `json:"unchanged"`
+}
+
+func (a kept) Effect() (registry.Effect, int64) {
+	if a.Unchanged {
+		return registry.Unchanged, 0
+	}
+	return registry.Done, 0
 }

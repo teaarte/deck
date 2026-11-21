@@ -789,4 +789,7 @@ func TestAScheduleThatWaitsForTheOwnerSaysSo(t *testing.T) {
 	}
 	e.Answer(a.ID, "allow")
 	e.Until("the call the yes makes", func() bool { return len(svc.Requests()) == 1 })
+	if h := e.HealthRowOf("trigger:feed.send"); h != nil {
+		t.Fatalf("the run the yes started takes the warning away: %+v", h)
+	}
 }

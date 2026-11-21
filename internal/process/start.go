@@ -15,6 +15,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/fault"
+	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -406,6 +407,12 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 	}
 	if t.ID != 0 {
 		if err := q.SetTriggerLast(ctx, db.SetTriggerLastParams{LastProcessID: sql.NullInt64{Int64: a.p.ID, Valid: true}, ID: t.ID}); err != nil {
+			return err
+		}
+	}
+	// The owner's yes to a slot's call starts its run: the health that it waits for the answer goes.
+	if t.Kind == trigger.KindCron && o.Confirmed {
+		if err := health.Clear(ctx, q, health.Project(pr), health.Trigger(pr.Name, t.Command)); err != nil {
 			return err
 		}
 	}

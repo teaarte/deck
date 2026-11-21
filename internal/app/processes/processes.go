@@ -693,6 +693,9 @@ type outcomeView struct {
 	Question  string          `json:"question,omitempty"`
 }
 
+// Effect is that the call started its process, whatever its state.
+func (o outcomeView) Effect() (registry.Effect, int64) { return registry.Started, o.Process }
+
 // Outcome is what a call from an agent's turn that started a process of a command that is not an agent gives back:
 // its result or failure when it ends within quickWait, the ask it waits on, or the process going on.
 func (s *Service) Outcome(ctx context.Context, act registry.Actor, st process.Started) (any, error) {

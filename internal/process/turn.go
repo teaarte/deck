@@ -413,7 +413,7 @@ func (r *Runner) started(ctx context.Context, t *turn, p db.Process, proj db.Pro
 		return false
 	}
 	act := registry.ProcessOf(p, proj)
-	ask, work, err := r.gw.Start(ctx, act, proj.Name+"."+t.cmd.Name, m, granted, login)
+	ask, work, err := r.gw.Start(ctx, act, proj.Name+"."+t.cmd.Name, m, granted, login, manifest.Agents)
 	switch {
 	case err != nil:
 		fail(fault.New(fault.RightsDenied, err.Error()))

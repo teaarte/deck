@@ -721,3 +721,9 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   journal marked `cached`. SearXNG of compose.yaml asks Bing, Yahoo and Mojeek too.
   Modules: an agent or script that took an empty list as "nothing on the web" now gets the failure; repeating a query
   does not search again within 10 minutes, so change the query instead.
+- 2026-11-21: A run of a script asks at its start for the hosts its module declares under network for its programs
+  that the owner has not answered, such as hosts added after the module was enabled, where the proxy refused them
+  without a word: the run waits (`waiting:right`) on one request that names them all, and "for this work", "always"
+  or "no" answers each. The start of an agent asks its login and its agents' hosts in one request too, where it asked
+  one at a time. A host the proxy refused a script that ended well is a line `deck: the proxy refused: …` of its log.
+  Modules: nothing to change; declare every host a script reaches under network in rights.

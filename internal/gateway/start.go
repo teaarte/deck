@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"deck2/internal/ask"
@@ -13,17 +14,17 @@ import (
 	"deck2/internal/store/db"
 )
 
-// Start asks, before a turn of act starts, for the login of its CLI and its agents' network: a request it waits on, or the
-// rights the owner gave this work beside the module's; a login the owner did not give refuses the turn.
-func (g *Gateway) Start(ctx context.Context, act registry.Actor, command string, m *manifest.Manifest, granted manifest.Grants, login string) (int64, manifest.Grants, error) {
+// Start asks before a run starts, in one request, for its CLI's login and the network of who (agents or programs), or
+// gives the rights the owner gave this work beside the module's; a login the owner did not give refuses the run.
+func (g *Gateway) Start(ctx context.Context, act registry.Actor, command string, m *manifest.Manifest, granted manifest.Grants, login, who string) (int64, manifest.Grants, error) {
 	var needs []registry.Need
 	if login != "" {
 		needs = append(needs, registry.Need{Right: manifest.Login, Subject: login})
 	}
 	for _, d := range m.Rights {
-		if d.Right == manifest.Network && d.Whom() == manifest.Agents {
+		if d.Right == manifest.Network && d.Whom() == who {
 			for _, s := range d.What {
-				needs = append(needs, registry.Need{Right: manifest.Network, Who: manifest.Agents, Subject: s})
+				needs = append(needs, registry.Need{Right: manifest.Network, Who: who, Subject: s})
 			}
 		}
 	}
@@ -36,6 +37,7 @@ func (g *Gateway) Start(ctx context.Context, act registry.Actor, command string,
 		return 0, nil, err
 	}
 	var work manifest.Grants
+	var missing []registry.Need
 	for _, n := range needs {
 		asked := slices.IndexFunc(open, func(a db.Ask) bool { return startOf(a, n) })
 		held := !m.Declares(n) || m.Holds(granted, n)
@@ -61,18 +63,35 @@ func (g *Gateway) Start(ctx context.Context, act registry.Actor, command string,
 		case asked >= 0:
 			return open[asked].ID, nil, nil
 		default:
-			a, err := g.startRequest(ctx, act, command, n)
-			return a, nil, err
+			missing = append(missing, n)
 		}
+	}
+	if len(missing) > 0 {
+		a, err := g.startRequest(ctx, act, command, missing)
+		return a, nil, err
 	}
 	return 0, work, nil
 }
 
-// startOf says a request is the one of a turn's start for need.
+// startOf says a request is the one of a run's start for need.
 func startOf(a db.Ask, n registry.Need) bool {
 	f, err := ask.Decode[Frozen](a.Payload)
-	return err == nil && a.Kind == ask.KindCall && f.As == AsStart && f.Need != nil && f.Need.Right == n.Right &&
-		manifest.WhomOf(f.Need.Right, f.Need.Who) == manifest.WhomOf(n.Right, n.Who) && f.Need.Subject == n.Subject
+	return err == nil && a.Kind == ask.KindCall && f.As == AsStart && slices.ContainsFunc(f.Needs(), func(o registry.Need) bool {
+		return o.Right == n.Right && manifest.WhomOf(o.Right, o.Who) == manifest.WhomOf(n.Right, n.Who) && o.Subject == n.Subject
+	})
+}
+
+// NeedsSay is what rights let a module do, a sentence for the rights of one kind and whom.
+func NeedsSay(needs []registry.Need) string {
+	var lines []string
+	for i := 0; i < len(needs); {
+		n, subjects := needs[i], []string{}
+		for ; i < len(needs) && needs[i].Right == n.Right && manifest.WhomOf(needs[i].Right, needs[i].Who) == manifest.WhomOf(n.Right, n.Who); i++ {
+			subjects = append(subjects, needs[i].Subject)
+		}
+		lines = append(lines, manifest.Says(func(t string) string { return t }, n.Right, n.Who, subjects))
+	}
+	return strings.Join(lines, "; ")
 }
 
 // needRequest is the open request for need of the process of act, else a new one: the owner's answer for its work
@@ -88,13 +107,14 @@ func (g *Gateway) needRequest(ctx context.Context, act registry.Actor, command s
 	if i := slices.IndexFunc(asks, func(a db.Ask) bool { return startOf(a, n) }); i >= 0 {
 		return asks[i].ID, nil
 	}
-	return g.startRequest(ctx, act, command, n)
+	return g.startRequest(ctx, act, command, []registry.Need{n})
 }
 
-// startRequest asks the owner for a right a turn of the process of act needs before it starts.
-func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command string, n registry.Need) (int64, error) {
+// startRequest asks the owner in one request for the rights a run of the process of act needs before it starts.
+func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command string, needs []registry.Need) (int64, error) {
 	f := Freeze(act, command, []byte(`{}`))
-	f.As, f.Need, f.Offers = AsStart, &n, []string{manifest.Always, manifest.No}
+	n := needs[0]
+	f.As, f.Need, f.More, f.Offers = AsStart, &n, needs[1:], []string{manifest.Always, manifest.No}
 	if act.ProcessID != 0 {
 		f.Offers = append([]string{Work}, f.Offers...)
 	}
@@ -103,7 +123,7 @@ func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command 
 	if ttl := g.confirmTTL(ctx, act.Workspace); ttl > 0 {
 		expires = g.st.Now().Add(ttl)
 	}
-	text := fmt.Sprintf("%s wants to start: %s", command, manifest.Says(func(t string) string { return t }, n.Right, n.Who, []string{n.Subject}))
+	text := fmt.Sprintf("%s wants to start: %s", command, NeedsSay(needs))
 	a, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {
 		return Hold(ctx, q, act, act.ProjectID, act.ProcessID, ask.KindCall, n.Right, text, f, expires, g.st.Now())
 	})

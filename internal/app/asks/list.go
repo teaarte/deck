@@ -261,7 +261,7 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 			lines = append(lines, fmt.Sprintf("It read from outside deck: %s, so this goes out only with your yes", f.Read))
 		}
 		if n := f.Need; n != nil && q.Kind == ask.KindCall && !(registry.IsBuiltin(f.Call.Command) && n.Subject == f.Call.Command) {
-			lines = append(lines, manifest.Says(func(t string) string { return t }, n.Right, n.Who, []string{n.Subject}))
+			lines = append(lines, gateway.NeedsSay(f.Needs()))
 		}
 		c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command)
 		r.Turn = f.As == gateway.AsTurn
@@ -291,7 +291,7 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 			r.Work = "For this work"
 		}
 		if slices.Contains(f.Offers, manifest.Always) && f.Need != nil && r.Project != "" {
-			r.Always = fmt.Sprintf("Always let %s: %s", r.Project, manifest.Says(func(t string) string { return t }, f.Need.Right, f.Need.Who, []string{f.Need.Subject}))
+			r.Always = fmt.Sprintf("Always let %s: %s", r.Project, gateway.NeedsSay(f.Needs()))
 		}
 		r.Kept = slices.Contains(f.Offers, manifest.No)
 	case ask.KindSignIn:

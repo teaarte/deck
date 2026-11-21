@@ -115,8 +115,9 @@ type Frozen struct {
 	// Changes are the places it changes, a line each, when its command can tell; Sets the places it sets.
 	Changes []string `json:"changes,omitempty"`
 	Sets    []string `json:"sets,omitempty"`
-	// Need is the right of the catalog the owner's answer goes to.
-	Need *registry.Need `json:"need,omitempty"`
+	// Need is the right of the catalog the owner's answer goes to; More the other rights of a start it answers too.
+	Need *registry.Need  `json:"need,omitempty"`
+	More []registry.Need `json:"more,omitempty"`
 	// Offers are the answers the owner may give beside once: work, always, no.
 	Offers []string `json:"offers,omitempty"`
 	// Reason is why the caller asks.
@@ -150,7 +151,7 @@ const (
 	AsOwner = "owner"
 	// AsTurn is a call of a tool of the agent's provider: the turn makes it itself once allowed.
 	AsTurn = "turn"
-	// AsStart is a right a turn needs before it starts, the login of a CLI or the network of the shells of agents.
+	// AsStart is the rights a run needs before it starts: the login of a CLI, the network of its agents or programs.
 	AsStart = "start"
 )
 
@@ -159,6 +160,14 @@ func Freeze(act registry.Actor, command string, input json.RawMessage) Frozen {
 	var f Frozen
 	f.Call.Command, f.Call.Input, f.Who = command, json.RawMessage(Canonical(input)), RefOf(act)
 	return f
+}
+
+// Needs are the rights the owner's answer goes to, none for a call without one.
+func (f Frozen) Needs() []registry.Need {
+	if f.Need == nil {
+		return nil
+	}
+	return append([]registry.Need{*f.Need}, f.More...)
 }
 
 func (f Frozen) String() string {

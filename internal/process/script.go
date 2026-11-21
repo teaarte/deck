@@ -14,6 +14,7 @@ import (
 	"deck2/internal/boxes"
 	"deck2/internal/docs"
 	"deck2/internal/gateway"
+	"deck2/internal/manifest"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/sandbox"
@@ -39,6 +40,16 @@ func (r *Runner) runScript(ctx context.Context, t turn, p db.Process) {
 		fail(fault.Of(err))
 		return
 	}
+	ask, work, err := r.gw.Start(bg, registry.ProcessOf(p, proj), proj.Name+"."+t.cmd.Name, t.m, granted, "", manifest.Programs)
+	switch {
+	case err != nil:
+		fail(fault.New(fault.RightsDenied, err.Error()))
+		return
+	case ask != 0:
+		r.hold(bg, t, wait{reason: WaitRight, on: fmt.Sprint(ask)})
+		return
+	}
+	granted = append(granted, work...)
 	src, err := r.scriptSource(bg, t.project, t.m, t.cmd)
 	if err != nil {
 		fail(fault.New(fault.ScriptFailed, err.Error()))

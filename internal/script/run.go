@@ -134,6 +134,11 @@ func (x *Exec) Run(ctx context.Context, j Job) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, why := range p.Refused() {
+		if j.OnLine != nil {
+			j.OnLine("deck: the proxy refused: " + why)
+		}
+	}
 	return out.Bytes(), nil
 }
 

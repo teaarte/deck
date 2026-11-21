@@ -213,5 +213,5 @@ func (s *Service) always(ctx context.Context, _ registry.Actor, input json.RawMe
 		return true, nil
 	}
 	m, _, err := docs.Rights(ctx, s.St.Q, q.ProjectID.Int64)
-	return err != nil || m.Keyed(*f.Need), nil
+	return err != nil || slices.ContainsFunc(f.Needs(), m.Keyed), nil
 }

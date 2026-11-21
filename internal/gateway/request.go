@@ -170,20 +170,27 @@ func (g *Gateway) keep(ctx context.Context, owner registry.Actor, a db.Ask, f Fr
 // keepIn keeps the owner's answer to the right of a frozen call: always and no for its module, work for its process,
 // and once of a call the turn makes for that very call.
 func (g *Gateway) keepIn(ctx context.Context, q *db.Queries, owner registry.Actor, a db.Ask, f Frozen, answer string) error {
-	var add *Allow
+	var add []Allow
 	switch {
 	case (answer == AllowWork || answer == "allow" && f.As == AsStart) && f.Need != nil:
-		add = &Allow{Right: f.Need.Right, Who: manifest.WhomOf(f.Need.Right, f.Need.Who), Subject: f.Need.Subject, Print: f.Need.Print}
+		for _, n := range f.Needs() {
+			add = append(add, Allow{Right: n.Right, Who: manifest.WhomOf(n.Right, n.Who), Subject: n.Subject, Print: n.Print})
+		}
 	case answer == AllowWork:
-		add = &Allow{Command: f.Call.Command, Any: true}
+		add = []Allow{{Command: f.Call.Command, Any: true}}
 	case answer == "allow" && f.As == AsTurn:
-		add = &Allow{Command: f.Call.Command, Params: f.Call.Input}
+		add = []Allow{{Command: f.Call.Command, Params: f.Call.Input}}
 	case (answer == AllowAlways || answer == "deny" && slices.Contains(f.Offers, manifest.No)) && f.Need != nil:
 		kept := manifest.Always
 		if answer != AllowAlways {
 			kept = manifest.No
 		}
-		return docs.Grant(ctx, q, owner, a.ProjectID.Int64, *f.Need, kept, g.st.Now())
+		for _, n := range f.Needs() {
+			if err := docs.Grant(ctx, q, owner, a.ProjectID.Int64, n, kept, g.st.Now()); err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 	if add == nil || f.Who.Process == 0 {
 		return nil
@@ -194,7 +201,7 @@ func (g *Gateway) keepIn(ctx context.Context, q *db.Queries, owner registry.Acto
 	}
 	var as []Allow
 	_ = json.Unmarshal([]byte(p.Allows), &as)
-	return q.SetProcessAllows(ctx, db.SetProcessAllowsParams{Allows: allowsText(append(as, *add)), ID: p.ID})
+	return q.SetProcessAllows(ctx, db.SetProcessAllowsParams{Allows: allowsText(append(as, add...)), ID: p.ID})
 }
 
 // answerKept keeps the owner's answer and closes its ask in one Tx, then wakes the call that waits: a closed ask keeps

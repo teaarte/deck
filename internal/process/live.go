@@ -29,8 +29,10 @@ const (
 // sayWait is how long a handed message waits for the provider to say whether the turn took it.
 const sayWait = time.Minute
 
-// Say puts the owner's message into the running turn of a process.
-func (r *Runner) Say(ctx context.Context, processID int64, text string) Said {
+// Say puts a message into the running turn of a process, marked first by where it came from.
+func (r *Runner) Say(ctx context.Context, processID int64, t Text) Said {
+	r.gives(ctx, processID, t)
+	text := t.Body
 	// Files given while a turn on a node runs do not reach it: they come with its next turn.
 	if r.Away(processID) && strings.Contains(text, filepath.Join(r.runDir(processID), "input")) {
 		return Refused
@@ -72,15 +74,32 @@ func (r *Runner) Away(processID int64) bool {
 	return lt != nil && lt.node
 }
 
-// Remark keeps the owner's message for a process whose turn cannot take it: the turn ends parked, and the
-// message comes with the resume after it.
-func (r *Runner) Remark(ctx context.Context, processID int64, text string) error {
+// Answer closes question ask of a process with t, the process marked by where t came from in the same transaction.
+func (r *Runner) Answer(ctx context.Context, processID, ask int64, t Text) error {
 	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := ask.Remark(ctx, q, processID, text, r.stamp().String)
+		if err := r.deps.Asks.AnswerIn(ctx, q, ask, t.Body); err != nil {
+			return err
+		}
+		return carries(ctx, q, processID, t.From...)
+	})
+	if err != nil {
+		return err
+	}
+	return r.deps.Asks.Woken(ctx, ask, t.Body)
+}
+
+// Remark keeps a message for a process whose turn cannot take it, the process marked by where it came from: the turn
+// ends parked, and the message comes with the resume after it.
+func (r *Runner) Remark(ctx context.Context, processID int64, t Text) error {
+	err := r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		_, err := ask.Remark(ctx, q, processID, t.Body, r.stamp().String)
 		if errors.Is(err, sql.ErrNoRows) {
 			return registry.Invalid("process %d has finished; send it back with a remark instead", processID)
 		}
-		return err
+		if err != nil {
+			return err
+		}
+		return carries(ctx, q, processID, t.From...)
 	})
 	if err == nil {
 		_ = r.Deliver(context.WithoutCancel(ctx), processID)

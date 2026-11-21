@@ -56,6 +56,8 @@ var rules = []rule{
 		nil, droppedTx},
 	{"processrow", "the mark or the ceiling of a process written outside internal/process: the runner of processes is their one writer (gateway.Rows)",
 		[]string{"internal/", "cmd/"}, []string{"internal/process/"}, processRow},
+	{"mark", "the mark of a process written beside its one writer (process/mark.go): what deck puts into a turn is a process.Text, which its door marks",
+		[]string{"internal/", "cmd/"}, []string{"internal/process/mark.go"}, markWrite},
 }
 
 // sqlRules are the conventions of the SQL of the store, by line.
@@ -371,6 +373,20 @@ func processRow(f *ast.File, fset *token.FileSet) []int {
 	ast.Inspect(f, func(n ast.Node) bool {
 		if c, ok := n.(*ast.CallExpr); ok {
 			if s, ok := c.Fun.(*ast.SelectorExpr); ok && slices.Contains(rowWrites, s.Sel.Name) {
+				out = append(out, fset.Position(c.Pos()).Line)
+			}
+		}
+		return true
+	})
+	return out
+}
+
+// markWrite are the lines that write the mark of a process.
+func markWrite(f *ast.File, fset *token.FileSet) []int {
+	var out []int
+	ast.Inspect(f, func(n ast.Node) bool {
+		if c, ok := n.(*ast.CallExpr); ok {
+			if s, ok := c.Fun.(*ast.SelectorExpr); ok && s.Sel.Name == "MarkProcessRead" {
 				out = append(out, fset.Position(c.Pos()).Line)
 			}
 		}

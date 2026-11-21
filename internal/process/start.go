@@ -52,9 +52,9 @@ type Origin struct {
 	// Session is an existing session the agent continues, by resume with Message when Resume is set.
 	Session string
 	Resume  bool
-	Message string
+	Message Text
 	// Note goes into the first prompt of a fresh session, also of one that replaces a lost session.
-	Note string
+	Note Text
 	// Files are stored files of the project given to the agent with its first message, as with Give.
 	Files []int64
 	// Provider starts an agent on this provider rather than the one its assignment picks.
@@ -66,11 +66,6 @@ type Origin struct {
 	Same bool
 	// Allows are the calls the owner's press named, as gateway.Allows keeps them: the run makes them without asking.
 	Allows string
-	// Read is the untrusted text the first prompt of the process carries, as where it came from: the words of a
-	// marked process a topic retells.
-	Read string
-	// Carries are the pieces of its first prompt deck took from a process or a module.
-	Carries []Source
 	// again is the one run after Follows with the last call that came for its record while it ran.
 	again bool
 	// closes is the process Follows the start hands the work on from, closed in the same transaction.
@@ -177,7 +172,7 @@ func (r *Runner) placement(ctx context.Context, projectID int64, m *manifest.Man
 		if _, err := r.commandBody(ctx, projectID, cmd); err != nil {
 			return at, err
 		}
-		if _, _, err := r.deps.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
+		if _, err := r.deps.Skills(ctx, projectID, cmd.Executor.Skills); err != nil {
 			return at, err
 		}
 		if o.Session != "" {
@@ -398,7 +393,7 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 	a.p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: store.Bool(trial), ProjectID: projectID, Command: command, Kind: at.kind, State: StateRunning,
 		Provider: at.provider, Input: string(a.in), SessionID: at.session, ParentID: store.ID(o.Parent), Depth: depth,
 		TriggerID: store.ID(t.ID), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: at.folder,
-		StartNote: o.Note, Alone: store.Bool(o.Alone && trial), StartedAt: store.Time(r.now()), FollowsID: store.ID(o.Follows), Allows: cmp.Or(o.Allows, "[]")})
+		StartNote: o.Note.Body, Alone: store.Bool(o.Alone && trial), StartedAt: store.Time(r.now()), FollowsID: store.ID(o.Follows), Allows: cmp.Or(o.Allows, "[]")})
 	if err != nil {
 		return err
 	}
@@ -429,14 +424,10 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 	return bindInput(ctx, q, cmd, projectID, a.p.ID, a.input)
 }
 
-// inherit marks a process with the untrusted text what it was given carries: the input or work of a marked process
-// it starts from, what its first prompt carries, the session of a marked process it goes on, files given with it.
+// inherit marks a process with the untrusted text what it was given carries: its note and message, the input or work
+// of a marked process it starts from, the session of a marked process it goes on, files given with it.
 func inherit(ctx context.Context, q *db.Queries, id int64, o Origin) error {
-	from := o.Read
-	if from == "" {
-		from = carried(ctx, q, append([]Source{{Process: o.Parent, OfProcess: "the input of process %d, which read %s"},
-			{Process: o.Follows, OfProcess: "the work it continues of process %d, which read %s"}}, o.Carries...)...)
-	}
+	from := carried(ctx, q, append(append([]Source{inputOf(o.Parent), workOf(o.Follows)}, o.Note.From...), o.Message.From...)...)
 	if from == "" && o.Resume && o.Session != "" {
 		read, err := q.SessionRead(ctx, db.SessionReadParams{Session: o.Session, ID: id})
 		if err != nil {
@@ -447,10 +438,7 @@ func inherit(ctx context.Context, q *db.Queries, id int64, o Origin) error {
 	if from == "" && len(o.Files) > 0 {
 		from = "files given with the message"
 	}
-	if from == "" {
-		return nil
-	}
-	return q.MarkProcessRead(ctx, db.MarkProcessReadParams{ReadUntrusted: untrusted.Cut(from, 500), ID: id})
+	return mark(ctx, q, id, untrusted.Cut(from, 500))
 }
 
 // launch hands the process admitted to its turn, after a joined agent hears its remark and the files of the call
@@ -468,9 +456,9 @@ func (r *Runner) launch(ctx context.Context, projectID int64, m *manifest.Manife
 	if len(o.Files) > 0 {
 		line, err := r.Give(ctx, a.p.ID, o.Files)
 		if err == nil {
-			o.Message = strings.TrimSpace(o.Message + "\n\n" + line)
+			o.Message.Body = strings.TrimSpace(o.Message.Body + "\n\n" + line)
 			err = r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-				return q.SetStartNote(ctx, db.SetStartNoteParams{StartNote: strings.TrimSpace(o.Note + "\n\n" + line), ID: a.p.ID})
+				return q.SetStartNote(ctx, db.SetStartNoteParams{StartNote: strings.TrimSpace(o.Note.Body + "\n\n" + line), ID: a.p.ID})
 			})
 		}
 		if err != nil {
@@ -479,7 +467,7 @@ func (r *Runner) launch(ctx context.Context, projectID int64, m *manifest.Manife
 		}
 	}
 	resume := o.Resume && at.kind == KindAgent && o.Session != ""
-	r.spawn(turn{process: a.p.ID, project: projectID, m: m, cmd: cmd, input: string(a.in), session: at.session, resume: resume, message: o.Message})
+	r.spawn(turn{process: a.p.ID, project: projectID, m: m, cmd: cmd, input: string(a.in), session: at.session, resume: resume, message: o.Message.Body})
 	return a.p.ID, nil
 }
 

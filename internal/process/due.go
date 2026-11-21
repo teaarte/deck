@@ -90,7 +90,7 @@ func (r *Runner) warnOfCeiling(ctx context.Context, now time.Time) {
 			"to documents or data now, end any wait, and say in your result where you stopped and how to go on.", int(left.Round(time.Minute)/time.Minute))
 		go func() {
 			defer r.wg.Done()
-			said := r.Say(r.ctx, p.ID, text)
+			said := r.Say(r.ctx, p.ID, Text{Body: text})
 			r.mu.Lock()
 			defer r.mu.Unlock()
 			if said == Refused {

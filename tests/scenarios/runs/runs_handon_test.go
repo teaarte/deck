@@ -403,3 +403,42 @@ func TestARetryOfAMarkedProcessKeepsItsMark(t *testing.T) {
 		t.Fatalf("the run again of a marked process is marked by it: %q", p.Read)
 	}
 }
+
+// TestAHandedOnChildKeepsTheMarkOfTheInputOfItsParent: a process started by a marked turn and handed on to the next
+// model keeps saying it came from the input of that turn, as the process it continues did.
+func TestAHandedOnChildKeepsTheMarkOfTheInputOfItsParent(t *testing.T) {
+	t.Parallel()
+	marked := make(chan struct{})
+	main := &harness.Fake{Script: func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "work" {
+			return harness.Limited(harness.T0)
+		}
+		<-marked
+		c.Tool(ctx, "pages__work", map[string]any{})
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}}
+	backup := &harness.Fake{ProviderName: "backup", Script: harness.Ok}
+	e := harness.New(t, harness.WithProvider(main, backup))
+	e.Project("pages", harness.Manifest(`{"commands": [`+harness.AgentCommand("lead", "")+`, `+harness.AgentCommand("work", "")+`]}`))
+	e.UseModels("pages.work", "fake", "backup")
+	lead := e.Start("pages", "lead", nil)
+	e.WaitState(lead, "running")
+	// Text from outside the leading turn read, seeded: what it read is not the point here.
+	e.SQL(`UPDATE process SET read_untrusted = 'a page' WHERE id = ?`, lead)
+	close(marked)
+	var work int64
+	e.Until("the child to start", func() bool {
+		// The child, whose id the test does not hold.
+		_ = e.SQLRow(`SELECT id FROM process WHERE command = 'work' ORDER BY id LIMIT 1`).Scan(&work)
+		return work != 0
+	})
+	next := e.Following(work)
+	e.WaitState(next, "done", "error")
+	want := fmt.Sprintf("the input of process %d, which read a page", lead)
+	var p, child struct{ Read string }
+	e.Must("deck.process_get", map[string]any{"process": work}, &child)
+	e.Must("deck.process_get", map[string]any{"process": next}, &p)
+	if child.Read != want || p.Read != want {
+		t.Fatalf("the child and the one that continues it say they came from the input of the marked turn: %q %q, want %q", child.Read, p.Read, want)
+	}
+}

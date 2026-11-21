@@ -68,7 +68,8 @@ func (r *Runner) join(ctx context.Context, processID, remark int64, text string,
 	}
 	go func() {
 		defer r.wg.Done()
-		if r.Say(bg, processID, text) == Refused {
+		// Begin marked the process by the call it joined, in the transaction of its remark.
+		if r.Say(bg, processID, Text{Body: text}) == Refused {
 			_ = r.Deliver(bg, processID)
 			return
 		}

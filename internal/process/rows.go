@@ -11,7 +11,7 @@ import (
 type rows struct{ r *Runner }
 
 func (w rows) MarkRead(ctx context.Context, q *db.Queries, process int64, from string) error {
-	return q.MarkProcessRead(ctx, db.MarkProcessReadParams{ReadUntrusted: from, ID: process})
+	return mark(ctx, q, process, from)
 }
 
 func (w rows) MarkWrote(ctx context.Context, q *db.Queries, process int64) error {

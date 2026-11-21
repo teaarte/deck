@@ -134,10 +134,10 @@ const handOnOpening = "This continues process #%d of the same command"
 
 // HandOnNote tells the process that goes on with the work of p what p did; was is the model p ran on and why
 // what stopped it.
-func (r *Runner) HandOnNote(ctx context.Context, p db.Process, was, why string) string {
-	return fmt.Sprintf(handOnOpening+" with the same input; it ran on %s, which stopped: %s.\n"+
+func (r *Runner) HandOnNote(ctx context.Context, p db.Process, was, why string) Text {
+	return Text{From: []Source{workOf(p.ID)}, Body: fmt.Sprintf(handOnOpening+" with the same input; it ran on %s, which stopped: %s.\n"+
 		"What it did stays: files it changed, records it wrote, the processes it started. Check what is already done, "+
-		"do not redo it, and go on from where it stopped.\n\n%s", p.ID, was, why, r.told(ctx, p))
+		"do not redo it, and go on from where it stopped.\n\n%s", p.ID, was, why, r.told(ctx, p))}
 }
 
 // passOnIn gives the process that continues from a closed one the messages the closed one did not take: those its

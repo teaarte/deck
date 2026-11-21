@@ -516,11 +516,12 @@ func (s *Service) processRework(ctx context.Context, act registry.Actor, in proc
 	if err != nil {
 		return nil, err
 	}
-	from := process.Source{Process: act.ProcessID, OfProcess: "a remark of process %d, which read %s", OfToken: "a remark of automation token %s"}
+	token := int64(0)
 	if act.Outside {
-		from.Token = act.Token
+		token = act.Token
 	}
-	if err := s.Runner.Rework(ctx, in.Process, strings.TrimSpace(in.Remark+"\n\n"+given), from); err != nil {
+	remark := process.Text{Body: strings.TrimSpace(in.Remark + "\n\n" + given), From: []process.Source{process.RemarkOf(act.ProcessID, token)}}
+	if err := s.Runner.Rework(ctx, in.Process, remark); err != nil {
 		return nil, err
 	}
 	return process.Started{Process: in.Process}, nil

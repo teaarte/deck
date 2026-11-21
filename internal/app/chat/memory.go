@@ -21,29 +21,30 @@ import (
 
 // Memory is what a fresh session gets of the memory within docs.MemoryBudget, and the modules it is of: the owner's
 // index for the master, the index of its project (or a topic's), then the lessons of its command.
-func (s *Service) Memory(ctx context.Context, p db.Process, again bool) (memory, lessons string, from []process.Source, err error) {
+func (s *Service) Memory(ctx context.Context, p db.Process, again bool) (memory, lessons process.Text, err error) {
 	proj, err := s.St.Q.GetProject(ctx, p.ProjectID)
 	if err != nil {
-		return "", "", nil, err
+		return memory, lessons, err
 	}
 	less, err := s.lessons(ctx, proj, p.Command)
 	if err != nil {
-		return "", "", nil, err
+		return memory, lessons, err
 	}
 	if proj.Builtin == 1 {
 		topic, _ := topicOf(p)
-		memory, lessons, _, from, err = s.masterMemory(ctx, proj, topic, less, !again)
-		return memory, lessons, from, err
+		memory, lessons, _, err = s.masterMemory(ctx, proj, topic, less, !again)
+		return memory, lessons, err
 	}
 	own, _, err := s.memoryIndex(ctx, proj, "Memory index of project "+proj.Name)
 	if err != nil {
-		return "", "", nil, err
+		return memory, lessons, err
 	}
 	out := s.fit(ctx, !again, own, less)
 	if out[0] != "" {
-		memory = master.Text("project_memory", struct{ Project, Index string }{proj.Name, out[0]})
+		memory.Body = master.Text("project_memory", struct{ Project, Index string }{proj.Name, out[0]})
 	}
-	return memory, out[1], sources(out, own, less), nil
+	memory.From = sources(out[:1], own)
+	return memory, process.Text{Body: out[1], From: sources(out[1:], less)}, nil
 }
 
 // sources are the modules of the parts of the memory a turn gets, those fit gave something of.
@@ -51,7 +52,7 @@ func sources(out []string, parts ...*part) []process.Source {
 	var from []process.Source
 	for i, p := range parts {
 		if p != nil && out[i] != "" {
-			from = append(from, process.Source{Project: p.project, OfProject: "the memory of %s, where %s wrote"})
+			from = append(from, process.MemoryOf(p.project))
 		}
 	}
 	return from
@@ -59,10 +60,10 @@ func sources(out []string, parts ...*part) []process.Source {
 
 // masterMemory is the memory an agent of the master gets with the lessons of its command, a sign that changes when the
 // memory does, and the modules whose memory it is.
-func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64, less *part, count bool) (memory, lessons, sign string, from []process.Source, err error) {
+func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64, less *part, count bool) (memory, lessons process.Text, sign string, err error) {
 	own, rev, err := s.memoryIndex(ctx, mp, "Memory index of the owner")
 	if err != nil {
-		return "", "", "", nil, err
+		return memory, lessons, "", err
 	}
 	var v struct{ Own, Project string }
 	sign = fmt.Sprint(rev)
@@ -71,13 +72,14 @@ func (s *Service) masterMemory(ctx context.Context, mp db.Project, topic int64, 
 		var crev int64
 		idx, crev, err = s.memoryIndex(ctx, cp, "Memory index of project "+cp.Name+", which this topic is about (document_get with project "+cp.Name+")")
 		if err != nil {
-			return "", "", "", nil, err
+			return memory, lessons, "", err
 		}
 		sign += fmt.Sprintf("/%d:%d", cp.ID, crev)
 	}
 	out := s.fit(ctx, count, own, idx, less)
 	v.Own, v.Project = out[0], out[1]
-	return master.Text("owner_memory", v), out[2], sign, sources(out, own, idx, less), nil
+	return process.Text{Body: master.Text("owner_memory", v), From: sources(out[:2], own, idx)},
+		process.Text{Body: out[2], From: sources(out[2:], less)}, sign, nil
 }
 
 // topicProject is the project a topic is about, as the list of topics names it: that of the screen of its first

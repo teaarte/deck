@@ -130,33 +130,33 @@ func TopicOf(input string) int64 {
 }
 
 // thread is what the processes of the record of p did before it, the latest last; empty without a record.
-func (r *Runner) thread(ctx context.Context, p db.Process) string {
+func (r *Runner) thread(ctx context.Context, p db.Process) Text {
 	record := RecordOf(p.Input)
 	if record == 0 {
-		return ""
+		return Text{}
 	}
 	ps, err := r.st.Q.ListRecordProcesses(ctx, db.ListRecordProcessesParams{ProjectID: p.ProjectID, Record: record})
 	if err != nil {
-		return ""
+		return Text{}
 	}
 	var links []string
+	var from []Source
 	for i := len(ps) - 1; i >= 0 && len(links) < threadLinks; i-- {
 		if q := ps[i]; q.ID != p.ID {
 			links = append(links, r.link(ctx, q))
-			if q.ReadUntrusted != "" {
-				r.Read(ctx, p.ID, fmt.Sprintf("the result of process %d of its record, which read %s", q.ID, q.ReadUntrusted))
-			}
+			from = append(from, threadOf(q.ID))
 		}
 	}
 	if len(links) == 0 {
-		return ""
+		return Text{}
 	}
 	var b strings.Builder
 	for i := len(links) - 1; i >= 0; i-- {
 		b.WriteString(links[i] + "\n")
 	}
-	return fmt.Sprintf("Earlier processes of record %d in this project, the latest last; %s gives one in full, "+
-		"%s with record gives all.\n", record, registry.Deck("process_get"), registry.Deck("processes_list")) + untrusted.Block("The processes of the record", strings.TrimSpace(b.String()))
+	return Text{Body: fmt.Sprintf("Earlier processes of record %d in this project, the latest last; %s gives one in full, "+
+		"%s with record gives all.\n", record, registry.Deck("process_get"), registry.Deck("processes_list")) +
+		untrusted.Block("The processes of the record", strings.TrimSpace(b.String())), From: from}
 }
 
 // link is one process of a thread in a line or two: who ran it, how it ended, what it gave and what it was told.

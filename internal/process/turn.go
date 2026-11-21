@@ -243,9 +243,9 @@ func (r *Runner) prepare(ctx context.Context, t *turn, p db.Process, trial bool,
 			a.req.Prompt += master.Text("again", again{Why: "resume", Submit: true})
 		}
 	}
-	var from []Source
-	if a.req.Skills, from, err = r.deps.Skills(ctx, t.project, t.cmd.Executor.Skills); err == nil {
-		r.Carries(ctx, processID, from...)
+	var skills map[string]Text
+	if skills, err = r.deps.Skills(ctx, t.project, t.cmd.Executor.Skills); err == nil {
+		a.req.Skills = r.given(ctx, processID, skills)
 		t.input, _, err = r.inputFiles(ctx, t.cmd, t.project, processID, t.input, true)
 	}
 	if err == nil && !t.resume {

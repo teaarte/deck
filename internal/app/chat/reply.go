@@ -141,13 +141,11 @@ func (s *Service) reply(ctx context.Context, topicID int64) (err error) {
 	}
 	first, last := pending[0].ID, pending[len(pending)-1].ID
 	files := attached(pending)
-	notes, told, noted := s.masterNotes(ctx, t.WorkspaceID)
-	read := s.topicRead(ctx, t)
+	notes, told := s.masterNotes(ctx, t.WorkspaceID)
 	open, err := s.St.Q.OpenTopicProcess(ctx, topicID)
 	if err == nil {
-		if read != "" {
-			s.Runner.Read(ctx, open.ID, read)
-		}
+		// The reply goes on in the session of the topic, so what it is given carries the topic's words too.
+		topic := s.topicWords(ctx, t, "")
 		given := ""
 		if len(files) > 0 {
 			if given, err = s.Runner.Give(ctx, open.ID, files); err != nil {
@@ -161,24 +159,24 @@ func (s *Service) reply(ctx context.Context, topicID int64) (err error) {
 			}
 			if given != "" && s.Runner.Away(open.ID) {
 				// A turn on a node gets the files with the next turn, after the one the answer goes on.
-				if err := s.Runner.Remark(ctx, open.ID, "deck: the owner attached these to the answer of your question.\n"+given); err != nil {
+				if err := s.Runner.Remark(ctx, open.ID, process.Text{Body: "deck: the owner attached these to the answer of your question.\n" + given}); err != nil {
 					return err
 				}
 				texts = append(texts, "deck: the files the owner attached come with your next turn.")
 			} else if given != "" {
 				texts = append(texts, given)
 			}
-			if err := s.Asks.Answer(ctx, q, strings.Join(texts, "\n\n")); err == nil {
+			if err := s.Runner.Answer(ctx, open.ID, q, process.Text{Body: strings.Join(texts, "\n\n"), From: topic.From}); err == nil {
 				return s.takeMessages(ctx, t, open.ID, open.SessionID, "", 0, last)
 			}
 		}
 		if open.State == process.StateRunning {
-			news, _, _, err := s.chatPrompt(ctx, t, pending, "", "", notes, false)
+			news, _, err := s.chatPrompt(ctx, t, pending, "", "", notes, false)
 			if err != nil {
 				return err
 			}
-			s.Runner.Carries(ctx, open.ID, noted...)
-			if s.Runner.Say(ctx, open.ID, strings.TrimSpace("deck: the owner wrote while you work.\n"+news+"\n"+given)) == process.Refused {
+			said := process.Join("\n", process.Text{Body: "deck: the owner wrote while you work."}, news, process.Text{Body: given}, topic)
+			if s.Runner.Say(ctx, open.ID, said) == process.Refused {
 				return err
 			}
 			return s.takeMessages(ctx, t, open.ID, open.SessionID, "", told, last)
@@ -186,12 +184,11 @@ func (s *Service) reply(ctx context.Context, topicID int64) (err error) {
 		if !process.Waits(open, process.WaitAnswer) {
 			return nil
 		}
-		msg, sign, mem, err := s.chatPrompt(ctx, t, pending, open.SessionID, open.Provider, notes, true)
+		msg, sign, err := s.chatPrompt(ctx, t, pending, open.SessionID, open.Provider, notes, true)
 		if err != nil {
 			return err
 		}
-		s.Runner.Carries(ctx, open.ID, append(noted, mem...)...)
-		if err := s.Runner.Remark(ctx, open.ID, strings.TrimSpace(msg+"\n\n"+given)); err != nil {
+		if err := s.Runner.Remark(ctx, open.ID, process.Join("\n\n", msg, process.Text{Body: given}, topic)); err != nil {
 			return err
 		}
 		return s.takeMessages(ctx, t, open.ID, open.SessionID, sign, told, last)
@@ -235,21 +232,20 @@ func (s *Service) reply(ctx context.Context, topicID int64) (err error) {
 	if err != nil {
 		return err
 	}
-	o := process.Origin{Session: uuid.NewString(), Files: files, Owners: true, Provider: provider, Follows: t.AgainFollows, Read: read, Carries: noted}
+	o := process.Origin{Session: uuid.NewString(), Files: files, Owners: true, Provider: provider, Follows: t.AgainFollows}
 	sign := ""
 	sess, err := s.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: topicID, Provider: pv.Name()})
 	switch {
 	case err == nil:
 		o.Session, o.Resume = sess.SessionID, true
-		var mem []process.Source
-		if o.Message, sign, mem, err = s.chatPrompt(ctx, t, pending, sess.SessionID, pv.Name(), notes, true); err != nil {
+		msg, now, err := s.chatPrompt(ctx, t, pending, sess.SessionID, pv.Name(), notes, true)
+		if err != nil {
 			return err
 		}
-		o.Carries = append(o.Carries, mem...)
-		o.Message = strings.TrimSpace(t.AgainNote + "\n\n" + o.Message)
+		sign, o.Message = now, process.Join("\n\n", process.Text{Body: t.AgainNote}, msg)
 	case errors.Is(err, sql.ErrNoRows):
 		// A new session is told everything before the first waiting message, and the memory of now.
-		if _, _, sign, _, err = s.masterMemory(ctx, p, topicID, nil, false); err != nil {
+		if _, _, sign, err = s.masterMemory(ctx, p, topicID, nil, false); err != nil {
 			return err
 		}
 		err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
@@ -266,11 +262,11 @@ func (s *Service) reply(ctx context.Context, topicID int64) (err error) {
 	if err != nil {
 		return err
 	}
-	news, _, _, err := s.chatPrompt(ctx, t, pending, "", "", notes, false)
+	news, _, err := s.chatPrompt(ctx, t, pending, "", "", notes, false)
 	if err != nil {
 		return err
 	}
-	o.Note = strings.TrimSpace(retell + "\n\n" + t.AgainNote + "\n\n" + news)
+	o.Note = process.Join("\n\n", s.topicWords(ctx, t, retell), process.Text{Body: t.AgainNote}, news)
 	id, err := s.Runner.Start(ctx, p.ID, m, reply, map[string]any{"topic": topicID}, o)
 	if err != nil {
 		if id != 0 {
@@ -314,9 +310,9 @@ func (s *Service) takeMessages(ctx context.Context, t db.ChatTopic, processID in
 	return err
 }
 
-// masterNotes are the notes deck tells the master on its next turn, one a line, the last of them, and the processes
-// whose words they carry.
-func (s *Service) masterNotes(ctx context.Context, workspace int64) (string, int64, []process.Source) {
+// masterNotes are the notes deck tells the master on its next turn, one a line, from the processes they quote, and the
+// last of them.
+func (s *Service) masterNotes(ctx context.Context, workspace int64) (process.Text, int64) {
 	rows, _ := s.St.Q.ListMasterNotes(ctx, workspace)
 	lines := make([]string, 0, len(rows))
 	last := int64(0)
@@ -324,15 +320,15 @@ func (s *Service) masterNotes(ctx context.Context, workspace int64) (string, int
 	for _, r := range rows {
 		lines, last = append(lines, r.Text), r.ID
 		if r.ProcessID.Valid {
-			from = append(from, process.Source{Process: r.ProcessID.Int64, OfProcess: "a note of deck that quotes process %d, which read %s"})
+			from = append(from, process.NoteOf(r.ProcessID.Int64))
 		}
 	}
-	return strings.Join(lines, "\n"), last, from
+	return process.Text{Body: strings.Join(lines, "\n"), From: from}, last
 }
 
 // chatPrompt is what a reply turn gets: on resume the messages its session missed and the memory when it changed, then
-// the owner's new messages with their screens and where the summary of the topic is; the modules of the memory given.
-func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider, notes string, resume bool) (string, string, []process.Source, error) {
+// the owner's new messages with their screens and where the summary of the topic is; and the sign of the memory given.
+func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.ChatMessage, session, provider string, notes process.Text, resume bool) (process.Text, string, error) {
 	type message struct{ Where, Text string }
 	v := struct {
 		MemoryChanged          bool
@@ -346,30 +342,30 @@ func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.C
 		Projects, Open         string
 		Language               string
 	}{Topic: t.ID, Summary: summaryName(t.ID), Language: words.Name(s.gives(ctx, t.WorkspaceID, t.ID))}
-	if notes != "" {
-		v.Notes = untrusted.Block("notes", notes)
+	if notes.Body != "" {
+		v.Notes = untrusted.Block("notes", notes.Body)
 	}
 	sign := ""
-	var given []process.Source
+	given := notes.From
 	if resume {
 		sess, err := s.St.Q.GetChatSession(ctx, db.GetChatSessionParams{TopicID: t.ID, Provider: provider})
 		if err == nil && sess.SessionID == session {
 			mp, err := access.Master(ctx, s.St.Q, t.WorkspaceID)
 			if err != nil {
-				return "", "", nil, err
+				return process.Text{}, "", err
 			}
-			mem, _, now, from, err := s.masterMemory(ctx, mp, t.ID, nil, false)
+			mem, _, now, err := s.masterMemory(ctx, mp, t.ID, nil, false)
 			if err != nil {
-				return "", "", nil, err
+				return process.Text{}, "", err
 			}
 			sign = now
-			v.MemoryChanged, v.Memory = now != sess.Memory, mem
+			v.MemoryChanged, v.Memory = now != sess.Memory, mem.Body
 			if v.MemoryChanged {
-				given = from
+				given = append(given, mem.From...)
 			}
 			missed, err := s.St.Q.ListMessages(ctx, db.ListMessagesParams{TopicID: t.ID, After: sess.Seen})
 			if err != nil {
-				return "", "", nil, err
+				return process.Text{}, "", err
 			}
 			var lines []db.ChatMessage
 			for _, m := range missed {
@@ -380,7 +376,7 @@ func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.C
 			switch {
 			case len(lines) > retellTail:
 				if v.Retold, err = s.retelling(ctx, t, pending[0].ID); err != nil {
-					return "", "", nil, err
+					return process.Text{}, "", err
 				}
 			case len(lines) > 0:
 				v.Missed = untrusted.Block("Messages new to you, oldest first; what deck and the master said is a quoted string", transcript(lines))
@@ -392,18 +388,18 @@ func (s *Service) chatPrompt(ctx context.Context, t db.ChatTopic, pending []db.C
 	}
 	sum, err := s.summary(ctx, t)
 	if err != nil {
-		return "", "", nil, err
+		return process.Text{}, "", err
 	}
 	grown, err := s.St.Q.CountMessagesAfter(ctx, db.CountMessagesAfterParams{TopicID: t.ID, Since: sum.CreatedAt})
 	if err != nil {
-		return "", "", nil, err
+		return process.Text{}, "", err
 	}
 	v.Summarized, v.Revision, v.After = sum.N > 0, sum.N, grown
 	if grown >= summaryDue {
 		v.Grown = grown
 	}
 	v.Projects, v.Open = s.projectIndex(ctx, t.WorkspaceID), s.openWork(ctx, t)
-	return master.Text("turn", v), sign, given, nil
+	return process.Text{Body: master.Text("turn", v), From: given}, sign, nil
 }
 
 // summary is the current revision of the summary of a topic; empty when the master wrote none.
@@ -454,23 +450,37 @@ func (s *Service) retelling(ctx context.Context, t db.ChatTopic, before int64) (
 	return master.Text("retelling", v), nil
 }
 
-// topicRead is the untrusted text the words of a topic carry, as where it came from: a work whose result or wait it
-// tells, or a process its replies started, that read some; empty when none did.
-func (s *Service) topicRead(ctx context.Context, t db.ChatTopic) string {
+// topicMarked is the process whose untrusted text the words of a topic carry, and what it read: a work whose result or
+// wait it tells, or a process its replies started, that read some; 0 when none did.
+func (s *Service) topicMarked(ctx context.Context, t db.ChatTopic) (int64, string) {
 	if r, err := s.St.Q.TopicRead(ctx, t.ID); err == nil {
-		return fmt.Sprintf("topic %d: process %d, which read %s", t.ID, r.ID, r.ReadUntrusted)
+		return r.ID, r.ReadUntrusted
 	}
 	m, err := access.Master(ctx, s.St.Q, t.WorkspaceID)
 	if err != nil {
-		return ""
+		return 0, ""
 	}
 	rows, _ := s.St.Q.ListTopicProcesses(ctx, db.ListTopicProcessesParams{MasterID: m.ID, Topic: t.ID, Lim: topicLinks})
 	for _, r := range rows {
 		if r.Process.ReadUntrusted != "" {
-			return fmt.Sprintf("topic %d: process %d, which read %s", t.ID, r.Process.ID, r.Process.ReadUntrusted)
+			return r.Process.ID, r.Process.ReadUntrusted
 		}
 	}
+	return 0, ""
+}
+
+// topicRead is where the untrusted text the words of a topic carry came from; empty when none.
+func (s *Service) topicRead(ctx context.Context, t db.ChatTopic) string {
+	if id, read := s.topicMarked(ctx, t); id != 0 {
+		return fmt.Sprintf("topic %d: process %d, which read %s", t.ID, id, read)
+	}
 	return ""
+}
+
+// topicWords is the text of a topic a turn is told, from the process whose untrusted text its words carry.
+func (s *Service) topicWords(ctx context.Context, t db.ChatTopic, body string) process.Text {
+	id, _ := s.topicMarked(ctx, t)
+	return process.Text{Body: body, From: []process.Source{process.InTopic(t.ID, id)}}
 }
 
 // topicLinks is how many processes the replies of a topic started a session that did not see them is told of.

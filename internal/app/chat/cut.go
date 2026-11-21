@@ -168,7 +168,8 @@ func (s *Service) chatRetry(ctx context.Context, act registry.Actor, in chatRetr
 			return err
 		}
 		// The next reply goes with the owner's choice even after a restart; the reply that takes the messages clears it.
-		return q.SetTopicAgain(ctx, db.SetTopicAgainParams{Provider: in.Provider, Note: strings.TrimSpace(note), Follows: p.ID, ID: t.ID})
+		// The note comes from the reply it follows, whose mark the next reply takes as it starts.
+		return q.SetTopicAgain(ctx, db.SetTopicAgainParams{Provider: in.Provider, Note: strings.TrimSpace(note.Body), Follows: p.ID, ID: t.ID})
 	})
 	s.start.Unlock()
 	if err != nil {

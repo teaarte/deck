@@ -97,8 +97,20 @@ func (r *Runner) end(ctx context.Context, processID int64, state string, f *faul
 	return nil
 }
 
-// Rework sends a finished process back to its session with a remark and a full ceiling; by is who wrote the remark.
-func (r *Runner) Rework(ctx context.Context, processID int64, remark string, by Source) error {
+// Follows records that process id goes on with the work of process of, which marks it by what that one read.
+func (r *Runner) Follows(ctx context.Context, id, of int64) error {
+	return r.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
+		if err := q.SetFollows(ctx, db.SetFollowsParams{Follows: store.ID(of), ID: id}); err != nil {
+			return err
+		}
+		return carries(ctx, q, id, workOf(of))
+	})
+}
+
+// Rework sends a finished process back to its session with a remark and a full ceiling, marked by where the remark
+// came from.
+func (r *Runner) Rework(ctx context.Context, processID int64, t Text) error {
+	remark := t.Body
 	r.mu.Lock()
 	lt := r.live[processID]
 	r.mu.Unlock()
@@ -155,7 +167,7 @@ func (r *Runner) Rework(ctx context.Context, processID int64, remark string, by 
 		if err != nil || n == 0 {
 			return err
 		}
-		return carries(ctx, q, processID, by)
+		return carries(ctx, q, processID, t.From...)
 	})
 	if err != nil {
 		return err

@@ -179,6 +179,8 @@ type Deps struct {
 	Gateway *gateway.Gateway
 	Bus     *events.Bus
 	Scripts *script.Exec
+	// Asks closes the questions a process waits on with the answers it is given.
+	Asks *ask.Broker
 	// Hooks hear of processes that close, park or end a turn, in this order.
 	Hooks []Hook
 	// For picks the provider a command starts on.
@@ -208,7 +210,7 @@ type Deps struct {
 	// Text is the current text of a project document of the kind, of any kind for ""; empty when missing.
 	Text func(ctx context.Context, projectID int64, kind, name string) (string, error)
 	// Skills are the files of the named skills: the project's own, else the workspace's, whose mark from holds.
-	Skills func(ctx context.Context, projectID int64, names []string) (files map[string]string, from []Source, err error)
+	Skills func(ctx context.Context, projectID int64, names []string) (files map[string]Text, err error)
 	// Servers starts the MCP servers of a project whose tools deck has not listed yet.
 	Servers func(ctx context.Context, projectID int64)
 	// Folder is the real path of the project folder an agent command works in, on the machine of its provider.
@@ -219,7 +221,7 @@ type Deps struct {
 	ScriptsAt func(ctx context.Context, projectID int64) (Place, error)
 	// Memory is the memory a fresh session of the process gets, as data: the indexes and the lessons of its command
 	// in the memory of its project; empty when there are none. again is the same turn asking anew, its reads counted.
-	Memory func(ctx context.Context, p db.Process, again bool) (memory, lessons string, from []Source, err error)
+	Memory func(ctx context.Context, p db.Process, again bool) (memory, lessons Text, err error)
 	// Lang is the language the owner reads what a process says in, as a code; "" when deck does not know it.
 	Lang func(ctx context.Context, workspace, process int64) string
 	// Programs looks for the programs of the scripts of a project again and writes the health of its commands.

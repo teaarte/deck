@@ -40,7 +40,8 @@ type Service struct {
 	FailingChecks func(ctx context.Context, act registry.Actor, project string) ([]health.FailingCheck, error)
 	// Waiting are how many things wait for the owner, by project, as the menu counts them.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
-	Langs   Langs
+	// Langs are the languages a push of a process speaks and a reader reads it in.
+	Langs Langs
 	// Tailnet is the https address of deck on the owner's tailnet, empty while it is not on one.
 	Tailnet atomic.Pointer[string]
 

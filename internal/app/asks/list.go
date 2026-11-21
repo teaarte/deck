@@ -261,7 +261,7 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 			lines = append(lines, fmt.Sprintf("It read from outside deck: %s, so this goes out only with your yes", f.Read))
 		}
 		if n := f.Need; n != nil && q.Kind == ask.KindCall && !(registry.IsBuiltin(f.Call.Command) && n.Subject == f.Call.Command) {
-			lines = append(lines, gateway.NeedsSay(f.Needs()))
+			lines = append(lines, gateway.NeedsSay(f.Needs())...)
 		}
 		c, err := s.Registry.Lookup(ctx, q.WorkspaceID, f.Call.Command)
 		r.Turn = f.As == gateway.AsTurn
@@ -291,7 +291,11 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 			r.Work = "For this work"
 		}
 		if slices.Contains(f.Offers, manifest.Always) && f.Need != nil && r.Project != "" {
-			r.Always = fmt.Sprintf("Always let %s: %s", r.Project, gateway.NeedsSay(f.Needs()))
+			says := gateway.NeedsSay(f.Needs())
+			for i, l := range says {
+				says[i] = fmt.Sprintf("Always let %s: %s", r.Project, l)
+			}
+			r.Always = strings.Join(says, "\n")
 		}
 		r.Kept = slices.Contains(f.Offers, manifest.No)
 	case ask.KindSignIn:
@@ -430,7 +434,7 @@ func (s *Service) listCommands() []*registry.Command {
 func (s *Service) said(ctx context.Context, q db.Ask, r askView, lang string, waits bool) askView {
 	ws := words.In(lang)
 	tr := func(text string) string { return manifest.TrText(ws, text) }
-	r.Who, r.Always = tr(r.Who), tr(r.Always)
+	r.Who, r.Always = tr(r.Who), trLines(tr, r.Always)
 	switch {
 	case q.Kind == ask.KindQuestion:
 		r.What = tr(r.What)

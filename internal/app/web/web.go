@@ -32,7 +32,7 @@ type Service struct {
 	Route func(ctx context.Context, act registry.Actor, ask models.Ask) ([]models.Hop, error)
 
 	mu    sync.Mutex
-	slots chan struct{}
+	slot  map[string]chan struct{}
 	cache map[string]found
 }
 

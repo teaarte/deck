@@ -112,6 +112,27 @@ func TestACPTurnWithoutASchemaThatEndsOnARefusalHasNoAnswer(t *testing.T) {
 	}
 }
 
+// TestACPTurnWithoutASchemaThatAnsweredBeforeARefusalIsDone: a turn that gave its answer before a later call was
+// refused is done with that answer.
+func TestACPTurnWithoutASchemaThatAnsweredBeforeARefusalIsDone(t *testing.T) {
+	t.Parallel()
+	f := harness.NewACP(t)
+	llm := harness.NewLLM(t, func(n int, _ harness.ChatRequest) harness.ChatReply {
+		if n <= 3 {
+			return harness.TextReply("ok")
+		}
+		return harness.ChatReply{Status: 400, Body: `{"error": {"message": "the request is not valid"}}`}
+	})
+	f.StreamText(4, harness.AcpStream(gooseInit, `{"reply": "session/new", "result": {"sessionId": "s-1"}}`, `{"reply": "session/prompt"}`,
+		`{"update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "The page says 42."}}}`, harness.AcpModel,
+		`{"end": "end_turn"}`))
+	e := harness.New(t, harness.WithACP(f, llm))
+	got := e.WaitState(e.Run(e.AcpProject("open", harness.NoNetworkManifest), "work"), "done", "error")
+	if got.State != "done" || !strings.Contains(string(got.Result), "The page says 42.") {
+		t.Fatalf("a turn that answered before a refused call is done: %+v", got)
+	}
+}
+
 // TestACPSessionTheAgentLostStartsOver:a resume the agent refuses for a session it no longer lists starts anew.
 func TestACPSessionTheAgentLostStartsOver(t *testing.T) {
 	t.Parallel()

@@ -40,7 +40,16 @@ func (r *Runner) runScript(ctx context.Context, t turn, p db.Process) {
 		fail(fault.Of(err))
 		return
 	}
-	ask, work, err := r.gw.Start(bg, registry.ProcessOf(p, proj), proj.Name+"."+t.cmd.Name, t.m, granted, "", manifest.Programs)
+	act, command := registry.ProcessOf(p, proj), proj.Name+"."+t.cmd.Name
+	var ask int64
+	var work manifest.Grants
+	var later []string
+	if p.TriggerID.Valid {
+		// A run of a trigger does not wait for the owner: it goes without the hosts asked for later.
+		later, err = r.gw.Later(bg, act, command, t.m, granted)
+	} else {
+		ask, work, err = r.gw.Start(bg, act, command, t.m, granted, "", manifest.Programs)
+	}
 	switch {
 	case err != nil:
 		fail(fault.New(fault.RightsDenied, err.Error()))
@@ -80,6 +89,9 @@ func (r *Runner) runScript(ctx context.Context, t turn, p db.Process) {
 		OnStart: func(pgid int) { r.setGroup(bg, id, pgid) },
 	}
 	r.know(bg, id, job.Box.Hosts, "", false)
+	if len(later) > 0 {
+		r.event(bg, id, u.stream, provider.Event{Kind: provider.EventStderr, Text: "deck: not granted yet: " + strings.Join(later, ", ") + "; one request of the module asks the owner"})
+	}
 	var out []byte
 	if place.On != nil {
 		// The token of the script stays on deck: its side puts it in the calls the node brings by the node's key.

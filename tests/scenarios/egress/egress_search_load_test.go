@@ -1,6 +1,8 @@
 package egress
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -9,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/provider"
 	"deck2/tests/harness"
 )
 
@@ -17,6 +20,10 @@ import (
 func TestASearchWhoseEnginesAreDownIsNoEmptyAnswer(t *testing.T) {
 	t.Parallel()
 	down := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		if r.URL.Path == "/config" {
+			harness.JsonReply(w, searxngEngines("google cse", "duckduckgo"))
+			return
+		}
 		harness.JsonReply(w, `{"query": "deck", "results": [], "unresponsive_engines": [["google cse", "too many requests"], ["duckduckgo", "CAPTCHA"]]}`)
 	})
 	var failing atomic.Int32
@@ -43,7 +50,75 @@ func TestASearchWhoseEnginesAreDownIsNoEmptyAnswer(t *testing.T) {
 	}
 }
 
-// TestSearchesGoTwoAtATimeAndARepeatedQueryIsAnsweredOnce: deck sends at most two searches at once, and the same
+// searxngEngines is the /config of a SearXNG whose web engines are web, beside a translator that a query of words
+// does not ask.
+func searxngEngines(web ...string) string {
+	engines := []map[string]any{{"name": "lingva", "categories": []string{"general", "translate"}, "enabled": true},
+		{"name": "bing", "categories": []string{"general", "web"}, "enabled": false}}
+	for _, n := range web {
+		engines = append(engines, map[string]any{"name": n, "categories": []string{"general", "web"}, "enabled": true})
+	}
+	b, _ := json.Marshal(map[string]any{"engines": engines})
+	return string(b)
+}
+
+// TestASearchThatOneEngineMissedMayFindNothing: no results while one engine of several did not answer is an answer.
+func TestASearchThatOneEngineMissedMayFindNothing(t *testing.T) {
+	t.Parallel()
+	slow := harness.NewService(t, func(w http.ResponseWriter, r *http.Request, n int) {
+		if r.URL.Path == "/config" {
+			harness.JsonReply(w, searxngEngines("google cse", "brave"))
+			return
+		}
+		harness.JsonReply(w, `{"query": "zxqv", "results": [], "unresponsive_engines": [["google cse", "timeout"]]}`)
+	})
+	e := harness.New(t)
+	useSearch(e, "searxng", slow.URL)
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "models": []string{"searxng"}}, nil)
+	var got struct {
+		Results []struct{ Title string }
+		Search  string
+	}
+	e.Must("deck.web_search", map[string]any{"query": "zxqv"}, &got)
+	if got.Search != "searxng" || len(got.Results) != 0 {
+		t.Fatalf("an empty answer of the engines that answered is the answer: %+v", got)
+	}
+	for _, h := range e.Health() {
+		if h.Subject == "model:searxng" && h.Status == "error" {
+			t.Fatalf("a search one engine missed is not red: %+v", h)
+		}
+	}
+}
+
+// TestASearchCachedForOneModuleIsNoneForAModuleWithoutSearch: a query a module searched is not answered from the
+// cache to a module whose search assignment differs.
+func TestASearchCachedForOneModuleIsNoneForAModuleWithoutSearch(t *testing.T) {
+	t.Parallel()
+	var failing atomic.Int32
+	search := searxng(t, &failing)
+	var mu sync.Mutex
+	got := map[string]string{}
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		text, failed := c.Tool(ctx, "web_search", map[string]any{"query": "deck"})
+		mu.Lock()
+		got[c.Command()] = fmt.Sprint(failed, " ", text)
+		mu.Unlock()
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}))
+	unsearched(e)
+	useSearch(e, "searxng", search.URL)
+	first := e.Project("first", harness.Manifest(`{"commands": [`)+harness.AgentCommand("look", "")+`]}`)
+	e.Must("deck.assignment_set", map[string]any{"role": "search", "project": "first", "models": []string{"searxng"}}, nil)
+	e.WaitState(e.Run(first, "look"), "done")
+	e.WaitState(e.Run(e.Project("second", harness.Manifest(`{"commands": [`)+harness.AgentCommand("peek", "")+`]}`), "peek"), "done")
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.HasPrefix(got["look"], "false ") || !strings.HasPrefix(got["peek"], "true ") || !strings.Contains(got["peek"], "no search is set up") {
+		t.Fatalf("the module without search gets no search from the cache: %v", got)
+	}
+}
+
+// TestSearchesGoTwoAtATimeAndARepeatedQueryIsAnsweredOnce:deck sends at most two searches at once, and the same
 // query again within minutes is answered from what the search said.
 func TestSearchesGoTwoAtATimeAndARepeatedQueryIsAnsweredOnce(t *testing.T) {
 	t.Parallel()

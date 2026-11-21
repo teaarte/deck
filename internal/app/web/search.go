@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"deck2/internal/fault"
@@ -40,14 +41,16 @@ type found struct {
 
 const (
 	maxResults = 20
-	// searching is how many searches deck sends at once; cacheFor how long a query is answered by its last results.
+	// searching is how many requests a search connection of a workspace gets at once; searchFor the most a search
+	// takes; cacheFor how long a query is answered by its last results.
 	searching = 2
+	searchFor = 30 * time.Second
 	cacheFor  = 10 * time.Minute
 	cacheMax  = 500
 )
 
 // webSearch asks the search services assigned to search, the fallbacks after the first, or answers a query asked
-// in the last minutes as then; the journal keeps the query, the service and the address of each result.
+// of the same services in the last minutes as then; the journal keeps the query, the service and each result.
 func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearchIn) (got any, err error) {
 	read := map[string]any{"query": in.Query}
 	defer func() { got = lineOf(act, got, read) }()
@@ -58,12 +61,20 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 	if count <= 0 {
 		count = 10
 	}
-	key := fmt.Sprint(act.Workspace, "\x00", act.Trial, "\x00", in.Query)
+	hops, err := s.searches(ctx, act)
+	if err != nil {
+		return nil, err
+	}
+	key := fmt.Sprint(act.Workspace)
+	for _, h := range hops {
+		key += "\x00" + h.Name
+	}
+	key += "\x00\x00" + in.Query
 	f, ok := s.cached(key)
 	if ok {
 		read["cached"] = true
 	} else {
-		if f, err = s.search(ctx, act, in.Query); err != nil {
+		if f, err = s.search(ctx, act, hops, in.Query); err != nil {
 			return nil, err
 		}
 		s.keep(key, f)
@@ -77,17 +88,16 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 	return map[string]any{"results": out, "search": f.search}, nil
 }
 
-// search asks the services of search in order, searching at a time across deck; one that answers no results because
-// its engines did not answer is red and hands the query on.
-func (s *Service) search(ctx context.Context, act registry.Actor, query string) (found, error) {
+// searches are the services of search of act in order, the local or free ones of a trial.
+func (s *Service) searches(ctx context.Context, act registry.Actor) ([]models.Hop, error) {
 	hops, err := s.Route(ctx, act, models.Ask{Connection: "@", Model: "@" + models.KindSearch})
 	if err != nil {
-		return found{}, err
+		return nil, err
 	}
 	if act.Trial {
 		hops = slices.DeleteFunc(hops, func(h models.Hop) bool { return !h.Local && !h.Free })
 		if len(hops) == 0 {
-			return found{}, registry.Refuse("trial run: no search of deck's settings is local or free, so a trial does not search")
+			return nil, registry.Refuse("trial run: no search of deck's settings is local or free, so a trial does not search")
 		}
 	}
 	for i := range hops {
@@ -98,12 +108,16 @@ func (s *Service) search(ctx context.Context, act registry.Actor, query string) 
 			}
 			done(ctx, status, u)
 		}
+		hops[i].Target.Transport = slotted{next: hops[i].Target.Transport, slots: s.slots(fmt.Sprint(act.Workspace, "\x00", hops[i].Connection))}
 	}
-	release, err := s.slot(ctx)
-	if err != nil {
-		return found{}, err
-	}
-	defer release()
+	return hops, nil
+}
+
+// search asks the services of search in order within searchFor; one that answers no results because none of its
+// engines answered is red and hands the query on.
+func (s *Service) search(ctx context.Context, act registry.Actor, hops []models.Hop, query string) (found, error) {
+	ctx, cancel := context.WithTimeout(ctx, searchFor)
+	defer cancel()
 	q := url.Values{"q": {query}, "format": {"json"}}.Encode()
 	f, _, err := models.ReadHops(ctx, hops, func(models.Hop) (models.Call, error) {
 		return models.Call{Method: http.MethodGet, Path: "search", Query: q, Header: http.Header{"Accept": {"application/json"}}}, nil
@@ -111,7 +125,7 @@ func (s *Service) search(ctx context.Context, act registry.Actor, query string) 
 	return f, err
 }
 
-// answer reads what a search answered; no results with engines that did not answer is a search that did not answer.
+// answer reads what a search answered; no results while none of its engines answered is a search that did not answer.
 func (s *Service) answer(ctx context.Context, act registry.Actor, h models.Hop, resp *http.Response) (found, error) {
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxPage))
 	// The body closes first, since its close tells the health of the search the answer.
@@ -126,7 +140,7 @@ func (s *Service) answer(ctx context.Context, act registry.Actor, h models.Hop, 
 	if err := json.Unmarshal(raw, &v); err != nil {
 		return found{}, fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: search %s answered what is not JSON; SearXNG needs json in search.formats of its settings: %s", h.Name, untrusted.Cut(string(raw), 300)))
 	}
-	if len(v.Results) == 0 && len(v.Unresponsive) > 0 {
+	if len(v.Results) == 0 && len(v.Unresponsive) > 0 && allDown(ctx, h, v.Unresponsive) {
 		engines := make([]string, 0, len(v.Unresponsive))
 		for _, e := range v.Unresponsive {
 			switch {
@@ -153,20 +167,78 @@ func (s *Service) answer(ctx context.Context, act registry.Actor, h models.Hop, 
 	return f, nil
 }
 
-// slot waits for one of the searches deck sends at once.
-func (s *Service) slot(ctx context.Context) (func(), error) {
-	s.mu.Lock()
-	if s.slots == nil {
-		s.slots = make(chan struct{}, searching)
+// allDown says none of the web engines of the SearXNG of h answered, by its /config; a search that does not tell
+// its engines is taken as down.
+func allDown(ctx context.Context, h models.Hop, unresponsive [][]string) bool {
+	resp, err := models.Send(ctx, h.Target, models.Call{Method: http.MethodGet, Path: "config", Header: http.Header{"Accept": {"application/json"}}})
+	if err != nil {
+		return true
 	}
-	slots := s.slots
-	s.mu.Unlock()
+	defer resp.Body.Close()
+	var c struct {
+		Engines []struct {
+			Name       string
+			Categories []string
+			Enabled    bool
+		}
+	}
+	if resp.StatusCode >= 400 || json.NewDecoder(io.LimitReader(resp.Body, maxPage)).Decode(&c) != nil {
+		return true
+	}
+	for _, e := range c.Engines {
+		if !e.Enabled || !slices.Contains(e.Categories, "general") || !slices.Contains(e.Categories, "web") {
+			continue
+		}
+		if !slices.ContainsFunc(unresponsive, func(u []string) bool { return len(u) > 0 && u[0] == e.Name }) {
+			return false
+		}
+	}
+	return true
+}
+
+// slotted is the transport of a search connection that sends searching requests at once; a slot is free again once
+// the answer's body is closed.
+type slotted struct {
+	next  http.RoundTripper
+	slots chan struct{}
+}
+
+func (t slotted) RoundTrip(r *http.Request) (*http.Response, error) {
 	select {
-	case slots <- struct{}{}:
-		return func() { <-slots }, nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	case t.slots <- struct{}{}:
+	case <-r.Context().Done():
+		return nil, r.Context().Err()
 	}
+	resp, err := t.next.RoundTrip(r)
+	if err != nil {
+		<-t.slots
+		return nil, err
+	}
+	resp.Body = &freeing{ReadCloser: resp.Body, free: sync.OnceFunc(func() { <-t.slots })}
+	return resp, nil
+}
+
+type freeing struct {
+	io.ReadCloser
+	free func()
+}
+
+func (b *freeing) Close() error {
+	defer b.free()
+	return b.ReadCloser.Close()
+}
+
+// slots are the slots of a search connection of a workspace by key.
+func (s *Service) slots(key string) chan struct{} {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.slot == nil {
+		s.slot = map[string]chan struct{}{}
+	}
+	if s.slot[key] == nil {
+		s.slot[key] = make(chan struct{}, searching)
+	}
+	return s.slot[key]
 }
 
 // cached is what a search answered key less than cacheFor ago.
@@ -180,7 +252,8 @@ func (s *Service) cached(key string) (found, bool) {
 	return f, true
 }
 
-// keep keeps what a search answered key, dropping what is past cacheFor, and all when the cache is full.
+// keep keeps what a search answered key, dropping what is past cacheFor, and entries of its own choice while the
+// cache is full.
 func (s *Service) keep(key string, f found) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

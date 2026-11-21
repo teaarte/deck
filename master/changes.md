@@ -731,3 +731,10 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   their own tools; an ACP agent such as Goose no longer sees it, where calling it made a request of the owner that
   meant nothing.
   Modules: nothing to change.
+- 2026-11-21: A run of a trigger does not wait for hosts of its scripts the owner has not answered: it runs without
+  them, its log says `deck: not granted yet: …`, and one open request of the module asks for them, however many runs
+  go. `deck.web_search` fails on no results only when none of the web engines of the SearXNG answered (by its
+  `/config`); an empty answer beside an engine that missed is an answer. The cache of a query is per the searches of
+  the caller's assignment; two requests at once go to each search connection of a workspace, a search takes at most
+  30 seconds. A start asks the subscription login in a request of its own, apart from hosts.
+  Modules: a script a trigger runs reads `deck: not granted yet` in its log until the owner answers.

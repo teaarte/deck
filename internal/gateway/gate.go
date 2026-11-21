@@ -182,10 +182,22 @@ func Hold(ctx context.Context, q *db.Queries, act registry.Actor, project, proce
 	if err != nil {
 		return a, err
 	}
-	_, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(now), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project),
-		Actor: act.Author(), Who: RefOf(act).String(), Tool: f.Call.Command, Need: right, Subject: needOf(f.Need).Subject, Count: 1, Outcome: "waiting", Params: Canonical(f.Call.Input),
-		AskID: sql.NullInt64{Int64: a.ID, Valid: true}})
-	return a, err
+	for _, n := range needsOf(f) {
+		if _, err = q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(now), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project),
+			Actor: act.Author(), Who: RefOf(act).String(), Tool: f.Call.Command, Need: right, Subject: n.Subject, Count: 1, Outcome: "waiting", Params: Canonical(f.Call.Input),
+			AskID: sql.NullInt64{Int64: a.ID, Valid: true}}); err != nil {
+			return a, err
+		}
+	}
+	return a, nil
+}
+
+// needsOf are the rights of a frozen call for its lines of the journal, one empty for a call without one.
+func needsOf(f Frozen) []registry.Need {
+	if f.Need == nil {
+		return []registry.Need{{}}
+	}
+	return f.Needs()
 }
 
 // Canonical is JSON with sorted keys and numbers as they came, as the owner and the journal read an input.
@@ -310,7 +322,9 @@ func (g *Gateway) Record(ctx context.Context, a db.Ask, outcome, why string) {
 		return
 	}
 	act, _ := g.who(ctx, g.st.Q, f.Who)
-	g.journal(ctx, act, a.ProjectID.Int64, f.Call.Command, needOf(f.Need), outcome, string(f.Call.Input), why)
+	for _, n := range needsOf(f) {
+		g.journal(ctx, act, a.ProjectID.Int64, f.Call.Command, n, outcome, string(f.Call.Input), why)
+	}
 }
 
 // TurnMakes says the payload of a request is a call the agent's turn makes itself, a tool of its provider.

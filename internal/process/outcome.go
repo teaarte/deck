@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"deck2/internal/fault"
@@ -376,17 +377,23 @@ func agentFailed(f *facts) Outcome {
 	return Fail{F: fault.With(fault.TaskFailed, fmt.Sprintf("the agent reported an error: %s", untrusted.Flat(text, 200)), text), Result: text, Broke: f.pv.Name()}
 }
 
-// apiRefused: the model API refused the last call of the turn and no result by a schema fits, so the turn has no
-// answer: the work goes on on the next model, else it fails.
+// apiRefused: the model API refused the last call of the turn and no result by a schema fits, nor an answer in words
+// without one, so the turn has no answer: the work goes on on the next model, else it fails.
 func apiRefused(f *facts) Outcome {
-	if f.heard.blocked || f.res.Refusal == "" || (f.heard.invalid == nil && len(f.t.cmd.Result) > 0) {
+	if f.heard.blocked || f.res.Refusal == "" || f.heard.invalid == nil && (len(f.t.cmd.Result) > 0 || !toldAnError(f.res.Text)) {
 		return nil
 	}
 	rf := fault.With(fault.ModelUnavailable, fmt.Sprintf("%s refused a call of the turn: %s", f.pv.Name(), untrusted.Flat(f.res.Refusal, 200)), f.res.Refusal)
 	return HandOn{Turn: f.t, From: f.pv, F: rf, Broke: true, Else: Fail{F: rf, Result: f.res.Refusal, Broke: f.pv.Name()}}
 }
 
-// answerOwed: the owner still owes the agent an answer, so a result produced meanwhile is premature and the turn parks.
+// toldAnError says the text of a turn is no answer: empty, or the agent's words of an error such as Goose's
+// "Ran into this error".
+func toldAnError(text string) bool {
+	return strings.TrimSpace(text) == "" || strings.Contains(strings.ToLower(text), "error")
+}
+
+// answerOwed:the owner still owes the agent an answer, so a result produced meanwhile is premature and the turn parks.
 func answerOwed(f *facts) Outcome {
 	if f.heard.blocked {
 		return Park{Text: f.res.Text, Said: true}

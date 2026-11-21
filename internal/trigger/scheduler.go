@@ -38,7 +38,6 @@ const (
 type Scheduler struct {
 	st    *store.Store
 	start Fire
-	Now   func() time.Time
 	// Zone is the owner's zone of a workspace; deck's own when nil.
 	Zone func(ctx context.Context, q *db.Queries, workspace int64) *time.Location
 }
@@ -61,10 +60,10 @@ func (s *Scheduler) Rezone(ctx context.Context, workspace int64) error {
 		}
 		for _, t := range ts {
 			// A run due already is the tick's, which starts or spreads it.
-			if t.Kind != KindCron || t.NextRunAt.String <= store.Time(s.Now()) {
+			if t.Kind != KindCron || t.NextRunAt.String <= store.Time(s.st.Now()) {
 				continue
 			}
-			next, err := Next(t.Spec, s.at(ctx, q, t.ProjectID, s.Now()))
+			next, err := Next(t.Spec, s.at(ctx, q, t.ProjectID, s.st.Now()))
 			if err != nil {
 				return err
 			}
@@ -76,8 +75,8 @@ func (s *Scheduler) Rezone(ctx context.Context, workspace int64) error {
 	})
 }
 
-func New(st *store.Store, fire Fire, now func() time.Time) *Scheduler {
-	return &Scheduler{st: st, start: fire, Now: now}
+func New(st *store.Store, fire Fire) *Scheduler {
+	return &Scheduler{st: st, start: fire}
 }
 
 // Identity is what a manifest trigger is known by across manifest revisions.
@@ -130,7 +129,7 @@ func (s *Scheduler) Sync(ctx context.Context, q *db.Queries, projectID int64, m 
 		kind, spec := Identity(t)
 		var next sql.NullString
 		if kind == KindCron {
-			n, err := Next(spec, s.at(ctx, q, projectID, s.Now()))
+			n, err := Next(spec, s.at(ctx, q, projectID, s.st.Now()))
 			if err != nil {
 				return err
 			}
@@ -216,10 +215,10 @@ func wallPasses(t time.Time) []time.Time {
 // Rewind moves a cron trigger whose next run has passed to its next slot after now, so a paused period is
 // not caught up.
 func (s *Scheduler) Rewind(ctx context.Context, q *db.Queries, t db.Trigger) error {
-	if t.Kind != KindCron || t.NextRunAt.String > store.Time(s.Now()) {
+	if t.Kind != KindCron || t.NextRunAt.String > store.Time(s.st.Now()) {
 		return nil
 	}
-	next, err := Next(t.Spec, s.at(ctx, q, t.ProjectID, s.Now()))
+	next, err := Next(t.Spec, s.at(ctx, q, t.ProjectID, s.st.Now()))
 	if err != nil {
 		return err
 	}
@@ -229,7 +228,7 @@ func (s *Scheduler) Rewind(ctx context.Context, q *db.Queries, t db.Trigger) err
 // Tick starts every due trigger once and returns how many it moved. Missed runs start one now and the others
 // at later slots written to the base; a missed cron trigger that skips missed runs only moves to its next slot.
 func (s *Scheduler) Tick(ctx context.Context) int {
-	now := s.Now()
+	now := s.st.Now()
 	due, err := s.st.Q.DueTriggers(ctx, store.Time(now))
 	if err != nil {
 		slog.Error("due triggers", "err", err)

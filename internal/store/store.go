@@ -35,9 +35,8 @@ type Store struct {
 	// Changed hears what each committed transaction changed, once it committed.
 	Changed func(events.Event)
 	// Wait is how long a transaction waits for the base before it fails.
-	Wait time.Duration
-	// Now is deck's clock.
-	Now     func() time.Time
+	Wait    time.Duration
+	now     func() time.Time
 	changes *changes
 }
 
@@ -147,6 +146,9 @@ type Before func(from, last int64, backup func(to string) error) error
 // Open opens the base at path and migrates it, after before when there is something to migrate in a base of an
 // older deck; a base a newer deck migrated it refuses.
 func Open(path string, now func() time.Time, before ...Before) (*Store, error) {
+	if now == nil {
+		now = Wall
+	}
 	uri := "file:" + strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(path)
 	// A write takes the lock at BEGIN: a read before it in the same transaction cannot go stale and fail as busy.
 	base, err := sqlite.NewConnector(uri + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_txlock=immediate")
@@ -178,7 +180,7 @@ func Open(path string, now func() time.Time, before ...Before) (*Store, error) {
 	}
 	reads.SetMaxOpenConns(4)
 	n := &atomic.Int64{}
-	return &Store{DB: conn, Q: db.New(guard{reads, n}), reads: reads, read: n, uri: uri, changes: ch, Now: now}, nil
+	return &Store{DB: conn, Q: db.New(guard{reads, n}), reads: reads, read: n, uri: uri, changes: ch, now: now}, nil
 }
 
 // checkVersion refuses a base of a newer deck and runs before ahead of the migrations of a base of an older one.

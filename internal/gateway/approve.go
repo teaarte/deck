@@ -66,7 +66,7 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 	if len(texts) == 0 {
 		return decision{Behavior: "deny", Message: "deck: the call has no questions: put each in questions with its text in the question field"}
 	}
-	until := g.cfg.Now().Add(s.wait(g.cfg.QuestionWait))
+	until := g.st.Now().Add(s.wait(g.cfg.QuestionWait))
 	text := strings.Join(texts, "\n")
 	open, _ := g.st.Q.ListOpenAsksOfProcess(ctx, s.Who.ProcessID)
 	a, err := g.again(open, text), error(nil)
@@ -74,7 +74,7 @@ func (g *Gateway) question(ctx context.Context, s *Session, in approveInput) dec
 		// A question waits as long as a confirmation; at its term the agent goes on without the answer.
 		var expires time.Time
 		if ttl := g.confirmTTL(ctx, s.Who.Workspace); ttl > 0 {
-			expires = g.cfg.Now().Add(ttl)
+			expires = g.st.Now().Add(ttl)
 		}
 		a, err = g.asks.Create(ctx, s.Who.ProcessID, ask.KindQuestion, text, in.Input, expires)
 	}
@@ -154,7 +154,7 @@ func (g *Gateway) confirm(ctx context.Context, s *Session, in approveInput) deci
 	if err != nil {
 		return decision{Behavior: "deny", Message: "deck: could not ask the owner: " + err.Error()}
 	}
-	answer, ok := g.awaitOwner(ctx, s, a.ID, g.cfg.Now().Add(s.wait(g.cfg.ConfirmWait)))
+	answer, ok := g.awaitOwner(ctx, s, a.ID, g.st.Now().Add(s.wait(g.cfg.ConfirmWait)))
 	if !ok {
 		return decision{Behavior: "deny", Message: "deck: waiting for the owner to confirm this call; it was not made." + stopAndWait}
 	}
@@ -220,11 +220,11 @@ func (g *Gateway) turnRequest(ctx context.Context, act registry.Actor, tool stri
 	}
 	var expires time.Time
 	if ttl := g.confirmTTL(ctx, act.Workspace); ttl > 0 {
-		expires = g.cfg.Now().Add(ttl)
+		expires = g.st.Now().Add(ttl)
 	}
 	text := fmt.Sprintf("Agent wants %s with %s", tool, untrusted.Cut(same, 500))
 	a, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {
-		return Hold(ctx, q, act, act.ProjectID, act.ProcessID, ask.KindCall, "", text, f, expires, g.cfg.Now())
+		return Hold(ctx, q, act, act.ProjectID, act.ProcessID, ask.KindCall, "", text, f, expires, g.st.Now())
 	})
 	if err == nil && !g.asks.Rejoin(a.ID) {
 		err = fmt.Errorf("ask %d has a waiter already", a.ID)
@@ -274,7 +274,7 @@ func (g *Gateway) waits(ctx context.Context, processID int64, by int) {
 
 func (g *Gateway) delivered(ctx context.Context, ask int64) {
 	_ = g.st.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.DeliverAsk(ctx, db.DeliverAskParams{ID: ask, Now: store.Time(g.cfg.Now())})
+		_, err := q.DeliverAsk(ctx, db.DeliverAskParams{ID: ask, Now: store.Time(g.st.Now())})
 		return err
 	})
 }

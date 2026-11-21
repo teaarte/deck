@@ -57,7 +57,7 @@ func (g *Gateway) made(ctx context.Context, call Call, act registry.Actor, c *re
 		if v.Name == "pressed" {
 			text, short = fmt.Sprintf("%s by your press: %s", c.Name, what), fmt.Sprintf("%s by your press", c.Name)
 		}
-		change = &db.AddFeedParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProjectID: cmp.Or(project, act.ProjectID),
+		change = &db.AddFeedParams{CreatedAt: store.Time(g.st.Now()), WorkspaceID: act.Workspace, ProjectID: cmp.Or(project, act.ProjectID),
 			Author: act.Author(), Text: text, Actions: "[]", Params: "{}", ProcessID: store.ID(act.ProcessID), What: short}
 		if undo != "" {
 			change.Command, change.Params = undo, string(back)

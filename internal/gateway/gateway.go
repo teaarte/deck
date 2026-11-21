@@ -62,7 +62,6 @@ func (s *Session) becomes(act registry.Actor) {
 }
 
 type Config struct {
-	Now          func() time.Time
 	QuestionWait time.Duration
 	ConfirmWait  time.Duration
 	// ConfirmTTL is how long an unanswered confirmation of a workspace stays open unless its tool sets its own;
@@ -466,7 +465,7 @@ func (g *Gateway) journal(ctx context.Context, act registry.Actor, project int64
 
 // lineOf is the line of a call of tool by act in the journal.
 func (g *Gateway) lineOf(act registry.Actor, project int64, tool string, right registry.Need, outcome, params, errText string) db.LogToolCallParams {
-	return db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(),
+	return db.LogToolCallParams{CreatedAt: store.Time(g.st.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID), ProjectID: store.ID(project), Actor: act.Author(),
 		Who: RefOf(act).String(), Tool: tool, Need: right.Right, Subject: right.Subject, Count: 1, Outcome: outcome, Params: params, Error: errText}
 }
 

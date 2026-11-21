@@ -170,7 +170,7 @@ func (s *Service) fit(ctx context.Context, count bool, parts ...*part) []string 
 		}
 	}
 	if count {
-		docs.Reached(ctx, s.St, s.Now(), reached...)
+		docs.Reached(ctx, s.St, s.St.Now(), reached...)
 	}
 	return out
 }
@@ -207,7 +207,7 @@ func (s *Service) lessons(ctx context.Context, proj db.Project, command string) 
 	var all []lesson
 	for _, r := range rows {
 		f, err := docs.ParseFact(r.Text)
-		if r.Name == docs.MemoryIndex || err != nil || f.Type != docs.Lesson || f.Command != command || f.Expired(s.Now()) {
+		if r.Name == docs.MemoryIndex || err != nil || f.Type != docs.Lesson || f.Command != command || f.Expired(s.St.Now()) {
 			continue
 		}
 		all = append(all, lesson{r.ID, strings.TrimSpace(r.Text), lessonDay(f, r.CreatedAt), f.Times()})

@@ -55,7 +55,7 @@ func (s *Service) own(ctx context.Context, workspace int64, name string) (db.Hea
 	} else {
 		h, err = health.Get(ctx, s.St.Q, health.Of{}, health.Provider(name))
 	}
-	if err == nil && health.Ended(h, s.Now()) {
+	if err == nil && health.Ended(h, s.St.Now()) {
 		h.Status, h.Error = health.OK, ""
 	}
 	return h, err
@@ -68,7 +68,7 @@ func (s *Service) Health(ctx context.Context, workspace int64, name string) (db.
 	if err == nil && (h.Status == health.NeedsLogin || h.Status == health.Checking) {
 		return h, nil
 	}
-	now := s.Now()
+	now := s.St.Now()
 	for _, sc := range s.scopes(ctx, workspace, name) {
 		l, lerr := health.Get(ctx, s.St.Q, sc.of, sc.subject)
 		switch {

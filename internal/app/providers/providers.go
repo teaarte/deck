@@ -27,7 +27,6 @@ import (
 // the life of deck, for the self-checks it runs in the background.
 type Service struct {
 	St               *store.Store
-	Now              func() time.Time
 	Home             home.Layout
 	Sandbox          *sandbox.Sandbox
 	ACPBinaries      map[string]string
@@ -117,7 +116,7 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 		return cli.With(name, m.Model, effort), nil
 	}
 	a, err := s.agent(acp.Config{Name: name, Agent: m.Agent, Model: m.Model,
-		NoCloud: c.Local != 0, CallLimit: s.ACPCallLimit, Now: s.Now,
+		NoCloud: c.Local != 0, CallLimit: s.ACPCallLimit, Now: s.St.Now,
 		CheckCeiling: time.Duration(m.CheckMinutes) * time.Minute, API: s.TurnModel(workspace, m, c)})
 	if err != nil {
 		return nil, registry.Invalid("%v", err)

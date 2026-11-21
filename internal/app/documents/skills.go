@@ -71,7 +71,7 @@ func (s *Service) SeedSkills(ctx context.Context) error {
 	}
 	for _, w := range ws {
 		err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			done, err := docs.Ship(ctx, q, docs.Scope{Workspace: w}, docs.SkillsDir, files, s.Now())
+			done, err := docs.Ship(ctx, q, docs.Scope{Workspace: w}, docs.SkillsDir, files, s.St.Now())
 			if err != nil || len(done.Notes) == 0 {
 				return err
 			}
@@ -80,7 +80,7 @@ func (s *Service) SeedSkills(ctx context.Context) error {
 				return err
 			}
 			for _, n := range done.Notes {
-				if err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.Now()), WorkspaceID: w, ProjectID: mp.ID, Text: n}); err != nil {
+				if err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.St.Now()), WorkspaceID: w, ProjectID: mp.ID, Text: n}); err != nil {
 					return err
 				}
 			}

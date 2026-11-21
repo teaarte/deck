@@ -69,7 +69,7 @@ func (s *Service) CheckManifests(ctx context.Context) {
 			text := fmt.Sprintf("The manifest of %s no longer passes the checks of this deck. It works as before, but its next save "+
 				"is refused until these are fixed in it (manifest_get lists them too; the master fixes them when asked):\n- %s",
 				p.Name, strings.Join(problems, "\n- "))
-			if err := store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: text}); err != nil {
+			if err := store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.St.Now()), ProjectID: p.ID, Text: text}); err != nil {
 				return err
 			}
 			return q.SetMark(ctx, db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: name, Value: hex.EncodeToString(sum[:])})

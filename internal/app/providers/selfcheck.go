@@ -133,7 +133,7 @@ func (s *Service) Broke(ctx context.Context, name string) {
 	red := err == nil && (h.Status == health.Error || h.Status == health.NeedsLogin)
 	s.mu.Lock()
 	c := s.checksOf(name)
-	recent := !c.last.IsZero() && s.Now().Before(c.last.Add(selfCheckRetry))
+	recent := !c.last.IsZero() && s.St.Now().Before(c.last.Add(selfCheckRetry))
 	switch {
 	case red && c.running:
 		c.broke = true
@@ -172,7 +172,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 		s.mu.Unlock()
 		return false
 	}
-	c.running, c.started, c.last, c.retry, c.broke = true, true, s.Now(), time.Time{}, false
+	c.running, c.started, c.last, c.retry, c.broke = true, true, s.St.Now(), time.Time{}, false
 	s.mu.Unlock()
 	subject := health.Provider(name)
 	ws := s.workspaceOf(s.Ctx, name)
@@ -214,7 +214,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 					}
 					sessionCost, u.CostUSD = *u.SessionCostUSD, &grew
 				}
-				process.LogUsage(context.WithoutCancel(ctx), s.St, process.ModelCall{Workspace: ws, Command: SelfCheckCommand, Usage: u}, pv, s.Now())
+				process.LogUsage(context.WithoutCancel(ctx), s.St, process.ModelCall{Workspace: ws, Command: SelfCheckCommand, Usage: u}, pv, s.St.Now())
 			}})
 		var res provider.Check
 		unreached := s.Reach(cctx)
@@ -281,7 +281,7 @@ func (s *Service) startCheck(name string, force bool) bool {
 		case status == health.Paused && !until.IsZero():
 			c.retry = until
 		case status != health.OK && status != health.Warning:
-			c.retry = s.Now().Add(selfCheckRetry)
+			c.retry = s.St.Now().Add(selfCheckRetry)
 		}
 		s.mu.Unlock()
 		if status != health.Error && status != health.Checking {
@@ -302,7 +302,7 @@ const agentStart = time.Minute
 func (s *Service) writeCheck(ctx context.Context, name, status, text, version, verdict string, speed float64) {
 	subject := health.Provider(name)
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if err := process.ProviderHealth(ctx, q, s.Now(), name, status, text); err != nil {
+		if err := process.ProviderHealth(ctx, q, s.St.Now(), name, status, text); err != nil {
 			return err
 		}
 		if status == health.Checking {

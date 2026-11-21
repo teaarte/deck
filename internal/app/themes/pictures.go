@@ -95,7 +95,7 @@ func (s *Service) putPicture(ctx context.Context, act registry.Actor, p db.Proje
 			return err
 		}
 		pic, err := q.PutPicture(ctx, db.PutPictureParams{ProjectID: p.ID, Slot: slot, Theme: theme, Scheme: scheme,
-			FileID: id, ThumbID: thumb, Color: light.Color, DrawnIn: cur, Now: store.Time(s.Now())})
+			FileID: id, ThumbID: thumb, Color: light.Color, DrawnIn: cur, Now: store.Time(s.St.Now())})
 		if err != nil {
 			return err
 		}
@@ -179,7 +179,7 @@ func (s *Service) keep(ctx context.Context, q *db.Queries, project int64, slot, 
 			return err
 		}
 	}
-	if _, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: files.TrashKind, OwnerID: s.Now().Unix(), ID: old.FileID, ProjectID: project,
+	if _, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: files.TrashKind, OwnerID: s.St.Now().Unix(), ID: old.FileID, ProjectID: project,
 		FromKind: files.PictureKind, FromID: old.ID}); err != nil {
 		return err
 	}

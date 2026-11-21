@@ -242,7 +242,7 @@ func (s *Service) layoutSet(ctx context.Context, act registry.Actor, in layoutSe
 	raw, _ := json.Marshal(keep)
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return q.SetLayout(ctx, db.SetLayoutParams{WorkspaceID: act.Workspace, Device: me, Columns: in.Columns, Cards: string(raw),
-			UpdatedAt: store.Time(s.Now())})
+			UpdatedAt: store.Time(s.St.Now())})
 	})
 	if err != nil {
 		return nil, err

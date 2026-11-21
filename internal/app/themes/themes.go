@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"slices"
 	"strings"
-	"time"
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
@@ -27,8 +26,7 @@ import (
 )
 
 type Service struct {
-	St  *store.Store
-	Now func() time.Time
+	St *store.Store
 	// Tell sends the owner's words to the master in a new topic of the chat.
 	Tell     func(ctx context.Context, act registry.Actor, text, model string) (any, error)
 	Language func(ctx context.Context, workspace int64) string
@@ -324,7 +322,7 @@ func (s *Service) remove(ctx context.Context, act registry.Actor, in themeNameIn
 		case d.Kind != docs.KindTheme:
 			return registry.Invalid("%s is no theme", d.Name)
 		}
-		if _, err = q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: store.At(s.Now()), ID: d.ID}); err != nil {
+		if _, err = q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: store.At(s.St.Now()), ID: d.ID}); err != nil {
 			return err
 		}
 		return q.DeleteThemePictures(ctx, db.DeleteThemePicturesParams{WorkspaceID: act.Workspace, Theme: in.Name})
@@ -435,7 +433,7 @@ func (s *Service) Settle(ctx context.Context) {
 			if err := s.Pick(ctx, q, ws, theme.Default); err != nil {
 				return err
 			}
-			return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: m.ID,
+			return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.St.Now()), ProjectID: m.ID,
 				Text: fmt.Sprintf("The theme %s is gone from deck, so deck wears %s now; ask Deki to make %s again from its example.", name, theme.Default, name)})
 		})
 		if err != nil {

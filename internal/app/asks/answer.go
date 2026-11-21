@@ -71,8 +71,8 @@ func (s *Service) answerOne(ctx context.Context, act registry.Actor, in askAnswe
 	if err != nil {
 		return nil, err
 	}
-	if q.State == ask.StateOpen && q.ExpiresAt.Valid && q.ExpiresAt.String <= store.Time(s.Now()) {
-		s.ExpireAsks(ctx, s.Now())
+	if q.State == ask.StateOpen && q.ExpiresAt.Valid && q.ExpiresAt.String <= store.Time(s.St.Now()) {
+		s.ExpireAsks(ctx, s.St.Now())
 		if q, err = s.St.Q.GetAsk(ctx, in.Ask); err != nil {
 			return nil, err
 		}

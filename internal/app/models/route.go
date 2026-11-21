@@ -137,7 +137,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 		}
 		if m.ID != 0 {
 			h.Limited = func(ctx context.Context, hdr http.Header, words string) bool {
-				_, retry := s.Limited(ctx, act.Workspace, m.Name, provider.LimitEnds(hdr, words, s.Now()), words)
+				_, retry := s.Limited(ctx, act.Workspace, m.Name, provider.LimitEnds(hdr, words, s.St.Now()), words)
 				return retry
 			}
 		}
@@ -160,7 +160,7 @@ const redFor = 10 * time.Minute
 // paused one is left out until its end. With none up or red, every one goes in its order.
 func (s *Service) byHealth(ctx context.Context, workspace int64, names []string) []int {
 	var up, red, all []int
-	now := s.Now()
+	now := s.St.Now()
 	for i, name := range names {
 		all = append(all, i)
 		h, err := s.Health(ctx, workspace, name)

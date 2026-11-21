@@ -26,8 +26,7 @@ import (
 
 // Service keeps the triggers; the scheduler fires them, the gateway runs a trigger now.
 type Service struct {
-	St  *store.Store
-	Now func() time.Time
+	St *store.Store
 	// Zone is the owner's time zone of a workspace, whose days count.
 	Zone      func(ctx context.Context, workspace int64) *time.Location
 	Scheduler *trigger.Scheduler
@@ -179,7 +178,7 @@ func (s *Service) triggersList(ctx context.Context, act registry.Actor, in trigg
 		}
 		out = append(out, v)
 	}
-	ordered(out, s.Now().In(s.Zone(ctx, act.Workspace)))
+	ordered(out, s.St.Now().In(s.Zone(ctx, act.Workspace)))
 	return out, nil
 }
 

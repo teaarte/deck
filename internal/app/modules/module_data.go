@@ -195,7 +195,7 @@ func (s *Service) restoreData(ctx context.Context, act registry.Actor, p db.Proj
 					return 0, registry.Invalid("the data of the module holds more than %d records", maxDataRecords)
 				}
 				raw, _ := json.Marshal(data)
-				records = append(records, db.UpsertRecordParams{ProjectID: p.ID, Collection: collection, Key: key, Data: string(raw), Now: store.Time(s.Now())})
+				records = append(records, db.UpsertRecordParams{ProjectID: p.ID, Collection: collection, Key: key, Data: string(raw), Now: store.Time(s.St.Now())})
 			}
 			_ = r.Close()
 			if err := sc.Err(); err != nil {
@@ -299,7 +299,7 @@ func (s *Service) projectReset(ctx context.Context, act registry.Actor, in proje
 		if err := q.DeleteProjectRecordSnapshots(ctx, p.ID); err != nil {
 			return err
 		}
-		if err := q.DropProjectMemory(ctx, db.DropProjectMemoryParams{DeletedAt: store.At(s.Now()), ProjectID: store.ID(p.ID)}); err != nil {
+		if err := q.DropProjectMemory(ctx, db.DropProjectMemoryParams{DeletedAt: store.At(s.St.Now()), ProjectID: store.ID(p.ID)}); err != nil {
 			return err
 		}
 		return q.DeleteProjectFiles(ctx, p.ID)

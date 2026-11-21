@@ -6,7 +6,6 @@ import (
 	"context"
 	"io"
 	"slices"
-	"time"
 
 	"deck2/internal/gateway"
 	"deck2/internal/home"
@@ -17,7 +16,6 @@ import (
 // Service reads and writes the modules of a workspace as folders and files.
 type Service struct {
 	St      *store.Store
-	Now     func() time.Time
 	Home    home.Layout
 	Gateway *gateway.Gateway
 	// Snapshot writes a snapshot before a delete.

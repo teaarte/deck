@@ -131,19 +131,19 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	// Every service is a field of a, so each is built whole with the functions of the others.
 	a := &App{}
 	a.Cfg, a.Home, a.Store, a.Bus, a.Scripts = cfg, h, st, events.NewBus(), script.New(cfg.Sandbox, h)
-	a.Scripts.Image, a.Scripts.Now = cfg.Image, cfg.Now
+	a.Scripts.Image, a.Scripts.Now = cfg.Image, st.Now
 	registry.Declare(cfg.Commands, events.Topics)
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.bg.ctx = a.ctx
 	st.Changed = a.Bus.Emit
-	a.Asks = ask.NewBroker(st, cfg.Now, a.bg.Go)
+	a.Asks = ask.NewBroker(st, a.bg.Go)
 	a.mods.a = a
 	key, err := home.Key(h.PressKey())
 	if err != nil {
 		return nil, err
 	}
-	a.Registry = registry.New(a.mods.commands, key, cfg.Now)
-	a.Gateway = gateway.New(gateway.Config{Now: cfg.Now, QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL, MarkedWeb: a.Settings.MarkedWeb, Token: owners.TokenOf,
+	a.Registry = registry.New(a.mods.commands, key, st.Now)
+	a.Gateway = gateway.New(gateway.Config{QuestionWait: cfg.QuestionWait, ConfirmWait: cfg.ConfirmWait, ConfirmTTL: a.Settings.ConfirmTTL, MarkedWeb: a.Settings.MarkedWeb, Token: owners.TokenOf,
 		Models: func(act registry.Actor) http.Handler { return a.Models.Proxy(act, a.Gateway.Permit) }, Progress: cfg.Progress, Go: a.bg.Go},
 		gateway.Deps{Store: st, Asks: a.Asks, Bus: a.Bus, Registry: a.Registry})
 	oauth := &tools.OAuth{Secrets: a.Secrets.Read, Swap: a.Secrets.Swap}
@@ -151,33 +151,33 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Resolve: func(ctx context.Context, project, process int64, ref string) (files.Ref, error) {
 			return files.Resolve(ctx, h, a.Store.Q, project, process, ref)
 		}}
-	a.Host = mcphost.New(mcphost.Config{Now: cfg.Now}, mcphost.Deps{Status: a.Signins.ServerStatus, Sandbox: cfg.Sandbox})
+	a.Host = mcphost.New(mcphost.Config{Now: st.Now}, mcphost.Deps{Status: a.Signins.ServerStatus, Sandbox: cfg.Sandbox})
 	a.MCP = &tools.MCP{GW: a.Gateway, Host: a.Host, Store: st, Secrets: a.Secrets.Read, Home: h}
 	a.Browser = &tools.Browser{Host: a.Host, Store: st, Home: h, Argv: cfg.Browser}
 	a.Runner = process.New(
-		process.Config{Home: h, MCPBase: cfg.MCPBase, Now: cfg.Now, Hold: a.Files.Hold, AgentSlots: a.Settings.AgentSlots, Zone: a.Settings.ZoneIn},
+		process.Config{Home: h, MCPBase: cfg.MCPBase, Hold: a.Files.Hold, AgentSlots: a.Settings.AgentSlots, Zone: a.Settings.ZoneIn},
 		process.Deps{Store: st, Gateway: a.Gateway, Bus: a.Bus, Scripts: a.Scripts, Asks: a.Asks,
 			Hooks: []process.Hook{a.Chats.Hook(), a.Processes.Hook(), a.Triggers.Hook(), a.Answers.Hook()},
 			For:   a.Models.For, Next: a.Models.Next, Ahead: a.Models.Ahead, Named: a.Providers.Named, Goes: a.Providers.Goes, Down: a.Providers.Down, Broke: a.Providers.Broke, Limited: a.Providers.Limited, Answered: a.Providers.Answered, Subscription: a.Providers.Subscription, Prompt: a.Documents.Prompt,
 			Text: a.Documents.Text, Skills: a.Documents.Skills, Servers: a.Signins.Servers, Folder: a.Folders.Folder,
 			Folders: a.Folders.Paths, ScriptsAt: a.Folders.ScriptsAt,
 			Memory: a.Chats.Memory, Lang: a.Chats.Gives, Programs: a.Documents.Programs})
-	a.Scheduler = trigger.New(st, a.Triggers.Fire, cfg.Now)
+	a.Scheduler = trigger.New(st, a.Triggers.Fire)
 	a.Scheduler.Zone = a.Settings.ZoneIn
 
 	a.Secrets = secrets.Service{St: st, Emit: a.Bus.Emit, Home: h}
-	a.Files = appfiles.Service{St: st, Home: h, Now: cfg.Now, Held: a.Records.Held, Go: a.bg.Go, Call: a.Gateway.Call}
-	a.Journal = journal.Service{St: st, Now: cfg.Now, Zone: a.Settings.Zone, Groups: a.Models.Groups, Explain: a.Gateway.Explain}
+	a.Files = appfiles.Service{St: st, Home: h, Held: a.Records.Held, Go: a.bg.Go, Call: a.Gateway.Call}
+	a.Journal = journal.Service{St: st, Zone: a.Settings.Zone, Groups: a.Models.Groups, Explain: a.Gateway.Explain}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake, Rezone: a.Scheduler.Rezone}
-	a.Themes = themes.Service{St: st, Now: cfg.Now, Home: h, Tell: a.Chats.Tell, Language: a.Settings.Language,
+	a.Themes = themes.Service{St: st, Home: h, Tell: a.Chats.Tell, Language: a.Settings.Language,
 		Picked: a.Settings.Theme, Pick: a.Settings.SetTheme, Keep: a.Files.Keep, Thumb: a.Files.Thumb, Drop: a.Files.Drop}
-	a.Triggers = triggers.Service{St: st, Now: cfg.Now, Zone: a.Settings.Zone, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Models.Works, Incident: a.Processes.Incident, IsFailure: a.Processes.IsFailure}
-	a.Documents = documents.Service{St: st, Now: cfg.Now, Sandbox: cfg.Sandbox, Missing: a.missingPrograms, Go: a.bg.Go,
+	a.Triggers = triggers.Service{St: st, Zone: a.Settings.Zone, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Models.Works, Incident: a.Processes.Incident, IsFailure: a.Processes.IsFailure}
+	a.Documents = documents.Service{St: st, Sandbox: cfg.Sandbox, Missing: a.missingPrograms, Go: a.bg.Go,
 		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted, Home: h, Fits: a.Models.Fits, Language: a.Settings.Language,
 		Saw: a.Runner.Saw, Seen: a.Runner.Seen}
-	a.Snapshots = snapshots.Service{St: st, Emit: a.Bus.Emit, Home: h, Now: cfg.Now, Budget: cfg.SnapshotBudget, Still: a.Files.Still,
+	a.Snapshots = snapshots.Service{St: st, Emit: a.Bus.Emit, Home: h, Budget: cfg.SnapshotBudget, Still: a.Files.Still,
 		Expire: a.Records.Expire}
-	a.Nodes = node.NewHub(cfg.Now, func(device int64, online bool) {
+	a.Nodes = node.NewHub(st.Now, func(device int64, online bool) {
 		a.Owners.NodeChanged(device, online)
 		if online {
 			a.bg.Go(a.Runner.Wake)
@@ -186,7 +186,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Nodes.Denied = func(device int64) { a.Owners.NodeChanged(device, true) }
 	a.Folders = folders.Service{St: st, Home: h, Node: a.Providers.NodeNamed, Probe: a.Nodes.Probe, Scripts: a.Providers.Scripts,
 		Online: func(device int64) bool { return a.Nodes.State(device).Online }}
-	a.Providers = providers.Service{St: st, Now: cfg.Now, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
+	a.Providers = providers.Service{St: st, Home: h, Sandbox: cfg.Sandbox, ACPBinaries: cfg.ACPBinaries,
 		Nodes: a.Nodes, NodeWait: cfg.NodeWait, NodeDenied: a.Nodes.Denied, Low: func(ctx context.Context, text string) {
 			if err := health.Write(ctx, st, health.Of{}, health.Disk, health.Warning, text); err != nil {
 				slog.Error("write health", "err", err)
@@ -197,7 +197,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Reach:   func(ctx context.Context) error { return a.Gateway.Reach(ctx, cfg.MCPBase) },
 		Builtin: builtin, Ctx: a.ctx, Go: a.bg.Go, TurnModel: a.Models.TurnModel, Catalog: a.Models.Catalog, CheckFiles: a.Models.CheckFiles,
 		KeepBig: a.Models.KeepBig, View: a.Models.ModelView, Unassign: a.Models.Unassign}
-	a.Models = appmodels.Service{St: st, Now: cfg.Now, Home: h, Hold: a.Files.Hold, VideoPoll: cfg.VideoPoll, VideoCeiling: cfg.VideoCeiling,
+	a.Models = appmodels.Service{St: st, Home: h, Hold: a.Files.Hold, VideoPoll: cfg.VideoPoll, VideoCeiling: cfg.VideoCeiling,
 		Key: a.Secrets.Key, Resolve: a.Tools.Resolve, Builtin: builtin, Provider: a.Providers.Provider,
 		All: a.Providers.All, Off: a.Providers.Off, Up: a.Providers.Up, Health: a.Providers.Health, Exists: a.Providers.Exists, Limited: a.Providers.Limited, Answered: a.Providers.Answered, Free: a.Providers.Free, Spare: a.Providers.Spare,
 		Installed: a.Providers.Installed, Node: a.nodeTransport,
@@ -211,47 +211,47 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 			return a.Gateway.Count(ctx, &gateway.Session{Who: who})
 		}}
 	a.Web = web.Service{St: st, Route: a.Models.Route}
-	a.Answers = asks.Service{St: st, Now: cfg.Now, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver, Await: a.Bus.Await,
+	a.Answers = asks.Service{St: st, Broker: a.Asks, Registry: a.Registry, Gateway: a.Gateway, Deliver: a.Runner.Deliver, Await: a.Bus.Await,
 		Said: a.Runner.Said, Go: a.bg.Go, Start: a.Runner.Start, Lang: a.Chats.LangOf,
 		Shown: func(ctx context.Context, act registry.Actor, q db.Ask, answer string) (any, bool, error) {
 			return a.Chats.AnswerShown(ctx, act, q, answer)
 		}}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP,
 		Agent: a.Providers.Signer, Check: a.Providers.Check, Emit: a.Bus.Emit, Go: a.bg.Go}
-	a.Chats = chat.Service{St: st, Emit: a.Bus.Emit, Now: cfg.Now, Asks: a.Asks, Runner: a.Runner, For: a.Models.For,
+	a.Chats = chat.Service{St: st, Emit: a.Bus.Emit, Asks: a.Asks, Runner: a.Runner, For: a.Models.For,
 		Named: a.Providers.Named, Fits: a.Models.Fits, Able: a.Models.Able, Facts: a.Models.Facts, Go: a.bg.Go, Language: a.Settings.Language, Lookup: a.Registry.Lookup,
 		Decisions: func(ctx context.Context, act registry.Actor, ps []int64, lang string) (any, error) {
 			return a.Answers.Of(ctx, act, ps, lang)
 		}}
-	a.Feed = feed.Service{St: st, Now: cfg.Now,
+	a.Feed = feed.Service{St: st,
 		Home: h, Call: a.Gateway.Call, Waiting: a.Answers.Waiting, Hidden: a.Settings.PushHidden, Lang: a.Chats.Gives, Reads: a.Chats.LangOf,
 		FailedRuns: a.Processes.FailedRuns, FailingChecks: a.Health.FailingChecks}
-	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Now: cfg.Now, Call: a.Gateway.Call, Lookup: a.Registry.Lookup, Await: a.Bus.Await,
+	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Call: a.Gateway.Call, Lookup: a.Registry.Lookup, Await: a.Bus.Await,
 		Works: a.Models.Works, Waits: a.Gateway.Waits}
 	a.Health = apphealth.Service{St: st, Image: cfg.Image != "", Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Models.Unassigned, NoSearch: a.Models.NoSearch, Missing: a.Models.Missing,
 		Works: a.Models.Works, Places: a.Models.Places, Go: a.bg.Go}
-	a.Screens = screens.Service{St: st, Now: cfg.Now, Zone: a.Settings.Zone, Registry: a.Registry, Call: a.Gateway.Call, Tell: a.Chats.Tell, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
+	a.Screens = screens.Service{St: st, Zone: a.Settings.Zone, Registry: a.Registry, Call: a.Gateway.Call, Tell: a.Chats.Tell, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
 		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Feed.Unread, Works: a.Models.Works, AgentWorks: a.Models.AgentWorks,
 		ScreenFailed: a.Processes.Screen, ScreenDrawn: a.Processes.ScreenDrawn, File: a.Files.File, Language: a.Settings.Language,
 		Theme: a.Themes.Current}
-	a.Records = records.Service{St: st, Now: cfg.Now, Stop: a.Runner.Cancel}
-	a.Auth = auth.New(auth.Config{Now: cfg.Now, Home: h, Origins: cfg.Origins}, auth.Deps{Store: st})
-	a.Owners = owners.Service{St: st, Now: cfg.Now, MCPBase: cfg.MCPBase, Code: a.Auth.Code, Kick: a.Auth.Kick,
+	a.Records = records.Service{St: st, Stop: a.Runner.Cancel}
+	a.Auth = auth.New(auth.Config{Home: h, Origins: cfg.Origins}, auth.Deps{Store: st})
+	a.Owners = owners.Service{St: st, MCPBase: cfg.MCPBase, Code: a.Auth.Code, Kick: a.Auth.Kick,
 		Origins: cfg.Origins.List, PushNew: a.Feed.PushNew, Node: a.Nodes.State, Probe: a.Nodes.Probe, Go: a.bg.Go}
 	a.Shots = shots.Service{Host: a.Host, Argv: cfg.Browser, Home: h, Base: cfg.MCPBase, Lend: a.Owners.Lend, Return: a.Owners.Return,
 		Themed: a.Themes.Exists}
-	a.Updates = updates.Service{St: st, Now: cfg.Now, Source: cfg.Releases, Version: cfg.Version, Commit: cfg.Commit, Variant: cfg.Variant, Image: cfg.Image,
+	a.Updates = updates.Service{St: st, Source: cfg.Releases, Version: cfg.Version, Commit: cfg.Commit, Variant: cfg.Variant, Image: cfg.Image,
 		Exe: cfg.Exe, Restart: cfg.Restart, Pending: h.Update(), Go: a.bg.Go,
 		Snapshot: func(ctx context.Context) error { _, err := a.Snapshots.Snapshot(ctx); return err }}
-	a.Projects = project.Service{St: st, Emit: a.Bus.Emit, Now: cfg.Now, Home: h, Registry: a.Registry,
+	a.Projects = project.Service{St: st, Emit: a.Bus.Emit, Home: h, Registry: a.Registry,
 		Gateway: a.Gateway, Scheduler: a.Scheduler, Scripts: a.Scripts, LogPath: a.Runner.LogPath, StopServer: a.Host.Stop, Snapshot: a.Snapshots.BeforeDelete,
 		PrepareLater: a.Documents.PrepareLater, Noted: a.Feed.Noted, CheckScreens: a.Screens.CheckScreens,
 		Unassigned: a.Models.Unassigned, Missing: a.missingPrograms, Secret: a.Secrets.Has, DropSecrets: a.Secrets.Drop,
 		Theme: a.Themes.Current, Saw: a.Runner.Saw, Seen: a.Runner.Seen,
 		Ungranted: a.Rights.Ungranted, GrantDeclared: a.Rights.GrantDeclared, Grant: a.Rights.Grant, TellRights: a.Rights.TellRights,
 		Starter: appmodules.Starter, ReadUpload: a.Modules.ReadUpload, ReadFolder: appmodules.ReadFolder, RestoreUpload: a.Modules.RestoreUpload}
-	a.Rights = rights.Service{St: st, Now: cfg.Now, Zone: a.Settings.Zone, Registry: a.Registry, StopServer: a.Host.Stop}
-	a.Modules = appmodules.Service{St: st, Now: cfg.Now, Home: h, Gateway: a.Gateway, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep}
+	a.Rights = rights.Service{St: st, Zone: a.Settings.Zone, Registry: a.Registry, StopServer: a.Host.Stop}
+	a.Modules = appmodules.Service{St: st, Home: h, Gateway: a.Gateway, Snapshot: a.Snapshots.BeforeDelete, Keep: a.Files.Keep}
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Asks.OnLateAnswer(a.Answers.LateAnswer)
@@ -352,7 +352,7 @@ func (a *App) Start(ctx context.Context) {
 	if err := a.Runner.Recover(ctx); err != nil {
 		slog.Error("recover", "err", err)
 	}
-	a.redo(ctx, a.Cfg.Now())
+	a.redo(ctx, a.Store.Now())
 }
 
 // redo is what the tick does again until it holds: the consequences of closed processes, the answers that reached
@@ -365,7 +365,7 @@ func (a *App) redo(ctx context.Context, now time.Time) {
 // Run starts deck, then its loop every interval and the connections of its nodes until Stop; the self-checks of the
 // loop go first, so a resumed turn finds its provider checked.
 func (a *App) Run(ctx context.Context, every time.Duration) {
-	a.Providers.Checks(ctx, a.Cfg.Now())
+	a.Providers.Checks(ctx, a.Store.Now())
 	a.Start(ctx)
 	a.bg.Go(func(ctx context.Context) { a.Loop(ctx, every) })
 	a.bg.Go(a.Owners.Nodes)
@@ -447,7 +447,7 @@ func (a *App) Loop(ctx context.Context, every time.Duration) {
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
-		now := a.tick(ctx, a.Cfg.Now, func(running *atomic.Bool, now time.Time, work func(context.Context, time.Time)) {
+		now := a.tick(ctx, a.Store.Now, func(running *atomic.Bool, now time.Time, work func(context.Context, time.Time)) {
 			a.aside(ctx, running, now, work)
 		})
 		a.Providers.Checks(ctx, now)

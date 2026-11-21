@@ -108,7 +108,7 @@ func (s *Service) after(ctx context.Context, done db.Process) error {
 				if noted, err := q.HasDeckNote(ctx, db.HasDeckNoteParams{ProjectID: p.ID, Text: text}); err != nil || noted {
 					return err
 				}
-				return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: p.ID, Text: text})
+				return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.St.Now()), ProjectID: p.ID, Text: text})
 			}), s.Incident(ctx, done, process.IncidentAfter, text))
 		}
 	}

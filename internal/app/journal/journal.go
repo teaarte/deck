@@ -25,8 +25,7 @@ import (
 
 // Service reads the journal.
 type Service struct {
-	St  *store.Store
-	Now func() time.Time
+	St *store.Store
 	// Zone is the owner's time zone of a workspace, whose days count.
 	Zone func(ctx context.Context, workspace int64) *time.Location
 	// Groups give the group of a model of a workspace where models are listed, in a language, and its place.
@@ -206,7 +205,7 @@ func (s *Service) window(loc *time.Location, days int64) (string, []string) {
 	if days < 1 || days > 366 {
 		days = 30
 	}
-	y, m, d := s.Now().In(loc).Date()
+	y, m, d := s.St.Now().In(loc).Date()
 	first := time.Date(y, m, d-int(days-1), 0, 0, 0, 0, loc)
 	out := make([]string, 0, days)
 	for i := range int(days) {

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"deck2/internal/events"
 
@@ -26,7 +25,6 @@ import (
 // Service keeps the documents; Go runs the checks of scripts in the background.
 type Service struct {
 	St      *store.Store
-	Now     func() time.Time
 	Sandbox *sandbox.Sandbox
 	// Missing reports the scripts of a project whose programs are not on the machine they run on, by script name.
 	Missing func(ctx context.Context, projectID int64, m *manifest.Manifest) map[string]error
@@ -257,7 +255,7 @@ func (s *Service) documentGet(ctx context.Context, act registry.Actor, in docume
 		v.Revisions, err = s.revisions(ctx, d)
 	}
 	if err == nil && (act.Kind == registry.Agent || act.Kind == registry.Master) && r.N == d.Current && d.Kind == docs.KindMemory && d.Name != docs.MemoryIndex {
-		docs.Reached(ctx, s.St, s.Now(), d.ID)
+		docs.Reached(ctx, s.St, s.St.Now(), d.ID)
 	}
 	return v, err
 }
@@ -548,14 +546,14 @@ func (s *Service) documentDelete(ctx context.Context, act registry.Actor, in doc
 			return nil, err
 		}
 		// A fact past the date the owner gave it may go.
-		if f, err := docs.ParseFact(r.Text); err != nil || !f.Expired(s.Now()) {
+		if f, err := docs.ParseFact(r.Text); err != nil || !f.Expired(s.St.Now()) {
 			if err := ownersFact(ctx, s.St.Q, act, d.Name, r.Text); err != nil {
 				return nil, err
 			}
 		}
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: store.At(s.Now()), ID: d.ID})
+		_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: store.At(s.St.Now()), ID: d.ID})
 		return err
 	})
 	if err != nil {

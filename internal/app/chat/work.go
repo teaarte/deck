@@ -77,7 +77,7 @@ func (s *Service) running(ctx context.Context, workspace, topic int64, tr func(s
 		open = append(open, v)
 	}
 	ended, _ := s.St.Q.ListRecentTopicProcesses(ctx, db.ListRecentTopicProcessesParams{MasterID: m.ID, Topic: topic,
-		Since: store.At(s.Now().Add(-recentFor)), Lim: recentMax})
+		Since: store.At(s.St.Now().Add(-recentFor)), Lim: recentMax})
 	for _, r := range ended {
 		recent = append(recent, view(r.Process, r.Project))
 	}

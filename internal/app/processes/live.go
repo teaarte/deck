@@ -92,7 +92,7 @@ func (s *Service) processTell(ctx context.Context, act registry.Actor, in proces
 	text = strings.TrimSpace(text + "\n\n" + given)
 	// The message is kept as taken before the turn hears it: a turn that ends on it hands it on with the rest.
 	remark, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		return q.CreateTakenRemark(ctx, db.CreateTakenRemarkParams{ProcessID: p.ID, Text: text, CreatedAt: store.Time(s.Now())})
+		return q.CreateTakenRemark(ctx, db.CreateTakenRemarkParams{ProcessID: p.ID, Text: text, CreatedAt: store.Time(s.St.Now())})
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, registry.Invalid("process %d has finished; send it back with a remark instead", p.ID)

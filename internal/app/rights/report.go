@@ -58,7 +58,7 @@ func (s *Service) rightsReport(ctx context.Context, act registry.Actor, in right
 		return nil, registry.Invalid("days: from 1 to 180")
 	}
 	loc := s.Zone(ctx, act.Workspace)
-	y, m, d := s.Now().In(loc).Date()
+	y, m, d := s.St.Now().In(loc).Date()
 	since := store.Time(time.Date(y, m, d-int(days-1), 0, 0, 0, 0, loc))
 	ws := words.In(registry.Lang(ctx))
 	tr := func(t string) string { return manifest.TrText(ws, t) }

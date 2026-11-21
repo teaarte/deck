@@ -89,7 +89,7 @@ type deviceRevokeIn struct {
 // its passkey signs its browser in again only as a new device.
 func (s *Service) deviceRevoke(ctx context.Context, act registry.Actor, in deviceRevokeIn) (any, error) {
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		return revoke(ctx, q, act.Workspace, in.Device, s.Now())
+		return revoke(ctx, q, act.Workspace, in.Device, s.St.Now())
 	})
 	if err != nil {
 		return nil, err
@@ -168,7 +168,7 @@ type passkeyRevokeIn struct {
 func (s *Service) passkeyRevoke(ctx context.Context, act registry.Actor, in passkeyRevokeIn) (any, error) {
 	var devices []int64
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		n, err := q.RevokePasskey(ctx, db.RevokePasskeyParams{RevokedAt: store.At(s.Now()), ID: in.Passkey, WorkspaceID: act.Workspace})
+		n, err := q.RevokePasskey(ctx, db.RevokePasskeyParams{RevokedAt: store.At(s.St.Now()), ID: in.Passkey, WorkspaceID: act.Workspace})
 		if err != nil || n == 0 {
 			return n, err
 		}
@@ -176,7 +176,7 @@ func (s *Service) passkeyRevoke(ctx context.Context, act registry.Actor, in pass
 			return n, err
 		}
 		for _, d := range devices {
-			if _, err := revoke(ctx, q, act.Workspace, d, s.Now()); err != nil {
+			if _, err := revoke(ctx, q, act.Workspace, d, s.St.Now()); err != nil {
 				return n, err
 			}
 		}

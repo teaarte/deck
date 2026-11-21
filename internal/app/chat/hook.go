@@ -67,11 +67,11 @@ func (h replies) Turn(ctx context.Context, p db.Process, text string) error {
 			}
 		}
 		if errors.Is(err, sql.ErrNoRows) {
-			if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID}); err != nil {
+			if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.St.Now()), TopicID: topic, Role: roleMaster, Text: strings.TrimSpace(text), ProcessID: p.ID}); err != nil {
 				return err
 			}
 		}
-		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.Now()), ID: topic}); err != nil {
+		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.St.Now()), ID: topic}); err != nil {
 			return err
 		}
 		seen, err := q.TurnSeen(ctx, db.TurnSeenParams{TopicID: topic, ProcessID: p.ID})

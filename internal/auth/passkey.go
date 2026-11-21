@@ -64,7 +64,7 @@ func relying(o Origin) (*webauthn.WebAuthn, error) {
 func (a *Auth) keep(c ceremony) string {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	now := a.cfg.Now()
+	now := a.st.Now()
 	for k, x := range a.ceremonies {
 		if now.After(x.until) {
 			delete(a.ceremonies, k)
@@ -82,7 +82,7 @@ func (a *Auth) finish(id string, o Origin) (ceremony, error) {
 	defer a.mu.Unlock()
 	c, ok := a.ceremonies[id]
 	delete(a.ceremonies, id)
-	if !ok || c.origin != o.Main || a.cfg.Now().After(c.until) {
+	if !ok || c.origin != o.Main || a.st.Now().After(c.until) {
 		return ceremony{}, ErrSignIn
 	}
 	return c, nil
@@ -187,7 +187,7 @@ func (a *Auth) PairFinish(ctx context.Context, o Origin, id, name string, br Cli
 			return Begun{}, err
 		}
 		key, err := q.CreatePasskey(ctx, db.CreatePasskeyParams{WorkspaceID: space, Name: cmp.Or(name, Named(br.Agent)), RpID: o.RPID(),
-			CredentialID: cred.ID, UserHandle: cer.handle, Credential: string(b), SeenAt: store.At(a.cfg.Now())})
+			CredentialID: cred.ID, UserHandle: cer.handle, Credential: string(b), SeenAt: store.At(a.st.Now())})
 		if err != nil {
 			return Begun{}, err
 		}
@@ -256,7 +256,7 @@ func workspace(ctx context.Context, q *db.Queries, of int64) (int64, error) {
 
 // device makes a node and its first session, whose key it gives.
 func (a *Auth) device(ctx context.Context, p db.CreateDeviceParams) (Begun, error) {
-	p.SeenAt = store.At(a.cfg.Now())
+	p.SeenAt = store.At(a.st.Now())
 	return store.TxGet(a.st, ctx, func(ctx context.Context, q *db.Queries) (Begun, error) {
 		var err error
 		if p.WorkspaceID, err = workspace(ctx, q, p.WorkspaceID); err != nil {
@@ -341,5 +341,5 @@ func (a *Auth) used(ctx context.Context, q *db.Queries, key db.Passkey, cred str
 	if _, err := q.PasskeyByCredential(ctx, db.PasskeyByCredentialParams{CredentialID: key.CredentialID, UserHandle: key.UserHandle, RpID: key.RpID}); err != nil {
 		return errors.Join(err, ErrSignIn)
 	}
-	return q.SetPasskeyCredential(ctx, db.SetPasskeyCredentialParams{Credential: cred, SeenAt: store.At(a.cfg.Now()), ID: key.ID})
+	return q.SetPasskeyCredential(ctx, db.SetPasskeyCredentialParams{Credential: cred, SeenAt: store.At(a.st.Now()), ID: key.ID})
 }

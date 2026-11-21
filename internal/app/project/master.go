@@ -60,14 +60,14 @@ func (s *Service) seedMaster(ctx context.Context, workspace int64, files []docs.
 			return err
 		case p.Builtin == 0:
 			slog.Error("a project of the owner is named master, so the built-in master is missing", "workspace", workspace)
-			_, err := health.Set(ctx, q, s.Now(), health.Of{Workspace: workspace}, health.Master, health.Error,
+			_, err := health.Set(ctx, q, s.St.Now(), health.Of{Workspace: workspace}, health.Master, health.Error,
 				"a project of the owner is named master, so the built-in master is missing: export that project, delete it and import it under another name")
 			return err
 		}
 		if err := health.Clear(ctx, q, health.Of{Workspace: workspace}, health.Master); err != nil {
 			return err
 		}
-		done, err := docs.Ship(ctx, q, docs.ProjectScope(p), "", files, s.Now())
+		done, err := docs.Ship(ctx, q, docs.ProjectScope(p), "", files, s.St.Now())
 		if err != nil {
 			return err
 		}
@@ -76,7 +76,7 @@ func (s *Service) seedMaster(ctx context.Context, workspace int64, files []docs.
 			return err
 		}
 		for _, n := range done.Notes {
-			if err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.Now()), WorkspaceID: workspace, ProjectID: p.ID, Text: n}); err != nil {
+			if err := q.AddMasterNote(ctx, db.AddMasterNoteParams{CreatedAt: store.Time(s.St.Now()), WorkspaceID: workspace, ProjectID: p.ID, Text: n}); err != nil {
 				return err
 			}
 		}

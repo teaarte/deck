@@ -54,7 +54,7 @@ func (s *Service) Drain(ctx context.Context) {
 		if len(stuck) == 0 {
 			return health.Clear(ctx, q, health.Of{}, health.Outbox)
 		}
-		_, err = health.Set(ctx, q, s.Now(), health.Of{}, health.Outbox, health.Error, strings.Join(stuck, "; ")+"; deck tries again on each round")
+		_, err = health.Set(ctx, q, s.St.Now(), health.Of{}, health.Outbox, health.Error, strings.Join(stuck, "; ")+"; deck tries again on each round")
 		return err
 	})
 	if err != nil && ctx.Err() == nil {

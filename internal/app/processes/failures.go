@@ -112,7 +112,7 @@ func (s *Service) toMaster(ctx context.Context, p db.Process) error {
 	// The master's own failure goes to the owner's feed instead.
 	// A failed process the master does not take stays among the failures of the cockpit, which the owner sees.
 	return s.handOver(ctx, proj, manifest.OnFailure, key, 24*time.Hour, input, "", func(ctx context.Context, q *db.Queries) error {
-		return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: p.ProjectID,
+		return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.St.Now()), ProjectID: p.ProjectID,
 			Text: fmt.Sprintf("The master's command %s failed: %s", p.Command, untrusted.Cut(p.Error, 500))})
 	})
 }
@@ -138,7 +138,7 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 			if _, err := health.Get(ctx, q, health.Project(p), subject); !errors.Is(err, sql.ErrNoRows) {
 				return err
 			}
-			_, err := health.Set(ctx, q, s.Now(), health.Project(p), subject, health.Error, e)
+			_, err := health.Set(ctx, q, s.St.Now(), health.Project(p), subject, health.Error, e)
 			return err
 		})
 		if err != nil {
@@ -146,7 +146,7 @@ func (s *Service) Screen(ctx context.Context, p db.Project, revision int64, name
 		}
 		// Its own mark keeps a block the master did not take from going to it on every draw; it follows the hand-over,
 		// so a fall between them hands it over again rather than lose it.
-		mark := db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: screenErrorPrefix + key, Value: store.Time(s.Now())}
+		mark := db.SetMarkParams{WorkspaceID: p.WorkspaceID, ProjectID: store.ID(p.ID), Name: screenErrorPrefix + key, Value: store.Time(s.St.Now())}
 		_, err = s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: p.WorkspaceID, Name: mark.Name})
 		if err == nil {
 			continue
@@ -187,7 +187,7 @@ func (s *Service) handOver(ctx context.Context, proj db.Project, on, key string,
 	if _, err := docs.Manifest(ctx, s.St.Q, proj); err != nil {
 		return nil
 	}
-	now := s.Now()
+	now := s.St.Now()
 	last, err := s.St.Q.GetMark(ctx, db.GetMarkParams{WorkspaceID: proj.WorkspaceID, Name: key})
 	if err == nil {
 		if t, err := store.ParseTime(last); err == nil && (every == 0 || now.Sub(t) < every) {

@@ -90,7 +90,7 @@ func (s *Service) unstart(topic int64, err error, live bool) {
 		}
 		u := s.unstarted[topic]
 		u.why, u.tries = err.Error(), u.tries+1
-		u.next = s.Now().Add(retryAfter(u.tries))
+		u.next = s.St.Now().Add(retryAfter(u.tries))
 		s.unstarted[topic] = u
 	}
 	now := s.unstarted[topic].why

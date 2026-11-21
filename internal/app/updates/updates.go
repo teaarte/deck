@@ -46,7 +46,6 @@ var GitHub = Source{URL: "https://github.com/teaarte/deck/releases/latest/downlo
 
 type Service struct {
 	St      *store.Store
-	Now     func() time.Time
 	Source  Source
 	Version string
 	// Commit is the commit of this build, empty when not known.
@@ -82,7 +81,7 @@ func (s *Service) Mark(ctx context.Context) error {
 			if s.unknown() != "" {
 				text = fmt.Sprintf("%s; its commit is not known", text)
 			}
-			if _, err := health.Set(ctx, q, s.Now(), health.Of{}, health.Update, health.OK, text); err != nil {
+			if _, err := health.Set(ctx, q, s.St.Now(), health.Of{}, health.Update, health.OK, text); err != nil {
 				return err
 			}
 		}
@@ -186,7 +185,7 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 			status = health.Error
 		}
 		if herr := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-			_, err := health.Set(ctx, q, s.Now(), health.Of{}, health.Update, status, fmt.Sprintf("deck could not look for an update: %s", err))
+			_, err := health.Set(ctx, q, s.St.Now(), health.Of{}, health.Update, status, fmt.Sprintf("deck could not look for an update: %s", err))
 			return err
 		}); herr != nil {
 			slog.Error("write the health of updates", "err", herr)
@@ -205,7 +204,7 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 		}
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		changed, err := health.Set(ctx, q, s.Now(), health.Of{}, health.Update, status, text)
+		changed, err := health.Set(ctx, q, s.St.Now(), health.Of{}, health.Update, status, text)
 		if err != nil || !changed || !newer {
 			return err
 		}
@@ -222,7 +221,7 @@ func (s *Service) check(ctx context.Context) (release.Files, error) {
 			if err != nil {
 				continue
 			}
-			if _, err := store.AddNote(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: ws, ProjectID: m.ID,
+			if _, err := store.AddNote(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.St.Now()), WorkspaceID: ws, ProjectID: m.ID,
 				Author: "deck", Text: text, Actions: string(buttons), Params: "{}", Cause: health.Update}); err != nil {
 				return err
 			}

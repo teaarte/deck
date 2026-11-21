@@ -32,7 +32,7 @@ func keyOf(act registry.Actor, c *registry.Command, input json.RawMessage, key s
 // claim takes the key of a call in the Tx of before, or gives what the call of that key gave; a key of a call still
 // being made, of one deck stopped making or of another command refuses the call.
 func (g *Gateway) claim(ctx context.Context, q *db.Queries, k db.TakeCallKeyParams) (*registry.Result, error) {
-	now := g.cfg.Now()
+	now := g.st.Now()
 	if err := q.ForgetCallKeys(ctx, store.Time(now.Add(-KeyKept))); err != nil {
 		return nil, err
 	}

@@ -32,7 +32,6 @@ const (
 )
 
 type Config struct {
-	Now  func() time.Time
 	Home home.Layout
 	// Origins are the addresses of deck; passkeys belong to their names.
 	Origins *Origins
@@ -56,8 +55,8 @@ type Auth struct {
 
 func New(cfg Config, deps Deps) *Auth {
 	return &Auth{cfg: cfg, st: deps.Store, ceremonies: map[string]ceremony{},
-		Tries:  NewLimiter(30, time.Minute, cfg.Now),
-		Misses: NewLimiter(10, 10*time.Minute, cfg.Now)}
+		Tries:  NewLimiter(30, time.Minute, deps.Store.Now),
+		Misses: NewLimiter(10, 10*time.Minute, deps.Store.Now)}
 }
 
 // Origins are the addresses of deck.
@@ -89,7 +88,7 @@ func hash(raw string) string {
 
 // start begins a session of a device and returns its cookie; it runs in the transaction that made the device.
 func (a *Auth) start(ctx context.Context, q *db.Queries, device int64) (string, error) {
-	now := a.cfg.Now()
+	now := a.st.Now()
 	if err := q.DeleteSessionsBefore(ctx, db.DeleteSessionsBeforeParams{Seen: store.Time(now.Add(-Idle)), Created: store.Time(now.Add(-Longest))}); err != nil {
 		return "", err
 	}
@@ -106,7 +105,7 @@ func (a *Auth) Session(ctx context.Context, raw string) (Principal, bool) {
 	if err != nil {
 		return Principal{}, false
 	}
-	now := a.cfg.Now()
+	now := a.st.Now()
 	seen, err1 := store.ParseTime(row.SeenAt)
 	made, err2 := store.ParseTime(row.CreatedAt)
 	// The key of a node lasts until the node is revoked.
@@ -139,7 +138,7 @@ func (a *Auth) Alive(ctx context.Context, raw string) bool {
 	if err != nil {
 		return false
 	}
-	now := a.cfg.Now()
+	now := a.st.Now()
 	seen, err1 := store.ParseTime(row.SeenAt)
 	made, err2 := store.ParseTime(row.CreatedAt)
 	return err1 == nil && err2 == nil && now.Sub(seen) <= Idle && now.Sub(made) <= Longest

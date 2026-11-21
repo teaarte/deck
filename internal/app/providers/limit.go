@@ -106,7 +106,7 @@ func streakKey(subject string, of health.Of) string {
 // Limited pauses the scope of a usage limit of a model until ends (unix seconds, zero for none) and says when it is
 // called again; a first limit without a reset pauses nothing and says retry, the next ones 5 minutes doubling to an hour.
 func (s *Service) Limited(ctx context.Context, workspace int64, name string, ends int64, words string) (until time.Time, retry bool) {
-	now := s.Now()
+	now := s.St.Now()
 	subject, of := s.scope(ctx, workspace, name, words)
 	cli := s.cliOf(ctx, workspace, name) != ""
 	s.mu.Lock()
@@ -188,7 +188,7 @@ func (s *Service) Answered(ctx context.Context, workspace int64, name string, ok
 	if cli == "" || len(ws) == 0 {
 		return
 	}
-	now := s.Now()
+	now := s.St.Now()
 	var spent time.Time
 	var hours int64
 	var args []any
@@ -297,7 +297,7 @@ func (s *Service) pausedTill(ctx context.Context, name string) (time.Time, bool)
 	spaces, _ := s.St.Q.ListWorkspaces(ctx)
 	for _, ws := range spaces {
 		if h, err := s.Health(ctx, ws, name); err == nil && h.Status == health.Paused && !nearlySpent(h) {
-			if end := health.Until(h); end.After(s.Now()) {
+			if end := health.Until(h); end.After(s.St.Now()) {
 				return end, true
 			}
 		}

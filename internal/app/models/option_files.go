@@ -108,7 +108,7 @@ func (s *Service) KeepBig(ctx context.Context, workspace int64, m db.Model) (str
 			}
 			for _, b := range big {
 				f, err := q.CreateFile(ctx, db.CreateFileParams{ProjectID: p.ID, OwnerKind: "model", OwnerID: m.ID, Name: b.key, Type: "text/plain",
-					Size: b.size, CreatedAt: store.Time(s.Now())})
+					Size: b.size, CreatedAt: store.Time(s.St.Now())})
 				if err != nil {
 					return err
 				}

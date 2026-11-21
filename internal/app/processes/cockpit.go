@@ -142,7 +142,7 @@ func (s *Service) long(ctx context.Context, p db.Process, since string) bool {
 	if err != nil || p.State != process.StateRunning {
 		return false
 	}
-	took := s.Now().Sub(started)
+	took := s.St.Now().Sub(started)
 	ms, err := s.St.Q.RecentDurations(ctx, db.RecentDurationsParams{ProjectID: p.ProjectID, Command: p.Command})
 	if err != nil || len(ms) < usualRuns {
 		return false
@@ -170,7 +170,7 @@ func (s *Service) processRetry(ctx context.Context, act registry.Actor, in proce
 	if !json.Valid(input) {
 		input = json.RawMessage("{}")
 	}
-	before := store.Time(s.Now())
+	before := store.Time(s.St.Now())
 	out, err := s.Call(ctx, gateway.Call{Who: act, Command: fmt.Sprintf("%s.%s", proj.Name, p.Command), Input: input})
 	if err != nil {
 		return out, err
@@ -202,7 +202,7 @@ func (s *Service) stillFailed(ctx context.Context, q *db.Queries, act registry.A
 
 // failedParams read the processes that did not work in the last week; a project or id of zero is any.
 func (s *Service) failedParams(act registry.Actor, project, id, lim int64) db.ListFailedProcessesParams {
-	return db.ListFailedProcessesParams{WorkspaceID: act.Workspace, ProjectID: project, ID: id, Since: store.Time(s.Now().Add(-7 * 24 * time.Hour)), Lim: lim}
+	return db.ListFailedProcessesParams{WorkspaceID: act.Workspace, ProjectID: project, ID: id, Since: store.Time(s.St.Now().Add(-7 * 24 * time.Hour)), Lim: lim}
 }
 
 type processDismissIn struct {

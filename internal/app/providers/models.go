@@ -263,7 +263,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			if c.Api == models.APICLI {
 				err = health.Clear(ctx, q, health.Of{}, health.Provider(in.Name))
 			} else {
-				err = process.ProviderHealth(ctx, q, s.Now(), in.Name, health.Checking, "the self-check of the model in its agent is about to run")
+				err = process.ProviderHealth(ctx, q, s.St.Now(), in.Name, health.Checking, "the self-check of the model in its agent is about to run")
 			}
 			if err != nil {
 				return err
@@ -421,7 +421,7 @@ func (s *Service) modelDelete(ctx context.Context, act registry.Actor, in modelD
 		if err := q.DeleteModelHealth(ctx, db.DeleteModelHealthParams{WorkspaceID: store.ID(act.Workspace), Model: health.Model(in.Name), Provider: health.Provider(in.Name), Name: in.Name}); err != nil || !unasked || approved {
 			return err
 		}
-		return store.AddChange(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: act.Workspace, ProjectID: act.ProjectID,
+		return store.AddChange(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.St.Now()), WorkspaceID: act.Workspace, ProjectID: act.ProjectID,
 			Author: act.Author(), Text: fmt.Sprintf("deleted model %s", untrusted.Line(in.Name, 80)), Actions: "[]", Command: registry.Deck("model_set"),
 			Params: string(back(old.Model, old.Connection.Name)), ProcessID: store.ID(act.ProcessID), What: "deleted models"})
 	})

@@ -303,7 +303,7 @@ func (s *Service) deleteRecord(ctx context.Context, act registry.Actor, p db.Pro
 			return nil
 		}
 		params, _ := json.Marshal(map[string]any{"project": p.Name, "collection": rec.Collection, "records": rec.Data})
-		return store.AddChange(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
+		return store.AddChange(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.St.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
 			Author: act.Author(), Text: fmt.Sprintf("deleted %s with %d records, %d files and %d folders in all; an undo writes back its data, not what belonged to it",
 				pl.parts(m)[0].Name, len(pl.records), len(pl.files), len(pl.folders)),
 			Actions: "[]", Command: registry.Deck("record_upsert"), Params: string(params), ProcessID: store.ID(act.ProcessID),
@@ -376,7 +376,7 @@ func (s *Service) hold(ctx context.Context, q *db.Queries, act registry.Actor, p
 		for _, pt := range parts {
 			fmt.Fprintf(&b, "- %s %s\n", pt.Kind, untrusted.Line(pt.Name, 200))
 		}
-		a, err = gateway.Hold(ctx, q, act, p.ID, act.ProcessID, ask.KindCall, "", untrusted.Cut(b.String(), 4000), f, time.Time{}, s.Now())
+		a, err = gateway.Hold(ctx, q, act, p.ID, act.ProcessID, ask.KindCall, "", untrusted.Cut(b.String(), 4000), f, time.Time{}, s.St.Now())
 	}
 	return gateway.Waiting{Ask: a.ID, Text: fmt.Sprintf("deck: deleting record %d takes what the master did not make (%s), so it waits for the owner's confirmation (ask %d); "+
 		"nothing was deleted yet. Go on with other work: once the owner allows it, deck deletes it and tells you.", rec.ID, untrusted.Line(others, 300), a.ID)}, err

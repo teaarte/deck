@@ -22,7 +22,6 @@ import (
 // Service keeps the work; the functions of providers say who exists and whether it is up.
 type Service struct {
 	St   *store.Store
-	Now  func() time.Time
 	Home home.Layout
 	// Hold keeps a snapshot from copying the base between the row of a file of a model and its blob, until its unlock.
 	Hold func() func()

@@ -91,17 +91,17 @@ func (s *Service) tell(ctx context.Context, p db.Process) error {
 		if _, err := q.FindMessageByKey(ctx, db.FindMessageByKeyParams{WorkspaceID: ws, RetryKey: key}); !errors.Is(err, sql.ErrNoRows) {
 			return err
 		}
-		if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: topic, Role: roleDeck,
+		if _, err := q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.St.Now()), TopicID: topic, Role: roleDeck,
 			Text: strings.TrimSpace(text), Context: string(state), ProcessID: p.ID, RetryKey: key}); err != nil {
 			return err
 		}
-		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.Now()), ID: topic}); err != nil {
+		if err := q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.St.Now()), ID: topic}); err != nil {
 			return err
 		}
 		if !p.FinishedAt.Valid {
 			return nil
 		}
-		return q.ReadNotesOfProcess(ctx, db.ReadNotesOfProcessParams{ProcessID: store.ID(p.ID), Now: store.Time(s.Now())})
+		return q.ReadNotesOfProcess(ctx, db.ReadNotesOfProcessParams{ProcessID: store.ID(p.ID), Now: store.Time(s.St.Now())})
 	})
 }
 

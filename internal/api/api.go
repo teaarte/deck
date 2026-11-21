@@ -40,7 +40,7 @@ type Server struct {
 
 // New serves a; proxies are those whose X-Forwarded-For deck takes: addresses, networks or names.
 func New(a *app.App, web fs.FS, proxies []string) *Server {
-	p, gw := newProxies(proxies, a.Cfg.Now)
+	p, gw := newProxies(proxies, a.Store.Now)
 	a.Proxied(gw)
 	return &Server{app: a, web: web, origins: a.Auth.Origins(), proxies: p}
 }

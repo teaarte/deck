@@ -150,7 +150,7 @@ func (s *Service) recordUpsert(ctx context.Context, act registry.Actor, in recor
 	}
 	var out UpsertResult
 	err = s.writeRecords(ctx, p, func(ctx context.Context, q *db.Queries, m *manifest.Manifest) error {
-		out, err = UpsertJSONL(ctx, q, s.Now(), p.ID, act.ProcessID, m, in.Collection, in.Records)
+		out, err = UpsertJSONL(ctx, q, s.St.Now(), p.ID, act.ProcessID, m, in.Collection, in.Records)
 		return err
 	})
 	return out, err
@@ -179,7 +179,7 @@ func (s *Service) recordUpdate(ctx context.Context, act registry.Actor, in recor
 		if err != nil {
 			return err
 		}
-		return Update(ctx, q, s.Now(), cur, m, data)
+		return Update(ctx, q, s.St.Now(), cur, m, data)
 	})
 	if err != nil {
 		return nil, err

@@ -5,7 +5,6 @@ package project
 import (
 	"context"
 	"slices"
-	"time"
 
 	"deck2/internal/docs"
 	"deck2/internal/events"
@@ -24,7 +23,6 @@ type Service struct {
 	St *store.Store
 	// Emit tells deck's observers of a change no write of the store tells.
 	Emit      func(events.Event)
-	Now       func() time.Time
 	Home      home.Layout
 	Registry  *registry.Registry
 	Gateway   *gateway.Gateway

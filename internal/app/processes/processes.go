@@ -36,7 +36,6 @@ type Service struct {
 	Runner *process.Runner
 	// Named is the provider a process started on.
 	Named func(ctx context.Context, projectID int64, name string) (provider.Provider, error)
-	Now   func() time.Time
 	// Call makes a call through the gateway, as the owner's retry of a run starts its command again.
 	Call func(ctx context.Context, call gateway.Call) (registry.Result, error)
 	// Lookup is a command of the registry by its full name.
@@ -343,7 +342,7 @@ func (s *Service) processGet(ctx context.Context, act registry.Actor, in process
 	turn := act.Live && act.ProcessID != 0 && act.ProcessID != p.ID
 	until := time.Now().Add(min(time.Duration(max(in.Wait, 0))*time.Second, waitLimit(act)))
 	if self, err := s.St.Q.GetProcess(ctx, act.ProcessID); act.ProcessID != 0 && err == nil && self.DeadlineMs.Valid {
-		left := time.UnixMilli(self.DeadlineMs.Int64).Sub(s.Now()) - ceilingMargin
+		left := time.UnixMilli(self.DeadlineMs.Int64).Sub(s.St.Now()) - ceilingMargin
 		if end := time.Now().Add(max(left, 0)); end.Before(until) {
 			until = end
 		}
@@ -647,7 +646,7 @@ func (s *Service) handedOn(ctx context.Context, p db.Process) (int64, bool) {
 		return fs[len(fs)-1].ID, false
 	}
 	at, err := store.ParseTime(p.FinishedAt.String)
-	return 0, err == nil && s.Now().Sub(at) < handOnGrace
+	return 0, err == nil && s.St.Now().Sub(at) < handOnGrace
 }
 
 // handOnGrace is how long after a model refused a process a wait looks for the process that goes on with it.

@@ -40,7 +40,7 @@ type tally struct {
 }
 
 func (g *Gateway) tallyOf(act registry.Actor, project int64, who string) *tally {
-	return &tally{g: g, act: act, project: project, who: who, hosts: map[string]int64{}, written: g.cfg.Now()}
+	return &tally{g: g, act: act, project: project, who: who, hosts: map[string]int64{}, written: g.st.Now()}
 }
 
 // Tally hears the hosts the box of a module's program reaches, for a box with no session, such as an MCP server: it
@@ -62,7 +62,7 @@ func (t *tally) reach(host string) {
 		host = "*"
 	}
 	t.hosts[host]++
-	due := t.hosts[host] >= tallyBatch || t.g.cfg.Now().Sub(t.written) >= tallyEvery
+	due := t.hosts[host] >= tallyBatch || t.g.st.Now().Sub(t.written) >= tallyEvery
 	t.mu.Unlock()
 	if due {
 		t.flush()
@@ -76,7 +76,7 @@ func (t *tally) flush() {
 	}
 	t.mu.Lock()
 	hosts := t.hosts
-	t.hosts, t.written = map[string]int64{}, t.g.cfg.Now()
+	t.hosts, t.written = map[string]int64{}, t.g.st.Now()
 	t.mu.Unlock()
 	if len(hosts) == 0 {
 		return
@@ -84,7 +84,7 @@ func (t *tally) flush() {
 	act := t.act
 	err := t.g.st.Tx(context.Background(), func(ctx context.Context, q *db.Queries) error {
 		for _, host := range slices.Sorted(maps.Keys(hosts)) {
-			_, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(t.g.cfg.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID),
+			_, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(t.g.st.Now()), WorkspaceID: act.Workspace, ProcessID: store.ID(act.ProcessID),
 				ProjectID: store.ID(t.project), Actor: act.Author(), Who: RefOf(act).String(), Tool: manifest.Network, Need: manifest.Network, Subject: host,
 				Count: hosts[host], Outcome: Reached, Params: fmt.Sprintf(`{"who": %q}`, t.who)})
 			if err != nil {

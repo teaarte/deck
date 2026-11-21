@@ -27,7 +27,7 @@ type loans struct {
 // browser's, not the live turn's that lent it.
 func (s *Service) Lend(act registry.Actor, ttl time.Duration) string {
 	act.Looks, act.ReadOnly, act.Passkey, act.Live, act.CallLimit = true, true, time.Time{}, false, 0
-	return s.lend(lent{act: act, until: s.Now().Add(ttl)})
+	return s.lend(lent{act: act, until: s.St.Now().Add(ttl)})
 }
 
 func (s *Service) lend(l lent) string {
@@ -36,7 +36,7 @@ func (s *Service) lend(l lent) string {
 	if s.loans.of == nil {
 		s.loans.of = map[string]lent{}
 	}
-	now := s.Now()
+	now := s.St.Now()
 	for k, x := range s.loans.of {
 		if now.After(x.until) {
 			delete(s.loans.of, k)
@@ -65,7 +65,7 @@ func (s *Service) Lent(raw string) (act registry.Actor, ok bool) {
 	s.loans.mu.Lock()
 	defer s.loans.mu.Unlock()
 	l, ok := s.loans.of[raw]
-	if !ok || s.Now().After(l.until) {
+	if !ok || s.St.Now().After(l.until) {
 		return act, false
 	}
 	return l.act, true

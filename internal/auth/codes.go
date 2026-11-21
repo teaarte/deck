@@ -35,7 +35,7 @@ type code struct {
 func (a *Auth) Code(workspace int64, kind, name string) (string, time.Time, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	return WriteCode(a.cfg.Home, a.cfg.Now(), workspace, kind, name)
+	return WriteCode(a.cfg.Home, a.st.Now(), workspace, kind, name)
 }
 
 // WriteCode writes a code into the folder of codes of a home, as deck pair does while deck runs or not; workspace 0
@@ -62,7 +62,7 @@ func (a *Auth) take(raw string, try bool) (code, error) {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return code{}, err
 	}
-	want, now := hash(raw), a.cfg.Now()
+	want, now := hash(raw), a.st.Now()
 	for _, e := range entries {
 		path := filepath.Join(a.cfg.Home.Pair(), e.Name())
 		b, err := os.ReadFile(path)

@@ -20,7 +20,6 @@ type Service struct {
 	// Emit tells deck's observers of a change no write of the store tells.
 	Emit  func(events.Event)
 	Home  home.Layout
-	Now   func() time.Time
 	Still func() func()
 	// Expire deletes the records past their retention with what belongs to them.
 	Expire func(ctx context.Context, now time.Time)

@@ -137,7 +137,6 @@ func Link(id int64) string { return "#/deck/cockpit?focus=" + strconv.FormatInt(
 // deck clock, checked at least every Poll, so a sleep of the machine does not stretch them.
 type Broker struct {
 	st   *store.Store
-	now  func() time.Time
 	Poll time.Duration
 
 	mu      sync.Mutex
@@ -148,8 +147,8 @@ type Broker struct {
 }
 
 // NewBroker is the broker of a store; run runs work beside the calls unless deck stops.
-func NewBroker(st *store.Store, now func() time.Time, run func(func(context.Context)) bool) *Broker {
-	return &Broker{st: st, now: now, run: run, Poll: time.Second, waiters: map[int64]chan string{}}
+func NewBroker(st *store.Store, run func(func(context.Context)) bool) *Broker {
+	return &Broker{st: st, run: run, Poll: time.Second, waiters: map[int64]chan string{}}
 }
 
 // OnLateAnswer is called beside the call when an answer arrives and nobody is waiting live (the process has already
@@ -195,7 +194,7 @@ func (b *Broker) Wait(ctx context.Context, id int64, until time.Time) (answer st
 		return "", false
 	}
 wait:
-	for left := until.Sub(b.now()); left > 0; left = until.Sub(b.now()) {
+	for left := until.Sub(b.st.Now()); left > 0; left = until.Sub(b.st.Now()) {
 		t := time.NewTimer(min(left, b.Poll))
 		select {
 		case a := <-ch:
@@ -259,7 +258,7 @@ func (b *Broker) Answer(ctx context.Context, id int64, answer string) error {
 
 // AnswerIn closes ask id with answer inside the caller's Tx; Woken after its commit hands the answer on.
 func (b *Broker) AnswerIn(ctx context.Context, q *db.Queries, id int64, answer string) error {
-	n, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: answer, Now: store.Time(b.now()), ID: id})
+	n, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: answer, Now: store.Time(b.st.Now()), ID: id})
 	if err == nil && n == 0 {
 		err = ErrNotOpen
 	}

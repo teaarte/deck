@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"deck2/internal/events"
 	"deck2/internal/gateway"
@@ -32,7 +31,6 @@ import (
 // where recordings come in.
 type Service struct {
 	St   *store.Store
-	Now  func() time.Time
 	Home home.Layout
 	// Call makes a call through the gateway: the undo of a change, a button of a note as the caller that wrote it.
 	Call func(ctx context.Context, call gateway.Call) (registry.Result, error)
@@ -71,7 +69,7 @@ func (s *Service) Noted(ctx context.Context, q *db.Queries, act registry.Actor, 
 	if reason != "" {
 		text += ": " + reason
 	}
-	row := db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: act.Author(), Text: text, Actions: "[]",
+	row := db.AddFeedParams{CreatedAt: store.Time(s.St.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: act.Author(), Text: text, Actions: "[]",
 		Params: "{}", DocumentID: store.ID(prev.ID), Revision: n, ProcessID: store.ID(act.ProcessID), What: what}
 	if prev.Current != 0 {
 		params, _ := json.Marshal(map[string]any{"document": prev.ID, "revision": prev.Current, "if_revision": n,
@@ -403,7 +401,7 @@ func (s *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndoI
 		}
 		if err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 			for _, id := range u.ids {
-				if _, err := q.MarkFeedUndone(ctx, db.MarkFeedUndoneParams{ID: id, Now: store.Time(s.Now())}); err != nil {
+				if _, err := q.MarkFeedUndone(ctx, db.MarkFeedUndoneParams{ID: id, Now: store.Time(s.St.Now())}); err != nil {
 					return err
 				}
 			}
@@ -413,7 +411,7 @@ func (s *Service) feedUndo(ctx context.Context, act registry.Actor, in feedUndoI
 		}
 	}
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		_, err := q.MarkFeedUndone(ctx, db.MarkFeedUndoneParams{ID: r.ID, Now: store.Time(s.Now())})
+		_, err := q.MarkFeedUndone(ctx, db.MarkFeedUndoneParams{ID: r.ID, Now: store.Time(s.St.Now())})
 		return err
 	})
 	return out, err
@@ -431,9 +429,9 @@ func (s *Service) feedRead(ctx context.Context, act registry.Actor, in feedMarkR
 	}
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
 		if in.All {
-			return q.MarkAllFeedRead(ctx, db.MarkAllFeedReadParams{WorkspaceID: act.Workspace, Now: store.Time(s.Now())})
+			return q.MarkAllFeedRead(ctx, db.MarkAllFeedReadParams{WorkspaceID: act.Workspace, Now: store.Time(s.St.Now())})
 		}
-		return q.MarkFeedRead(ctx, db.MarkFeedReadParams{ID: in.Entry, WorkspaceID: act.Workspace, Now: store.Time(s.Now())})
+		return q.MarkFeedRead(ctx, db.MarkFeedReadParams{ID: in.Entry, WorkspaceID: act.Workspace, Now: store.Time(s.St.Now())})
 	})
 	if err != nil {
 		return nil, err

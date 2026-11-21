@@ -60,7 +60,7 @@ func known(ctx context.Context, q *db.Queries, workspace int64, br Client) (db.D
 // browser is the device of a browser signed in by a passkey: its own while its mark names one that may still sign
 // in, else, if fresh, a new one named as given or by its User-Agent; it gives the mark the browser keeps.
 func (a *Auth) browser(ctx context.Context, q *db.Queries, workspace, passkey int64, name string, br Client, fresh bool) (int64, string, error) {
-	now := store.At(a.cfg.Now())
+	now := store.At(a.st.Now())
 	key := sql.NullInt64{Int64: passkey, Valid: passkey != 0}
 	d, err := known(ctx, q, workspace, br)
 	if err == nil && d.PasskeyID != key {

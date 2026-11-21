@@ -242,7 +242,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 		return registry.Result{}, ErrChanged
 	}
 	n, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		n, err := q.ClaimDecision(ctx, db.ClaimDecisionParams{Answer: answer, ID: a.ID, Now: store.Time(g.cfg.Now())})
+		n, err := q.ClaimDecision(ctx, db.ClaimDecisionParams{Answer: answer, ID: a.ID, Now: store.Time(g.st.Now())})
 		if err != nil || n == 0 {
 			return n, err
 		}

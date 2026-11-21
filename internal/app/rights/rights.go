@@ -131,7 +131,7 @@ func (s *Service) rightSet(ctx context.Context, act registry.Actor, in rightSetI
 			_, err := q.DeleteGrant(ctx, db.DeleteGrantParams{ProjectID: p.ID, Name: n.Right, Who: n.Who, Subject: n.Subject})
 			return err
 		}
-		return docs.Grant(ctx, q, act, p.ID, n, in.Answer, s.Now())
+		return docs.Grant(ctx, q, act, p.ID, n, in.Answer, s.St.Now())
 	})
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (s *Service) Grant(ctx context.Context, q *db.Queries, act registry.Actor, 
 				continue
 			}
 			n.Print = m.PrintOf(n)
-			if err := docs.Grant(ctx, q, act, p.ID, n, manifest.Always, s.Now()); err != nil {
+			if err := docs.Grant(ctx, q, act, p.ID, n, manifest.Always, s.St.Now()); err != nil {
 				return err
 			}
 		}
@@ -241,7 +241,7 @@ func (s *Service) tell(ctx context.Context, workspace int64, mark string) {
 		if err != nil {
 			return err
 		}
-		if err := store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: m.ID, Text: text}); err != nil {
+		if err := store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.St.Now()), ProjectID: m.ID, Text: text}); err != nil {
 			return err
 		}
 		return q.DeleteMark(ctx, db.DeleteMarkParams{WorkspaceID: workspace, Name: mark})

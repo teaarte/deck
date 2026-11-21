@@ -111,7 +111,7 @@ func (s *Service) write(ctx context.Context, kind string, project int64) (string
 	if err := s.hold(ctx, copyDB, files, project); err != nil {
 		return "", leftOut{}, err
 	}
-	path, left, err := archive(s.Home, kind, s.Now(), id, copyDB, files, project, s.Budget/2)
+	path, left, err := archive(s.Home, kind, s.St.Now(), id, copyDB, files, project, s.Budget/2)
 	if err != nil {
 		return "", leftOut{}, err
 	}

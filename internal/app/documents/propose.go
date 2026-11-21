@@ -201,7 +201,7 @@ func (s *Service) documentPropose(ctx context.Context, act registry.Actor, in do
 		}
 		if in.Delete {
 			changed = true
-			_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: store.At(s.Now()), ID: d.ID})
+			_, err := q.DeleteDocument(ctx, db.DeleteDocumentParams{DeletedAt: store.At(s.St.Now()), ID: d.ID})
 			return err
 		}
 		// It applies only by the owner's yes, so it is the owner's edit; the reason says who proposed it.

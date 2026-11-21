@@ -100,6 +100,6 @@ func (s *Service) shown(ctx context.Context, act registry.Actor) {
 		return
 	}
 	_ = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		return q.ShowAsks(ctx, db.ShowAsksParams{WorkspaceID: act.Workspace, Now: store.Time(s.Now())})
+		return q.ShowAsks(ctx, db.ShowAsksParams{WorkspaceID: act.Workspace, Now: store.Time(s.St.Now())})
 	})
 }

@@ -249,7 +249,7 @@ func (s *Service) SaveManifest(ctx context.Context, act registry.Actor, p db.Pro
 			return err
 		}
 		for name, mg := range plan {
-			if err := applyMigration(ctx, q, store.Time(s.Now()), p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
+			if err := applyMigration(ctx, q, store.Time(s.St.Now()), p.ID, pm.m.Collection(name), mg, cur.Current, n); err != nil {
 				return err
 			}
 		}

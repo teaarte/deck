@@ -13,7 +13,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 	"unicode/utf8"
 
 	"deck2/internal/access"
@@ -44,7 +43,6 @@ type Service struct {
 	St *store.Store
 	// Emit tells deck's observers of a change no write of the store tells.
 	Emit   func(events.Event)
-	Now    func() time.Time
 	Asks   *ask.Broker
 	Runner *process.Runner
 	For    func(ctx context.Context, projectID int64, cmd *manifest.Command) (provider.Provider, error)
@@ -167,7 +165,7 @@ func (s *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendI
 				return err
 			}
 		}
-		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: t.ID, Role: roleOwner, Text: text, Context: screen}); err != nil {
+		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.St.Now()), TopicID: t.ID, Role: roleOwner, Text: text, Context: screen}); err != nil {
 			return err
 		}
 		// The owner answered in words: the options and forms of the topic wait for them no more.
@@ -183,7 +181,7 @@ func (s *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendI
 				return registry.NotFound("no upload %d of project master", id)
 			}
 		}
-		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.Now()), ID: t.ID})
+		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.St.Now()), ID: t.ID})
 	})
 	if err != nil {
 		return nil, err
@@ -272,7 +270,7 @@ func (s *Service) chatTopicDelete(ctx context.Context, act registry.Actor, in ch
 		if err := q.DismissTopicQuestions(ctx, in.Topic); err != nil {
 			return err
 		}
-		_, err := q.DeleteTopic(ctx, db.DeleteTopicParams{DeletedAt: store.At(s.Now()), ID: in.Topic})
+		_, err := q.DeleteTopic(ctx, db.DeleteTopicParams{DeletedAt: store.At(s.St.Now()), ID: in.Topic})
 		return err
 	})
 	if err != nil {

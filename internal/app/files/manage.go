@@ -68,7 +68,7 @@ func (s *Service) fileDelete(ctx context.Context, act registry.Actor, in fileDel
 	}
 	out := map[string]any{"file": f.ID, "owner_kind": f.OwnerKind, "owner_id": f.OwnerID}
 	return out, s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: files.TrashKind, OwnerID: s.Now().Unix(), ID: f.ID, ProjectID: f.ProjectID, FromKind: f.OwnerKind, FromID: f.OwnerID})
+		n, err := q.BindFile(ctx, db.BindFileParams{OwnerKind: files.TrashKind, OwnerID: s.St.Now().Unix(), ID: f.ID, ProjectID: f.ProjectID, FromKind: f.OwnerKind, FromID: f.OwnerID})
 		if err == nil && n == 0 {
 			err = registry.Conflict("file %d changed meanwhile", f.ID)
 		}
@@ -87,7 +87,7 @@ func (s *Service) deleted(ctx context.Context, q *db.Queries, act registry.Actor
 		return 0, nil
 	}
 	params, _ := json.Marshal(undo)
-	return store.AddChangeID(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
+	return store.AddChangeID(ctx, q, db.AddFeedParams{CreatedAt: store.Time(s.St.Now()), WorkspaceID: p.WorkspaceID, ProjectID: p.ID,
 		Author: act.Author(), Text: fmt.Sprintf("deleted file %s", untrusted.Line(name, 80)), Actions: "[]", Command: registry.Deck("file_restore"),
 		Params: string(params), ProcessID: store.ID(act.ProcessID), What: "deleted files"})
 }
@@ -133,8 +133,8 @@ func (s *Service) dataDelete(ctx context.Context, act registry.Actor, project, p
 	var f db.File
 	var change int64
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if f, err = q.CreateFile(ctx, db.CreateFileParams{ProjectID: p.ID, OwnerKind: files.TrashKind, OwnerID: s.Now().Unix(), Name: filepath.Base(at),
-			Type: mime.TypeByExtension(filepath.Ext(at)), Size: fi.Size(), CreatedAt: store.Time(s.Now())}); err != nil {
+		if f, err = q.CreateFile(ctx, db.CreateFileParams{ProjectID: p.ID, OwnerKind: files.TrashKind, OwnerID: s.St.Now().Unix(), Name: filepath.Base(at),
+			Type: mime.TypeByExtension(filepath.Ext(at)), Size: fi.Size(), CreatedAt: store.Time(s.St.Now())}); err != nil {
 			return err
 		}
 		change, err = s.deleted(ctx, q, act, p, rel, map[string]any{"file": f.ID, "owner_kind": "data", "path": rel})

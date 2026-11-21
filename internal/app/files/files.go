@@ -17,7 +17,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"deck2/internal/access"
 	"deck2/internal/files"
@@ -32,7 +31,6 @@ import (
 type Service struct {
 	St   *store.Store
 	Home home.Layout
-	Now  func() time.Time
 	// Held reports whether a record of a project holds a folder of its data folder now.
 	Held func(ctx context.Context, project int64, folder string) bool
 	// Go runs work beside the calls unless deck stops.
@@ -195,7 +193,7 @@ func (s *Service) Upload(ctx context.Context, act registry.Actor, project, name,
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		var err error
 		f, err = q.CreateFile(ctx, db.CreateFileParams{ProjectID: p.ID, OwnerKind: "upload", OwnerID: 0, Name: name, Type: ctype, Size: n,
-			CreatedAt: store.Time(s.Now())})
+			CreatedAt: store.Time(s.St.Now())})
 		return err
 	})
 	if err != nil {

@@ -54,7 +54,7 @@ var inForce, _ = json.Marshal(Outcome{Result: json.RawMessage(`{"in_force": true
 // longer open.
 func (g *Gateway) Done(ctx context.Context, a db.Ask) (bool, error) {
 	n, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		n, err := q.ClaimDecision(ctx, db.ClaimDecisionParams{Answer: "allow", ID: a.ID, Now: store.Time(g.cfg.Now())})
+		n, err := q.ClaimDecision(ctx, db.ClaimDecisionParams{Answer: "allow", ID: a.ID, Now: store.Time(g.st.Now())})
 		if err != nil || n == 0 {
 			return n, err
 		}

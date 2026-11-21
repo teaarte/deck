@@ -101,11 +101,11 @@ func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command 
 	f.Reason = act.Why
 	var expires time.Time
 	if ttl := g.confirmTTL(ctx, act.Workspace); ttl > 0 {
-		expires = g.cfg.Now().Add(ttl)
+		expires = g.st.Now().Add(ttl)
 	}
 	text := fmt.Sprintf("%s wants to start: %s", command, manifest.Says(func(t string) string { return t }, n.Right, n.Who, []string{n.Subject}))
 	a, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {
-		return Hold(ctx, q, act, act.ProjectID, act.ProcessID, ask.KindCall, n.Right, text, f, expires, g.cfg.Now())
+		return Hold(ctx, q, act, act.ProjectID, act.ProcessID, ask.KindCall, n.Right, text, f, expires, g.st.Now())
 	})
 	return a.ID, err
 }

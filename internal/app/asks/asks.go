@@ -20,7 +20,6 @@ import (
 // Service answers what waits for the owner; Deliver hands a late answer to a parked process.
 type Service struct {
 	St       *store.Store
-	Now      func() time.Time
 	Broker   *ask.Broker
 	Gateway  *gateway.Gateway
 	Registry *registry.Registry

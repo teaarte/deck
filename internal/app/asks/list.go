@@ -177,7 +177,7 @@ func (s *Service) rows(ctx context.Context, act registry.Actor, lang string, wai
 		return nil, err
 	}
 	expired, err := s.St.Q.ListWorkspaceExpiredConfirms(ctx, db.ListWorkspaceExpiredConfirmsParams{WorkspaceID: act.Workspace,
-		Now: store.Time(s.Now())})
+		Now: store.Time(s.St.Now())})
 	if err != nil {
 		return nil, err
 	}

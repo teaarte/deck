@@ -98,7 +98,6 @@ const (
 type Config struct {
 	Home    home.Layout
 	MCPBase string
-	Now     func() time.Time
 	// Hold keeps a snapshot from copying the base between the row of a kept file and its blob, until the func it gives.
 	Hold func() func()
 	// AgentSlots is how many agent turns a workspace runs at once; scripts and tools do not count.
@@ -248,7 +247,7 @@ func (r *Runner) Shutdown() {
 
 func (r *Runner) Wait() { r.wg.Wait() }
 
-func (r *Runner) now() time.Time { return r.cfg.Now() }
+func (r *Runner) now() time.Time { return r.st.Now() }
 
 func (r *Runner) stamp() sql.NullString {
 	return store.At(r.now())

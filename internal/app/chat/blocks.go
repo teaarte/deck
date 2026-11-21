@@ -196,7 +196,7 @@ func (s *Service) chatBlockShow(ctx context.Context, act registry.Actor, in chat
 		if errors.Is(err, sql.ErrNoRows) {
 			replaced = false
 			var msg db.ChatMessage
-			msg, err = q.AddBlockMessage(ctx, db.AddBlockMessageParams{TopicID: topic, ProcessID: p.ID, Block: string(raw), CreatedAt: store.Time(s.Now())})
+			msg, err = q.AddBlockMessage(ctx, db.AddBlockMessageParams{TopicID: topic, ProcessID: p.ID, Block: string(raw), CreatedAt: store.Time(s.St.Now())})
 			id = msg.ID
 		}
 		if err != nil {
@@ -218,7 +218,7 @@ func (s *Service) chatBlockShow(ctx context.Context, act registry.Actor, in chat
 				return err
 			}
 		}
-		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.Now()), ID: topic})
+		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.St.Now()), ID: topic})
 	})
 	if err != nil {
 		return nil, err
@@ -319,10 +319,10 @@ func (s *Service) AnswerShown(ctx context.Context, act registry.Actor, a db.Ask,
 	}
 	var msg db.ChatMessage
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
-		if n, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: kept, Now: store.Time(s.Now()), ID: a.ID}); err != nil || n == 0 {
+		if n, err := q.AnswerAsk(ctx, db.AnswerAskParams{Answer: kept, Now: store.Time(s.St.Now()), ID: a.ID}); err != nil || n == 0 {
 			return cmp.Or(err, ask.ErrNotOpen)
 		}
-		if n, err := q.AnswerMessage(ctx, db.AnswerMessageParams{Answer: kept, At: store.At(s.Now()), ID: m.ID}); err != nil || n == 0 {
+		if n, err := q.AnswerMessage(ctx, db.AnswerMessageParams{Answer: kept, At: store.At(s.St.Now()), ID: m.ID}); err != nil || n == 0 {
 			return cmp.Or(err, ask.ErrNotOpen)
 		}
 		// One answer of the topic: the other questions of its blocks wait no more, as after a message of the owner.
@@ -330,10 +330,10 @@ func (s *Service) AnswerShown(ctx context.Context, act registry.Actor, a db.Ask,
 			return err
 		}
 		var err error
-		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.Now()), TopicID: m.TopicID, Role: roleOwner, Text: text}); err != nil {
+		if msg, err = q.AddMessage(ctx, db.AddMessageParams{CreatedAt: store.Time(s.St.Now()), TopicID: m.TopicID, Role: roleOwner, Text: text}); err != nil {
 			return err
 		}
-		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.Now()), ID: m.TopicID})
+		return q.TouchTopic(ctx, db.TouchTopicParams{Now: store.Time(s.St.Now()), ID: m.TopicID})
 	})
 	if err != nil {
 		return nil, true, err

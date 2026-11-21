@@ -252,7 +252,7 @@ func (s *Service) PushNew(ctx context.Context, workspace int64) {
 		err := s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 			prev, err := health.Get(ctx, q, health.Of{Workspace: workspace}, health.Push)
 			stopped = lasting && (err != nil || prev.Status != health.Error)
-			_, err = health.Set(ctx, q, s.Now(), health.Of{Workspace: workspace}, health.Push, status, text)
+			_, err = health.Set(ctx, q, s.St.Now(), health.Of{Workspace: workspace}, health.Push, status, text)
 			return err
 		})
 		if err != nil {
@@ -266,7 +266,7 @@ func (s *Service) PushNew(ctx context.Context, workspace int64) {
 			if err != nil {
 				return err
 			}
-			return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.Now()), ProjectID: mp.ID, Text: "Pushes stopped: " + untrusted.Cut(text, 300), Cause: health.Push})
+			return store.AddDeckNote(ctx, q, store.DeckNote{CreatedAt: store.Time(s.St.Now()), ProjectID: mp.ID, Text: "Pushes stopped: " + untrusted.Cut(text, 300), Cause: health.Push})
 		})
 		if err != nil {
 			slog.Error("note of stopped pushes", "err", err)

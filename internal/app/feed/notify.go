@@ -115,7 +115,7 @@ func (s *Service) notify(ctx context.Context, act registry.Actor, in ownerNotify
 	}
 	raw, _ := json.Marshal(buttons)
 	var id int64
-	at := store.Time(s.Now())
+	at := store.Time(s.St.Now())
 	err = s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		id, err = store.AddNote(ctx, q, db.AddFeedParams{CreatedAt: at, WorkspaceID: p.WorkspaceID, ProjectID: p.ID, Author: act.Author(),
 			Text: in.Text, Screen: in.Screen, RecordID: store.ID(in.Record), Actions: string(raw), Params: "{}", Cause: strings.TrimSpace(in.Cause),

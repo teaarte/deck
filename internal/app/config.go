@@ -10,6 +10,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/release"
 	"deck2/internal/sandbox"
+	"deck2/internal/store"
 )
 
 type Config struct {
@@ -57,17 +58,14 @@ type Config struct {
 	Origins *auth.Origins
 }
 
-// wall is the clock of a deck given none.
-var wall = time.Now
-
 // PairCode writes a code that pairs a device into a home, as deck pair does whether deck runs or not.
 func PairCode(h home.Layout, kind, name string) (string, time.Time, error) {
-	return auth.WriteCode(h, wall(), 0, kind, name)
+	return auth.WriteCode(h, store.Wall(), 0, kind, name)
 }
 
 func (c *Config) defaults() {
 	if c.Now == nil {
-		c.Now = wall
+		c.Now = store.Wall
 	}
 	if c.Origins == nil {
 		c.Origins = auth.NewOrigins()

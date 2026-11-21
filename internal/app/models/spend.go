@@ -79,11 +79,11 @@ func (s *Service) answered(ctx context.Context, m db.Model, next string, status 
 	subject, of := health.Model(m.Name), health.Of{Workspace: m.WorkspaceID}
 	_ = s.St.Tx(context.WithoutCancel(ctx), func(ctx context.Context, q *db.Queries) error {
 		if failed {
-			_, err := health.Set(ctx, q, s.Now(), of, subject, health.Error, text)
+			_, err := health.Set(ctx, q, s.St.Now(), of, subject, health.Error, text)
 			return err
 		}
 		if h, err := health.Get(ctx, q, of, subject); errors.Is(err, sql.ErrNoRows) || err == nil && h.Status == health.Error {
-			_, err = health.Set(ctx, q, s.Now(), of, subject, health.OK, "")
+			_, err = health.Set(ctx, q, s.St.Now(), of, subject, health.OK, "")
 			return err
 		}
 		return nil
@@ -105,7 +105,7 @@ func (s *Service) record(ctx context.Context, act registry.Actor, m db.Model, c 
 	u.Connection, u.RequestModel = c.ID, m.Model
 	err := s.St.Tx(ctx, func(ctx context.Context, q *db.Queries) error {
 		return process.LogModelCall(ctx, q, process.ModelCall{Workspace: act.Workspace, Project: act.ProjectID, Process: act.ProcessID,
-			Provider: m.Name, Usage: *u, Subscription: m.Subscription != 0}, store.Time(s.Now()))
+			Provider: m.Name, Usage: *u, Subscription: m.Subscription != 0}, store.Time(s.St.Now()))
 	})
 	if err != nil {
 		slog.Error("model call journal", "connection", c.Name, "err", err)

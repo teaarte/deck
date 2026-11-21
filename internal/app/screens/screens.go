@@ -41,7 +41,6 @@ type Service struct {
 	Language func(ctx context.Context, workspace int64) string
 	// Theme is the name of the theme the workspace wears.
 	Theme func(ctx context.Context, workspace int64) string
-	Now   func() time.Time
 }
 
 // Commands are the commands of screens and the menu.

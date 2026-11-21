@@ -37,7 +37,6 @@ var (
 // Service keeps the devices and tokens.
 type Service struct {
 	St      *store.Store
-	Now     func() time.Time
 	MCPBase string
 	loans   loans
 	// Code makes a code that pairs a device; Kick ends the open connections of a revoked device; Origins are the
@@ -227,7 +226,7 @@ type tokenRevokeIn struct {
 
 func (s *Service) tokenRevoke(ctx context.Context, act registry.Actor, in tokenRevokeIn) (any, error) {
 	n, err := store.TxGet(s.St, ctx, func(ctx context.Context, q *db.Queries) (int64, error) {
-		return q.RevokeToken(ctx, db.RevokeTokenParams{ID: in.Token, WorkspaceID: act.Workspace, Now: store.Time(s.Now())})
+		return q.RevokeToken(ctx, db.RevokeTokenParams{ID: in.Token, WorkspaceID: act.Workspace, Now: store.Time(s.St.Now())})
 	})
 	if err != nil {
 		return nil, err

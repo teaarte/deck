@@ -13,7 +13,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"time"
 
 	"deck2/internal/access"
 	"deck2/internal/docs"
@@ -51,8 +50,7 @@ func ViewOf(r db.Record, c *manifest.Collection) View {
 
 // Service keeps the records of projects.
 type Service struct {
-	St  *store.Store
-	Now func() time.Time
+	St *store.Store
 	// Stop ends an open process of a deleted record as stopped by deck; one the owner stops drops its frozen calls.
 	Stop func(ctx context.Context, processID int64, reason string, owner bool) error
 }

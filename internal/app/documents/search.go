@@ -104,7 +104,7 @@ func (s *Service) memorySearch(ctx context.Context, act registry.Actor, in memor
 		}
 	}
 	if act.Kind == registry.Agent || act.Kind == registry.Master {
-		docs.Reached(ctx, s.St, s.Now(), memory...)
+		docs.Reached(ctx, s.St, s.St.Now(), memory...)
 	}
 	return f.out, nil
 }

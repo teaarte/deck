@@ -145,7 +145,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 			if lost[fmt.Sprint(a.ProjectID.Int64, f.Call.Command, string(f.Call.Input))] {
 				continue
 			}
-			if _, err := q.DeliverAsk(ctx, db.DeliverAskParams{ID: a.ID, Now: store.Time(g.cfg.Now())}); err != nil {
+			if _, err := q.DeliverAsk(ctx, db.DeliverAskParams{ID: a.ID, Now: store.Time(g.st.Now())}); err != nil {
 				return err
 			}
 			text := fmt.Sprintf("Outcome unknown: %s with %s. deck stopped while making this allowed call; "+
@@ -171,7 +171,7 @@ func (g *Gateway) Recover(ctx context.Context) error {
 				act = registry.OwnerIn(a.WorkspaceID)
 				act.ProjectID = a.ProjectID.Int64
 			}
-			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.cfg.Now()), WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: a.ProjectID,
+			if _, err := q.LogToolCall(ctx, db.LogToolCallParams{CreatedAt: store.Time(g.st.Now()), WorkspaceID: a.WorkspaceID, ProcessID: store.ID(act.ProcessID), ProjectID: a.ProjectID,
 				Actor: act.Author(), Who: RefOf(act).String(), Tool: f.Call.Command, Need: right, Subject: needOf(f.Need).Subject, Count: 1, Outcome: "unknown",
 				Params: Canonical(f.Call.Input), AskID: sql.NullInt64{Int64: u.ID, Valid: true}}); err != nil {
 				return err

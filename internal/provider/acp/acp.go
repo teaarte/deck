@@ -23,6 +23,7 @@ import (
 	"deck2/internal/nonce"
 	"deck2/internal/provider"
 	"deck2/internal/sandbox"
+	"deck2/internal/store"
 	"deck2/internal/untrusted"
 )
 
@@ -40,7 +41,7 @@ type Config struct {
 	Sandbox *sandbox.Sandbox
 	// CallLimit is how long a call of a gateway tool may wait for the owner; 45 s, under the 60 s of the agents, when zero.
 	CallLimit time.Duration
-	// Now is the deck clock, for the reset time of a usage limit.
+	// Now is the deck clock, for the reset time of a usage limit; the wall clock of a node when nil.
 	Now func() time.Time
 	// CheckCeiling bounds a self-check of a slow model; deck's own when zero.
 	CheckCeiling time.Duration
@@ -62,6 +63,9 @@ func New(cfg Config) (*Adapter, error) {
 	g, ok := Agents[cfg.Agent]
 	if !ok {
 		return nil, fmt.Errorf("acp: deck runs no agent %q; set the model again with deck.model_set and agent %s", cfg.Agent, strings.Join(Names(), " or "))
+	}
+	if cfg.Now == nil {
+		cfg.Now = store.Wall
 	}
 	if cfg.Binary == "" {
 		cfg.Binary = cfg.Agent
@@ -132,7 +136,7 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 	}
 	life, stop := context.WithCancel(context.WithoutCancel(ctx))
 	defer stop()
-	e := &entry{mcp: mcp, modelAt: "/model/" + nonce.Hex(16), now: a.now, answered: func() { provider.Answered(ctx) }, reach: req.OnReach}
+	e := &entry{mcp: mcp, modelAt: "/model/" + nonce.Hex(16), now: a.cfg.Now, answered: func() { provider.Answered(ctx) }, reach: req.OnReach}
 	e.api = a.cfg.API(provider.ModelHooks{Usage: req.OnUsage, Answer: e.heard})
 	if _, err := sandbox.Find(a.cfg.Binary); err != nil {
 		return provider.Result{}, fmt.Errorf("acp: %s is not installed: %w", a.cfg.Agent, err)
@@ -180,13 +184,6 @@ func (a *Adapter) Run(ctx context.Context, req provider.Request) (provider.Resul
 		}
 	}
 	return res, runErr
-}
-
-func (a *Adapter) now() time.Time {
-	if a.cfg.Now != nil {
-		return a.cfg.Now()
-	}
-	return time.Now()
 }
 
 // gated holds the reads of a connection until open closes: the SDK sets the logger of a connection only racing the

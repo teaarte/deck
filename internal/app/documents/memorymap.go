@@ -109,7 +109,7 @@ func (s *Service) memoryMap(ctx context.Context, act registry.Actor, in memoryMa
 	if in.Days <= 0 {
 		in.Days = 30
 	}
-	since := store.Time(s.Now().Add(-time.Duration(in.Days) * 24 * time.Hour))
+	since := store.Time(s.St.Now().Add(-time.Duration(in.Days) * 24 * time.Hour))
 	mp, err := access.Master(ctx, s.St.Q, act.Workspace)
 	if err != nil {
 		return out, err

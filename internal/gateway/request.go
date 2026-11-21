@@ -44,7 +44,7 @@ func (g *Gateway) request(ctx context.Context, act registry.Actor, c *registry.C
 	}
 	var expires time.Time
 	if ttl := g.term(ctx, c, act.Workspace); ttl > 0 {
-		expires = g.cfg.Now().Add(ttl)
+		expires = g.st.Now().Add(ttl)
 	}
 	where := ""
 	if f.Target != "" {
@@ -70,7 +70,7 @@ func (g *Gateway) request(ctx context.Context, act registry.Actor, c *registry.C
 			f.Replaces = append(f.Replaces, r.ID)
 		}
 		var err error
-		if a, err = Hold(ctx, q, act, project, process, ask.KindCall, right, text, f, expires, g.cfg.Now()); err != nil || !writes(act, c) {
+		if a, err = Hold(ctx, q, act, project, process, ask.KindCall, right, text, f, expires, g.st.Now()); err != nil || !writes(act, c) {
 			return err
 		}
 		return g.rows.MarkWrote(ctx, q, act.ProcessID)
@@ -182,7 +182,7 @@ func (g *Gateway) keepIn(ctx context.Context, q *db.Queries, owner registry.Acto
 		if answer != AllowAlways {
 			kept = manifest.No
 		}
-		return docs.Grant(ctx, q, owner, a.ProjectID.Int64, *f.Need, kept, g.cfg.Now())
+		return docs.Grant(ctx, q, owner, a.ProjectID.Int64, *f.Need, kept, g.st.Now())
 	}
 	if add == nil || f.Who.Process == 0 {
 		return nil

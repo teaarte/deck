@@ -179,3 +179,32 @@ func writtenSince(e *harness.Env, process, journal, feed int64) written {
 	w.Taint = taint != ""
 	return w
 }
+
+// TestALineACommandKeepsItself: a command that keeps its own line of the journal writes it for the owner too, with
+// its params in place of its input and no project; a call of it the command refused keeps none.
+func TestALineACommandKeepsItself(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	id, _ := e.Token("terminal", "deck.*")
+	e.Must("deck.token_trust", map[string]any{"token": id, "trusted": true}, nil)
+	e.Must("deck.token_revoke", map[string]any{"token": id}, nil)
+	e.Refused("deck.token_revoke", map[string]any{"token": id}, 404, "no active token")
+	rows := e.SQLRows(`SELECT actor, tool, need, subject, params, outcome, IFNULL(project_id, 0) FROM tool_call ORDER BY id`)
+	defer rows.Close()
+	var got []string
+	for rows.Next() {
+		var actor, tool, need, subject, params, outcome string
+		var project int64
+		if err := rows.Scan(&actor, &tool, &need, &subject, &params, &outcome, &project); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, fmt.Sprintf("%s %s %q %q %s %s %d", actor, tool, need, subject, params, outcome, project))
+	}
+	want := []string{
+		fmt.Sprintf(`owner deck.token_trust "" "" {"token": %d, "trusted": true} done 0`, id),
+		fmt.Sprintf(`owner deck.token_revoke "" "" {"token": %d} done 0`, id),
+	}
+	if !slices.Equal(got, want) {
+		t.Fatalf("the lines the commands keep:\n got %q\nwant %q", got, want)
+	}
+}

@@ -63,8 +63,8 @@ var refusals = map[string]int{
 // Refusal is the refusal at its entry err carries anywhere in its chain, nil for none.
 func Refusal(err error) *F { return find(err, true) }
 
-// failure is the first failure err carries in its chain that is not a refusal, nil for none.
-func failure(err error) *F { return find(err, false) }
+// Failure is the first failure err carries in its chain that is not a refusal, nil for none.
+func Failure(err error) *F { return find(err, false) }
 
 // find is the first *F in the chain of err that is a refusal or is not, depth first as errors.As goes.
 func find(err error, refused bool) *F {
@@ -133,7 +133,7 @@ func Of(err error) *F {
 	if err == nil {
 		return nil
 	}
-	if f := failure(err); f != nil {
+	if f := Failure(err); f != nil {
 		return f
 	}
 	return &F{Type: DeckInternal, Text: err.Error()}
@@ -141,7 +141,7 @@ func Of(err error) *F {
 
 // OfCall is the failure of a call deck made: its own, a refusal's by its status, any other deck's own.
 func OfCall(err error) *F {
-	if f := failure(err); f != nil {
+	if f := Failure(err); f != nil {
 		return &F{Type: f.Type, Text: err.Error()}
 	}
 	if r := Refusal(err); r != nil {
@@ -162,7 +162,7 @@ func Status(err error) int {
 	if r := Refusal(err); r != nil {
 		return refusals[r.Type]
 	}
-	if f := failure(err); f != nil && statuses[f.Type] != 0 {
+	if f := Failure(err); f != nil && statuses[f.Type] != 0 {
 		return statuses[f.Type]
 	}
 	return http.StatusInternalServerError

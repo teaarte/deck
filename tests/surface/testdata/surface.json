@@ -462,10 +462,16 @@
             "created_at": {
               "type": "string"
             },
+            "diff": {
+              "type": "string"
+            },
             "expired": {
               "type": "boolean"
             },
             "expires_at": {
+              "type": "string"
+            },
+            "headline": {
               "type": "string"
             },
             "id": {
@@ -478,6 +484,9 @@
               "type": "string"
             },
             "link": {
+              "type": "string"
+            },
+            "module": {
               "type": "string"
             },
             "parts": {
@@ -508,6 +517,9 @@
               "type": "integer"
             },
             "project": {
+              "type": "string"
+            },
+            "read": {
               "type": "string"
             },
             "text": {

@@ -1380,6 +1380,19 @@ export interface ChatValue {
     change?: string;
     why?: string;
     where?: string;
+    /**
+     * the module the call changes and what changes, the first line of the request
+     */
+    headline?: string;
+    waits?: string;
+    /**
+     * where the text the turn read from outside came from, whole
+     */
+    read?: string;
+    /**
+     * the change of a document a yes makes
+     */
+    diff?: string;
     text?: string;
     command?: string;
     by?: string;

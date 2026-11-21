@@ -757,3 +757,9 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   are not marked by it. An edit of such a turn whose old text does not occur once is refused before anything is
   asked or marked, with the same error as before.
   Modules: nothing to change.
+- 2026-11-21: A request of `deck.asks_list` (and `deck.process_asks_list`) heads with the module the call changes:
+  `module`, and `headline` — that module and what changes in the owner's words ("tyres: change scripts/search.py"),
+  where `project` stays the module that asks. `waits` says where text from outside came from in short (the data of the
+  module it last passed through and its first source); `read` holds it whole. The diff of a change of a document is
+  `diff`, no more among the lines of `change`, and on Today it is folded under the details.
+  Modules: nothing to change; a master that reads requests reads the module they change in `module`.

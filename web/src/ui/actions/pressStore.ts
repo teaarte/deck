@@ -10,6 +10,8 @@ export interface PressAsk {
   id: number; what: string; where: string; who: string; command?: string; payload?: unknown; allow: Action; deny: Action;
   // change is what a yes allows in deck's words, waits why it waits, actions every answer the server offers: always among them.
   change?: string; waits?: string; actions?: Action[];
+  // headline is the module the call changes and what changes, why the caller's words, read the whole mark, diff the change.
+  headline?: string; why?: string; read?: string; diff?: string;
 }
 
 const asks = createStore<PressAsk[]>([]);

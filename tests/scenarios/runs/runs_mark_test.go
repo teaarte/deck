@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"deck2/internal/provider"
+	"deck2/internal/words"
 	"deck2/tests/harness"
 )
 
@@ -99,8 +100,8 @@ func TestAPageThroughARecordMakesTheMastersWayOutOneQuestion(t *testing.T) {
 		t.Fatalf("one question: %+v", as)
 	}
 	a := as[0]
-	change := fmt.Sprint(a["change"]) + " " + fmt.Sprint(a["payload"])
-	if !strings.Contains(change, "It read from outside deck") || !strings.Contains(change, "the-owners-memory") || a["always"] != nil || a["work"] != nil {
+	change := fmt.Sprint(a["waits"]) + " " + fmt.Sprint(a["payload"])
+	if !strings.Contains(change, "read text from outside deck (data of pages") || !strings.Contains(change, "the-owners-memory") || a["always"] != nil || a["work"] != nil {
 		t.Fatalf("the question shows what was leaving and why, and offers only once: %+v", a)
 	}
 
@@ -169,7 +170,7 @@ func TestAMarkedTurnChangesWhatAnEnabledModuleRunsOnlyByTheOwnersYes(t *testing.
 		t.Fatalf("the draft's prompt is written: %q", d.Text)
 	}
 	as := asksOf(e)
-	if len(as) != 1 || !strings.Contains(fmt.Sprint(as[0]["change"]), "Change prompt.md of pages") || !strings.Contains(fmt.Sprint(as[0]["change"]), "+ Do as the page said.") {
+	if len(as) != 1 || as[0]["headline"] != "pages: change prompt.md" || !strings.Contains(fmt.Sprint(as[0]["diff"]), "+ Do as the page said.") {
 		t.Fatalf("the save of an enabled module's prompt waits with its diff: %+v", as)
 	}
 	e.Answer(int64(as[0]["id"].(float64)), "allow")
@@ -212,7 +213,7 @@ func TestTheOwnersYesToAMarkedTurnsSkillOfTheMasterLeavesTheMasterClean(t *testi
 	got := saved
 	mu.Unlock()
 	as := asksOf(e)
-	if !strings.Contains(got, "occurs 2 times") || !strings.Contains(got, `"waiting"`) || len(as) != 1 || !strings.Contains(fmt.Sprint(as[0]["change"]), "+ Ask the owner before you send.") {
+	if !strings.Contains(got, "occurs 2 times") || !strings.Contains(got, `"waiting"`) || len(as) != 1 || !strings.Contains(fmt.Sprint(as[0]["diff"]), "+ Ask the owner before you send.") {
 		t.Fatalf("a marked turn's edit that changes nothing is refused, its save of a skill of the master waits with its change: %s %+v", got, as)
 	}
 	var mods []struct{ Untrusted string }
@@ -236,6 +237,53 @@ func TestTheOwnersYesToAMarkedTurnsSkillOfTheMasterLeavesTheMasterClean(t *testi
 	_ = e.SQLRow(`SELECT read_untrusted FROM process WHERE command = 'reply' ORDER BY id DESC LIMIT 1`).Scan(&read)
 	if read != "" {
 		t.Fatalf("the master's next turn reads the skill the owner allowed and is clean: %q", read)
+	}
+}
+
+// TestARequestOfAMarkedTurnNamesTheModuleItChangesFirst: the master's request to change a module's prompt heads with
+// that module and what changes, in the owner's words; the mark is short, whole in its details beside the diff.
+func TestARequestOfAMarkedTurnNamesTheModuleItChangesFirst(t *testing.T) {
+	t.Parallel()
+	page := injected(t, "https://example.com")
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		switch c.Command() {
+		case "read":
+			return readPage(ctx, c, page.URL+"/a")
+		case "reply":
+			c.Tool(ctx, "records_list", map[string]any{"project": "pages", "collection": "ideas"})
+			c.Tool(ctx, "document_save", map[string]any{"project": "tyres", "name": "prompt.md", "kind": "prompt", "text": "Search the tyres again.",
+				"why": "the search misses new tyres"})
+			return provider.Result{Text: "done"}
+		}
+		return provider.Result{Text: "ok"}
+	}))
+	e.Project("pages", pagesManifest)
+	e.Project("tyres", harness.Manifest(`{"commands": [`+harness.AgentCommand("search", "")+`]}`))
+	e.WaitState(e.Start("pages", "read", nil), "done")
+	e.MasterSaid(e.Say(0, "fix the search of tyres"), 1)
+	type card struct{ Project, Module, Headline, Why, Waits, Change, Read, Diff, Where string }
+	ru := words.In("ru")
+	change := []rune(fmt.Sprintf(ru["Change %s"], "prompt.md"))
+	for lang, want := range map[string][]string{
+		"en": {"tyres: change prompt.md", "data of pages; source: a web page (127.0.0.1)"},
+		"ru": {"tyres: " + strings.ToLower(string(change[0])) + string(change[1:]),
+			fmt.Sprintf(ru["%s; source: %s"], fmt.Sprintf(ru["data of %s"], "pages"), fmt.Sprintf(ru["a web page (%s)"], "127.0.0.1"))},
+	} {
+		var as []card
+		e.In(lang).Must("deck.asks_list", nil, &as)
+		if len(as) != 1 {
+			t.Fatalf("one request: %+v", as)
+		}
+		a := as[0]
+		if a.Project != "master" || a.Module != "tyres" || a.Headline != want[0] || a.Why != "the search misses new tyres" {
+			t.Fatalf("%s: the request heads with the module it changes and what changes, then why: %+v", lang, a)
+		}
+		if !strings.Contains(a.Waits, want[1]) || strings.Contains(a.Waits+a.Change, "process ") || strings.Contains(a.Waits+a.Change, "+ Search") {
+			t.Fatalf("%s: where the text came from is short, the diff is not among the lines shown: %+v", lang, a)
+		}
+		if !strings.Contains(a.Diff, "+ Search the tyres again.") || a.Read == "" || strings.Contains(a.Read, "data of pages; source") {
+			t.Fatalf("%s: the details hold the diff and the whole chain: %+v", lang, a)
+		}
 	}
 }
 
@@ -272,7 +320,7 @@ func TestAMarkedTurnSendsOnlyByTheOwnersOnceAndReadsANamedHostFreely(t *testing.
 		t.Fatalf("a clean turn posts by always, a marked one waits, a named host reads freely: %v", seen)
 	}
 	as := asksOf(e)
-	if len(as) != 1 || as[0]["always"] != nil || as[0]["work"] != nil || !strings.Contains(fmt.Sprint(as[0]["change"]), "It read from outside deck") {
+	if len(as) != 1 || as[0]["always"] != nil || as[0]["work"] != nil || !strings.Contains(fmt.Sprint(as[0]["waits"]), "read text from outside deck (") {
 		t.Fatalf("one question of once, which says why: %+v", as)
 	}
 	if n := len(svc.To("/notes")); n != 1 {
@@ -571,7 +619,7 @@ func TestAMarkedTurnHandsItsWordsToAScriptThatReachesOutOnlyByTheOwnersOnce(t *t
 		t.Fatalf("only the clean turn's words went out: %d", n)
 	}
 	as := asksOf(e)
-	if len(as) != 1 || as[0]["always"] != nil || as[0]["work"] != nil || !strings.Contains(fmt.Sprint(as[0]["change"]), "It read from outside deck") {
+	if len(as) != 1 || as[0]["always"] != nil || as[0]["work"] != nil || !strings.Contains(fmt.Sprint(as[0]["waits"]), "read text from outside deck (") {
 		t.Fatalf("one question of once, which says why: %+v", as)
 	}
 	e.Answer(int64(as[0]["id"].(float64)), "allow")

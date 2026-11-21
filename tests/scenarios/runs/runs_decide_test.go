@@ -151,13 +151,13 @@ func TestTheAnswerForTheWorkHoldsInItsProcessAlone(t *testing.T) {
 	var again []struct {
 		Process int64
 		Work    string
-		Change  string
+		Waits   string
 	}
 	e.Until("the marked turn's next call to ask", func() bool {
 		e.Must("deck.asks_list", nil, &again)
 		return len(again) == 1 && again[0].Process == id
 	})
-	if again[0].Work != "" || !strings.Contains(again[0].Change, "It read from outside deck") {
+	if again[0].Work != "" || !strings.Contains(again[0].Waits, "read text from outside deck (") {
 		t.Fatalf("a turn that read the service's answer is asked once, without the answer for the work: %+v", again)
 	}
 	if n := len(svc.Requests()); n != 1 {

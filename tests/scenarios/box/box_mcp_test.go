@@ -69,8 +69,9 @@ func TestMCPServerToolsFollowClassesAndFilter(t *testing.T) {
 	if c := got["srv__fake__send"]; !strings.Contains(c.Out, `"waiting"`) || len(harness.FakeLog(dir)) != 1 {
 		t.Fatalf("a tool without a class is external and waits for the owner: %+v", c)
 	}
-	if items := e.CockpitItems(); len(items) != 1 || items[0].Text != "Waits for your answer: you have not answered for this right yet\nit acts in your name: fake.send\nserver fake, tool send\nto: ann\nfor the test" {
-		t.Fatalf("the request says what the right lets the module do, the server and the tool and what it sends, then why: %+v", items)
+	if items := e.CockpitItems(); len(items) != 1 || items[0].Title != "srv: send" ||
+		items[0].Text != "for the test\nWaits for your answer: you have not answered for this right yet\nit acts in your name: fake.send\nserver fake, tool send\nto: ann" {
+		t.Fatalf("the request heads with its module and the tool, then why, what the right lets the module do, the server and the tool and what it sends: %+v", items)
 	}
 	e.Answer(e.WaitAsk().ID, "allow")
 	e.WaitState(id, "done")

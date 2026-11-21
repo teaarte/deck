@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Code, Group, Paper, Portal, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import type { Action } from '../../lib/catalog.gen';
+import { Details } from '../Details';
 import { dropAsk, followAsks, settleAsks, usePressAsks } from './pressStore';
 import { usePress } from './usePress';
 import s from './PressAsks.module.css';
@@ -39,6 +40,9 @@ export function PressAsks() {
   const a = asks[0];
   const shown = !!a;
   const always = a?.actions?.find((x) => x.verb === 'allow_always');
+  // The input of a call is shown whole, but for a change of a document, which folds with its diff.
+  const input = a?.payload !== undefined && a?.payload !== null ? JSON.stringify(a?.payload, null, 2) : '';
+  const details = a ? [a.read ?? '', a.diff ?? '', a.diff ? input : ''].filter(Boolean).join('\n') : '';
   useEffect(() => (shown ? followAsks() : undefined), [shown]);
   if (!a) return null;
   return (
@@ -49,13 +53,13 @@ export function PressAsks() {
             <Text size="sm" fw={700}>{t('Your yes is needed')}</Text>
             {asks.length > 1 && <Text size="xs" c="dimmed">1 / {asks.length}</Text>}
           </Group>
-          <Text fw={650}>{a.what}</Text>
+          <Text fw={650} data-press-headline>{a.headline || a.what}</Text>
+          {a.why && <Text size="sm" className="deck-wrap" data-press-why>{a.why}</Text>}
           {a.waits && <Text size="sm" c="var(--deck-text-2)" data-press-waits>{a.waits}</Text>}
           {a.change && <Text size="sm" className="deck-pre" data-press-change>{a.change}</Text>}
-          {a.where && <Text size="sm" className="deck-wrap" data-press-where>{a.where}</Text>}
-          {a.payload !== undefined && a.payload !== null && (
-            <Code block mah={160} style={{ overflow: 'auto' }} data-press-input>{JSON.stringify(a.payload, null, 2)}</Code>
-          )}
+          {a.where && !a.diff && <Text size="sm" className="deck-wrap" data-press-where>{a.where}</Text>}
+          {input && !a.diff && <Code block mah={160} style={{ overflow: 'auto' }} data-press-input>{input}</Code>}
+          {details && <Details text={details} />}
           {a.who && <Text size="xs" c="dimmed">{a.who}</Text>}
           {error && <Text size="sm" c="red" data-press-error>{error}</Text>}
           <Group justify="flex-end" gap="xs">

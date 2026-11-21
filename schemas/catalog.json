@@ -392,6 +392,8 @@
           "icon": {"type": "string"}, "text": {"type": "string"}}}},
         "asks": {"type": "array", "description": "what the turn going on and the processes it started wait for the owner to decide, its questions apart: items of deck.asks_list with their buttons", "items": {"type": "object", "required": ["id", "kind", "what", "actions"], "properties": {
           "id": {"type": "integer"}, "kind": {"type": "string"}, "project": {"type": "string"}, "who": {"type": "string"}, "what": {"type": "string"}, "change": {"type": "string"}, "why": {"type": "string"}, "where": {"type": "string"},
+          "headline": {"type": "string", "description": "the module the call changes and what changes, the first line of the request"}, "waits": {"type": "string"},
+          "read": {"type": "string", "description": "where the text the turn read from outside came from, whole"}, "diff": {"type": "string", "description": "the change of a document a yes makes"},
           "text": {"type": "string"}, "command": {"type": "string"}, "by": {"type": "string"}, "payload": {}, "expires_at": {"type": "string"}, "expired": {"type": "boolean"},
           "actions": {"type": "array", "items": {"$ref": "#/$defs/action"}}}}}}}
     },

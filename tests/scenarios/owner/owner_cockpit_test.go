@@ -546,8 +546,8 @@ func TestCockpitShowsWhatWaitsWithItsVerbs(t *testing.T) {
 		return out
 	}
 	by := fmt.Sprintf("#%d work", second)
-	if fresh.Title != "post" || !strings.HasPrefix(fresh.Text, "Waits for your answer: you have not answered for this right yet\nit acts in your name: post\nPOST "+svc.URL+"/items/n2\n") ||
-		!strings.HasSuffix(fresh.Text, "id: n2\ntext: hi\nfor the test") || fresh.Meta != "notes · Work" ||
+	if fresh.Title != "notes: post" || !strings.HasPrefix(fresh.Text, "for the test\nWaits for your answer: you have not answered for this right yet\nit acts in your name: post\nPOST "+svc.URL+"/items/n2\n") ||
+		!strings.HasSuffix(fresh.Text, "id: n2\ntext: hi") || fresh.Meta != "notes · Work" ||
 		!strings.HasPrefix(fresh.Details, by+"\nnotes.post\n") {
 		t.Fatalf("a request says what the right lets, where, what it sends, its module and who asks in words; the process and the command under its details: %+v", fresh)
 	}
@@ -670,7 +670,7 @@ func TestProviderConfirmationSaysWhatAndWhere(t *testing.T) {
 	e.Run(p, "fetch")
 	e.Until("the confirmation", func() bool { return len(e.CockpitItems()) == 1 })
 	it := e.CockpitItems()[0]
-	if it.Title != "WebFetch" || it.Text != "Waits for your answer: you have not answered for this right yet\nurl: https://example.com/page\nprompt: read it" || !strings.Contains(it.Details, "read it") {
+	if it.Title != "jobs: WebFetch" || it.Text != "Waits for your answer: you have not answered for this right yet\nurl: https://example.com/page\nprompt: read it" || !strings.Contains(it.Details, "read it") {
 		t.Fatalf("the confirmation says the tool and where it goes, with its whole input: %+v", it)
 	}
 }

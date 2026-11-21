@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"deck2/internal/access"
 	"deck2/internal/ask"
@@ -45,6 +47,13 @@ type askView struct {
 	Change string `json:"change,omitempty"`
 	// Why is why the caller asks, in its own words: the why of its call, else the last thing its agent said.
 	Why string `json:"why,omitempty"`
+	// Module is the module the call changes, which may not be the one that asks; Headline says it and what changes.
+	Module   string `json:"module,omitempty"`
+	Headline string `json:"headline,omitempty"`
+	// Read is where the text the turn read from outside came from, whole; Waits says it short.
+	Read string `json:"read,omitempty"`
+	// Diff is the change of a document a yes makes, a line each.
+	Diff string `json:"diff,omitempty"`
 	// Always says what a yes for always would allow from now on; empty where a call is allowed only once.
 	Always string `json:"always,omitempty"`
 	// Work says what a yes for the work of the process would allow; empty where it is not offered.
@@ -94,8 +103,16 @@ type askPart struct {
 }
 
 func partOf(r askView) askPart {
-	text := strings.Join(slices.DeleteFunc([]string{r.Waits, cmp.Or(r.Change, r.Where), r.Why}, func(s string) bool { return s == "" }), "\n")
-	return askPart{ID: r.ID, Title: r.What, Text: text, Actions: r.Actions}
+	return askPart{ID: r.ID, Title: cmp.Or(r.Headline, r.What), Text: r.lines(), Actions: r.Actions}
+}
+
+// lines are what a request says under its headline: why the caller asks, why it waits, then what a yes allows.
+func (r askView) lines() string {
+	what := r.Change
+	if what == "" && r.Diff == "" {
+		what = r.Where
+	}
+	return strings.Join(slices.DeleteFunc([]string{r.Why, r.Waits, what}, func(s string) bool { return s == "" }), "\n")
 }
 
 // byWork puts the open requests of one process in one item, in its first one's place: each a part with its own
@@ -127,6 +144,12 @@ func byWork(rows []askView, ws map[string]string) []askView {
 		g := r
 		g.What = fmt.Sprintf(tr("This work asks for %d things"), len(r.Parts))
 		g.Change, g.Where, g.Allow, g.Always, g.Kept, g.Waits, g.Why, g.Payload = "", "", "", "", false, "", "", json.RawMessage("null")
+		g.Headline, g.Module, g.Diff = "", "", ""
+		for _, p := range rows {
+			if p.Process == r.Process && p.Diff != "" && slices.ContainsFunc(r.Parts, func(x askPart) bool { return x.ID == p.ID }) {
+				g.Diff = strings.TrimSpace(g.Diff + "\n" + p.Headline + "\n" + p.Diff)
+			}
+		}
 		var also []int64
 		work := true
 		for _, p := range r.Parts[1:] {
@@ -256,10 +279,12 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		}
 		r.Payload = json.RawMessage(cmp.Or(string(f.Call.Input), "null"))
 		r.Why = cmp.Or(f.Reason, r.Why)
-		var lines []string
-		if f.Read != "" {
-			lines = append(lines, fmt.Sprintf("It read from outside deck: %s, so this goes out only with your yes", f.Read))
+		r.Read = f.Read
+		if s.Gateway != nil {
+			r.Module = s.Gateway.Target(ctx, q.WorkspaceID, f.Call.Command, f.Call.Input)
 		}
+		r.Module = cmp.Or(r.Module, r.Project)
+		var lines []string
 		if n := f.Need; n != nil && q.Kind == ask.KindCall && !(registry.IsBuiltin(f.Call.Command) && n.Subject == f.Call.Command) {
 			lines = append(lines, gateway.NeedsSay(f.Needs())...)
 		}
@@ -270,7 +295,11 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		}
 		var in map[string]any
 		_ = json.Unmarshal(f.Call.Input, &in)
+		head := ""
 		switch {
+		case len(f.Changes) > 1 && !slices.ContainsFunc(f.Changes[1:], func(l string) bool { return !diffLine(l) }):
+			// A change of a document: what it changes heads the request, its lines are folded.
+			head, r.Diff = strings.TrimSuffix(f.Changes[0], " of "+r.Module), strings.Join(f.Changes[1:], "\n")
 		case len(f.Changes) > 0:
 			lines = append(lines, f.Changes...)
 		case r.Where != "" && registry.IsBuiltin(f.Call.Command):
@@ -287,6 +316,7 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 			lines = append(lines, fmt.Sprintf("Replaces request %d", id))
 		}
 		r.Change = strings.Join(lines, "\n")
+		r.Headline = cmp.Or(head, r.What)
 		if slices.Contains(f.Offers, gateway.Work) {
 			r.Work = "For this work"
 		}
@@ -312,6 +342,58 @@ func questionTitle(q ask.Question) string {
 		return "Question"
 	}
 	return strings.Join(hs, " · ")
+}
+
+// diffLine says a line is one of the diff of a document: kept, removed, added or the count of lines past the cut.
+func diffLine(l string) bool {
+	return l == "…" || slices.ContainsFunc([]string{"  ", "- ", "+ ", "… "}, func(p string) bool { return strings.HasPrefix(l, p) })
+}
+
+// sources are where the text a turn read from outside came from first, each with its words: the last in a chain is
+// the deepest.
+var sources = []struct {
+	re   *regexp.Regexp
+	says string
+}{
+	{regexp.MustCompile(`the network of its box: ([^,…]+?)(?: wrote|,|…|$)`), "the network (%s)"},
+	{regexp.MustCompile(`deck\.web_fetch \{"url":"[a-z]+://([^/"?:]+)`), "a web page (%s)"},
+	{regexp.MustCompile(`deck\.web_search`), "a web search"},
+	{regexp.MustCompile(`automation token ([^\s,…]+)`), "automation token %s"},
+	{regexp.MustCompile(`which read ([a-z0-9_-]+\.[a-z0-9_]+) \{`), "an outside tool (%s)"},
+}
+
+// hops are the data of a module a chain passes through; the last is the one nearest its source.
+var hops = regexp.MustCompile(`the (data|memory|skills) of (?:the workspace in )?([^\s,…]+)`)
+
+// hopSays are the words of a hop by what of the module it is.
+var hopSays = map[string]string{"data": "data of %s", "memory": "memory of %s", "skills": "skills of %s"}
+
+// shortRead is where the text a turn read from outside came from, short in the words of tr: the data of the module
+// it last passed through and its first source; read cut when neither is known.
+func shortRead(tr func(string) string, read string) string {
+	src, at := "", -1
+	for _, s := range sources {
+		for _, m := range s.re.FindAllStringSubmatchIndex(read, -1) {
+			if m[0] > at {
+				at, src = m[0], tr(s.says)
+				if len(m) > 2 {
+					src = fmt.Sprintf(src, strings.TrimSpace(read[m[2]:m[3]]))
+				}
+			}
+		}
+	}
+	hop := ""
+	if ms := hops.FindAllStringSubmatch(read, -1); len(ms) > 0 {
+		m := ms[len(ms)-1]
+		hop = fmt.Sprintf(tr(hopSays[m[1]]), m[2])
+	}
+	switch {
+	case hop != "" && src != "":
+		return fmt.Sprintf(tr("%s; source: %s"), hop, src)
+	case hop != "" || src != "":
+		return hop + src
+	}
+	return untrusted.Cut(tr(read), 120)
 }
 
 func firstLine(s string) string {
@@ -445,10 +527,23 @@ func (s *Service) said(ctx context.Context, q db.Ask, r askView, lang string, wa
 		r.Where = trLines(tr, r.Where)
 	}
 	r.Change, r.Work = trLines(tr, r.Change), tr(r.Work)
+	short, shown := "", false
+	if r.Read != "" {
+		short, r.Read = shortRead(tr, r.Read), tr(r.Read)
+	}
 	if waits && q.Kind == ask.KindCall && q.State == ask.StateOpen && s.Gateway != nil {
 		if says, args := s.Gateway.Waits(ctx, q.Payload); says != "" {
+			if shown = short != "" && len(args) == 1; shown {
+				args = []any{short}
+			}
 			r.Waits = fmt.Sprintf(tr(says), args...)
 		}
+	}
+	if short != "" && !shown {
+		r.Change = strings.TrimSpace(fmt.Sprintf(tr("It read from outside deck: %s, so this goes out only with your yes"), short) + "\n" + r.Change)
+	}
+	if r.Headline = tr(r.Headline); r.Headline != "" && r.Module != "" {
+		r.Headline = r.Module + ": " + lowerFirst(r.Headline)
 	}
 	if q.Kind == ask.KindCall && r.What != "" {
 		r.Allow = tr(fmt.Sprintf("Allow once: %s", r.What))
@@ -464,4 +559,13 @@ func (s *Service) said(ctx context.Context, q db.Ask, r askView, lang string, wa
 		}
 	}
 	return r
+}
+
+// lowerFirst is a phrase with its first letter small, as it reads after a colon; a name of one word stays.
+func lowerFirst(s string) string {
+	r, n := utf8.DecodeRuneInString(s)
+	if next, _ := utf8.DecodeRuneInString(s[n:]); !strings.Contains(s, " ") || unicode.IsUpper(next) {
+		return s
+	}
+	return string(unicode.ToLower(r)) + s[n:]
 }

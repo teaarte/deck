@@ -49,6 +49,6 @@ func Rewrites(ctx context.Context, q *db.Queries, sc Scope, kind, name, next str
 	if len(lines) > changeLines {
 		lines = append(lines[:changeLines], fmt.Sprintf("… %d lines more", len(lines)-changeLines))
 	}
-	sub.Changes = append([]string{"Change " + sub.Where}, lines...)
+	sub.Changes = append([]string{fmt.Sprintf("Change %s", sub.Where)}, lines...)
 	return sub
 }

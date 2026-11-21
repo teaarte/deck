@@ -221,3 +221,27 @@ func (g *Gateway) named(ctx context.Context, workspace int64, c *registry.Comman
 	}
 	return out
 }
+
+// Target is the module a call of command with input changes: the first its input names, else that of its command;
+// empty for none, as a tool of the agent's provider.
+func (g *Gateway) Target(ctx context.Context, workspace int64, command string, input json.RawMessage) string {
+	c, err := g.reg.Lookup(ctx, workspace, command)
+	if err != nil {
+		return ""
+	}
+	n := g.named(ctx, workspace, c, input)
+	for _, id := range n.processes {
+		if p, err := g.st.Q.GetProcess(ctx, id); err == nil {
+			n.projects = append(n.projects, p.ProjectID)
+		}
+	}
+	if len(n.projects) == 0 && c.ProjectID != 0 {
+		n.projects = []int64{c.ProjectID}
+	}
+	for _, id := range n.projects {
+		if p, err := g.st.Q.GetProject(ctx, id); err == nil {
+			return p.Name
+		}
+	}
+	return ""
+}

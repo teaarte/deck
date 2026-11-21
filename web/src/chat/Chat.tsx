@@ -66,8 +66,8 @@ function DecisionCard({ d }: { d: Decision }) {
   const { t } = useTranslation();
   const [held, setHeld] = useState(false);
   if (held) return null;
-  const change = d.change || d.where;
-  const details = [d.by ?? '', d.command ?? '', d.change && d.where !== d.change ? d.where : '',
+  const change = d.change || (d.diff ? '' : d.where);
+  const details = [d.read ?? '', d.diff ?? '', d.by ?? '', d.command ?? '', d.change && d.where !== d.change ? d.where : '',
     d.payload !== undefined && d.payload !== null ? JSON.stringify(d.payload, null, 2) : ''].filter(Boolean).join('\n');
   return (
     <Stack gap={8} className={s.decision} data-chat-ask={d.id} data-kind={d.kind}>
@@ -79,9 +79,10 @@ function DecisionCard({ d }: { d: Decision }) {
         {d.expires_at && !d.expired && <Deadline until={d.expires_at} />}
       </Group>
       <Stack gap={2}>
-        <Text size="sm" fw={650}>{d.what}</Text>
-        {change && <Text size="sm" className="deck-pre" data-change>{change}</Text>}
+        <Text size="sm" fw={650} data-headline>{d.headline || d.what}</Text>
         {d.why && <Text size="sm" c="var(--deck-text-2)" className="deck-wrap" data-why>{d.why}</Text>}
+        {d.waits && <Text size="sm" c="var(--deck-text-2)" className="deck-wrap" data-waits>{d.waits}</Text>}
+        {change && <Text size="sm" className="deck-pre" data-change>{change}</Text>}
         <Text size="xs" c="dimmed">{[d.who && t('Asked by {{who}}', { who: d.who }), d.project].filter(Boolean).join(' · ')}</Text>
       </Stack>
       {details && <Details text={details} />}

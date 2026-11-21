@@ -59,7 +59,8 @@ hold; look inside a package for the rest.
   the reserved fields of an input (`retry_key`, `allows`) only the registry adds and takes out.
 - `internal/store` — SQLite: one writer (`Tx`; no network or waiting inside), readers apart; a committed write
   publishes the topic of its table (`changes.go`; a table is in a scope or `silent`); goose migrations from the base
-  `00043_base.sql`; sqlc queries one file per area (`db/` is generated).
+  `00043_base.sql`; sqlc queries one file per area (`db/` is generated); deck's one clock `Store.Now` (`clock.go`:
+  `Wall` for the world outside and a deck without a base, `Start` a stopwatch for a wait or a meter in real time).
 - `internal/events` — the bus: a topic with the project and workspace it changed in; no event is dropped. deck's own
   observers only `Follow` it: beside the commits, merged by workspace with the projects changed. Topics are its
   constants (`topics.go`); a topic written out elsewhere fails `tests/lint`; the store hands it `Changed` events.
@@ -73,7 +74,9 @@ hold; look inside a package for the rest.
   (`Rights`, `Grant`, the table `right_grant`, a row a subject `RightRows`); `Ship` lays out what deck ships (master, skills) with a merge of others' edits and removal.
 - `internal/process` — the runner of processes: turns of agents, scripts, tools and models, slots, resume, the
   deadlines (`Due`), the hand-on of a refused or silent turn to the next model (`handon.go`, `watch.go`), what a
-  process left (`left.go`); what it needs from deck is `Deps`.
+  process left (`left.go`); what it needs from deck is `Deps`, the rest of deck as three ports it declares
+  (`ports.go`: `Router` who answers, `Brief` what a turn is given, `Places` where the work runs) that app fills by
+  embedding the services.
 - `internal/provider` — model providers behind one interface and one `Result` of a turn (its failure a `*fault.F`): `claudecode`, `codex`
   (generated protocol), `acp` (an ACP agent in deck's sandbox on a model through deck's proxy), each on
   `sandbox.Run`; a CLI's home per project (`home.Agent`) with its one login (`Homed`), deck's MCP server at the door
@@ -95,6 +98,7 @@ hold; look inside a package for the rest.
   of either.
 - `internal/theme` — the themes of deck: the schema and catalog (`schemas/theme.json`), the check of tokens, parts,
   limited CSS and contrast, the CSS the client wears; the shipped themes in `shipped/`. `app/themes` its commands.
+- `internal/settings` — the settings of a workspace read by the `*db.Queries` given (`app/settings` its commands).
 - `internal/health` — health rows: state of what deck runs or reaches; events go to the feed.
 - `internal/ask` — the broker of what waits for the owner; `app/asks` its commands.
 - `internal/screen` — stored screens resolved into A2UI messages (blocks, data, actions, forms, topics, i18n): the
@@ -125,7 +129,8 @@ hold; look inside a package for the rest.
 - `internal/lint` — code rules checked by `tests/lint`; `layers.go` is the table of layers L0–L9 (an import goes only
   down, a domain only `internal/app` imports, a package in no layer is an error); the rules of Go (`rules.go`: os/exec
   only in sandbox, HTTP clients only in egress, file writes only in home, the environment only in cmd/deck, …) keep
-  their current exceptions by file:line in `exceptions.go`, a list that only shrinks.
+  their current exceptions by file:line in `exceptions.go`, a list that only shrinks; an interface has at most six
+  methods (`port`); a domain calls another through an interface of the few methods it needs, which it declares.
 - `starters` — the modules deck offers on its first run, a folder each as `deck.project_export` makes it; data, no
   code of deck for any of them, roles rather than the connections of their author.
 - `master` — the built-in project master (manifest, prompts, skills) and `templates`, deck's texts for agents: the

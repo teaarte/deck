@@ -738,3 +738,7 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   the caller's assignment; two requests at once go to each search connection of a workspace, a search takes at most
   30 seconds. A start asks the subscription login in a request of its own, apart from hosts.
   Modules: a script a trigger runs reads `deck: not granted yet` in its log until the owner answers.
+- 2026-11-22: The request of a module for hosts of its scripts, which runs of triggers leave, closes by itself once
+  the owner answers each of its hosts in the module's rights; a no to it keeps the yes the owner gave one of its hosts
+  since. Runs of triggers at once leave one such request.
+  Modules: nothing to change.

@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"slices"
 
 	"deck2/internal/ask"
+	"deck2/internal/docs"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -30,6 +32,9 @@ func (g *Gateway) Freshness(ctx context.Context, a db.Ask, probe bool) int {
 	if err != nil {
 		return AsAsked
 	}
+	if f.As == AsStart && f.Who.Process == 0 && g.answered(ctx, f) {
+		return InForce
+	}
 	c, err := g.reg.Lookup(ctx, f.Who.Workspace, f.Call.Command)
 	if err != nil {
 		return AsAsked
@@ -45,6 +50,17 @@ func (g *Gateway) Freshness(ctx context.Context, a db.Ask, probe bool) int {
 		return Changed
 	}
 	return AsAsked
+}
+
+// answered says the owner answered each right a start request of a module asks for since, in its rights.
+func (g *Gateway) answered(ctx context.Context, f Frozen) bool {
+	m, granted, err := docs.Rights(ctx, g.st.Q, f.Who.Project)
+	if err != nil {
+		return false
+	}
+	return !slices.ContainsFunc(f.Needs(), func(n registry.Need) bool {
+		return m.Declares(n) && !m.Holds(granted, n) && !granted.Denies(n)
+	})
 }
 
 // inForce is what a call whose change is so already gives its caller.

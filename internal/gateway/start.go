@@ -100,19 +100,14 @@ func (g *Gateway) Later(ctx context.Context, act registry.Actor, command string,
 	if len(missing) == 0 {
 		return nil, nil
 	}
-	open, err := g.st.Q.ListOpenProjectAsks(ctx, store.ID(act.ProjectID))
-	if err != nil {
-		return hosts, err
-	}
-	missing = slices.DeleteFunc(missing, func(n registry.Need) bool {
-		return slices.ContainsFunc(open, func(a db.Ask) bool { return a.State == ask.StateOpen && startOf(a, n) })
-	})
-	if len(missing) == 0 {
-		return hosts, nil
-	}
 	module := act
 	module.ProcessID = 0
-	_, err = g.startRequest(ctx, module, command, missing)
+	_, err := g.startRequest(ctx, module, command, missing, func(ctx context.Context, q *db.Queries, needs []registry.Need) ([]registry.Need, error) {
+		open, err := q.ListOpenProjectAsks(ctx, store.ID(act.ProjectID))
+		return slices.DeleteFunc(needs, func(n registry.Need) bool {
+			return slices.ContainsFunc(open, func(a db.Ask) bool { return a.State == ask.StateOpen && startOf(a, n) })
+		}), err
+	})
 	return hosts, err
 }
 
@@ -154,25 +149,32 @@ func (g *Gateway) needRequest(ctx context.Context, act registry.Actor, command s
 }
 
 // startRequest asks the owner in one request for the rights a run of the process of act needs before it starts.
-func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command string, needs []registry.Need) (int64, error) {
-	f := Freeze(act, command, []byte(`{}`))
-	n := needs[0]
-	f.As, f.Need, f.More, f.Offers = AsStart, &n, needs[1:], []string{manifest.Always, manifest.No}
-	if act.ProcessID != 0 {
-		f.Offers = append([]string{Work}, f.Offers...)
-	}
-	f.Reason = act.Why
+// unasked, when given, keeps in the same Tx the needs no open request asks for yet; none left asks nothing.
+func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command string, needs []registry.Need,
+	unasked ...func(context.Context, *db.Queries, []registry.Need) ([]registry.Need, error)) (int64, error) {
 	var expires time.Time
 	if ttl := g.confirmTTL(ctx, act.Workspace); ttl > 0 {
 		expires = g.st.Now().Add(ttl)
 	}
-	var lines []string
-	for _, l := range NeedsSay(needs) {
-		lines = append(lines, fmt.Sprintf("%s wants to start: %s", command, l))
-	}
-	text := strings.Join(lines, "\n")
 	a, err := store.TxGet(g.st, ctx, func(ctx context.Context, q *db.Queries) (db.Ask, error) {
-		return Hold(ctx, q, act, act.ProjectID, act.ProcessID, ask.KindCall, n.Right, text, f, expires, g.st.Now())
+		for _, keep := range unasked {
+			var err error
+			if needs, err = keep(ctx, q, needs); err != nil || len(needs) == 0 {
+				return db.Ask{}, err
+			}
+		}
+		f := Freeze(act, command, []byte(`{}`))
+		n := needs[0]
+		f.As, f.Need, f.More, f.Offers = AsStart, &n, needs[1:], []string{manifest.Always, manifest.No}
+		if act.ProcessID != 0 {
+			f.Offers = append([]string{Work}, f.Offers...)
+		}
+		f.Reason = act.Why
+		var lines []string
+		for _, l := range NeedsSay(needs) {
+			lines = append(lines, fmt.Sprintf("%s wants to start: %s", command, l))
+		}
+		return Hold(ctx, q, act, act.ProjectID, act.ProcessID, ask.KindCall, n.Right, strings.Join(lines, "\n"), f, expires, g.st.Now())
 	})
 	return a.ID, err
 }

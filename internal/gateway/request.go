@@ -185,7 +185,15 @@ func (g *Gateway) keepIn(ctx context.Context, q *db.Queries, owner registry.Acto
 		if answer != AllowAlways {
 			kept = manifest.No
 		}
+		m, granted, err := docs.Rights(ctx, q, a.ProjectID.Int64)
+		if err != nil {
+			return err
+		}
 		for _, n := range f.Needs() {
+			if kept == manifest.No && m.Holds(granted, n) {
+				// A no to a request keeps the yes the owner gave one of its rights since.
+				continue
+			}
 			if err := docs.Grant(ctx, q, owner, a.ProjectID.Int64, n, kept, g.st.Now()); err != nil {
 				return err
 			}

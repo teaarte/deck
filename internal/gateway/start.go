@@ -109,9 +109,12 @@ func (g *Gateway) Later(ctx context.Context, act registry.Actor, command string,
 			return nil, db.Ask{}, err
 		}
 		m, now, err := docs.Rights(ctx, q, act.ProjectID)
+		if err != nil {
+			return nil, db.Ask{}, err
+		}
 		return slices.DeleteFunc(needs, func(n registry.Need) bool {
 			return m.Holds(now, n) || now.Denies(n) || slices.ContainsFunc(open, func(a db.Ask) bool { return a.State == ask.StateOpen && startOf(a, n) })
-		}), db.Ask{}, err
+		}), db.Ask{}, nil
 	})
 	return hosts, err
 }

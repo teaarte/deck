@@ -28,6 +28,7 @@ import (
 	"deck2/internal/home"
 	"deck2/internal/manifest"
 	"deck2/internal/release"
+	"deck2/internal/upgrade"
 	"deck2/tests/harness"
 )
 
@@ -38,9 +39,20 @@ var releases = []string{"v0.2.0", "v0.2.1", "v0.2.2", "v0.3.0", "v0.3.1", "v0.3.
 // candidateVersion is the version the binary of this tree is released as in the test, newer than every release.
 const candidateVersion = "v0.4.0"
 
-// keptManifest is a module of format 16, the format of v0.2 and v0.3, with records, its domain, an internal HTTP tool
-// that names a secret and an external one the owner never allowed.
-func keptManifest() string {
+// format17 says release v reads manifests of format 17, as v0.3.2 does; the releases before it read format 16.
+func format17(v string) bool { return v >= "v0.3.2" }
+
+// keptManifest is a module of the format release v reads with records, its domain, an internal HTTP tool that names a
+// secret and an external one the owner never allowed; in format 17 as this tree raises the one of format 16.
+func keptManifest(v string) string {
+	if format17(v) {
+		return upgrade.Manifest(keptManifest16())
+	}
+	return keptManifest16()
+}
+
+// keptManifest16 is the module of keptManifest in format 16.
+func keptManifest16() string {
 	tool := func(name, method, class string) string {
 		return fmt.Sprintf(`{"name": %q, "description": "Item.", "method": %q, "url": "https://example.com/item", "class": %q,
       "headers": {"X-Key": "$secret.key"}}`, name, method, class)
@@ -138,6 +150,7 @@ func (b *bare) fromImage(v string) {
 	cookie := b.signIn()
 	b.pairAs = ""
 	b.keep(cookie, v)
+	held := b.held(cookie, v)
 	b.logins()
 	b.codex("deck", home.Layout(b.home).Login("codex"))
 
@@ -145,7 +158,7 @@ func (b *bare) fromImage(v string) {
 	b.compose("up", "-d")
 	b.updated(cookie, v)
 	b.kept(cookie)
-	b.rights(cookie)
+	b.rights(cookie, held)
 	b.health(cookie, "sandbox", "ok")
 	b.call(cookie, "deck.provider_check", map[string]any{"provider": "codex"})
 	b.health(cookie, "provider:codex", "ok")
@@ -239,6 +252,7 @@ func (b *bare) fromBinary(v string) {
 	b.ctr, b.exe, b.home, b.origin = "deck-bin", "/srv/bin/deck", "/srv/home", "http://deck.localhost:7700"
 	cookie := b.signIn()
 	b.keep(cookie, v)
+	held := b.held(cookie, v)
 	b.logins()
 	var ver struct {
 		Version, Variant, Latest string
@@ -265,7 +279,7 @@ func (b *bare) fromBinary(v string) {
 		return b.deck("deck", "sh", "-c", "test ! -e /srv/bin/deck.old && test ! -e "+home.Layout(b.home).Update()).Run() == nil
 	})
 	b.kept(cookie)
-	b.rights(cookie)
+	b.rights(cookie, held)
 	b.devices(cookie)
 	b.calm()
 }
@@ -283,7 +297,7 @@ func (b *bare) put(path string, data []byte) {
 // keep puts in a deck of version v what its owner keeps: a module with records, a secret it names and a document.
 func (b *bare) keep(cookie, v string) {
 	b.t.Helper()
-	b.must(cookie, "deck.project_create", map[string]any{"name": "kept", "manifest": keptManifest()})
+	b.must(cookie, "deck.project_create", map[string]any{"name": "kept", "manifest": keptManifest(v)})
 	b.must(cookie, "deck.record_upsert", map[string]any{"project": "kept", "collection": "items",
 		"records": "{\"name\": \"first\", \"size\": 1}\n{\"name\": \"second\", \"size\": 2}"})
 	b.must(cookie, "deck.secret_set", map[string]any{"project": "kept", "name": "key", "value": keptSecret})
@@ -347,9 +361,29 @@ func (b *bare) kept(cookie string) {
 	}
 }
 
-// rights checks that the manifest of the module is of the current format, the rights its old fields stood for
-// declared: what the owner had granted is always, the external tool never allowed asks on its first use.
-func (b *bare) rights(cookie string) {
+// held are the rights the module of a release of format 17 holds before the update, by "right subject"; nil before it.
+func (b *bare) held(cookie, v string) map[string]string {
+	b.t.Helper()
+	if !format17(v) {
+		return nil
+	}
+	return b.rightsOf(cookie)
+}
+
+// rightsOf are the answers to the rights of the kept module, by "right subject".
+func (b *bare) rightsOf(cookie string) map[string]string {
+	var rows []struct{ Right, Who, Subject, Answer string }
+	_ = json.Unmarshal(b.must(cookie, "deck.rights_list", map[string]any{"project": "kept"}), &rows)
+	got := map[string]string{}
+	for _, r := range rows {
+		got[r.Right+" "+r.Subject] = r.Answer
+	}
+	return got
+}
+
+// rights checks the manifest is of the current format and the rights its old fields stood for, or from a release of
+// format 17 the rights held before: what the owner granted is always, the external tool never allowed asks at first use.
+func (b *bare) rights(cookie string, held map[string]string) {
 	t := b.t
 	t.Helper()
 	var doc struct{ Text string }
@@ -358,15 +392,13 @@ func (b *bare) rights(cookie string) {
 		strings.Contains(doc.Text, `"class"`) {
 		t.Fatalf("the manifest of the module is of format %d: %s", manifest.FormatVersion, doc.Text)
 	}
-	var rows []struct{ Right, Who, Subject, Answer string }
-	_ = json.Unmarshal(b.must(cookie, "deck.rights_list", map[string]any{"project": "kept"}), &rows)
-	got := map[string]string{}
-	for _, r := range rows {
-		got[r.Right+" "+r.Subject] = r.Answer
-	}
+	got := b.rightsOf(cookie)
 	want := map[string]string{"network example.com": "always", "data get": "always", "send put": ""}
+	if held != nil {
+		want = held
+	}
 	if !maps.Equal(got, want) {
-		t.Fatalf("the module holds the rights its old manifest stood for, %v: %+v", want, rows)
+		t.Fatalf("the module holds the rights its old manifest stood for, %v: %v", want, got)
 	}
 }
 

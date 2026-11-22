@@ -63,6 +63,13 @@ func (g *Gateway) verdict(ctx context.Context, call Call, c *registry.Command, p
 			// would mark what it writes is refused first when its command refuses the change.
 			v.Subject = c.Gate.Subject(ctx, registry.At{Workspace: act.Workspace, Project: project, Look: look}, input)
 			f.Marked, f.Instructs = marked, marked && v.Subject.Instructs
+			if f.Instructs && v.Subject.Module != 0 {
+				allows, err := g.allowsOf(ctx, act)
+				if err != nil {
+					return v, err
+				}
+				f.Builds = slices.ContainsFunc(allows, func(a Allow) bool { return a.builds(v.Subject.Module) })
+			}
 			if v.err = v.Subject.Refused; v.err != nil {
 				f.Refused = v.err.Error()
 			}

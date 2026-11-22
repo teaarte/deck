@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"slices"
+	"strconv"
 
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -22,9 +23,40 @@ type Allow struct {
 	Print   string          `json:"print,omitempty"`
 }
 
-// Allows is how a process keeps the calls the owner's press named.
-func Allows(as []Allow) string {
-	return allowsText(slices.DeleteFunc(slices.Clone(as), func(a Allow) bool { return a.Command == "" }))
+// Allows is how a process keeps the calls the owner's press named, and the yes its start gave.
+func Allows(pressed []Allow, started ...Allow) string {
+	return allowsText(append(slices.DeleteFunc(slices.Clone(pressed), func(a Allow) bool { return a.Command == "" }), started...))
+}
+
+// Instructs is the right of an Allow that is the owner's yes, by the start of a work, to its changes of what the module
+// it builds runs.
+const Instructs = "instructs"
+
+// builds says the yes is to the changes of what module runs.
+func (a Allow) builds(module int64) bool {
+	return a.Right == Instructs && a.Command == "" && a.Subject == strconv.FormatInt(module, 10)
+}
+
+// Started is the yes the owner's start of a work of project gives it, to change what that module runs: by the owner's
+// own call or press, or by the master's turn of the owner's word that read nothing from outside; none for the master.
+func (g *Gateway) Started(ctx context.Context, act registry.Actor, project int64) ([]Allow, error) {
+	if act.Trial || act.Kind != registry.Owner && act.Kind != registry.Master {
+		return nil, nil
+	}
+	p, err := g.st.Q.GetProject(ctx, project)
+	if err != nil || p.Builtin == 1 {
+		return nil, err
+	}
+	if act.Kind == registry.Master {
+		if act.ProcessID == 0 {
+			return nil, nil
+		}
+		turn, err := g.st.Q.GetProcess(ctx, act.ProcessID)
+		if err != nil || turn.Depth != 0 || turn.ReadUntrusted != "" {
+			return nil, err
+		}
+	}
+	return []Allow{{Right: Instructs, Subject: strconv.FormatInt(project, 10)}}, nil
 }
 
 func allowsText(as []Allow) string {

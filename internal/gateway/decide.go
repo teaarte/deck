@@ -35,6 +35,8 @@ type Facts struct {
 	Exit bool `json:"exit"`
 	// Instructs says the call rewrites what deck runs: an instruction of an enabled module or of the workspace.
 	Instructs bool `json:"instructs"`
+	// Builds says the owner's start of the work said yes to its changes of what the module it builds runs.
+	Builds bool `json:"builds"`
 	// Over says the run has spent the most its module declares of the money the call spends: always covers no more.
 	Over bool `json:"over"`
 }
@@ -68,6 +70,8 @@ func decide(f Facts) Row {
 	switch {
 	case f.Owner:
 		return Row{"owner", DoRun, "the owner's own call"}
+	case f.Marked && f.Instructs && f.Builds && !f.Cleared:
+		return Row{"builds", DoRun, "the owner's start of this work said yes to its changes of what the module it builds runs"}
 	case f.Marked && f.Instructs && !f.Cleared:
 		return Row{"instructs", DoAsk, "this turn read text from outside deck and holds something of value: it changes what an enabled module runs only with the owner's yes to this very change"}
 	case f.Cleared:

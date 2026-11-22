@@ -171,12 +171,18 @@ func (s *modules) startHandler(projectID int64, m *manifest.Manifest, command st
 			o.Key = fmt.Sprintf("trigger:%d", act.TriggerID)
 		}
 		// Only the owner's own press stands for their yes.
+		var pressed []gateway.Allow
 		if act.Kind == registry.Owner && act.Allows != "" {
-			var as []gateway.Allow
-			if err := json.Unmarshal([]byte(act.Allows), &as); err != nil {
+			if err := json.Unmarshal([]byte(act.Allows), &pressed); err != nil {
 				return nil, registry.Invalid("allows: %v", err)
 			}
-			o.Allows = gateway.Allows(as)
+		}
+		started, err := s.a.Gateway.Started(ctx, act, projectID)
+		if err != nil {
+			return nil, err
+		}
+		if len(pressed) > 0 || len(started) > 0 {
+			o.Allows = gateway.Allows(pressed, started...)
 		}
 		st, err := s.a.Runner.Begin(ctx, projectID, m, command, input, o)
 		if err != nil || st.Process == 0 || !turnOf(act) || m.Command(command).Executor.Type == process.KindAgent {

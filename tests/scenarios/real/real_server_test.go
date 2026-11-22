@@ -292,8 +292,8 @@ func (b *bare) originHost() string {
 	return strings.TrimPrefix(strings.TrimPrefix(b.origin, "https://"), "http://")
 }
 
-// try calls a command of deck from inside its container, as the owner's browser signed in at deck's origin, or with
-// the owner's token of v0.1 when cookie is an Authorization header; false when deck does not answer.
+// try calls a command of deck from inside its container, as the owner's browser signed in at deck's origin; false when
+// deck does not answer.
 func (b *bare) try(cookie, command string, input any) (json.RawMessage, bool) {
 	b.t.Helper()
 	// deck's cookie at deck.localhost is named by its port.
@@ -302,9 +302,6 @@ func (b *bare) try(cookie, command string, input any) (json.RawMessage, bool) {
 		name = "__Host-deck"
 	}
 	auth := []string{"-b", name + "=" + cookie}
-	if strings.HasPrefix(cookie, "Authorization: ") {
-		auth = []string{"-H", cookie}
-	}
 	body, _ := json.Marshal(input)
 	args := append([]string{"curl", "-s", "--fail-with-body", "--max-time", "60", "-X", "POST"}, auth...)
 	out, err := b.deck("deck", append(args, "-H", "Host: "+b.originHost(), "-H", "Origin: "+b.origin, "-H", "Content-Type: application/json",

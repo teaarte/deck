@@ -98,9 +98,6 @@ func Bearer(token string) func(*http.Request) {
 	return func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+token) }
 }
 
-// AuthorizationHeader is the header line of a token, as curl -H takes it.
-func AuthorizationHeader(token string) string { return "Authorization: Bearer " + token }
-
 // In is the owner in a client that reads deck in lang, as the web client says with Deck-Lang.
 func (e *Env) In(lang string) Client {
 	return Client{e, func(r *http.Request) { e.owner(r); r.Header.Set("Deck-Lang", lang) }, true}

@@ -19,7 +19,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -32,42 +31,16 @@ import (
 	"deck2/tests/harness"
 )
 
-// composeV01 is the compose.yaml of v0.1 as its owners downloaded it, Caddy aside: the logins of the CLIs lie in a
-// volume of their own.
-const composeV01 = `name: deck
-services:
-  deck:
-    image: ghcr.io/teaarte/deck:%s
-    init: true
-    restart: unless-stopped
-    shm_size: 512m
-    environment:
-      DECK_PUBLIC: ${DECK_DOMAIN:+https://${DECK_DOMAIN}}
-      TZ: ${TZ:-}
-    ports:
-      - "127.0.0.1:7700:7700"
-      - "127.0.0.1:7701:7701"
-    volumes:
-      - deck:/var/lib/deck
-      - agents:/home/agent
-volumes:
-  deck:
-  agents:
-`
-
-// releases are the released versions of deck, oldest first; an owner updates from any of them.
-var releases = []string{"v0.1.1", "v0.2.0", "v0.2.1", "v0.2.2", "v0.3.0", "v0.3.1"}
+// releases are the released versions of deck from the floor of updates, v0.2.0, oldest first; an owner updates from
+// any of them.
+var releases = []string{"v0.2.0", "v0.2.1", "v0.2.2", "v0.3.0", "v0.3.1", "v0.3.2"}
 
 // candidateVersion is the version the binary of this tree is released as in the test, newer than every release.
 const candidateVersion = "v0.4.0"
 
-// keptManifest is a module of the manifest format of a release with records, its domain, an internal HTTP tool that
-// names a secret and an external one the owner never allowed: v0.1 read format 13, v0.2 and v0.3 format 16.
-func keptManifest(v string) string {
-	format := "16"
-	if v == releases[0] {
-		format = "13"
-	}
+// keptManifest is a module of format 16, the format of v0.2 and v0.3, with records, its domain, an internal HTTP tool
+// that names a secret and an external one the owner never allowed.
+func keptManifest() string {
 	tool := func(name, method, class string) string {
 		return fmt.Sprintf(`{"name": %q, "description": "Item.", "method": %q, "url": "https://example.com/item", "class": %q,
       "headers": {"X-Key": "$secret.key"}}`, name, method, class)
@@ -75,7 +48,7 @@ func keptManifest(v string) string {
 	return fmt.Sprintf(`{"version": %s, "domains": {"read": ["example.com"]},
   "collections": [{"name": "items", "description": "An item.", "key": "name",
     "schema": {"type": "object", "properties": {"name": {"type": "string"}, "size": {"type": "integer"}}, "required": ["name"]}}],
-  "tools": {"http": [%s, %s]}}`, format, tool("get", "GET", "internal"), tool("put", "POST", "external"))
+  "tools": {"http": [%s, %s]}}`, "16", tool("get", "GET", "internal"), tool("put", "POST", "external"))
 }
 
 // What an owner keeps in deck across an update.
@@ -98,8 +71,7 @@ func TestServerUpdatesFromEveryRelease(t *testing.T) {
 		images = append(images, "ghcr.io/teaarte/deck:"+v)
 	}
 	b := newBare(t, images...)
-	t.Run(releases[0], func(t *testing.T) { b.as(t).fromV01() })
-	for _, v := range releases[1:] {
+	for _, v := range releases {
 		t.Run(v, func(t *testing.T) { b.as(t).fromImage(v) })
 	}
 	last := releases[len(releases)-1]
@@ -112,60 +84,6 @@ func (b *bare) fresh() {
 	b.in("sh", "-c", `docker ps -aq | xargs -r docker rm -f -v >/dev/null && docker volume prune -af >/dev/null &&
 rm -f /srv/deck/compose.yaml /srv/deck/seccomp.json /srv/deck/deck-box.apparmor &&
 docker tag ghcr.io/teaarte/deck:candidate ghcr.io/teaarte/deck:latest`)
-}
-
-// fromV01: under the compose.yaml of v0.1 the image copies the logins of its user agent into deck's folder and
-// refuses foreign programs, saying the lines it lacks; under this compose.yaml the CLIs find them.
-func (b *bare) fromV01() {
-	t := b.t
-	t.Logf("update from %s", releases[0])
-	b.fresh()
-	b.write("/srv/deck/compose.yaml", fmt.Sprintf(composeV01, releases[0]))
-	b.compose("up", "-d")
-	b.keep(harness.AuthorizationHeader(b.token()), releases[0])
-	b.sh("root", `set -e
-mkdir -p /home/agent/.claude /home/agent/.codex /var/lib/deck/work/left
-cat > /home/agent/.claude/.credentials.json <<'EOF'
-`+claudeLogin+`
-EOF
-cat > /home/agent/.codex/auth.json <<'EOF'
-`+codexLogin+`
-EOF
-echo left > /var/lib/deck/work/left/file
-chown -R agent:agent /home/agent /var/lib/deck/work/left`)
-	b.codex("agent", "/home/agent/.codex")
-
-	b.write("/srv/deck/compose.yaml", fmt.Sprintf(composeV01, "latest"))
-	b.compose("up", "-d")
-	cookie := b.signIn()
-	fix := b.health(cookie, "sandbox", "error")
-	for _, line := range []string{"seccomp=./seccomp.json", "systempaths=unconfined", "apparmor=deck-box", "apparmor_parser -r /etc/apparmor.d/deck-box"} {
-		if !strings.Contains(fix, line) {
-			t.Fatalf("without its lines health says what to fix, %s among them: %s", line, fix)
-		}
-	}
-	if state, errText, _ := b.script(cookie); state != "error" || !strings.Contains(errText, "without its box") {
-		t.Fatalf("no script runs without its box: %s %s", state, errText)
-	}
-	moved := b.sh("deck", `cd /var/lib/deck && cat agents/codex/login/config.toml && stat -c '%U %n' work/left/file agents/claude/login/.credentials.json agents/codex/login/auth.json`)
-	for _, want := range []string{"base_url", "deck work/left/file", "deck agents/claude/login/.credentials.json", "deck agents/codex/login/auth.json"} {
-		if !strings.Contains(moved, want) {
-			t.Fatalf("the logins of v0.1 are deck's in the folders of their CLIs, and so is what its agents left (%s):\n%s", want, moved)
-		}
-	}
-	b.kept(cookie)
-	b.rights(cookie)
-
-	b.files("compose.yaml", "seccomp.json", "deck-box.apparmor")
-	b.compose("up", "-d")
-	b.health(cookie, "sandbox", "ok")
-	b.call(cookie, "deck.provider_check", map[string]any{"provider": "codex"})
-	b.health(cookie, "provider:codex", "ok")
-	if state, errText, out := b.script(cookie); state != "done" || out.State || out.Deck != 200 {
-		t.Fatalf("with its lines the script runs in its box: %s %s %+v", state, errText, out)
-	}
-	b.devices(cookie)
-	b.calm()
 }
 
 // rollback goes back to the image of v by docs/install.md, "Restoring a snapshot": the older image refuses the migrated
@@ -362,30 +280,13 @@ func (b *bare) put(path string, data []byte) {
 	}
 }
 
-// token is the owner's token of v0.1, which its log carried.
-func (b *bare) token() string {
-	b.t.Helper()
-	var m []string
-	harness.Until(b.t, "the owner's token in the log of v0.1", func() bool {
-		m = regexp.MustCompile(`\?token=([A-Za-z0-9_-]+)`).FindStringSubmatch(b.logs())
-		return m != nil
-	})
-	return m[1]
-}
-
 // keep puts in a deck of version v what its owner keeps: a module with records, a secret it names and a document.
 func (b *bare) keep(cookie, v string) {
 	b.t.Helper()
-	m, upsert, secret := keptManifest(v), "deck.record_upsert", map[string]any{"project": "kept", "name": "key", "value": keptSecret}
-	if v == releases[0] {
-		// v0.1 wrote records by records_upsert and kept a secret by workspace.
-		upsert = "deck.records_upsert"
-		delete(secret, "project")
-	}
-	b.must(cookie, "deck.project_create", map[string]any{"name": "kept", "manifest": m})
-	b.must(cookie, upsert, map[string]any{"project": "kept", "collection": "items",
+	b.must(cookie, "deck.project_create", map[string]any{"name": "kept", "manifest": keptManifest()})
+	b.must(cookie, "deck.record_upsert", map[string]any{"project": "kept", "collection": "items",
 		"records": "{\"name\": \"first\", \"size\": 1}\n{\"name\": \"second\", \"size\": 2}"})
-	b.must(cookie, "deck.secret_set", secret)
+	b.must(cookie, "deck.secret_set", map[string]any{"project": "kept", "name": "key", "value": keptSecret})
 	b.must(cookie, "deck.document_save", map[string]any{"project": "kept", "name": "notes/plan.md", "kind": "doc", "text": keptText})
 }
 

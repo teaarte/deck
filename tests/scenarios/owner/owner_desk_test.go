@@ -5,16 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
-	"time"
 
 	"deck2/internal/fault"
 	"deck2/internal/provider"
-	"deck2/internal/store"
-	"deck2/internal/upgrade"
 	"deck2/tests/harness"
 )
 
@@ -192,53 +188,6 @@ func TestDekiDrawsAViewForTheSizeOfACard(t *testing.T) {
 		return x.ID == topic
 	}); i < 0 || topics[i].Model != "quiet" {
 		t.Fatalf("the view is drawn on the model of the role widget: %+v", topics)
-	}
-}
-
-// TestTheOrderOfTheMenuBecomesALayout: the order of the menu a deck kept before is the order of its tiles after.
-func TestTheOrderOfTheMenuBecomesALayout(t *testing.T) {
-	t.Parallel()
-	path := filepath.Join(t.TempDir(), "deck.db")
-	st, err := store.Open(path, time.Now, upgrade.Migrations)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, q := range append([]string{
-		`INSERT INTO project (workspace_id, name) VALUES (1, 'alpha'), (1, 'beta')`,
-		`INSERT INTO setting (workspace_id, key, value) SELECT 1, 'menu_order', json_array((SELECT id FROM project WHERE name = 'beta'), (SELECT id FROM project WHERE name = 'alpha'))`,
-		`DROP TABLE layout`,
-		`DROP INDEX process_finished`, `ALTER TABLE process DROP COLUMN allows`, `ALTER TABLE process DROP COLUMN wrote`,
-		`ALTER TABLE process DROP COLUMN submitted_at`,
-		`DROP INDEX feed_line`, `DROP INDEX feed_run`, `ALTER TABLE feed DROP COLUMN line_id`, `ALTER TABLE feed DROP COLUMN what`,
-		`ALTER TABLE connection DROP COLUMN node_id`, `ALTER TABLE model DROP COLUMN project_id`,
-		`ALTER TABLE chat_message DROP COLUMN block`, `ALTER TABLE chat_message DROP COLUMN answer`, `ALTER TABLE chat_message DROP COLUMN answered_at`, `ALTER TABLE model DROP COLUMN tools`, `ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence; DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''; ALTER TABLE tool_call RENAME COLUMN need TO class; ALTER TABLE ask DROP COLUMN shown_at; ALTER TABLE process DROP COLUMN read_untrusted; ALTER TABLE process DROP COLUMN holds_valued; ALTER TABLE project DROP COLUMN untrusted; ALTER TABLE automation_token DROP COLUMN trusted; ALTER TABLE automation_token DROP COLUMN rights; DROP INDEX tool_call_project; ALTER TABLE tool_call DROP COLUMN subject; ALTER TABLE tool_call DROP COLUMN count; ALTER TABLE process DROP COLUMN opens; ALTER TABLE connection DROP COLUMN agent; ALTER TABLE chat_topic DROP COLUMN again_provider; ALTER TABLE chat_topic DROP COLUMN again_note; ALTER TABLE chat_topic DROP COLUMN again_follows; DROP TABLE call_key; ALTER TABLE process DROP COLUMN read_from; ALTER TABLE project DROP COLUMN read_from`,
-		`DELETE FROM goose_db_version WHERE version_id >= 50`,
-	}, harness.BeforeDevices...) {
-		if _, err := st.DB.Exec(q); err != nil {
-			t.Fatalf("%s: %v", q, err)
-		}
-	}
-	st.Close()
-	if st, err = store.Open(path, time.Now, upgrade.Migrations); err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-	var device, cards string
-	var columns int
-	if err := st.DB.QueryRow(`SELECT device, columns, cards FROM layout`).Scan(&device, &columns, &cards); err != nil {
-		t.Fatal(err)
-	}
-	var order []struct{ ID int64 }
-	_ = json.Unmarshal([]byte(cards), &order)
-	var beta int64
-	_ = st.DB.QueryRow(`SELECT id FROM project WHERE name = 'beta'`).Scan(&beta)
-	if device != "" || columns != 0 || len(order) != 2 || order[0].ID != beta {
-		t.Fatalf("the order of the menu is a layout of no device and no columns: %q %d %s", device, columns, cards)
-	}
-	var left int
-	_ = st.DB.QueryRow(`SELECT count(*) FROM setting WHERE key = 'menu_order'`).Scan(&left)
-	if left != 0 {
-		t.Fatal("the setting of the order is gone")
 	}
 }
 

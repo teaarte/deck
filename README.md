@@ -191,22 +191,19 @@ Advanced and the feed say so. On start, deck migrates its database and the store
 in `state/backups/update-<time>.tar.gz`; an older image refuses to start on the migrated base until that snapshot is
 back ([docs/install.md](docs/install.md#restoring-a-snapshot)).
 
-### Updating from v0.1 and v0.2
+### Updating from v0.2 and v0.3
 
-Every release from v0.1.1 on updates to this one with its data: modules and their records, secrets, documents, the
-logins of the CLIs and paired devices (a test updates each released image and the v0.2.2 binary). Before updating, keep
-a copy of the volume or a snapshot (Settings → Advanced): an older deck is not tested on a database a newer one
-migrated.
+Every release from v0.2.0 on updates to this one with its data: modules and their records, secrets, documents, the
+logins of the CLIs and paired devices (a test updates each released image from v0.2.0 and the v0.3.2 binary). Before
+updating, keep a copy of the volume or a snapshot (Settings → Advanced): an older deck is not tested on a database a
+newer one migrated.
 
+- **From v0.1.** This release refuses a database of v0.1 at start and says so in its log. Update to v0.3.2 first, as
+  the README of v0.3.2 says (its image copies the logins of v0.1's volume `agents` into deck's), start it once, then
+  update to this release.
 - **The image, from v0.2.** Update with the install line, which downloads the new `compose.yaml`: after v0.3.1 it runs
   SearXNG beside deck, the search the update assigns. `docker compose pull` alone leaves it out, and the health of
   `model:searxng` says so at the first search.
-- **The image, from v0.1.** v0.1 ran agents as a user `agent` with their logins in a volume `agents`. Update the image
-  first, with the old `compose.yaml`: on its first start the new image copies the logins into deck's volume. deck then
-  starts no foreign program and says why; download the files of the install above, load the profile and run
-  `docker compose up -d` again. The volume `deck_agents` is no longer used: `docker volume rm deck_agents`. A new
-  `compose.yaml` before the new image leaves the logins behind, and the agents need to sign in again. A v0.1 server
-  with a domain has only `DECK_DOMAIN` in `.env`: add `COMPOSE_PROFILES=domain`, or Caddy no longer starts.
 - **The image `deck:local`, built from a checkout.** `sh install.sh` in the checkout: it pulls master, builds
   `deck:local` and restarts deck with it (Settings → Health, the row `update`, says the same).
 - **A released binary.** Settings → Advanced → **Update**: deck checks the signed `release.json`, takes the same build

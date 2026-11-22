@@ -14,6 +14,10 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
+// Widened begins the mark of a project whose agents format 15 let reach the domains of its scripts, the domains its
+// value.
+const Widened = "project:widened:"
+
 // Rights17 is the mark of a workspace whose modules format 17 moved to deck's catalog of rights: what it granted
 // always, whose data may go to the network and whose agents no longer reach it, the text of a note to the owner.
 const Rights17 = "rights:format17"
@@ -571,12 +575,9 @@ func lostNetwork(text string) []string {
 	return m.Domains.Read
 }
 
-// Manifest raises a manifest of an older format a module brings from outside, an import or a starter, to the
-// current one by the steps the stored ones took; any other text as it is. It grants nothing.
-func Manifest(text string) string {
-	text = manifest15(format14(rename(text, true)))
-	return manifest17(manifest16(text, nil), nil)
-}
+// Manifest raises a manifest of format 16 a module brings from outside, an import or a starter, to the current one;
+// any other text as it is. It grants nothing.
+func Manifest(text string) string { return manifest17(text, nil) }
 
 // kindOf is a right as the note of format 17 names it: the network of agents apart from that of programs.
 func kindOf(d decl17) string {

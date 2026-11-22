@@ -17,70 +17,8 @@ import (
 	"deck2/internal/health"
 	deckhome "deck2/internal/home"
 	"deck2/internal/provider"
-	"deck2/internal/store"
-	"deck2/internal/upgrade"
 	"deck2/tests/harness"
 )
-
-// TestTwinsOfAModelMergeIntoTheFirst: models of one connection with the same API name, kind and options become the
-// first of them on upgrade, which takes their agent, assignments, chat topics, processes and sessions.
-func TestTwinsOfAModelMergeIntoTheFirst(t *testing.T) {
-	t.Parallel()
-	path := filepath.Join(t.TempDir(), "deck.db")
-	st, err := store.Open(path, time.Now, upgrade.Migrations)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, q := range append([]string{
-		`INSERT INTO connection (workspace_id, name, url) VALUES (1, 'google', 'http://127.0.0.1:9')`,
-		`INSERT INTO model (workspace_id, connection_id, name, model, options) SELECT 1, id, 'google/flash', 'flash', '{}' FROM connection WHERE name = 'google'`,
-		`INSERT INTO model (workspace_id, connection_id, name, model, options, agent) SELECT 1, id, 'google-flash', 'flash', '{ }', 'goose' FROM connection WHERE name = 'google'`,
-		`INSERT INTO model (workspace_id, connection_id, name, model, options) SELECT 1, id, 'flash-ru', 'flash', '{"language": "ru"}' FROM connection WHERE name = 'google'`,
-		`INSERT INTO assignment (workspace_id, role, models) VALUES (1, 'agent', '["google-flash", "flash-ru", "google/flash"]')`,
-		`INSERT INTO chat_topic (workspace_id, title, model) VALUES (1, 'talk', 'google-flash')`,
-		`INSERT INTO chat_session (topic_id, provider, session_id) SELECT id, 'google-flash', 's1' FROM chat_topic`,
-		`INSERT INTO project (workspace_id, name) VALUES (1, 'work')`,
-		`INSERT INTO process (project_id, command, state, provider) SELECT id, 'run', 'paused', 'google-flash' FROM project WHERE name = 'work'`,
-		`DROP TABLE picture`, `DROP TABLE layout`,
-		`ALTER TABLE file DROP COLUMN thumb_id`, `ALTER TABLE file DROP COLUMN width`, `ALTER TABLE file DROP COLUMN height`,
-		`ALTER TABLE file DROP COLUMN color`,
-		`DROP INDEX process_finished`, `ALTER TABLE process DROP COLUMN allows`, `ALTER TABLE process DROP COLUMN wrote`,
-		`ALTER TABLE process DROP COLUMN submitted_at`,
-		`DROP INDEX feed_line`, `DROP INDEX feed_run`, `ALTER TABLE feed DROP COLUMN line_id`, `ALTER TABLE feed DROP COLUMN what`,
-		`ALTER TABLE connection DROP COLUMN node_id`, `ALTER TABLE model DROP COLUMN project_id`,
-		`ALTER TABLE chat_message DROP COLUMN block`, `ALTER TABLE chat_message DROP COLUMN answer`, `ALTER TABLE chat_message DROP COLUMN answered_at`, `ALTER TABLE model DROP COLUMN tools`, `ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence; DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''; ALTER TABLE tool_call RENAME COLUMN need TO class; ALTER TABLE ask DROP COLUMN shown_at; ALTER TABLE process DROP COLUMN read_untrusted; ALTER TABLE process DROP COLUMN holds_valued; ALTER TABLE project DROP COLUMN untrusted; ALTER TABLE automation_token DROP COLUMN trusted; ALTER TABLE automation_token DROP COLUMN rights; DROP INDEX tool_call_project; ALTER TABLE tool_call DROP COLUMN subject; ALTER TABLE tool_call DROP COLUMN count; ALTER TABLE process DROP COLUMN opens; ALTER TABLE connection DROP COLUMN agent; ALTER TABLE chat_topic DROP COLUMN again_provider; ALTER TABLE chat_topic DROP COLUMN again_note; ALTER TABLE chat_topic DROP COLUMN again_follows; DROP TABLE call_key; ALTER TABLE process DROP COLUMN read_from; ALTER TABLE project DROP COLUMN read_from`,
-		`DELETE FROM goose_db_version WHERE version_id >= 46`,
-	}, harness.BeforeDevices...) {
-		if _, err := st.DB.Exec(q); err != nil {
-			t.Fatalf("%s: %v", q, err)
-		}
-	}
-	st.Close()
-	if st, err = store.Open(path, time.Now, upgrade.Migrations); err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-	var names, agent, models, topic, session, provider string
-	for _, r := range []struct {
-		q   string
-		out *string
-	}{
-		{`SELECT group_concat(name, ',') FROM (SELECT name FROM model WHERE model = 'flash' ORDER BY id)`, &names},
-		{`SELECT agent FROM model WHERE name = 'google/flash'`, &agent},
-		{`SELECT models FROM assignment WHERE role = 'agent'`, &models},
-		{`SELECT model FROM chat_topic`, &topic},
-		{`SELECT provider FROM chat_session`, &session},
-		{`SELECT provider FROM process`, &provider},
-	} {
-		if err := st.DB.QueryRow(r.q).Scan(r.out); err != nil {
-			t.Fatalf("%s: %v", r.q, err)
-		}
-	}
-	if names != "google/flash,flash-ru" || agent != "goose" || models != `["google/flash","flash-ru"]` ||
-		topic != "google/flash" || session != "google/flash" || provider != "google/flash" {
-		t.Fatalf("a twin merges into the first, one with its own options stays: %s %s %s %s %s %s", names, agent, models, topic, session, provider)
-	}
-}
 
 // TestAnAssignmentTakesItsFallbackWhileTheFirstIsDown: a new turn of a project starts on the first provider of
 // its assignment, and on the next one while the first is red, waiting for a login or paused by a limit.

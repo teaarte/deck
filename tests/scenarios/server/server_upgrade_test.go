@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/app"
 	deckhome "deck2/internal/home"
 	"deck2/tests/harness"
 )
@@ -16,10 +17,10 @@ import (
 // olderBase takes the base of e back to an older deck's, which the next start migrates.
 func olderBase(e *harness.Env) {
 	e.T.Helper()
-	for _, q := range harness.BeforePasskeys {
-		// The base of a deck before passkeys, to be migrated.
-		e.SQL(q)
-	}
+	// The base of a deck before where untrusted text came from was data, to be migrated.
+	e.SQL(`ALTER TABLE process DROP COLUMN read_from; ALTER TABLE project DROP COLUMN read_from`)
+	// The migration of the base, which deck shows nowhere.
+	e.SQL(`DELETE FROM goose_db_version WHERE version_id >= 92`)
 }
 
 // TestAnUpdateKeepsTheBaseItMigrates: a start that migrates the base first keeps it in a snapshot of its own, and the
@@ -110,4 +111,22 @@ func TestAnOlderDeckStartsNotOnABaseANewerOneMigrated(t *testing.T) {
 		}
 	}
 	t.Logf("%s", out)
+}
+
+// TestABaseOfADeckBeforeV02DoesNotStart: deck updates from v0.2.0 on; a base of v0.1 is refused before it is touched,
+// with the way through v0.3.2, and keeps no snapshot.
+func TestABaseOfADeckBeforeV02DoesNotStart(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	home := e.App.Cfg.Home
+	// The last migration of v0.1.1, which deck shows nowhere.
+	e.SQL(`DELETE FROM goose_db_version WHERE version_id > 53`)
+	e.Stop()
+	_, err := app.New(app.Config{Home: home}, &harness.Fake{})
+	if err == nil || !strings.Contains(err.Error(), "before v0.2.0 (migration 53)") || !strings.Contains(err.Error(), "update it to v0.3.2 first") {
+		t.Fatalf("a base of v0.1 is refused with the way through v0.3.2: %v", err)
+	}
+	if snaps, _ := filepath.Glob(filepath.Join(deckhome.Layout(home).State(), "backups", "update-*")); len(snaps) != 0 {
+		t.Fatalf("a refused base keeps no snapshot: %v", snaps)
+	}
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"deck2/internal/manifest"
 	"deck2/internal/store"
 	"deck2/tests/harness"
 )
@@ -319,4 +320,25 @@ func TestAZipThatLeavesItsFolderIsRefused(t *testing.T) {
 	}
 	e.Refused("deck.project_import", map[string]any{}, 422, "folder, file or starter")
 	e.Refused("deck.project_import", map[string]any{"file": "not-a-zip"}, 404, "no uploaded file")
+}
+
+// TestAnImportRaisesFormat16AndRefusesAnOlderOne: a module exported by v0.2 or v0.3 imports in the current format; one
+// of before v0.2 is refused with the version it has.
+func TestAnImportRaisesFormat16AndRefusesAnOlderOne(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	for v, want := range map[string]int{"16": 200, "15": 422, "14": 422} {
+		dir := t.TempDir()
+		m := `{"version": ` + v + `, "domains": {"read": ["example.com"]}}`
+		_ = os.WriteFile(filepath.Join(dir, "manifest.json"), []byte(m), 0o644)
+		code, out := e.Call("deck.project_import", map[string]any{"folder": dir, "name": "of" + v})
+		if code != want || want == 422 && !strings.Contains(string(out), "got "+v) {
+			t.Fatalf("format %s: want %d, got %d %s", v, want, code, out)
+		}
+	}
+	var doc struct{ Text string }
+	e.Must("deck.document_get", map[string]any{"project": "of16", "name": "manifest.json"}, &doc)
+	if !strings.Contains(doc.Text, fmt.Sprintf(`"version": %d`, manifest.FormatVersion)) || !strings.Contains(doc.Text, "example.com") {
+		t.Fatalf("the module of format 16 is stored in the current one with its network: %s", doc.Text)
+	}
 }

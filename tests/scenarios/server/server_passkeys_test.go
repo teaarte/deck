@@ -193,65 +193,6 @@ func TestOnePasskeySignsInEachBrowserAsADeviceOfItsOwn(t *testing.T) {
 	e.Must("deck.menu_get", map[string]any{}, nil)
 }
 
-// TestTheSessionsOfADeviceBeforePasskeysSettleOnTheirBrowsers: of two sessions an older deck put on one device, the
-// first browser to call keeps the device, the other gets its own, neither its pushes; one of pushes only stays one.
-func TestTheSessionsOfADeviceBeforePasskeysSettleOnTheirBrowsers(t *testing.T) {
-	t.Parallel()
-	e := harness.New(t)
-	mac, macCookie := pairSecond(t, e, "MacBook")
-	phoneCookie, err := pairLink(t, e, mac.Synced())
-	if err != nil {
-		t.Fatal(err)
-	}
-	ds := browsers(t, e)
-	m, p := named(ds, "MacBook"), ds[len(ds)-1]
-	// The deck before kept the phone's session on the device of the passkey it signed in with.
-	e.SQL(`UPDATE session SET device_id = ? WHERE device_id = ?`, m.ID, p.ID)
-	// Nor had it a device of the phone.
-	e.SQL(`DELETE FROM device WHERE id = ?`, p.ID)
-	// One of the two browsers took the pushes of the device.
-	e.SQL(`UPDATE device SET push_endpoint = 'https://push.example/one', push_p256dh = 'k', push_auth = 'a' WHERE id = ?`, m.ID)
-	// Pushes subscribed before passkeys stayed a device with no passkey.
-	e.SQL(`INSERT INTO device (workspace_id, kind, name, push_endpoint, push_p256dh, push_auth) VALUES (1, 'browser', 'old phone', 'https://push.example/old', 'k', 'a')`)
-	for _, q := range harness.BeforePasskeys {
-		// A base of a deck whose devices kept their passkeys.
-		e.SQL(q)
-	}
-	e = e.Restart()
-
-	ds = browsers(t, e)
-	if d := named(ds, "MacBook"); d.ID != m.ID || d.PasskeyID != m.ID || d.Passkey != "MacBook" {
-		t.Fatalf("the device keeps its passkey, of the same id: %+v", ds)
-	}
-	if d := named(ds, "old phone"); d.ID == 0 || d.Passkey != "" || d.PasskeyID != 0 || !d.Push || d.Revoked {
-		t.Fatalf("a device of pushes only stays one with no passkey: %+v", ds)
-	}
-	var on []browserDevice
-	e.Signed(macCookie).Must("deck.devices_list", map[string]any{}, &on)
-	if !named(on, "MacBook").This {
-		t.Fatalf("the first browser to call keeps the device: %+v", on)
-	}
-	e.Signed(phoneCookie).Must("deck.devices_list", map[string]any{}, &on)
-	i := slices.IndexFunc(on, func(d browserDevice) bool { return d.This })
-	if i < 0 || on[i].ID == m.ID || on[i].PasskeyID != m.ID || len(on) != len(ds)+1 {
-		t.Fatalf("the other browser gets a device of its own by the same passkey: %+v", on)
-	}
-	e.Signed(phoneCookie).Must("deck.devices_list", map[string]any{}, &on)
-	if len(on) != len(ds)+1 {
-		t.Fatalf("a session settles once: %+v", on)
-	}
-	if named(on, "MacBook").Push || on[i].Push {
-		t.Fatalf("the pushes of a device two browsers shared stop, as either may have had them: %+v", on)
-	}
-	e.Must("deck.device_revoke", map[string]any{"device": on[i].ID}, nil)
-	if code, _ := e.Signed(phoneCookie).Call("deck.menu_get", map[string]any{}); code != 401 {
-		t.Fatalf("the phone's device is revoked alone: %d", code)
-	}
-	if code, out := e.Signed(macCookie).Call("deck.menu_get", map[string]any{}); code != 200 {
-		t.Fatalf("the Mac stays signed in: %d %s", code, out)
-	}
-}
-
 // TestTheOwnerRenamesAPasskeyAndStopsThePushesOfADevice: a passkey takes the name the owner gives it, a device stops
 // getting pushes while it stays signed in; an empty name and a passkey or device that is not there are refused.
 func TestTheOwnerRenamesAPasskeyAndStopsThePushesOfADevice(t *testing.T) {

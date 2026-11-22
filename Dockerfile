@@ -42,31 +42,18 @@ RUN apt-get update \
     && mkdir -p /var/lib/deck && chown deck:deck /var/lib/deck && chmod 700 /var/lib/deck
 COPY --from=uv /uv /uvx /usr/local/bin/
 COPY --from=build /out/deck /usr/local/bin/deck
-# The image starts as root only to give deck its volume once, files v0.1's user agent left among them, and to copy
-# the logins of v0.1's volume /home/agent into deck's; deck runs as deck.
+# The image starts as root only to give deck its volume once; deck runs as deck.
 COPY --chmod=755 <<'EOF' /usr/local/bin/deck-start
 #!/bin/sh
 set -eu
-old=/home/agent mark="$DECK_HOME/state/owned"
+mark="$DECK_HOME/state/owned"
 if [ "$(id -u)" != 0 ]; then
-  [ ! -d "$old" ] || echo "deck-start: not root, so the logins in $old stay where they are" >&2
   exec /usr/local/bin/deck "$@"
 fi
 mkdir -p "$DECK_HOME"
 if [ ! -e "$mark" ]; then
   find "$DECK_HOME" ! -user deck -exec chown -h deck:deck {} +
   setpriv --reuid=deck --regid=deck --init-groups sh -c 'mkdir -p "$(dirname "$1")" && touch "$1"' - "$mark"
-fi
-if [ -d "$old" ]; then
-  find "$old" ! -user deck -exec chown -h deck:deck {} +
-  for f in claude/.claude/.credentials.json codex/.codex/auth.json codex/.codex/config.toml; do
-    login="$DECK_HOME/agents/${f%%/*}/login"
-    if [ -f "$old/${f#*/}" ] && [ ! -e "$login/${f##*/}" ]; then
-      setpriv --reuid=deck --regid=deck --init-groups sh -c 'mkdir -p "$1" && cp "$2" "$1/"' - "$login" "$old/${f#*/}"
-    fi
-  done
-  # deck copies the sessions that may go on from the old homes of the CLIs into the homes of their projects.
-  for d in .claude .codex; do if [ -d "$old/$d" ]; then ln -sfn "$old/$d" "$HOME/$d"; fi; done
 fi
 exec setpriv --reuid=deck --regid=deck --init-groups /usr/local/bin/deck "$@"
 EOF

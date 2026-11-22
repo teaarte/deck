@@ -84,28 +84,3 @@ func docKind(name string) string {
 	}
 	return docs.KindDoc
 }
-
-// BeforeDevices takes a base back to before the devices of the owner, when pushes had subscriptions of their own.
-var BeforeDevices = []string{`DROP TABLE session`, `DROP TABLE device`, `DROP TABLE passkey`,
-	`CREATE TABLE push_subscription (id INTEGER PRIMARY KEY AUTOINCREMENT, workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
-	device TEXT NOT NULL, endpoint TEXT NOT NULL UNIQUE, p256dh TEXT NOT NULL, auth TEXT NOT NULL,
-	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')))`}
-
-// BeforePasskeys takes a base back to before passkeys were apart from devices, when a device kept its passkey and
-// every session of it.
-var BeforePasskeys = []string{`CREATE TABLE device_old (id INTEGER PRIMARY KEY AUTOINCREMENT,
-	workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE, kind TEXT NOT NULL CHECK (kind IN ('browser', 'node')),
-	name TEXT NOT NULL, rp_id TEXT NOT NULL DEFAULT '', credential_id BLOB UNIQUE, user_handle BLOB, credential TEXT NOT NULL DEFAULT '',
-	push_endpoint TEXT UNIQUE, push_p256dh TEXT NOT NULL DEFAULT '', push_auth TEXT NOT NULL DEFAULT '',
-	created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')), seen_at TEXT, revoked_at TEXT)`,
-	`INSERT INTO device_old SELECT d.id, d.workspace_id, d.kind, d.name, COALESCE(k.rp_id, ''), k.credential_id, k.user_handle,
-	COALESCE(k.credential, ''), d.push_endpoint, d.push_p256dh, d.push_auth, d.created_at, d.seen_at, d.revoked_at
-	FROM device d LEFT JOIN passkey k ON k.id = d.passkey_id`,
-	`CREATE TABLE session_old (hash TEXT PRIMARY KEY, device_id INTEGER NOT NULL REFERENCES device_old(id) ON DELETE CASCADE,
-	created_at TEXT NOT NULL, seen_at TEXT NOT NULL)`,
-	`INSERT INTO session_old SELECT hash, device_id, created_at, seen_at FROM session`,
-	`DROP TABLE session`, `DROP TABLE device`, `DROP TABLE passkey`,
-	`ALTER TABLE device_old RENAME TO device`, `ALTER TABLE session_old RENAME TO session`,
-	`ALTER TABLE connection DROP COLUMN node_id`, `ALTER TABLE model DROP COLUMN project_id`,
-	`ALTER TABLE chat_message DROP COLUMN block`, `ALTER TABLE chat_message DROP COLUMN answer`, `ALTER TABLE chat_message DROP COLUMN answered_at`, `ALTER TABLE model DROP COLUMN tools`, `ALTER TABLE chat_topic DROP COLUMN lang; ALTER TABLE process RENAME COLUMN wait_until_ms TO pause_until_ms; ALTER TABLE process DROP COLUMN wait_reason; ALTER TABLE process DROP COLUMN wait_on; ALTER TABLE process DROP COLUMN wait_silence; DROP TABLE right_grant; ALTER TABLE project ADD COLUMN granted_revision INTEGER; ALTER TABLE mcp_tool ADD COLUMN approved TEXT NOT NULL DEFAULT ''; ALTER TABLE tool_call RENAME COLUMN need TO class; ALTER TABLE ask DROP COLUMN shown_at; ALTER TABLE process DROP COLUMN read_untrusted; ALTER TABLE process DROP COLUMN holds_valued; ALTER TABLE project DROP COLUMN untrusted; ALTER TABLE automation_token DROP COLUMN trusted; ALTER TABLE automation_token DROP COLUMN rights; DROP INDEX tool_call_project; ALTER TABLE tool_call DROP COLUMN subject; ALTER TABLE tool_call DROP COLUMN count; ALTER TABLE process DROP COLUMN opens; ALTER TABLE connection DROP COLUMN agent; ALTER TABLE chat_topic DROP COLUMN again_provider; ALTER TABLE chat_topic DROP COLUMN again_note; ALTER TABLE chat_topic DROP COLUMN again_follows; DROP TABLE call_key; ALTER TABLE process DROP COLUMN read_from; ALTER TABLE project DROP COLUMN read_from`,
-	`DELETE FROM goose_db_version WHERE version_id >= 61`}

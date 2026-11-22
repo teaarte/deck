@@ -801,3 +801,7 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   Modules: take `cover_draw`, `theme_draw` and `widget_draw` of deck out of `calls`; a button of them calls
   `deck.chat_send` with the request in words (only the owner's press may: it is not a command for agents or scripts);
   a literal phrase a button gives to a text field of a deck command is now translated by the module's `i18n`.
+- 2026-11-22: deck updates from v0.2.0 and later; a base of v0.1 is refused at start with the advice to update to
+  v0.3.2 first. `deck.project_import` raises a manifest of format 16 to 17 and refuses an older one, as it refuses any
+  format it does not read.
+  Modules: a module exported before v0.2 (format 13–15) — rewrite its manifest to the current format before import.

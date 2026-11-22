@@ -114,15 +114,31 @@ type App struct {
 	mods                      modules
 }
 
-// New starts deck with its built-in providers, the main one first; those of providers.Build when none.
+// New starts deck with its built-in providers, the main one first; those of providers.Build when none: Wire, then
+// Upgrade, then what deck says of itself; Start is the first tick.
 func New(cfg Config, builtin ...provider.Provider) (*App, error) {
-	cfg.defaults()
-	if len(builtin) == 0 {
-		builtin = providers.Build(cfg.Home, cfg.Sandbox)
+	a, err := wire(cfg, builtin...)
+	if err != nil {
+		return nil, err
 	}
+	if err := a.upgrade(a.ctx); err != nil {
+		return nil, err
+	}
+	if err := a.settle(a.ctx); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+// wire opens deck's folder and base, migrating it, and builds every service from the functions of the others.
+func wire(cfg Config, builtin ...provider.Provider) (*App, error) {
 	h, err := home.Open(cfg.Home)
 	if err != nil {
 		return nil, err
+	}
+	cfg.defaults()
+	if len(builtin) == 0 {
+		builtin = providers.Build(cfg.Home, cfg.Sandbox)
 	}
 	cfg.Sandbox.Reap()
 	st, err := store.Open(h.DB(), cfg.Now, upgrade.Migrations, upgrade.Floored, snapshots.BeforeUpdate(h, cfg.Now))
@@ -249,48 +265,34 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.addBuiltins()
 	a.Browser.Load()
 	a.Asks.OnLateAnswer(a.Answers.LateAnswer)
-	if err := a.Secrets.Move(a.ctx); err != nil {
-		return nil, err
-	}
-	// Sessions that did not move go on as new sessions with what deck tells them; deck starts all the same.
-	if err := a.Providers.MoveSessions(a.ctx); err != nil {
-		slog.Error("move sessions", "err", err)
-	}
-	if err := a.Documents.SeedSkills(a.ctx); err != nil {
-		return nil, err
-	}
-	if err := a.Projects.SeedMaster(a.ctx); err != nil {
-		return nil, err
-	}
-	a.Projects.CheckManifests(a.ctx)
-	a.Themes.Settle(a.ctx)
-	a.Models.Prune(a.ctx, 0, nil)
-	a.Models.KeepBigOptions(a.ctx)
+	return a, nil
+}
+
+// settle makes deck follow its bus and writes what it says of itself at the start: derived health, the update it
+// took, the box and the scripts.
+func (a *App) settle(ctx context.Context) error {
 	a.Models.Follow(a.Bus)
 	a.Health.Follow(a.Bus)
 	a.Answers.Follow(a.Bus)
 	a.Answers.FollowClosed(a.Bus)
 	a.Files.Follow(a.Bus)
 	a.Owners.FollowNodes(a.Bus)
-	a.Health.Derive(a.ctx, 0, nil)
-	if err := a.Updates.Mark(a.ctx); err != nil {
-		return nil, err
+	a.Health.Derive(ctx, 0, nil)
+	if err := a.Updates.Mark(ctx); err != nil {
+		return err
 	}
-	if err := st.Tx(a.ctx, func(ctx context.Context, q *db.Queries) error { return health.Clear(ctx, q, health.Of{}, health.HTTPS) }); err != nil {
-		return nil, err
+	if err := a.Store.Tx(ctx, func(ctx context.Context, q *db.Queries) error { return health.Clear(ctx, q, health.Of{}, health.HTTPS) }); err != nil {
+		return err
 	}
 	box, boxText := a.Documents.Box()
 	status, text := script.Health()
 	if box == health.Error {
 		status, text = health.Error, fmt.Sprintf("%s No script runs while deck cannot build the box of foreign programs: see the row sandbox.", text)
 	}
-	if err := health.Write(a.ctx, a.Store, health.Of{}, health.Scripts, status, text); err != nil {
-		return nil, err
+	if err := health.Write(ctx, a.Store, health.Of{}, health.Scripts, status, text); err != nil {
+		return err
 	}
-	if err := health.Write(a.ctx, a.Store, health.Of{}, health.Sandbox, box, boxText); err != nil {
-		return nil, err
-	}
-	return a, nil
+	return health.Write(ctx, a.Store, health.Of{}, health.Sandbox, box, boxText)
 }
 
 // Close interrupts running providers; their processes stay running and resume on the next start.

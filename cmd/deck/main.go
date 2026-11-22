@@ -103,10 +103,10 @@ func run() (*release.Restart, error) {
 		return nil, err
 	}
 	defer lock.Close()
-	if err := os.Chmod(deckhome.Layout(home).State(), 0o700); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := os.Chmod(layout.State(), 0o700); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
-	if err := pending(deckhome.Layout(home)); err != nil {
+	if err := pending(layout); err != nil {
 		return nil, err
 	}
 	ln, sideLn, err := listenPair(*addr)

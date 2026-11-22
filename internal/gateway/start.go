@@ -13,6 +13,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/untrusted"
 )
 
 // Start asks before a run starts for its CLI's login, then the network of who (agents or programs) in one request, or
@@ -178,6 +179,14 @@ func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command 
 		f.As, f.Need, f.More, f.Offers = AsStart, &n, needs[1:], []string{manifest.Always, manifest.No}
 		if act.ProcessID != 0 {
 			f.Offers = append([]string{Work}, f.Offers...)
+			p, err := q.GetProcess(ctx, act.ProcessID)
+			if err != nil {
+				return db.Ask{}, err
+			}
+			if p.ReadUntrusted != "" {
+				// A run that holds text from outside is let through once.
+				f.Read, f.From, f.Offers = untrusted.Cut(p.ReadUntrusted, 300), fromOf(p.ReadFrom), []string{manifest.No}
+			}
 		}
 		f.Reason = act.Why
 		var lines []string

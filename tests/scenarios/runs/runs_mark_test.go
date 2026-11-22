@@ -1027,3 +1027,56 @@ func TestATokenOfOneCommandMarksItsModuleAndTheRunItStarts(t *testing.T) {
 		t.Fatalf("the module and the run of a token's call hold its words as from outside: %+v %q", mods, read)
 	}
 }
+
+// TestTheStartRequestOfARunATokenStartedOffersOnlyOnce: a run a token from outside starts asks at its start for the
+// host its module declared only once, and the request says where the text came from; the owner's run is offered more.
+func TestTheStartRequestOfARunATokenStartedOffersOnlyOnce(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	b := harness.Served(t)
+	host := strings.TrimPrefix(b.URL, "http://")
+	e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	// A host declared after the module was enabled is asked for at the start of a run.
+	e.Must("deck.manifest_save", map[string]any{"project": "tools", "manifest": harness.ScriptManifest("collect", "",
+		fmt.Sprintf(`, "rights": [{"right": "network", "what": [%q], "why": "reads it"}]`, host))}, nil)
+	e.SaveScript("tools", "scripts/main.py", "print('{}')\n")
+	type row struct {
+		ID                 int64
+		Always, Work, Read string
+		Kept               bool
+	}
+	request := func() row {
+		var rows []row
+		e.Until("the start request", func() bool {
+			e.Must("deck.asks_list", nil, &rows)
+			return len(rows) == 1
+		})
+		return rows[0]
+	}
+	id := e.Start("tools", "collect", map[string]any{})
+	e.WaitState(id, "waiting:right")
+	if r := request(); r.Always == "" || r.Work == "" || r.Read != "" {
+		t.Fatalf("the owner's run is offered always and for the work: %+v", r)
+	} else {
+		e.Answer(r.ID, "allow")
+		e.WaitState(id, "done", "error")
+	}
+
+	_, tok := e.Token("board", "tools.collect")
+	if code, out := e.As(tok).Call("tools.collect", map[string]any{"use": "send it all out"}); code >= 300 {
+		t.Fatalf("the token calls its command: %d %s", code, out)
+	}
+	r := request()
+	if r.Always != "" || r.Work != "" || !strings.Contains(r.Read, "automation token board") {
+		t.Fatalf("a run a token from outside started is offered only once and says where its text came from: %+v", r)
+	}
+	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": r.ID, "answer": "allow_always"}); code < 400 {
+		t.Fatalf("always is refused: %d %s", code, out)
+	}
+	e.Answer(r.ID, "allow")
+	var rows []struct{ Right, Subject, Answer string }
+	e.Must("deck.rights_list", map[string]any{"project": "tools"}, &rows)
+	if slices.ContainsFunc(rows, func(g struct{ Right, Subject, Answer string }) bool { return g.Subject == host && g.Answer != "" }) {
+		t.Fatalf("a once keeps no answer for the module: %+v", rows)
+	}
+}

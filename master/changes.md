@@ -780,3 +780,7 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
 - 2026-11-22: A run an automation token from outside starts holds the token's words as text from outside ("the input
   of automation token …"), and its module is marked by the call, also for a token that holds one command of it.
   Modules: nothing to change.
+- 2026-11-22: The request a run makes as it starts (a host or login it needs) offers only "once" when the run holds
+  text from outside deck (started by an automation token from outside, or by a marked parent), and says where that
+  text came from.
+  Modules: nothing to change.

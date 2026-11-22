@@ -6123,7 +6123,8 @@
         "documents",
         "settings",
         "files",
-        "triggers"
+        "triggers",
+        "assignments"
       ],
       "traits": [
         "fields:fields,lang",

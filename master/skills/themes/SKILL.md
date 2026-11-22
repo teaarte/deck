@@ -1,6 +1,6 @@
 ---
 name: themes
-description: Makes, changes, checks and deletes the themes of deck — colors of both schemes, fonts, radii, the look of buttons, cards, the cards of modules, islands, fields, badges, notifications, menus, dialogs, tabs and chat bubbles, a little CSS, the mood of pictures and the pictures of the theme. Use when the owner asks for a new look of deck, a theme, colors, fonts, a background or a style for covers.
+description: Makes, changes, checks and deletes the themes of deck — colors of both schemes, fonts, radii, the look of buttons, cards, the cards of modules, islands, fields, badges, notifications, menus, dialogs, tabs and chat bubbles, a little CSS, the mood of pictures and the pictures of the theme, and draws the covers of modules and the pictures of a theme. Use when the owner asks for a new look of deck, a theme, colors, fonts, a background, a style for covers, or to draw covers or the pictures of a theme.
 ---
 
 # Themes of deck
@@ -55,7 +55,8 @@ the page; or `pattern`, a seamless square tile repeated behind it, `pattern-size
 behind everything. The owner's button "Draw the background" in Look asks for them in the chat. `deck.theme_get`
 without a name is the theme in use: its title, `mood` and schemes (`dark` only, or both). For each scheme draw the
 cockpit and, as fits the mood, a backdrop or a pattern with `deck.model_call` of kind image — the model the owner
-names, else the models of kind image deck assigns when you name none — then set each with `deck.theme_image_set`
+names; else the models assigned to image, which the call takes when you name none; with none assigned, a free image
+model of `deck.models_list`, one of the owner's machine (`local`) first — then set each with `deck.theme_image_set`
 (theme, slot, scheme, the file as `results/<the name the call gave>`). `deck.theme_check` checks the words of Today
 over the cockpit by its main color; look at the tiles with `screen_capture` after.
 
@@ -63,8 +64,8 @@ over the cockpit by its main color; look at the tiles with `screen_capture` afte
 
 A cover is the picture of a module's card, one for the light scheme and one for the dark, kept for a theme. The
 owner's buttons ask for them in the chat: "Draw a cover" of a module — the module is the `project` of the screen of
-the message — and "Draw the missing covers" in Look, for every module that has none in the theme in use
-(`deck.projects_list`, then `deck.project_covers_list` of each: a theme and scheme without a cover). Draw each in
+the message — and "Draw the missing covers" in Look, for every module but the built-in ones that has none in the
+theme in use (`deck.projects_list`, then `deck.project_covers_list` of each: a theme and scheme without a cover). Draw each in
 the `mood` of the theme in use (`deck.theme_get`), with what the owner wished, by `deck.model_call` of kind image as
 above, then set it with `deck.project_cover_set` (project, theme, scheme light or dark, the file as
 `results/<the name the call gave>`). A theme of one scheme needs only that one.

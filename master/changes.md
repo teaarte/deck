@@ -795,6 +795,8 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   the pictures of a theme and the view of a card send the owner's words to the master in the chat
   (`deck.chat_send`), and how to draw is the master's skills `themes` and `widgets`; the size of a card comes as
   `size` in the screen of the message. A text a button gives to a field of format `text` of a command of deck (such
-  as `text` of `deck.chat_send` or of `deck.model_call`) is said in the owner's language when deck's words know it.
+  as `text` of `deck.chat_send` or of `deck.model_call`) is said in the owner's language when it is a phrase deck's
+  words know. The wish and the image model the dialogs of a cover asked for the owner now says in the chat; with no
+  model named or assigned to image, the master takes a free image model, a local one first, as deck did.
   Modules: a command whose `calls` name `cover_draw`, `theme_draw` or `widget_draw` of deck calls
   `deck.chat_send` with the request in words instead; a button of them does the same.

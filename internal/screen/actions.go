@@ -66,12 +66,12 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		failed = cmp.Or(failed, err)
 		return out
 	}
-	// params leave out a value an expression leaves empty, such as the project of a row of the machine; a text given to
-	// a field of format text of a command of deck is said in the owner's language.
+	// params leave out a value an expression leaves empty, such as the project of a row of the machine; a phrase given
+	// to a field of format text of a command of deck is said in the owner's language.
 	params := func(types map[string]string, texts []string) map[string]any {
 		out := map[string]any{}
 		for k, v := range a.Params {
-			if !strings.HasPrefix(v, "=") && slices.Contains(texts, k) {
+			if !strings.HasPrefix(v, "=") && strings.Contains(v, " ") && slices.Contains(texts, k) {
 				v = r.tr(v)
 			}
 			p, err := manifest.Resolve(v, types[k], env)

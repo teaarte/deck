@@ -216,7 +216,7 @@ func (s *Service) menuCommands() []*registry.Command {
 	return []*registry.Command{
 		registry.Read("menu_get", "Menu",
 			"Lists the screens to navigate: deck's own, then each project's menu.",
-			registry.OwnerSide, s.menu).On(events.Projects, events.Documents, events.Settings, events.Files, events.Triggers).
+			registry.OwnerSide, s.menu).On(events.Projects, events.Documents, events.Settings, events.Files, events.Triggers, events.Assignments).
 			Follows(registry.Deck("asks_list"), registry.Deck("processes_list"), registry.Deck("health_list"), registry.Deck("feed_list")),
 	}
 }

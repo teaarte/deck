@@ -22,7 +22,7 @@ const Floor = 64
 func Floored(from, _ int64, _ func(string) error) error {
 	if from < Floor {
 		return fmt.Errorf("the base was left by a deck before v0.2.0 (migration %d): update it to v0.3.2 first, then to this "+
-			"release (docs/install.md, \"Updating\")", from)
+			"release (docs/install.md, \"Updating from an older release\")", from)
 	}
 	return nil
 }

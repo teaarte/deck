@@ -208,7 +208,7 @@ func checkVersion(conn *sql.DB, up *goose.Provider, path string, before []Before
 	}
 	for _, b := range before {
 		if err := b(from, last, backup); err != nil {
-			return fmt.Errorf("keep the base before it is migrated: %w", err)
+			return fmt.Errorf("before the base is migrated: %w", err)
 		}
 	}
 	return nil

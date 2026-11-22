@@ -99,6 +99,13 @@ homes of the CLIs, and its tailnet's state.
 
 To go back, `docker compose down` and start the old binary on `~/.deck2`, which the move leaves as it was.
 
+## Updating from an older release
+
+deck updates from v0.2.0 and later. A database of v0.1 is refused at start, before anything touches it, with the
+advice in the log: update to v0.3.2 first, start it once, then update on. A binary of v0.1 updates to v0.3.2 by hand
+first. The floor rises only by a decision of its own, not with every minor release. How each kind of install updates:
+README, "Updating".
+
 ## Restoring a snapshot
 
 deck keeps its snapshots in its volume, `state/backups/`: `deck-<time>.tar.gz` daily and by hand, `deleted-<time>`
@@ -159,7 +166,3 @@ binary in place and restarts; the agents go on in their sessions. If the new ver
 next start goes back to the old one; if a signature or a sha256 does not match, deck stays as it is. A deck built from
 source calls itself `dev`, offers no updates, and is updated with `git pull` and `go build`, or, built into the image `deck:local`, with `sh install.sh` in its checkout. On start, deck migrates
 its database and the stored manifests.
-
-**The floor of updates.** deck updates from v0.2.0 and later. A database of v0.1 is refused at start, before anything
-touches it, with the advice in the log: update to v0.3.2 first, start it once, then update on. A binary of v0.1
-updates to v0.3.2 by hand first. The floor rises only by a decision of its own, not with every minor release.

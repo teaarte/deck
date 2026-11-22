@@ -211,11 +211,8 @@ func startMarked(ctx context.Context, q *db.Queries, f Frozen) (Frozen, error) {
 
 // Fresh is a frozen call as the owner answers it now: the request of a run's start that its run holds text from
 // outside since offers once alone.
-func (g *Gateway) Fresh(ctx context.Context, f Frozen) Frozen {
-	if fresh, err := startMarked(ctx, g.st.Q, f); err == nil {
-		return fresh
-	}
-	return f
+func (g *Gateway) Fresh(ctx context.Context, f Frozen) (Frozen, error) {
+	return startMarked(ctx, g.st.Q, f)
 }
 
 func projectOf(ctx context.Context, g *Gateway, act registry.Actor) string {

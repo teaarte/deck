@@ -194,7 +194,8 @@ func TestAToolGoesOnlyToTheHostItsManifestWrites(t *testing.T) {
 	if code, out := e.Call("named.plain", map[string]any{}); code != 403 || !strings.Contains(string(out), "not a public address") {
 		t.Fatalf("a name of the owner's machine is refused: %d %s", code, out)
 	}
-	if n := len(api.Calls()); n != 0 {
+	// Another test's deck may still call a port its server freed, which this server may hold now.
+	if n := len(slices.DeleteFunc(api.Calls(), func(c harness.ModelCall) bool { return c.Path != "/v1/plain" })); n != 0 {
 		t.Fatalf("the refused call reached nothing: %d", n)
 	}
 	_, port, _ := net.SplitHostPort(strings.TrimPrefix(api.URL, "http://"))

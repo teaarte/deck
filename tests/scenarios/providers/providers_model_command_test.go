@@ -285,10 +285,9 @@ func TestAModelThatDoesNotAnswerIsRedWhileItsFallbackWorks(t *testing.T) {
 			return 200, "application/json", `{"data": [{"b64_json": "iVBORw0KGgo="}]}`
 		},
 	})
-	down := httptest.NewServer(http.NotFoundHandler())
-	down.Close()
 	e := harness.New(t, harness.WithClock())
-	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": down.URL + "/v1", "local": true}, nil)
+	// A port below those the system hands out, which no test's server is given: the connection is refused.
+	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": "http://127.0.0.1:1/v1", "local": true}, nil)
 	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": cloud.URL + "/api/v1"}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
 	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.04}, nil)

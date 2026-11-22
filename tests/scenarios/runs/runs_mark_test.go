@@ -1173,7 +1173,7 @@ func TestThePressThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 	}
 	as := asksOf(e)
 	if len(as) != 3 || as[0]["module"] != "tyres" || as[1]["module"] != "master" || as[2]["module"] != "site" {
-		t.Fatalf("a request for another module and one for the master: %+v", as)
+		t.Fatalf("a request each for another module, the master and its custom block: %+v", as)
 	}
 	var d struct{ Text string }
 	e.Must("deck.document_get", map[string]any{"project": "site", "name": "prompt.md"}, &d)

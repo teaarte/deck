@@ -39,13 +39,17 @@ A map of the packages: what each owns and the one place to look for a kind of th
 hold; look inside a package for the rest.
 
 - `cmd/deck` — entry point and flags.
-- `internal/app` — the wiring only: `New` builds every service from the functions of the others (a test checks none
-  is left unset), registers their commands and collects those of modules (`modules.go`), runs `Start`, `Loop` and `Tick` (the harness starts and ticks deck by the same two); background work goes through `Go(func(ctx)) bool`.
+- `internal/app` — the wiring only: `New` is `wire` (deck's folder first, the base opened and migrated, every service
+  built from the functions of the others — a test checks none is left unset — and deck's commands built once,
+  `builtins.go`), `upgrade` (the steps of the start in one table with their error policy, `upgrade.go`) and `settle`
+  (what deck follows and says of itself); `Start` is the first tick, `Loop` and `Tick` the rest (the harness starts and
+  ticks deck by the same two); it collects the commands of modules (`modules.go`); background work goes through
+  `Go(func(ctx)) bool`.
   Each domain is a package `app/<area>` with a `Service` of narrow dependencies and `Commands()`; no domain imports
   `internal/app`. Who may touch what is `internal/access`. Deck's screens are data in `app/screens/shipped/` (a file a
   screen). `app/models` — the assignments and the list of models, the route and the call of a model (they
-  import `internal/gateway` and `internal/process`, so they cannot sit by the proxy in its layer; connections and
-  models are set in `app/providers`); `app/web` — `web_search`, `web_fetch`;
+  import `internal/gateway` and `internal/process`, so they cannot sit by the proxy `internal/modelproxy` in its layer;
+  connections and models are set in `app/providers`); `app/web` — `web_search`, `web_fetch`;
   `app/project` — a project, its manifest and save checks, its import as a draft and its readiness; `app/rights` — the
   rights of modules, the owner's answers and their report; `app/modules` — a module as a folder, a .zip, a starter, its
   data.
@@ -57,9 +61,9 @@ hold; look inside a package for the rest.
   not written in Go is `registry.Loose`, the policy of the gateway `Command.Gate`; deck's commands are named
   `<entity>_<verb>` (`_list`, `_get`, `_delete`, `_revoke`), a name of one only through `registry.Deck`/`IsBuiltin`;
   the reserved fields of an input (`retry_key`, `allows`) only the registry adds and takes out.
-- `internal/store` — SQLite: one writer (`Tx`; no network or waiting inside), readers apart; a committed write
-  publishes the topic of its table (`changes.go`; a table is in a scope or `silent`); goose migrations from the base
-  `00043_base.sql`; sqlc queries one file per area (`db/` is generated); deck's one clock `Store.Now` (`clock.go`:
+- `internal/store` — SQLite: one writer (`Tx`; no network or waiting inside), four readers apart that stay open with their pages; a committed write
+  publishes the topic of its table (`changes.go`; a table is in a scope or `silent`); SQL goose migrations from the base
+  `00043_base.sql`, the Go ones given to `Open` by `internal/upgrade`; sqlc queries one file per area (`db/` is generated); deck's one clock `Store.Now` (`clock.go`:
   `Wall` for the world outside and a deck without a base, `Start` a stopwatch for a wait or a meter in real time).
 - `internal/events` — the bus: a topic with the project and workspace it changed in; no event is dropped. deck's own
   observers only `Follow` it: beside the commits, merged by workspace with the projects changed. Topics are its
@@ -88,7 +92,10 @@ hold; look inside a package for the rest.
   `Client`, each redirect checked), a name reaches only public ones (NAT64 and 6to4 by the IPv4 they carry), the host
   of a URL a manifest names only when public (`With`); `Proxy` of the Door, `Fetch` a page — new outbound HTTP goes
   through it. `AsPublic` lets a test's service on loopback stand for a public one.
-- `internal/models` — deck's proxy of models: what a call asks (`AskOf`), one `Handler(Policy)` for scripts and
+- `internal/upgrade` — what an older deck left raised to what this one reads: the Go migrations of the base
+  (`Migrations`: the sleep of the master, format 17), the floor of updates (`Floored`: a base before v0.2.0 is refused),
+  a manifest of format 16 an import brings raised to 17 (`Manifest`).
+- `internal/modelproxy` — deck's proxy of models: what a call asks (`AskOf`), one `Handler(Policy)` for scripts and
   agent turns, `SendHops` the one loop of fallbacks, the usage of an answer; every connection, a local one too, goes
   through the transport of its `Target` (`work.target`), the place a node's connection takes.
 - `internal/fault` — the one form of a failure: a type of a closed set, whose it is, text and details; a script
@@ -110,7 +117,8 @@ hold; look inside a package for the rest.
   opens; on macOS — a node or deck without Docker — `sandbox-exec`, the CLIs of Claude Code and Codex outside it),
   `Door` the one way out (no door, no network), `Env` the one environment, `Find`/`Path` the one search of
   programs (deck's PATH, then the login shell's, then the folders of installers).
-- `internal/txguard` — the mark of a context inside an open `Store.Tx`; `Check` at the doors (every request of
+- `internal/txguard` — the mark of a context inside an open `Store.Tx` (L0, below `egress`, which checks it and sits by
+  `store`); `Check` at the doors (every request of
   `egress`, `sandbox.Run`, `provider.Run`) panics in a test binary and logs in deck; a `context.Background` passes.
 - `internal/untrusted` — text deck did not write, shaped (`Cut`, `Line`, `Block`) before a prompt, an ask or a
   journal.
@@ -119,11 +127,12 @@ hold; look inside a package for the rest.
   `Resolve`) and the one way to write a file whole (`WriteFile`, `Create`/`Keep`, `Fresh`).
 - `internal/auth` — signing the owner's devices in: codes of `deck pair`, passkeys by origin, a device for each
   browser, the sessions of their cookies; no owner token.
-- `internal/boxes` — the one place the rights of a module become the box of its program.
+- `internal/boxes` — the one place the rights of a module become the box of its program (it imports `manifest`, so it
+  cannot fold into `sandbox`, a package of the same layer).
 - `internal/node` — a node (`deck -join`): deck's side holds the one connection each node opened, the node's side
   serves deck's calls to its loopback, agents and folders by its own list (`allow.go`).
 - `internal/script`, `internal/trigger`, `internal/tools` (+ `internal/mcphost`), `internal/release`,
-  `internal/nonce` — what their names say.
+  `internal/nonce` (random hex and tokens, used from L2 to the domains) — what their names say.
 - `internal/tsnet` — deck on the owner's tailnet, only in a build with the tag `tailnet` (going away: README, "Moving off
   the built-in Tailscale").
 - `internal/lint` — code rules checked by `tests/lint`; `layers.go` is the table of layers L0–L9 (an import goes only
@@ -185,6 +194,9 @@ hold; look inside a package for the rest.
   its line fails `tests/lint`.
 - New behaviour is a registry command (`deck.<name>` builtin or `<project>.<name>` from a manifest), not a
   new HTTP endpoint.
+- An engine lives in `internal/<x>`, the commands deck declares for it (`Commands()`) in the domain `internal/app/<x>`
+  (`theme` and `app/themes`, `settings` and `app/settings`, `ask` and `app/asks`); the loose commands of external
+  tools are built where the tools run (`internal/tools`).
 - Web client (stage 1+): React + Vite + Mantine v9. Mantine v9 is new — check https://mantine.dev before
   writing components; do not use v7/v8 APIs. Known v8→v9 traps (https://mantine.dev/guides/8x-to-9x/):
   `Text`/`Anchor` take `c=` not `color=`; `TypographyStylesProvider` → `Typography`; `Collapse expanded=`;

@@ -163,6 +163,9 @@ func (s *modules) startHandler(projectID int64, m *manifest.Manifest, command st
 		}
 		o := process.Origin{Parent: act.ProcessID, Trigger: act.TriggerID, Confirmed: act.Confirmed, Key: act.Key, Trial: act.Trial, Alone: act.Alone,
 			Same: turnOf(act)}
+		if act.Kind == registry.Token && act.Outside {
+			o.From = []process.Source{process.InputOfToken(act.Token)}
+		}
 		// A run of a trigger not after a process joins its run still going rather than starting beside it.
 		if act.Kind == registry.Trigger && act.ProcessID == 0 && o.Key == "" {
 			o.Key = fmt.Sprintf("trigger:%d", act.TriggerID)

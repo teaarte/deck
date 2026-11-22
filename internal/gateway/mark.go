@@ -156,8 +156,8 @@ func (g *Gateway) taint(ctx context.Context, act registry.Actor, c *registry.Com
 		return "", data, nil
 	}
 	targets, modules := g.written(ctx, act.Workspace, c, project, input)
-	if modules && act.Confined() {
-		// A confined caller writes only the modules it may touch: a call naming another is refused, and marks nothing.
+	if modules && c.ProjectID == 0 && act.Confined() {
+		// A confined caller's call of deck's own command naming a module it is not within is refused by the command.
 		targets = slices.DeleteFunc(targets, func(id int64) bool { return !act.Within(id) })
 	}
 	return untrusted.Cut(fmt.Sprintf("the call %s of %s", c.Name, from), 300), data, targets

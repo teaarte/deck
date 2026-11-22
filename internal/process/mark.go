@@ -101,6 +101,7 @@ const (
 	ofNote
 	ofRemark
 	ofTokenRemark
+	ofTokenInput
 	ofMemory
 	ofSkills
 	ofWorkspaceSkills
@@ -117,6 +118,7 @@ var carriers = map[carrier]string{
 	ofNote:            "a note of deck that quotes process %d, which read %s",
 	ofRemark:          "a remark of process %d, which read %s",
 	ofTokenRemark:     "a remark of automation token %s",
+	ofTokenInput:      "the input of automation token %s",
 	ofMemory:          "the memory of %s, where %s wrote",
 	ofSkills:          "the skills of %s, where %s wrote",
 	ofWorkspaceSkills: "the skills of the workspace in %s, where %s wrote",
@@ -149,6 +151,9 @@ func RemarkOf(process, token int64) Source {
 	return Source{of: ofRemark, id: process}
 }
 
+// InputOfToken is the input an automation token from outside deck (registry.Actor.Outside) gave a process it started.
+func InputOfToken(token int64) Source { return Source{of: ofTokenInput, id: token} }
+
 // MemoryOf is the memory of a module.
 func MemoryOf(project int64) Source { return Source{of: ofMemory, id: project} }
 
@@ -168,7 +173,7 @@ func carried(ctx context.Context, q *db.Queries, sources ...Source) (string, unt
 			continue
 		}
 		switch s.of {
-		case ofTokenRemark:
+		case ofTokenRemark, ofTokenInput:
 			if t, err := q.GetToken(ctx, s.id); err == nil {
 				return fmt.Sprintf(carriers[s.of], t.Name), untrusted.Of(untrusted.Token, t.Name)
 			}

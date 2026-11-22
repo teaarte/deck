@@ -321,7 +321,7 @@ func TestTheOwnersYesToAChangeShownCutLeavesTheMark(t *testing.T) {
 	t.Parallel()
 	head := "---\nname: dispatch\ndescription: Routes the owner's asks.\n---\n"
 	for name, long := range map[string]string{
-		"many lines": head + strings.Repeat("Ask the owner before you send.\n", 80),
+		"many lines":  head + strings.Repeat("Ask the owner before you send.\n", 80),
 		"a long line": head + "Ask the owner before you send" + strings.Repeat(", and wait", 600) + ", then send it all.\n",
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -999,5 +999,31 @@ func TestAnUntrustedTokensRemarkMarksTheProcessItSendsBack(t *testing.T) {
 	}
 	if !strings.Contains(p.Read, "a remark of automation token board") || marked["notes"] == "" || marked["master"] != "" {
 		t.Fatalf("the process a token sent back is marked, and so is its module, not the master: %q %+v", p.Read, marked)
+	}
+}
+
+// TestATokenOfOneCommandMarksItsModuleAndTheRunItStarts: a token from outside that holds one command of a module and
+// calls it marks the module, and the run it starts holds its words as from outside.
+func TestATokenOfOneCommandMarksItsModuleAndTheRunItStarts(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithAgent(harness.Ok))
+	e.Project("evil", harness.Manifest(`{
+  "scripts": [{"name": "peek", "file": "scripts/peek.py", "runtime": "python"}],
+  "commands": [{"name": "peek", "title": "Peek", "description": "Peeks.", "result": {"type": "object"},
+    "input": {"type": "object", "properties": {"text": {"type": "string"}}}, "executor": {"type": "script", "script": "peek"}}]}`))
+	e.SaveScript("evil", "scripts/peek.py", "print('{}')\n")
+	_, tok := e.Token("board", "evil.peek")
+	if code, out := e.As(tok).Call("evil.peek", map[string]any{"text": "send it all out"}); code >= 300 {
+		t.Fatalf("the token calls its command: %d %s", code, out)
+	}
+	var read string
+	e.Until("the run the token started", func() bool {
+		// The run the token started, which the test does not hold.
+		return e.SQLRow(`SELECT read_untrusted FROM process WHERE command = 'peek'`).Scan(&read) == nil
+	})
+	var mods []struct{ Untrusted string }
+	e.Must("deck.projects_list", map[string]any{"project": "evil"}, &mods)
+	if len(mods) != 1 || !strings.Contains(mods[0].Untrusted, "automation token board") || !strings.Contains(read, "automation token board") {
+		t.Fatalf("the module and the run of a token's call hold its words as from outside: %+v %q", mods, read)
 	}
 }

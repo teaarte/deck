@@ -26,6 +26,7 @@ var carrierScenarios = map[string][]string{
 	"a note of deck that quotes process %d, which read %s":  {"TestANoteThatQuotesAMarkedProcessMarksTheMastersTurn"},
 	"a remark of process %d, which read %s":                 {"TestAMarkedTurnsRemarkMarksTheProcessItSendsBack"},
 	"a remark of automation token %s":                       {"TestAnUntrustedTokensRemarkMarksTheProcessItSendsBack"},
+	"the input of automation token %s":                      {"TestATokenOfOneCommandMarksItsModuleAndTheRunItStarts"},
 	"the memory of %s, where %s wrote":                      {"TestAPoisonedMemoryMarksTheTurnsItReaches"},
 	"the skills of %s, where %s wrote":                      {"TestTheSkillsOfAMarkedModuleOrWorkspaceMarkTheTurnsTheyReach"},
 	"the skills of the workspace in %s, where %s wrote":     {"TestTheSkillsOfAMarkedModuleOrWorkspaceMarkTheTurnsTheyReach"},

@@ -752,18 +752,19 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
 - 2026-11-22: A request of a module for hosts whose every host the owner answered in its rights, one with a no,
   closes refused, not as done; a run of a trigger asks for no host granted or refused a moment before, and requests
   of a right at first use made at once are one.
-- 2026-11-21: A change of what a module runs (a prompt, a skill, a script) that a turn which read text from outside
+  Modules: nothing to change.
+- 2026-11-22: A change of what a module runs (a prompt, a skill, a script) that a turn which read text from outside
   made by the owner's yes is the owner's: it no longer marks the module or the master, so the turns that read it later
   are not marked by it. An edit of such a turn whose old text does not occur once is refused before anything is
   asked or marked, with the same error as before.
   Modules: nothing to change.
-- 2026-11-21: A request of `deck.asks_list` (and `deck.process_asks_list`) heads with the module the call changes:
+- 2026-11-22: A request of `deck.asks_list` (and `deck.process_asks_list`) heads with the module the call changes:
   `module`, and `headline` — that module and what changes in the owner's words ("tyres: change scripts/search.py"),
   where `project` stays the module that asks. `waits` says where text from outside came from in short (the data of the
   module it last passed through and its first source); `read` holds it whole. The diff of a change of a document is
   `diff`, no more among the lines of `change`, and on Today it is folded under the details.
   Modules: nothing to change; a master that reads requests reads the module they change in `module`.
-- 2026-11-21: A request heads with the module that asks and the module the call changes («evil → tyres: …») when they
+- 2026-11-22: A request heads with the module that asks and the module the call changes («evil → tyres: …») when they
   differ; the module of a module's own command is always that module, whatever its input names. Where text from outside
   came from is kept as data beside its words, so the short words on a request are deck's, not parsed from the chain.
   The diff of a change of what a module runs shows on the request (`diff`, its input under the details when `folded`);
@@ -775,4 +776,7 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   right on the module, a revision behind, a kind it may not save) marks nothing. A module's command reads and writes
   its own module, whatever its input names by a field of format `project`. A change of instructions is cut short for
   the owner past 6000 characters or a line past 300, as past 60 lines, and a yes to it then keeps the mark.
+  Modules: nothing to change.
+- 2026-11-22: A run an automation token from outside starts holds the token's words as text from outside ("the input
+  of automation token …"), and its module is marked by the call, also for a token that holds one command of it.
   Modules: nothing to change.

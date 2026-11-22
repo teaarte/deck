@@ -56,6 +56,8 @@ type Origin struct {
 	Message Text
 	// Note goes into the first prompt of a fresh session, also of one that replaces a lost session.
 	Note Text
+	// From are where the input of the process came from beside its parent, as a token from outside deck.
+	From []Source
 	// Files are stored files of the project given to the agent with its first message, as with Give.
 	Files []int64
 	// Provider starts an agent on this provider rather than the one its assignment picks.
@@ -428,7 +430,7 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 // inherit marks a process with the untrusted text what it was given carries: its note and message, the input or work
 // of a marked process it starts from, the session of a marked process it goes on, files given with it.
 func inherit(ctx context.Context, q *db.Queries, id int64, o Origin) error {
-	text, from := carried(ctx, q, append(append([]Source{inputOf(o.Parent), workOf(o.Follows)}, o.Note.From...), o.Message.From...)...)
+	text, from := carried(ctx, q, append(append([]Source{inputOf(o.Parent), workOf(o.Follows)}, o.Note.From...), append(o.Message.From, o.From...)...)...)
 	if text == "" && o.Resume && o.Session != "" {
 		read, err := q.SessionRead(ctx, db.SessionReadParams{Session: o.Session, ID: id})
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {

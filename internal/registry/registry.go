@@ -58,7 +58,8 @@ type Subject struct {
 	Unseen bool `json:"-"`
 	// Instructs says the call rewrites what deck runs: an instruction of an enabled module or of the workspace.
 	Instructs bool `json:"-"`
-	// Module is the module whose instruction the call rewrites; zero for the workspace's.
+	// Module is the module whose prompt, skill, script or manifest the call rewrites; zero for the workspace's and for
+	// a custom block.
 	Module int64 `json:"-"`
 	// Diff are the lines of the change of a document, Cut when they stop short of its end.
 	Diff []string `json:"diff,omitempty"`

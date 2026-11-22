@@ -785,7 +785,8 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   text came from.
   Modules: nothing to change.
 - 2026-11-22: The owner's start of a work of a module (their press, or the master's turn of their own word that read
-  nothing from outside) is their yes to its changes of that module's manifest, prompts, skills and scripts: a turn of
-  that work that read text from outside makes them without a request each, listed among the changes made without the
-  owner with their undo. Any other module, the master's own instructions, and every way out still ask.
+  nothing from outside) is their yes to its changes of the documents of that module its manifest lets it write
+  (`writes`: prompts, skills, scripts; not custom blocks): a turn of that work that read text from outside saves them
+  without a request each, listed among the changes made without the owner with their undo. Any other module, the
+  master's own instructions, custom blocks and every way out still ask.
   Modules: nothing to change.

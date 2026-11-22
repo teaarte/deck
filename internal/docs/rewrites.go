@@ -42,7 +42,10 @@ func Rewrites(ctx context.Context, q *db.Queries, sc Scope, kind, name, next str
 		}
 		sub.Where = name + " of " + p.Name
 	}
-	sub.Instructs, sub.Module = true, sc.Project
+	sub.Instructs = true
+	if kind != KindCustom {
+		sub.Module = sc.Project
+	}
 	if gone {
 		sub.Changes = []string{"Delete " + sub.Where}
 		return sub

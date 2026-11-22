@@ -170,7 +170,7 @@ func (s *modules) startHandler(projectID int64, m *manifest.Manifest, command st
 		if act.Kind == registry.Trigger && act.ProcessID == 0 && o.Key == "" {
 			o.Key = fmt.Sprintf("trigger:%d", act.TriggerID)
 		}
-		// Only the owner's own press stands for their yes.
+		// Only the owner's own press names calls; the yes of a start is the owner's or the master's turn of their word.
 		var pressed []gateway.Allow
 		if act.Kind == registry.Owner && act.Allows != "" {
 			if err := json.Unmarshal([]byte(act.Allows), &pressed); err != nil {

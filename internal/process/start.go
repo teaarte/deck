@@ -67,7 +67,7 @@ type Origin struct {
 	// Same joins an agent command a turn calls to its process going in the same topic, or to any going of a command
 	// that runs one at a time, instead of starting another.
 	Same bool
-	// Allows are the calls the owner's press named, as gateway.Allows keeps them: the run makes them without asking.
+	// Allows are the calls the owner's press named and the yes the owner's start gave, as gateway.Allows keeps them.
 	Allows string
 	// again is the one run after Follows with the last call that came for its record while it ran.
 	again bool

@@ -1145,6 +1145,8 @@ func TestThePressThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "build" {
 			saves := buildSaves(ctx, c, page.URL+"/a")
+			custom, _ := c.Tool(ctx, "document_save", map[string]any{"name": "custom/view.html", "kind": "custom", "text": "<p>pressed</p>"})
+			saves = append(saves, custom)
 			mu.Lock()
 			got = saves
 			mu.Unlock()
@@ -1152,7 +1154,7 @@ func TestThePressThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 		}
 		return provider.Result{Text: "ok"}
 	}))
-	e.Project("site", harness.Manifest(`{"writes": ["prompt.md", "scripts/"],
+	e.Project("site", harness.Manifest(`{"writes": ["prompt.md", "scripts/", "custom/"],
   "rights": [{"right": "network", "what": ["127.0.0.1"], "why": "reads the pages it builds from"}],
   "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}],
   "commands": [`+harness.AgentCommand("build", "")+`]}`))
@@ -1164,14 +1166,14 @@ func TestThePressThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 	mu.Lock()
 	seen := slices.Clone(got)
 	mu.Unlock()
-	if len(seen) != 4 || strings.Contains(seen[0], "waiting") || strings.Contains(seen[1], "waiting") {
+	if len(seen) != 5 || strings.Contains(seen[0], "waiting") || strings.Contains(seen[1], "waiting") {
 		t.Fatalf("the work changes its own module's prompt and script without a request: %q", seen)
 	}
-	if !strings.Contains(seen[2], `"waiting"`) || !strings.Contains(seen[3], `"waiting"`) {
-		t.Fatalf("another module and the master's skills still wait for the owner: %q", seen)
+	if !strings.Contains(seen[2], `"waiting"`) || !strings.Contains(seen[3], `"waiting"`) || !strings.Contains(seen[4], `"waiting"`) {
+		t.Fatalf("another module, the master's skills and its own custom block still wait for the owner: %q", seen)
 	}
 	as := asksOf(e)
-	if len(as) != 2 || as[0]["module"] != "tyres" || as[1]["module"] != "master" {
+	if len(as) != 3 || as[0]["module"] != "tyres" || as[1]["module"] != "master" || as[2]["module"] != "site" {
 		t.Fatalf("a request for another module and one for the master: %+v", as)
 	}
 	var d struct{ Text string }

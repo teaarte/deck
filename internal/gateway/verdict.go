@@ -244,7 +244,8 @@ func rank(answer string) int {
 	return 1
 }
 
-// allowsOf are the yeses the owner gave the process of act: the calls a press named and the rights for its work.
+// allowsOf are the yeses the owner gave the process of act: the calls a press named, the rights for its work and the
+// yes its start gave.
 func (g *Gateway) allowsOf(ctx context.Context, act registry.Actor) ([]Allow, error) {
 	if act.ProcessID == 0 || act.Trial {
 		return nil, nil

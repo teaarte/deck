@@ -55,8 +55,9 @@ the page; or `pattern`, a seamless square tile repeated behind it, `pattern-size
 behind everything. The owner's button "Draw the background" in Look asks for them in the chat. `deck.theme_get`
 without a name is the theme in use: its title, `mood` and schemes (`dark` only, or both). For each scheme draw the
 cockpit and, as fits the mood, a backdrop or a pattern with `deck.model_call` of kind image — the model the owner
-names; else the models assigned to image, which the call takes when you name none; with none assigned, a free image
-model of `deck.models_list`, one of the owner's machine (`local`) first — then set each with `deck.theme_image_set`
+names; else a free image model of `deck.models_list` (`kind` image, `free`), one on a `local` connection of the
+owner's machine first, where an image model without a price counts as free too; else none, so the call takes the
+models assigned to image — then set each with `deck.theme_image_set`
 (theme, slot, scheme, the file as `results/<the name the call gave>`). `deck.theme_check` checks the words of Today
 over the cockpit by its main color; look at the tiles with `screen_capture` after.
 

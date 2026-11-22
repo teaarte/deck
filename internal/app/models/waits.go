@@ -10,7 +10,7 @@ import (
 
 	"deck2/internal/egress"
 	"deck2/internal/health"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 )
 
 // waitView is a thing of the models that waits for the owner, with what its one button needs: a sign-in, a model
@@ -119,7 +119,7 @@ func waits(out *modelsView, tr func(string) string) []waitView {
 	for i := range out.Connections {
 		c := out.Connections[i]
 		switch {
-		case c.Models == 0 || c.API == models.APICLI:
+		case c.Models == 0 || c.API == modelproxy.APICLI:
 		case c.Node != "" && !c.Online:
 			if i, ok := away[c.Node]; ok {
 				w[i].Places = append(w[i].Places, c.Name)

@@ -13,7 +13,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
@@ -156,7 +156,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if strings.TrimSpace(in.Model) == "" {
 		return nil, registry.Invalid("a model needs its name in the API")
 	}
-	if c.Api == models.APICLI && in.Name == "" {
+	if c.Api == modelproxy.APICLI && in.Name == "" {
 		base, _, _ := strings.Cut(in.Model, "[")
 		in.Name = in.Connection + "-" + strings.NewReplacer(".", "-", "/", "-").Replace(base)
 	}
@@ -168,16 +168,16 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 		old.Connection.Name == in.Name && old.Connection.ID != c.ID {
 		return nil, registry.Invalid("%s is a login of %s and stays on its own connection", in.Name, old.Connection.Agent)
 	}
-	if c.Api == models.APICLI {
+	if c.Api == modelproxy.APICLI {
 		in.Agent = cmp.Or(in.Agent, c.Agent)
-	} else if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.Agent == "" && old.Connection.Api == models.APICLI {
+	} else if old, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && in.Agent == "" && old.Connection.Api == modelproxy.APICLI {
 		return nil, registry.Invalid("%s is a model of %s; a model of connection %s takes another name, or an agent", in.Name, old.Connection.Name, c.Name)
 	}
 	if in.Agent != "" {
 		if err := s.checkAgent(ctx, act.Workspace, c, in); err != nil {
 			return nil, err
 		}
-		in.Kind = models.KindText
+		in.Kind = modelproxy.KindText
 	}
 	m := db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: in.Name, Model: in.Model, Kind: in.Kind, Options: "{}",
 		InputUsd: positive(in.InputUSD), OutputUsd: positive(in.OutputUSD), CallUsd: positive(in.CallUSD), Unit: in.Unit,
@@ -208,16 +208,16 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			*l.out = *l.in
 		}
 	}
-	m.Unit = cmp.Or(m.Unit, models.UnitToken)
-	if m.Unit != models.UnitToken && m.OutputUsd.Valid {
+	m.Unit = cmp.Or(m.Unit, modelproxy.UnitToken)
+	if m.Unit != modelproxy.UnitToken && m.OutputUsd.Valid {
 		return nil, registry.Invalid("a model priced per %s has one price, input_usd per million; output_usd is for tokens", m.Unit)
 	}
-	if c.Api != models.APICLI && (unpriced || m.Kind == "") {
+	if c.Api != modelproxy.APICLI && (unpriced || m.Kind == "") {
 		if got, ok := s.Catalog(ctx, act.Workspace, c, in.Model); ok {
 			if unpriced {
 				m.InputUsd, m.OutputUsd, m.CallUsd, m.Free = got.InputUsd, got.OutputUsd, got.CallUsd, got.Free
-				if cmp.Or(m.Kind, got.Kind) == models.KindTTS && in.Unit == "" && m.InputUsd.Valid && !m.OutputUsd.Valid {
-					m.Unit = models.UnitChar
+				if cmp.Or(m.Kind, got.Kind) == modelproxy.KindTTS && in.Unit == "" && m.InputUsd.Valid && !m.OutputUsd.Valid {
+					m.Unit = modelproxy.UnitChar
 				}
 			}
 			m.Kind = cmp.Or(m.Kind, got.Kind)
@@ -229,10 +229,10 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if in.Subscription != nil {
 		m.Subscription = store.Bool(*in.Subscription)
 	}
-	if c.Api == models.APICLI {
+	if c.Api == modelproxy.APICLI {
 		m.Subscription = 1
 	}
-	m.Kind = cmp.Or(m.Kind, models.KindText)
+	m.Kind = cmp.Or(m.Kind, modelproxy.KindText)
 	if in.Options != "" {
 		var o map[string]any
 		if err := json.Unmarshal([]byte(in.Options), &o); err != nil {
@@ -260,7 +260,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 			if err := health.Clear(ctx, q, health.Of{Workspace: act.Workspace}, health.Model(in.Name)); err != nil {
 				return err
 			}
-			if c.Api == models.APICLI {
+			if c.Api == modelproxy.APICLI {
 				err = health.Clear(ctx, q, health.Of{}, health.Provider(in.Name))
 			} else {
 				err = process.ProviderHealth(ctx, q, s.St.Now(), in.Name, health.Checking, "the self-check of the model in its agent is about to run")
@@ -278,7 +278,7 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 	if out.Options, err = s.KeepBig(ctx, act.Workspace, out); err != nil {
 		return nil, err
 	}
-	if in.Agent != "" && c.Api != models.APICLI {
+	if in.Agent != "" && c.Api != modelproxy.APICLI {
 		s.startCheck(in.Name, true)
 	}
 	return s.View(ctx, out, c.Name), nil
@@ -288,14 +288,14 @@ func (s *Service) modelSet(ctx context.Context, act registry.Actor, in modelSetI
 // name that is not one of a provider, an API that is not OpenAI-compatible, a model or effort its CLI does not list.
 func (s *Service) checkAgent(ctx context.Context, workspace int64, c db.Connection, in modelSetIn) error {
 	cli, _ := s.builtinNamed(in.Agent).(provider.Modeled)
-	if c.Api == models.APICLI {
+	if c.Api == modelproxy.APICLI {
 		// A model of a login is checked against the list of the CLI on that login.
 		cli, _ = s.login(c).(provider.Modeled)
 	}
 	switch {
-	case c.Api == models.APICLI && in.Agent != c.Agent:
+	case c.Api == modelproxy.APICLI && in.Agent != c.Agent:
 		return registry.Invalid("the models of connection %s run in %s, not %s", c.Name, c.Agent, in.Agent)
-	case cli != nil && c.Api != models.APICLI:
+	case cli != nil && c.Api != modelproxy.APICLI:
 		return registry.Invalid("a model of %s is on its own connection %s, not %s", in.Agent, in.Agent, c.Name)
 	case cli == nil && acp.Agents[in.Agent].Start == nil:
 		return registry.Invalid("no agent %q; deck knows %s", in.Agent, strings.Join(s.agentNames(), ", "))

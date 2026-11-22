@@ -17,7 +17,7 @@ import (
 	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -26,7 +26,7 @@ import (
 
 // Route finds where an actor's call of a model goes: the model of deck's settings the request names on its
 // connection, or the models assigned to an @role for the caller's command in order, on any connection for @.
-func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask) ([]models.Hop, error) {
+func (s *Service) Route(ctx context.Context, act registry.Actor, ask modelproxy.Ask) ([]modelproxy.Hop, error) {
 	connection, asked := ask.Connection, ask.Model
 	command := ""
 	if act.ProcessID != 0 {
@@ -44,7 +44,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 			ask.Method, ask.Path)
 	}
 	if role, ok := strings.CutPrefix(asked, "@"); ok {
-		if ask.Path != "" && !models.IsCall(ask.Method, ask.Path) {
+		if ask.Path != "" && !modelproxy.IsCall(ask.Method, ask.Path) {
 			return nil, notModel()
 		}
 		if role == RoleSearch && ask.Method != "" {
@@ -59,7 +59,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 		}
 		for _, name := range names {
 			row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: act.Workspace, Name: name})
-			if err == nil && row.Connection.Api != models.APICLI && (connection == "@" || connection == row.Connection.Name) {
+			if err == nil && row.Connection.Api != modelproxy.APICLI && (connection == "@" || connection == row.Connection.Name) {
 				picks = append(picks, pick{row.Model, row.Connection})
 			}
 		}
@@ -77,10 +77,10 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 		if err != nil {
 			return nil, registry.NotFound("no connection %q; deck.models_list names the connections", connection)
 		}
-		if c.Api == models.APICLI {
+		if c.Api == modelproxy.APICLI {
 			return nil, registry.Invalid("connection %s is a login of the %s CLI; its models run agent turns, not calls of a model", connection, c.Agent)
 		}
-		if ask.Path != "" && c.Api != "raw" && !models.IsCall(ask.Method, ask.Path) {
+		if ask.Path != "" && c.Api != "raw" && !modelproxy.IsCall(ask.Method, ask.Path) {
 			return nil, notModel()
 		}
 		row, err := s.St.Q.GetModelOf(ctx, db.GetModelOfParams{ConnectionID: c.ID, Model: asked})
@@ -92,8 +92,8 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 		switch {
 		case ask.ByHeader && c.Api != "raw":
 			return nil, registry.Refuse("connection %s speaks the %s API, so the request names its model itself; the header %s is for a raw service whose API has no model field",
-				connection, c.Api, models.Header)
-		case asked == "" && c.Api != "raw" && models.Polls(ask.Method, ask.Path):
+				connection, c.Api, modelproxy.Header)
+		case asked == "" && c.Api != "raw" && modelproxy.Polls(ask.Method, ask.Path):
 			id, _, _ := strings.Cut(strings.TrimPrefix(strings.TrimPrefix(ask.Path, "/"), "videos/"), "/")
 			if by, ok := s.jobs.Load(jobKey(act.Workspace, c.Name, id)); !ok || by != act.ProjectID {
 				return nil, registry.NotFound("no job %s of connection %s that this caller started", id, connection)
@@ -105,7 +105,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 				what = strconv.Quote(asked)
 			}
 			return nil, registry.Refuse("%s is not in deck's settings as a model of connection %s: a module calls only the models the owner added; name one in model (in the header %s when a raw service has no such field), or propose it with deck.model_set, which waits for the owner's button",
-				what, connection, models.Header)
+				what, connection, modelproxy.Header)
 		default:
 			picks = append(picks, pick{row.Model, c})
 		}
@@ -121,7 +121,7 @@ func (s *Service) Route(ctx context.Context, act registry.Actor, ask models.Ask)
 		}
 		picks = ordered
 	}
-	hops := make([]models.Hop, 0, len(picks))
+	hops := make([]modelproxy.Hop, 0, len(picks))
 	for i, p := range picks {
 		h, err := s.hop(act.Workspace, p.m, p.c)
 		if err != nil {
@@ -190,8 +190,8 @@ var queuedKinds = []string{RoleImage, RoleMusic, RoleTTS, RoleSTT}
 
 // target is the API of connection c with key; every connection, a local service's too, goes through one transport,
 // that of a connection a node serves over the connection of the node.
-func (s *Service) target(c db.Connection, key string) models.Target {
-	t := models.Target{URL: c.Url, API: c.Api, Key: key, Transport: egress.Direct}
+func (s *Service) target(c db.Connection, key string) modelproxy.Target {
+	t := modelproxy.Target{URL: c.Url, API: c.Api, Key: key, Transport: egress.Direct}
 	if c.NodeID.Valid {
 		t.Transport = s.Node(c.NodeID.Int64)
 	}
@@ -199,8 +199,8 @@ func (s *Service) target(c db.Connection, key string) models.Target {
 }
 
 // hop is where a call of model m goes, with deck's key.
-func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (models.Hop, error) {
-	h := models.Hop{Target: s.target(c, s.Key(workspace, c.Name)), Connection: c.Name, Name: m.Name, Model: m.Model,
+func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (modelproxy.Hop, error) {
+	h := modelproxy.Hop{Target: s.target(c, s.Key(workspace, c.Name)), Connection: c.Name, Name: m.Name, Model: m.Model,
 		Local: c.Local != 0, Free: m.Free != 0, Queue: c.Local != 0 && slices.Contains(queuedKinds, m.Kind)}
 	if m.Kind == RoleText {
 		h.TPM, h.Context, h.Tools = m.Tpm, m.Context, m.Tools
@@ -208,7 +208,7 @@ func (s *Service) hop(workspace int64, m db.Model, c db.Connection) (models.Hop,
 	}
 	_ = json.Unmarshal([]byte(m.Options), &h.Options)
 	if err := s.withFiles(h.Options, m.Name); err != nil {
-		return models.Hop{}, err
+		return modelproxy.Hop{}, err
 	}
 	return h, nil
 }
@@ -228,8 +228,8 @@ func (s *Service) moneyNeeds(ctx context.Context, act registry.Actor, _ registry
 }
 
 // route is where a call of a model goes: the hops the proxy found already, else those of what it asks.
-func (s *Service) route(ctx context.Context, act registry.Actor, input json.RawMessage) ([]models.Hop, error) {
-	if _, hops, ok := models.RouteOf(ctx); ok {
+func (s *Service) route(ctx context.Context, act registry.Actor, input json.RawMessage) ([]modelproxy.Hop, error) {
+	if _, hops, ok := modelproxy.RouteOf(ctx); ok {
 		return hops, nil
 	}
 	in, err := parseCall(input)
@@ -253,7 +253,7 @@ func (s *Service) use(ctx context.Context, input json.RawMessage) (string, strin
 	case in.Kind != "":
 		return in.Model, ""
 	}
-	ask, _, ok := models.RouteOf(ctx)
+	ask, _, ok := modelproxy.RouteOf(ctx)
 	if !ok {
 		ask, _ = proxied(in)
 	}
@@ -313,21 +313,21 @@ func (s *Service) free(ctx context.Context, act registry.Actor, input json.RawMe
 
 // proxied is what a script's request through the proxy asks; its model is the one of a form the proxy read, or of
 // the header DeckModel.
-func proxied(in call) (models.Ask, error) {
+func proxied(in call) (modelproxy.Ask, error) {
 	connection := cmp.Or(in.Connection, "@")
 	if in.Model != "" && in.Body != "" && !json.Valid([]byte(in.Body)) {
-		return models.Ask{Connection: connection, Model: in.Model, Method: cmp.Or(in.Method, http.MethodPost), Path: in.Path}, nil
+		return modelproxy.Ask{Connection: connection, Model: in.Model, Method: cmp.Or(in.Method, http.MethodPost), Path: in.Path}, nil
 	}
-	return models.AskOf(connection, in.Method, in.Path, http.Header{models.Header: {in.Model}}, []byte(in.Body))
+	return modelproxy.AskOf(connection, in.Method, in.Path, http.Header{modelproxy.Header: {in.Model}}, []byte(in.Body))
 }
 
 // TurnModel is deck's proxy of model m of an agent turn: every call goes to that model with deck's key, and its
 // usage, priced, and its answers go to the hooks.
 func (s *Service) TurnModel(workspace int64, m db.Model, c db.Connection) func(provider.ModelHooks) http.Handler {
 	return func(hooks provider.ModelHooks) http.Handler {
-		return models.Handler(models.Policy{Connection: c.Name, Named: true, Answer: hooks.Answer, Plain: s.plainOf(c.Url + " " + m.Model),
-			Route: func(ctx context.Context, ask models.Ask) ([]models.Hop, error) {
-				if !models.IsCall(ask.Method, ask.Path) {
+		return modelproxy.Handler(modelproxy.Policy{Connection: c.Name, Named: true, Answer: hooks.Answer, Plain: s.plainOf(c.Url + " " + m.Model),
+			Route: func(ctx context.Context, ask modelproxy.Ask) ([]modelproxy.Hop, error) {
+				if !modelproxy.IsCall(ask.Method, ask.Path) {
 					return nil, fault.New(fault.RightsDenied, "deck: "+ask.Method+" /"+ask.Path+" is not a call of a model; an agent calls only its model through deck")
 				}
 				h, err := s.hop(workspace, m, c)
@@ -344,7 +344,7 @@ func (s *Service) TurnModel(workspace int64, m db.Model, c db.Connection) func(p
 					}
 					hooks.Usage(*u)
 				}
-				return []models.Hop{h}, nil
+				return []modelproxy.Hop{h}, nil
 			}})
 	}
 }
@@ -352,14 +352,14 @@ func (s *Service) TurnModel(workspace int64, m db.Model, c db.Connection) func(p
 // Proxy is deck's proxy of models for a script of act: the rules of the command of a call of a model decide
 // whether a call goes, by permit; one that would wait for the owner is refused.
 func (s *Service) Proxy(act registry.Actor, permit func(ctx context.Context, act registry.Actor, command string, input json.RawMessage, wait string) (func(), error)) http.Handler {
-	return models.Handler(models.Policy{
-		Route: func(ctx context.Context, ask models.Ask) ([]models.Hop, error) { return s.Route(ctx, act, ask) },
-		Started: func(hops []models.Hop, job string) {
+	return modelproxy.Handler(modelproxy.Policy{
+		Route: func(ctx context.Context, ask modelproxy.Ask) ([]modelproxy.Hop, error) { return s.Route(ctx, act, ask) },
+		Started: func(hops []modelproxy.Hop, job string) {
 			for _, h := range hops {
 				s.jobs.Store(jobKey(act.Workspace, h.Connection, job), act.ProjectID)
 			}
 		},
-		Allow: func(ctx context.Context, ask models.Ask, body []byte) (func(), error) {
+		Allow: func(ctx context.Context, ask modelproxy.Ask, body []byte) (func(), error) {
 			in := map[string]string{"connection": ask.Connection, "path": ask.Path}
 			if ask.ByHeader || ask.InForm {
 				in["model"] = ask.Model

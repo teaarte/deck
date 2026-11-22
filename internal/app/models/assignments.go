@@ -14,7 +14,7 @@ import (
 	"deck2/internal/fault"
 	"deck2/internal/gateway"
 	"deck2/internal/manifest"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/process"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -24,14 +24,14 @@ import (
 // Roles are the kinds of work an assignment names models for: agent turns, and direct calls by kind.
 const (
 	RoleAgent = "agent"
-	RoleText  = models.KindText
-	RoleImage = models.KindImage
-	RoleTTS   = models.KindTTS
-	RoleSTT   = models.KindSTT
-	RoleMusic = models.KindMusic
-	RoleVideo = models.KindVideo
+	RoleText  = modelproxy.KindText
+	RoleImage = modelproxy.KindImage
+	RoleTTS   = modelproxy.KindTTS
+	RoleSTT   = modelproxy.KindSTT
+	RoleMusic = modelproxy.KindMusic
+	RoleVideo = modelproxy.KindVideo
 	// RoleSearch is web search for the agents that have none of their own.
-	RoleSearch = models.KindSearch
+	RoleSearch = modelproxy.KindSearch
 	// RoleWidget is the agent that draws a view of the card of a module for a size; the master's model without one.
 	RoleWidget = "widget"
 )
@@ -236,7 +236,7 @@ func (s *Service) planned(ctx context.Context, workspace int64, in assignmentSet
 		if err != nil {
 			return 0, nil, registry.NotFound("no model %q", name)
 		}
-		if row.Connection.Api == models.APICLI {
+		if row.Connection.Api == modelproxy.APICLI {
 			return 0, nil, registry.Invalid("model %s runs agent turns in %s; assign it to agent commands", name, row.Model.Agent)
 		}
 		if row.Model.Kind != in.Role {
@@ -506,7 +506,7 @@ func (s *Service) NoSearch(ctx context.Context, workspace int64) string {
 // inAgent says a provider is a model in an ACP agent, whose web is deck's.
 func (s *Service) inAgent(ctx context.Context, workspace int64, name string) bool {
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
-	return err == nil && row.Model.Agent != "" && row.Connection.Api != models.APICLI
+	return err == nil && row.Model.Agent != "" && row.Connection.Api != modelproxy.APICLI
 }
 
 // agentCommand finds an agent command of the workspace by its place, project.command.

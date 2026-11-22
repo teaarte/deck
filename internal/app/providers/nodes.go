@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/provider"
 	"deck2/internal/provider/remote"
 	"deck2/internal/registry"
@@ -63,7 +63,7 @@ func (s *Service) onNode(ctx context.Context, workspace int64, base, name string
 		if added(c) {
 			return nil, registry.Invalid("no provider %q: login %s of %s is deck's own; a node runs the CLI on its own sign-in", base+"@"+name, c.Name, c.Agent)
 		}
-		if c.Api == models.APICLI {
+		if c.Api == modelproxy.APICLI {
 			if cfg.Spec.Effort, err = cliEffort(m.Options); err != nil {
 				return nil, err
 			}

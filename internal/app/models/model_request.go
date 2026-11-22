@@ -15,13 +15,13 @@ import (
 	"strings"
 
 	"deck2/internal/files"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/registry"
 )
 
-func jsonReq(path string, v any) models.Call {
+func jsonReq(path string, v any) modelproxy.Call {
 	b, _ := json.Marshal(v)
-	return models.Call{Path: path, Header: http.Header{"Content-Type": {"application/json"}}, Body: b}
+	return modelproxy.Call{Path: path, Header: http.Header{"Content-Type": {"application/json"}}, Body: b}
 }
 
 // ask is the prompt with its input, the way a model reads a task and its data.
@@ -75,9 +75,9 @@ func (s *Service) picture(ctx context.Context, act registry.Actor, file, what st
 }
 
 // build is the request of a call in the OpenAI-compatible protocol, the one deck asks models in.
-func build(in modelCallIn, h models.Hop, options map[string]any, att attached) (models.Call, error) {
+func build(in modelCallIn, h modelproxy.Hop, options map[string]any, att attached) (modelproxy.Call, error) {
 	if api := h.Target.API; api == "google" || api == "anthropic" {
-		return models.Call{}, registry.Invalid("connection %s speaks the %s API; deck asks models in the OpenAI-compatible protocol, so give the connection the OpenAI-compatible address of %s, or call its own API from a script through $DECK_MODELS", h.Connection, api, api)
+		return modelproxy.Call{}, registry.Invalid("connection %s speaks the %s API; deck asks models in the OpenAI-compatible protocol, so give the connection the OpenAI-compatible address of %s, or call its own API from a script through $DECK_MODELS", h.Connection, api, api)
 	}
 	switch in.Kind {
 	case RoleText:
@@ -85,7 +85,7 @@ func build(in modelCallIn, h models.Hop, options map[string]any, att attached) (
 		if strings.TrimSpace(in.Schema) != "" {
 			var schema any
 			if err := json.Unmarshal([]byte(in.Schema), &schema); err != nil {
-				return models.Call{}, registry.Invalid("schema is JSON: %v", err)
+				return modelproxy.Call{}, registry.Invalid("schema is JSON: %v", err)
 			}
 			body["response_format"] = map[string]any{"type": "json_schema", "json_schema": map[string]any{"name": "result", "schema": schema}}
 		}
@@ -112,7 +112,7 @@ func build(in modelCallIn, h models.Hop, options map[string]any, att attached) (
 		return r, nil
 	case RoleTTS:
 		if strings.TrimSpace(in.Text) == "" {
-			return models.Call{}, registry.Invalid("tts needs the words in text")
+			return modelproxy.Call{}, registry.Invalid("tts needs the words in text")
 		}
 		body := map[string]any{"model": h.Model, "input": in.Text, "response_format": "mp3"}
 		if p := strings.TrimSpace(in.Prompt); p != "" {
@@ -128,11 +128,11 @@ func build(in modelCallIn, h models.Hop, options map[string]any, att attached) (
 		}
 		return jsonReq("videos", merged(body, options)), nil
 	}
-	return models.Call{}, registry.Invalid("no kind %q", in.Kind)
+	return modelproxy.Call{}, registry.Invalid("no kind %q", in.Kind)
 }
 
 // edit is a picture with what to change in it, posted as a form the way OpenAI's images/edits takes it.
-func edit(h models.Hop, prompt string, options map[string]any, image []byte) models.Call {
+func edit(h modelproxy.Hop, prompt string, options map[string]any, image []byte) modelproxy.Call {
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
 	ct := http.DetectContentType(image)
@@ -157,25 +157,25 @@ func edit(h models.Hop, prompt string, options map[string]any, image []byte) mod
 		}
 	}
 	_ = w.Close()
-	return models.Call{Path: "images/edits", Header: http.Header{"Content-Type": {w.FormDataContentType()}}, Body: b.Bytes()}
+	return modelproxy.Call{Path: "images/edits", Header: http.Header{"Content-Type": {w.FormDataContentType()}}, Body: b.Bytes()}
 }
 
 // transcription is a recording posted as a form the way OpenAI's transcriptions and whisper.cpp's server take it;
 // a raw connection is the full address of the service.
-func transcription(h models.Hop, options map[string]any, audio *files.Ref) (models.Call, error) {
+func transcription(h modelproxy.Hop, options map[string]any, audio *files.Ref) (modelproxy.Call, error) {
 	f, n, err := audio.Open()
 	if err != nil {
-		return models.Call{}, err
+		return modelproxy.Call{}, err
 	}
 	defer f.Close()
 	var b bytes.Buffer
 	w := multipart.NewWriter(&b)
 	part, err := w.CreateFormFile("file", filepath.Base(audio.Name))
 	if err != nil {
-		return models.Call{}, err
+		return modelproxy.Call{}, err
 	}
 	if _, err := io.Copy(part, io.LimitReader(f, n)); err != nil {
-		return models.Call{}, err
+		return modelproxy.Call{}, err
 	}
 	fields := map[string]any{"response_format": "json"}
 	if h.Model != "" {
@@ -189,5 +189,5 @@ func transcription(h models.Hop, options map[string]any, audio *files.Ref) (mode
 	if h.Target.API == "raw" {
 		path = ""
 	}
-	return models.Call{Path: path, Header: http.Header{"Content-Type": {w.FormDataContentType()}}, Body: b.Bytes()}, nil
+	return modelproxy.Call{Path: path, Header: http.Header{"Content-Type": {w.FormDataContentType()}}, Body: b.Bytes()}, nil
 }

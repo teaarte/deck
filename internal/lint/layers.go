@@ -23,7 +23,7 @@ var layers = [][]string{
 	{"internal/store", "internal/registry", "internal/theme", "internal/egress"},
 	{"internal/manifest", "internal/health", "internal/ask", "internal/files", "internal/sandbox", "internal/auth", "internal/node", "internal/settings"},
 	{"internal/docs", "internal/boxes", "internal/script", "internal/trigger", "internal/provider", "internal/mcphost"},
-	{"internal/gateway", "internal/models", "internal/provider/acp", "internal/provider/claudecode", "internal/provider/codex",
+	{"internal/gateway", "internal/modelproxy", "internal/provider/acp", "internal/provider/claudecode", "internal/provider/codex",
 		"internal/screen", "internal/access"},
 	{"internal/process", "internal/tools", "internal/provider/remote"},
 	// The domains: one imports no other, so a call across two is a field of a Service app.New wires.

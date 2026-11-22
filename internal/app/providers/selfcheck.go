@@ -11,7 +11,7 @@ import (
 
 	"deck2/internal/fault"
 	"deck2/internal/health"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
@@ -76,7 +76,7 @@ func (s *Service) Checks(ctx context.Context, now time.Time) {
 	for _, ws := range spaces {
 		rows, _ := s.St.Q.ListModels(ctx, ws)
 		for _, r := range rows {
-			if r.Model.Agent != "" && r.Connection.Api != models.APICLI && !s.Installed(r.Model.Agent) {
+			if r.Model.Agent != "" && r.Connection.Api != modelproxy.APICLI && !s.Installed(r.Model.Agent) {
 				s.clearCheck(ctx, r.Model.Name)
 			}
 		}

@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	"deck2/internal/health"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store"
@@ -17,7 +17,7 @@ import (
 // loginSet adds another subscription login of a CLI: a connection of api cli with its own sign-in and homes, and its
 // own model of the same name, the CLI's default, which work is assigned to and the owner signs in by.
 func (s *Service) loginSet(ctx context.Context, act registry.Actor, in connectionSetIn) (any, error) {
-	in.API = models.APICLI
+	in.API = modelproxy.APICLI
 	_, ok := s.builtinNamed(in.Agent).(provider.Logins)
 	switch {
 	case in.Agent == "":
@@ -54,15 +54,15 @@ func (s *Service) loginSet(ctx context.Context, act registry.Actor, in connectio
 		} else if n > 0 {
 			return registry.Invalid("another workspace has a provider %q; its health and self-check go by name, so pick another", in.Name)
 		}
-		c, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: in.Name, Api: models.APICLI, Agent: in.Agent})
+		c, err := q.AddConnection(ctx, db.AddConnectionParams{WorkspaceID: act.Workspace, Name: in.Name, Api: modelproxy.APICLI, Agent: in.Agent})
 		if err != nil {
 			return err
 		}
 		if err := health.Clear(ctx, q, health.Of{}, health.Provider(in.Name)); err != nil {
 			return err
 		}
-		_, err = q.AddModel(ctx, db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: in.Name, Kind: models.KindText,
-			Options: "{}", Unit: models.UnitToken, Agent: in.Agent, Subscription: 1})
+		_, err = q.AddModel(ctx, db.AddModelParams{WorkspaceID: act.Workspace, ConnectionID: c.ID, Name: in.Name, Kind: modelproxy.KindText,
+			Options: "{}", Unit: modelproxy.UnitToken, Agent: in.Agent, Subscription: 1})
 		return err
 	})
 	if err != nil {
@@ -131,4 +131,6 @@ func (s *Service) loginDelete(ctx context.Context, act registry.Actor, c db.Conn
 }
 
 // added says a connection is a login of a CLI the owner added, not the built-in one of its name.
-func added(c db.Connection) bool { return c.Api == models.APICLI && c.Agent != "" && c.Name != c.Agent }
+func added(c db.Connection) bool {
+	return c.Api == modelproxy.APICLI && c.Agent != "" && c.Name != c.Agent
+}

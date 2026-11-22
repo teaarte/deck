@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"deck2/internal/egress"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
@@ -25,7 +25,7 @@ type connectionSetIn struct {
 }
 
 func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in connectionSetIn) (any, error) {
-	if in.API == models.APICLI || in.Agent != "" {
+	if in.API == modelproxy.APICLI || in.Agent != "" {
 		return s.loginSet(ctx, act, in)
 	}
 	switch {
@@ -36,7 +36,7 @@ func (s *Service) connectionSet(ctx context.Context, act registry.Actor, in conn
 	case strings.ContainsAny(in.URL, "@?#"):
 		return nil, registry.Invalid("the url takes no user, query or key; give the key in key, deck keeps it apart")
 	}
-	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && old.Api == models.APICLI {
+	if old, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && old.Api == modelproxy.APICLI {
 		return nil, registry.Invalid("connection %s is the %s CLI on the owner's subscription, which deck keeps itself; name another one", in.Name, in.Name)
 	}
 	if in.API == "" {
@@ -98,7 +98,7 @@ type connectionDeleteIn struct {
 }
 
 func (s *Service) connectionDelete(ctx context.Context, act registry.Actor, in connectionDeleteIn) (any, error) {
-	if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && c.Api == models.APICLI {
+	if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: act.Workspace, Name: in.Name}); err == nil && c.Api == modelproxy.APICLI {
 		if !added(c) {
 			return nil, registry.Invalid("connection %s is the %s CLI, which deck keeps itself; remove its models instead", in.Name, in.Name)
 		}

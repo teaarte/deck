@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/untrusted"
@@ -43,7 +43,7 @@ type videoJob struct {
 
 // video follows the job a video model took until it ends and keeps its clip; done gets what the job cost: what
 // its last answer reported, nothing for a failed one that reported nothing, the price of its model past its ceiling.
-func (s *Service) video(ctx context.Context, act registry.Actor, h models.Hop, resp *http.Response, done func(*provider.Usage)) (any, error) {
+func (s *Service) video(ctx context.Context, act registry.Actor, h modelproxy.Hop, resp *http.Response, done func(*provider.Usage)) (any, error) {
 	_, raw, err := s.answer(act, RoleVideo, resp, h)
 	if err != nil {
 		done(nil)
@@ -60,7 +60,7 @@ func (s *Service) video(ctx context.Context, act registry.Actor, h models.Hop, r
 	defer ceiling.Stop()
 	for job.Status != "completed" {
 		if job.Status == "failed" || job.Status == "cancelled" || job.Status == "canceled" || job.Status == "expired" {
-			if spent = models.UsageOf(raw); spent == nil || spent.CostUSD == nil {
+			if spent = modelproxy.UsageOf(raw); spent == nil || spent.CostUSD == nil {
 				zero := 0.0
 				spent = &provider.Usage{CostUSD: &zero}
 			}
@@ -73,13 +73,13 @@ func (s *Service) video(ctx context.Context, act registry.Actor, h models.Hop, r
 			return nil, fault.New(fault.Stopped, fmt.Sprintf("deck: the call stopped while the video job %s of %s ran; the service may still finish it: %v", job.ID, h.Connection, ctx.Err()))
 		case <-time.After(s.VideoPoll):
 		}
-		r, err := models.Send(ctx, h.Target, models.Call{Method: http.MethodGet, Path: "videos/" + job.ID})
+		r, err := modelproxy.Send(ctx, h.Target, modelproxy.Call{Method: http.MethodGet, Path: "videos/" + job.ID})
 		if err != nil {
 			continue
 		}
 		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 		_ = r.Body.Close()
-		if models.Fallible(r.StatusCode) {
+		if modelproxy.Fallible(r.StatusCode) {
 			continue
 		}
 		if r.StatusCode >= 400 {
@@ -90,10 +90,10 @@ func (s *Service) video(ctx context.Context, act registry.Actor, h models.Hop, r
 			job.Status, job.Error, raw = next.Status, next.Error, body
 		}
 	}
-	if u := models.UsageOf(raw); u != nil {
+	if u := modelproxy.UsageOf(raw); u != nil {
 		spent = u
 	}
-	r, err := models.Send(ctx, h.Target, models.Call{Method: http.MethodGet, Path: "videos/" + job.ID + "/content"})
+	r, err := modelproxy.Send(ctx, h.Target, modelproxy.Call{Method: http.MethodGet, Path: "videos/" + job.ID + "/content"})
 	if err != nil {
 		return nil, fault.New(fault.ModelUnavailable, fmt.Sprintf("deck: the clip of the video job %s of %s: %v", job.ID, h.Connection, err))
 	}

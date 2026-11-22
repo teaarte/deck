@@ -1,5 +1,5 @@
 // Package models is deck's proxy of models: what a call asks, where it goes, its hops and its usage.
-package models
+package modelproxy
 
 import (
 	"bytes"

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 )
@@ -23,7 +23,7 @@ func (s *Service) Catalog(ctx context.Context, workspace int64, c db.Connection,
 	key := s.Key(workspace, c.Name)
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	resp, err := models.Send(ctx, s.target(c, strings.TrimSpace(key)), models.Call{Method: http.MethodGet, Path: "models"})
+	resp, err := modelproxy.Send(ctx, s.target(c, strings.TrimSpace(key)), modelproxy.Call{Method: http.MethodGet, Path: "models"})
 	if err != nil {
 		return out, false
 	}

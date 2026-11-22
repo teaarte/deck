@@ -1,4 +1,4 @@
-package models
+package modelproxy
 
 // Kinds are what a model of deck's settings makes; search is a search service such as SearXNG.
 const (

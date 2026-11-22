@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"deck2/internal/home"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/provider"
 	"deck2/internal/provider/acp"
 	"deck2/internal/provider/remote"
@@ -101,7 +101,7 @@ func (s *Service) Provider(ctx context.Context, workspace int64, name string) (p
 	if m.Agent == "" {
 		return nil, registry.Invalid("model %q runs in no agent; set it again with deck.model_set and agent %s", name, strings.Join(s.agentNames(), " or "))
 	}
-	if c.Api == models.APICLI {
+	if c.Api == modelproxy.APICLI {
 		cli, ok := s.login(c).(provider.Modeled)
 		if !ok || m.Agent != c.Agent {
 			return nil, registry.Invalid("model %q runs in %s, which this deck does not run", name, m.Agent)

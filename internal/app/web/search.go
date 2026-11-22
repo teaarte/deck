@@ -15,7 +15,7 @@ import (
 	"deck2/internal/egress"
 	"deck2/internal/fault"
 	"deck2/internal/health"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -99,13 +99,13 @@ func (s *Service) webSearch(ctx context.Context, act registry.Actor, in webSearc
 }
 
 // searches are the services of search of act in order, the local or free ones of a trial.
-func (s *Service) searches(ctx context.Context, act registry.Actor) ([]models.Hop, error) {
-	hops, err := s.Route(ctx, act, models.Ask{Connection: "@", Model: "@" + models.KindSearch})
+func (s *Service) searches(ctx context.Context, act registry.Actor) ([]modelproxy.Hop, error) {
+	hops, err := s.Route(ctx, act, modelproxy.Ask{Connection: "@", Model: "@" + modelproxy.KindSearch})
 	if err != nil {
 		return nil, err
 	}
 	if act.Trial {
-		hops = slices.DeleteFunc(hops, func(h models.Hop) bool { return !h.Local && !h.Free })
+		hops = slices.DeleteFunc(hops, func(h modelproxy.Hop) bool { return !h.Local && !h.Free })
 		if len(hops) == 0 {
 			return nil, registry.Refuse("trial run: no search of deck's settings is local or free, so a trial does not search")
 		}
@@ -125,18 +125,18 @@ func (s *Service) searches(ctx context.Context, act registry.Actor) ([]models.Ho
 
 // search asks the services of search in order within searchFor; one that answers no results because none of its
 // engines answered is red and hands the query on.
-func (s *Service) search(ctx context.Context, act registry.Actor, hops []models.Hop, query string) (found, error) {
+func (s *Service) search(ctx context.Context, act registry.Actor, hops []modelproxy.Hop, query string) (found, error) {
 	ctx, cancel := context.WithTimeout(ctx, searchFor)
 	defer cancel()
 	q := url.Values{"q": {query}, "format": {"json"}}.Encode()
-	f, _, err := models.ReadHops(ctx, hops, func(models.Hop) (models.Call, error) {
-		return models.Call{Method: http.MethodGet, Path: "search", Query: q, Header: http.Header{"Accept": {"application/json"}}}, nil
-	}, func(h models.Hop, resp *http.Response) (found, error) { return s.answer(ctx, act, h, resp) })
+	f, _, err := modelproxy.ReadHops(ctx, hops, func(modelproxy.Hop) (modelproxy.Call, error) {
+		return modelproxy.Call{Method: http.MethodGet, Path: "search", Query: q, Header: http.Header{"Accept": {"application/json"}}}, nil
+	}, func(h modelproxy.Hop, resp *http.Response) (found, error) { return s.answer(ctx, act, h, resp) })
 	return f, err
 }
 
 // answer reads what a search answered; no results while none of its engines answered is a search that did not answer.
-func (s *Service) answer(ctx context.Context, act registry.Actor, h models.Hop, resp *http.Response) (found, error) {
+func (s *Service) answer(ctx context.Context, act registry.Actor, h modelproxy.Hop, resp *http.Response) (found, error) {
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxPage))
 	// The body closes first, since its close tells the health of the search the answer.
 	_ = resp.Body.Close()
@@ -168,7 +168,7 @@ func (s *Service) answer(ctx context.Context, act registry.Actor, h models.Hop, 
 		}); err != nil {
 			said += fmt.Sprintf("; its health was not kept: %v", err)
 		}
-		return found{}, models.Unread(said)
+		return found{}, modelproxy.Unread(said)
 	}
 	f := found{at: s.St.Now(), search: h.Name, results: []searchView{}, missed: len(v.Unresponsive) > 0}
 	for _, r := range v.Results[:min(len(v.Results), maxResults)] {
@@ -179,7 +179,7 @@ func (s *Service) answer(ctx context.Context, act registry.Actor, h models.Hop, 
 
 // allDown says every web engine the SearXNG of h asks did not answer, or its /config could not be read; one that
 // names no such engine is not down.
-func (s *Service) allDown(ctx context.Context, act registry.Actor, h models.Hop, unresponsive [][]string) bool {
+func (s *Service) allDown(ctx context.Context, act registry.Actor, h modelproxy.Hop, unresponsive [][]string) bool {
 	web, ok := s.webEngines(ctx, fmt.Sprint(act.Workspace, "\x00", h.Connection), h)
 	return !ok || len(web) > 0 && !slices.ContainsFunc(web, func(name string) bool {
 		return !slices.ContainsFunc(unresponsive, func(u []string) bool { return len(u) > 0 && u[0] == name })
@@ -188,7 +188,7 @@ func (s *Service) allDown(ctx context.Context, act registry.Actor, h models.Hop,
 
 // webEngines are the engines of /config a SearXNG asks for a plain query, kept for engineFor, false when unread: the
 // enabled of general that are web too, since those of translate or currency answer only queries of their pattern.
-func (s *Service) webEngines(ctx context.Context, key string, h models.Hop) ([]string, bool) {
+func (s *Service) webEngines(ctx context.Context, key string, h modelproxy.Hop) ([]string, bool) {
 	s.mu.Lock()
 	k, ok := s.engines[key]
 	s.mu.Unlock()
@@ -197,7 +197,7 @@ func (s *Service) webEngines(ctx context.Context, key string, h models.Hop) ([]s
 	}
 	ctx, cancel := context.WithTimeout(ctx, configFor)
 	defer cancel()
-	resp, err := models.Send(ctx, h.Target, models.Call{Method: http.MethodGet, Path: "config", Header: http.Header{"Accept": {"application/json"}}})
+	resp, err := modelproxy.Send(ctx, h.Target, modelproxy.Call{Method: http.MethodGet, Path: "config", Header: http.Header{"Accept": {"application/json"}}})
 	if err != nil {
 		return nil, false
 	}

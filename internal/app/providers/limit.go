@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"deck2/internal/health"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/store"
@@ -67,10 +67,10 @@ func (s *Service) cliOf(ctx context.Context, workspace int64, name string) strin
 	if base, _, ok := provider.AtNode(name); ok {
 		name = base
 	}
-	if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: workspace, Name: name}); err == nil && c.Api == models.APICLI {
+	if c, err := s.St.Q.GetConnection(ctx, db.GetConnectionParams{WorkspaceID: workspace, Name: name}); err == nil && c.Api == modelproxy.APICLI {
 		return c.Name
 	}
-	if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name}); err == nil && row.Connection.Api == models.APICLI {
+	if row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name}); err == nil && row.Connection.Api == modelproxy.APICLI {
 		return row.Connection.Name
 	}
 	return ""

@@ -11,7 +11,7 @@ import (
 
 	"deck2/internal/fault"
 	"deck2/internal/gateway"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/store/db"
@@ -50,18 +50,18 @@ func parseCall(input json.RawMessage) (call, error) {
 }
 
 // modelRef is where a call of a model goes: an @role on any connection, or a named model on its own.
-func (s *Service) modelRef(ctx context.Context, workspace int64, model, kind string) (models.Ask, error) {
+func (s *Service) modelRef(ctx context.Context, workspace int64, model, kind string) (modelproxy.Ask, error) {
 	if model == "" {
-		return models.Ask{Connection: "@", Model: "@" + kind}, nil
+		return modelproxy.Ask{Connection: "@", Model: "@" + kind}, nil
 	}
 	if strings.HasPrefix(model, "@") {
-		return models.Ask{Connection: "@", Model: model}, nil
+		return modelproxy.Ask{Connection: "@", Model: model}, nil
 	}
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: model})
 	if err != nil {
-		return models.Ask{}, registry.NotFound("no model %q; deck.models_list names the models", model)
+		return modelproxy.Ask{}, registry.NotFound("no model %q; deck.models_list names the models", model)
 	}
-	return models.Ask{Connection: row.Connection.Name, Model: row.Model.Model, Name: row.Model.Name}, nil
+	return modelproxy.Ask{Connection: row.Connection.Name, Model: row.Model.Model, Name: row.Model.Name}, nil
 }
 
 func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCallIn) (any, error) {
@@ -133,9 +133,9 @@ func (s *Service) modelCall(ctx context.Context, act registry.Actor, in modelCal
 		}
 	}
 	var unread error
-	out, h, err := models.ReadHops(ctx, hops, func(h models.Hop) (models.Call, error) {
+	out, h, err := modelproxy.ReadHops(ctx, hops, func(h modelproxy.Hop) (modelproxy.Call, error) {
 		return build(in, h, merged(maps.Clone(h.Options), options), att)
-	}, func(h models.Hop, resp *http.Response) (out any, err error) {
+	}, func(h modelproxy.Hop, resp *http.Response) (out any, err error) {
 		defer func() { unread = err }()
 		if in.Kind == RoleVideo {
 			return s.video(ctx, act, h, resp, func(u *provider.Usage) {

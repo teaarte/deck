@@ -13,14 +13,14 @@ import (
 	"deck2/internal/fault"
 	"deck2/internal/files"
 	"deck2/internal/manifest"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/registry"
 	"deck2/internal/untrusted"
 )
 
 // answer reads what a model API answered: a binary body is kept as a file in the results folder of the calling
 // process, the rest comes back as its bytes; an answer past 400 is an error, of the model's status when it refused.
-func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h models.Hop) (any, []byte, error) {
+func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h modelproxy.Hop) (any, []byte, error) {
 	defer resp.Body.Close()
 	ct, _, _ := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 	text := ct == "" || ct == "application/json" || strings.HasSuffix(ct, "+json") || strings.HasPrefix(ct, "text/")
@@ -43,7 +43,7 @@ func (s *Service) answer(act registry.Actor, name string, resp *http.Response, h
 }
 
 // read turns what the API answered into the result of the call.
-func (s *Service) read(act registry.Actor, in modelCallIn, h models.Hop, resp *http.Response) (any, error) {
+func (s *Service) read(act registry.Actor, in modelCallIn, h modelproxy.Hop, resp *http.Response) (any, error) {
 	file, raw, err := s.answer(act, in.Kind, resp, h)
 	if file != nil || err != nil {
 		return file, err
@@ -67,7 +67,7 @@ func (s *Service) read(act registry.Actor, in modelCallIn, h models.Hop, resp *h
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &v); err != nil {
-		return nil, models.Unread(fmt.Sprintf("deck: %s answered what is not JSON: %s", h.Connection, untrusted.Cut(string(raw), 500)))
+		return nil, modelproxy.Unread(fmt.Sprintf("deck: %s answered what is not JSON: %s", h.Connection, untrusted.Cut(string(raw), 500)))
 	}
 	switch in.Kind {
 	case RoleSTT:
@@ -85,7 +85,7 @@ func (s *Service) read(act registry.Actor, in modelCallIn, h models.Hop, resp *h
 				}
 			}
 		}
-		return nil, models.Unread(fmt.Sprintf("deck: %s answered no picture: %s", h.Connection, untrusted.Cut(string(raw), 500)))
+		return nil, modelproxy.Unread(fmt.Sprintf("deck: %s answered no picture: %s", h.Connection, untrusted.Cut(string(raw), 500)))
 	}
 	var text strings.Builder
 	for _, c := range v.Choices {
@@ -106,7 +106,7 @@ func (s *Service) read(act registry.Actor, in modelCallIn, h models.Hop, resp *h
 	}
 	out, err := manifest.DecodeValue([]byte(unfence(text.String())))
 	if err != nil {
-		return nil, models.Unread(fmt.Sprintf("deck: %s answered what is not JSON: %s", h.Name, untrusted.Cut(text.String(), 1000)))
+		return nil, modelproxy.Unread(fmt.Sprintf("deck: %s answered what is not JSON: %s", h.Name, untrusted.Cut(text.String(), 1000)))
 	}
 	return out, nil
 }
@@ -167,7 +167,7 @@ func dataURL(u string) (string, string, bool) {
 func (s *Service) keepBase64(act registry.Actor, ct, data string) (any, error) {
 	b, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
-		return nil, models.Unread(fmt.Sprintf("deck: the picture is not base64: %v", err))
+		return nil, modelproxy.Unread(fmt.Sprintf("deck: the picture is not base64: %v", err))
 	}
 	return s.keep(act, RoleImage, ct, bytes.NewReader(b))
 }

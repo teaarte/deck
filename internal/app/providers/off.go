@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"deck2/internal/health"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
 	"deck2/internal/settings"
@@ -18,7 +18,7 @@ func (s *Service) base(ctx context.Context, workspace int64, name string) provid
 		return pv
 	}
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
-	if err != nil || row.Connection.Api != models.APICLI {
+	if err != nil || row.Connection.Api != modelproxy.APICLI {
 		return nil
 	}
 	return s.builtinNamed(row.Model.Agent)
@@ -45,7 +45,7 @@ func (s *Service) Off(ctx context.Context, workspace int64, name string) string 
 // acpAgent is the ACP agent a model of deck's settings runs in, such as goose; empty for any other provider.
 func (s *Service) acpAgent(ctx context.Context, workspace int64, name string) string {
 	row, err := s.St.Q.GetModel(ctx, db.GetModelParams{WorkspaceID: workspace, Name: name})
-	if err != nil || row.Connection.Api == models.APICLI {
+	if err != nil || row.Connection.Api == modelproxy.APICLI {
 		return ""
 	}
 	return row.Model.Agent

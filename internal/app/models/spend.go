@@ -9,7 +9,7 @@ import (
 
 	"deck2/internal/fault"
 	"deck2/internal/health"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/process"
 	"deck2/internal/provider"
 	"deck2/internal/registry"
@@ -29,12 +29,12 @@ func price(m db.Model, u provider.Usage) *float64 {
 	}
 	in, out := float64(u.Input), float64(u.Output)
 	switch m.Unit {
-	case models.UnitChar:
+	case modelproxy.UnitChar:
 		if u.Chars == 0 {
 			return nil
 		}
 		in, out = float64(u.Chars), 0
-	case models.UnitSecond:
+	case modelproxy.UnitSecond:
 		if u.Seconds == 0 {
 			return nil
 		}
@@ -50,7 +50,7 @@ func (s *Service) answered(ctx context.Context, m db.Model, next string, status 
 	if m.ID != 0 && status >= 200 && status < 400 {
 		s.Answered(ctx, m.WorkspaceID, m.Name, true, nil)
 	}
-	failed := status <= 0 || models.Fallible(status)
+	failed := status <= 0 || modelproxy.Fallible(status)
 	if m.ID == 0 || m.Agent != "" || !failed && status >= 400 || fault.OfStatus(fault.ModelStatus(status), true) == fault.ModelLimit {
 		// A usage limit pauses the model by what its answer said, not red.
 		return

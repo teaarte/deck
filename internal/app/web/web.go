@@ -19,7 +19,7 @@ import (
 	"deck2/internal/egress"
 	"deck2/internal/fault"
 	"deck2/internal/manifest"
-	"deck2/internal/models"
+	"deck2/internal/modelproxy"
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/untrusted"
@@ -29,7 +29,7 @@ import (
 type Service struct {
 	St *store.Store
 	// Route finds where an actor's call of a model goes, the search of deck's settings for @search.
-	Route func(ctx context.Context, act registry.Actor, ask models.Ask) ([]models.Hop, error)
+	Route func(ctx context.Context, act registry.Actor, ask modelproxy.Ask) ([]modelproxy.Hop, error)
 
 	mu      sync.Mutex
 	slot    map[string]chan struct{}

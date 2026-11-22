@@ -63,7 +63,7 @@ var exceptions = map[string][]string{
 		"internal/egress/node.go:91", "internal/egress/node.go:94", "internal/files/files.go:105",
 		"internal/files/files.go:109", "internal/files/files.go:115", "internal/files/files.go:126",
 		"internal/files/light.go:43", "internal/files/light.go:57", "internal/home/home.go:140",
-		"internal/models/hops.go:405", "internal/node/hub.go:262", "internal/tools/body.go:99",
+		"internal/modelproxy/hops.go:405", "internal/node/hub.go:262", "internal/tools/body.go:99",
 		"internal/tools/browser.go:286", "internal/tools/content.go:21", "internal/tools/content.go:64",
 		"internal/tools/http.go:88", "internal/tools/http.go:162", "internal/tools/http.go:167",
 		"internal/tools/http.go:170", "internal/tools/http.go:177", "internal/tools/http.go:185",

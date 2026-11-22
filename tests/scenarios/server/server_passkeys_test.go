@@ -223,9 +223,8 @@ func TestTheOwnerRenamesAPasskeyAndStopsThePushesOfADevice(t *testing.T) {
 	e.Refused("deck.push_unsubscribe", map[string]any{"device": mac.ID}, 404, "no such device")
 }
 
-// TestTheSessionsOfADeviceBeforePasskeysSettleOnTheirBrowsers: of two sessions the migration to passkeys left on one
-// device unsettled, the first browser to call keeps the device, the other gets its own, neither its pushes; one of pushes
-// only stays one. A base of v0.2.0 or later may still hold such sessions of a browser that did not call since.
+// TestTheSessionsOfADeviceBeforePasskeysSettleOnTheirBrowsers: of two sessions the passkey migration left unsettled on
+// one device, the first browser to call keeps it, the other gets its own, neither its pushes; one of pushes stays one.
 func TestTheSessionsOfADeviceBeforePasskeysSettleOnTheirBrowsers(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t)
@@ -244,8 +243,9 @@ func TestTheSessionsOfADeviceBeforePasskeysSettleOnTheirBrowsers(t *testing.T) {
 	e.SQL(`UPDATE device SET push_endpoint = 'https://push.example/one', push_p256dh = 'k', push_auth = 'a' WHERE id = ?`, m.ID)
 	// Pushes subscribed before passkeys stayed a device with no passkey.
 	e.SQL(`INSERT INTO device (workspace_id, kind, name, push_endpoint, push_p256dh, push_auth) VALUES (1, 'browser', 'old phone', 'https://push.example/old', 'k', 'a')`)
-	// What the migration to passkeys left: sessions not settled on their browsers, a device without the mark of one.
+	// What the migration to passkeys left: sessions not settled on their browsers.
 	e.SQL(`UPDATE session SET settled = 0`)
+	// Nor had the device the mark of a browser.
 	e.SQL(`UPDATE device SET mark = NULL WHERE id = ?`, m.ID)
 	e = e.Restart()
 

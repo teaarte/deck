@@ -150,7 +150,7 @@ type FakeModels struct {
 }
 
 type ModelCall struct {
-	Path, Auth, Model string
+	Path, Host, Auth, Model string
 	// Header is the X-Deck-Model the API got, which deck keeps to itself.
 	Header string
 	Body   map[string]any
@@ -164,7 +164,7 @@ func NewModels(t *testing.T, path map[string]func(n int, body map[string]any) (i
 		_ = json.Unmarshal(b, &body)
 		model, _ := body["model"].(string)
 		f.mu.Lock()
-		f.got = append(f.got, ModelCall{Path: r.URL.Path, Auth: r.Header.Get("Authorization"), Model: model, Header: r.Header.Get("X-Deck-Model"), Body: body})
+		f.got = append(f.got, ModelCall{Path: r.URL.Path, Host: r.Host, Auth: r.Header.Get("Authorization"), Model: model, Header: r.Header.Get("X-Deck-Model"), Body: body})
 		n := len(f.got)
 		f.mu.Unlock()
 		answer := f.path[r.URL.Path]

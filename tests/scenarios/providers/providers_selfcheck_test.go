@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -390,12 +389,8 @@ fi`)
 // gateway agents cannot reach holds the turns instead of leaving the provider green.
 func TestASelfCheckIsRedWhenAgentsDoNotReachDecksMCP(t *testing.T) {
 	t.Parallel()
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	closed := "http://" + ln.Addr().String()
-	ln.Close()
+	// A port below those the system hands out, which no test's server is given: nothing answers there.
+	closed := "http://127.0.0.1:1"
 	cf := &checkedFake{Fake: &harness.Fake{}}
 	e := harness.New(t, harness.WithProvider(cf), harness.WithConfig(func(c *app.Config) { c.MCPBase = closed }))
 	e.App.Providers.Checks(context.Background(), time.Now())

@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
 
 	"deck2/internal/egress"
@@ -19,15 +18,7 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 	t.Parallel()
 	var mu sync.Mutex
 	var seen []string
-	var down atomic.Bool
 	svc := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// A service that is down holds its port, so no other test's server is given it.
-		if down.Load() {
-			if c, _, err := w.(http.Hijacker).Hijack(); err == nil {
-				_ = c.Close()
-			}
-			return
-		}
 		mu.Lock()
 		seen = append(seen, r.URL.RequestURI())
 		mu.Unlock()
@@ -91,7 +82,7 @@ func TestAToolTakesItsWholeURLFromASecret(t *testing.T) {
 		}
 	}
 	e.Secret("cal", "outlook", link)
-	down.Store(true)
+	svc.Close()
 	code, out := e.Call("cal.ics", map[string]any{"from": "x"})
 	var hs []map[string]any
 	e.Must("deck.health_list", nil, &hs)

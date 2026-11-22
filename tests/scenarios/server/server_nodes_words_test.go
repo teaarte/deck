@@ -1,7 +1,6 @@
 package server
 
 import (
-	"net"
 	"strings"
 	"testing"
 
@@ -13,12 +12,8 @@ import (
 func TestTheHealthOfANodeReadsInRussian(t *testing.T) {
 	t.Parallel()
 	api := nodeModels(t, "from the node")
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	silent := "http://" + l.Addr().String()
-	l.Close()
+	// A port below those the system hands out, which no test's server is given: nothing answers there.
+	silent := "http://127.0.0.1:1"
 	e := harness.New(t)
 	e.Node("Mac", api.URL, silent)
 	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": api.URL + "/v1", "local": true, "node": "Mac"}, nil)

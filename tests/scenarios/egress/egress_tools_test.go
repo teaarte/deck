@@ -194,11 +194,12 @@ func TestAToolGoesOnlyToTheHostItsManifestWrites(t *testing.T) {
 	if code, out := e.Call("named.plain", map[string]any{}); code != 403 || !strings.Contains(string(out), "not a public address") {
 		t.Fatalf("a name of the owner's machine is refused: %d %s", code, out)
 	}
-	// Another test's deck may still call a port its server freed, which this server may hold now.
-	if n := len(slices.DeleteFunc(api.Calls(), func(c harness.ModelCall) bool { return c.Path != "/v1/plain" })); n != 0 {
-		t.Fatalf("the refused call reached nothing: %d", n)
-	}
 	_, port, _ := net.SplitHostPort(strings.TrimPrefix(api.URL, "http://"))
+	// Another test's deck may still call a port its server freed, which this server may hold now: the refused call
+	// alone names the host localhost.
+	if calls := api.Calls(); slices.ContainsFunc(calls, func(c harness.ModelCall) bool { return c.Host == "localhost:"+port }) {
+		t.Fatalf("the refused call reached nothing: %+v", calls)
+	}
 	// The addresses of the owner's machine are reached by name only once the domains name them.
 	listed := strings.Replace(jsonToolManifest("http://localhost:"+port), `"tools": {`, `"rights": [{"right": "network", "what": ["127.0.0.1", "::1"], "why": "reads it"}], "tools": {`, 1)
 	e.Project("listed", harness.Declared(listed))

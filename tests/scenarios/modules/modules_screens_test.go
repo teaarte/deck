@@ -378,7 +378,7 @@ func TestScreenTopicReadsOnlyTheBlocksItChanges(t *testing.T) {
 			t.Fatalf("%s reads the connections once opened, and no collapsed block the owner did not open: %v", topic, open)
 		}
 	}
-	if got := paths("", "settings", "documents"); !slices.Contains(got, "/b0-1-3") {
+	if got := paths("", "settings", "documents"); !slices.Contains(got, "/b0-1-2") {
 		t.Fatalf("documents reads the projects, whose descriptions are their prompts: %v", got)
 	}
 	for _, topic := range []string{"projects", "spaceship"} {

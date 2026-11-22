@@ -791,3 +791,10 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   without a request each, listed among the changes made without the owner with their undo. Any other module, the
   master's own instructions, custom blocks and every way out still ask.
   Modules: nothing to change.
+- 2026-11-22: The commands `cover_draw`, `theme_draw` and `widget_draw` of deck are gone: deck's buttons that drew covers,
+  the pictures of a theme and the view of a card send the owner's words to the master in the chat
+  (`deck.chat_send`), and how to draw is the master's skills `themes` and `widgets`; the size of a card comes as
+  `size` in the screen of the message. A text a button gives to a field of format `text` of a command of deck (such
+  as `text` of `deck.chat_send` or of `deck.model_call`) is said in the owner's language when deck's words know it.
+  Modules: a command whose `calls` name `cover_draw`, `theme_draw` or `widget_draw` of deck calls
+  `deck.chat_send` with the request in words instead; a button of them does the same.

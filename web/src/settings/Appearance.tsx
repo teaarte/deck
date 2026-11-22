@@ -43,7 +43,7 @@ export function Appearance({ part, actions }: { part?: string; actions: Action[]
       <Text size="sm" c="dimmed">{t("The theme is the whole deck's; the rest stays on this device.")}</Text>
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md" verticalSpacing="md">
         <Language act={of('deck.setting_set')} />
-        <Theme draws={[of('deck.cover_draw'), of('deck.theme_draw')]} />
+        <Theme draws={actions.filter((a) => a.command === 'deck.chat_send')} />
         {worn.schemes.length === 1 ? (
           <Text size="sm" c="dimmed" data-look-note="scheme">{t(worn.schemes[0] === 'dark' ? '{{theme}} is dark only.' : '{{theme}} is light only.', { theme: worn.title })}</Text>
         ) : (
@@ -76,7 +76,7 @@ interface ThemeRow { name: string; title: string; current: boolean; problems?: s
 
 // Theme is the theme of the whole deck, from the shipped ones and the owner's; one with an accent gives it to this device.
 // draws are the buttons that ask the master to draw in it.
-function Theme({ draws }: { draws: (Action | undefined)[] }) {
+function Theme({ draws }: { draws: Action[] }) {
   const { t } = useTranslation();
   const ctx = useBlockContext();
   const worn = useWorn();
@@ -100,8 +100,8 @@ function Theme({ draws }: { draws: (Action | undefined)[] }) {
     <Stack gap={4}>
       <Choice label={t('Theme')} name="theme" value={current} options={rows.map((r) => r.name)}
         labels={Object.fromEntries(rows.map((r) => [r.name, r.title]))} onChange={(v) => void pick(v)} />
-      {draws.map((a, i) => a && (
-        <Button key={a.command} variant="subtle" size="compact-sm" leftSection={<IconSparkles size={14} />} onClick={() => void ask(a)}
+      {draws.map((a, i) => (
+        <Button key={a.label} variant="subtle" size="compact-sm" leftSection={<IconSparkles size={14} />} onClick={() => void ask(a)}
           {...{ [i ? 'data-draw-pictures' : 'data-fill-covers']: true }} className="deck-start">{a.label}</Button>
       ))}
     </Stack>

@@ -115,6 +115,10 @@ func TestEveryTextOfDeckScreensHasItsTranslation(t *testing.T) {
 			maps.Copy(texts, manifest.Texts(raw))
 		}
 	}
+	// A text a button gives a field of format text of a command of deck, such as the message of chat_send, is said too.
+	for _, m := range regexp.MustCompile(`"params": \{[^}]*"text": "([^"=][^"]*)"`).FindAllStringSubmatch(screens.String(), -1) {
+		texts[m[1]] = true
+	}
 	for text := range texts {
 		if ru[text] == "" {
 			t.Errorf("no ru for %q", text)

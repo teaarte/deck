@@ -2,6 +2,7 @@ package screens
 
 import (
 	"context"
+	"encoding/json"
 	"slices"
 
 	"deck2/internal/docs"
@@ -40,7 +41,8 @@ type menuEntry struct {
 	// schedule.
 	Doing string   `json:"doing,omitempty"`
 	Next  *nextRun `json:"next,omitempty"`
-	// Draw is the button that asks for a view of the card for a size, given as size.
+	// Draw is the button that asks the master in the chat for a view of the card for a size, the size given in the
+	// screen of the message.
 	Draw map[string]any `json:"draw,omitempty"`
 	// Draft says the project waits to be enabled: its card opens the card of what enabling it means.
 	Draft bool `json:"draft,omitempty"`
@@ -103,6 +105,15 @@ func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (m
 	open, _ := s.St.Q.ListOpenProcesses(ctx, db.ListOpenProcessesParams{WorkspaceID: act.Workspace})
 	triggers, _ := s.St.Q.ListWorkspaceTriggers(ctx, db.ListWorkspaceTriggersParams{WorkspaceID: act.Workspace})
 	theme := s.Theme(ctx, act.Workspace)
+	widget := s.widgetModels(ctx, act.Workspace)
+	// draw are the params of the message that asks the master for a view of the card of a module.
+	draw := func(project int64) map[string]any {
+		out := map[string]any{"text": manifest.Tr(deckWords, "Make a view of the card of this module for its size on the tiles.")}
+		if m := widget(project); m != "" {
+			out["model"] = m
+		}
+		return out
+	}
 	for _, p := range ps {
 		m := ms[p.ID]
 		if m == nil {
@@ -111,7 +122,7 @@ func (s *Service) menu(ctx context.Context, act registry.Actor, in menuGetIn) (m
 		ws := wordsOf(registry.Lang(ctx), m)
 		e := menuEntry{Project: p.Name, Running: running[p.Name], Asks: asks[p.Name], Errors: failing[p.Name], Draft: p.Status == "draft",
 			Draw: map[string]any{"label": manifest.Tr(deckWords, "Deki prepares a view for this size"), "icon": "sparkles",
-				"command": registry.Deck("widget_draw"), "params": map[string]any{"project": p.Name}, "input": "size", "chat": true}}
+				"command": registry.Deck("chat_send"), "params": draw(p.ID), "chat": true}}
 		if c := files.CoverOf(pics, p.ID, theme); c != nil {
 			e.Cover, e.CoverColor, e.CoverDark, e.CoverDarkColor = c.Light, c.Color, c.Dark, c.DarkColor
 		}
@@ -207,5 +218,26 @@ func (s *Service) menuCommands() []*registry.Command {
 			"Lists the screens to navigate: deck's own, then each project's menu.",
 			registry.OwnerSide, s.menu).On(events.Projects, events.Documents, events.Settings, events.Files, events.Triggers).
 			Follows(registry.Deck("asks_list"), registry.Deck("processes_list"), registry.Deck("health_list"), registry.Deck("feed_list")),
+	}
+}
+
+// widgetRole is the role of the models that draw a view of the card of a module; the master's model without one.
+const widgetRole = "widget"
+
+// widgetModels give the model of the role widget for a module, else for the workspace; empty for the master's.
+func (s *Service) widgetModels(ctx context.Context, workspace int64) func(project int64) string {
+	as, _ := s.St.Q.ListAssignments(ctx, workspace)
+	first := map[int64]string{}
+	for _, a := range as {
+		var models []string
+		if a.Role == widgetRole && a.Command == "" && json.Unmarshal([]byte(a.Models), &models) == nil && len(models) > 0 {
+			first[a.ProjectID.Int64] = models[0]
+		}
+	}
+	return func(project int64) string {
+		if m, ok := first[project]; ok {
+			return m
+		}
+		return first[0]
 	}
 }

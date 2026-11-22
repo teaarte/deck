@@ -209,6 +209,8 @@ type renderer struct {
 	recordTitle string
 	// types are the input types of the commands buttons call, read once per screen.
 	types map[string]map[string]string
+	// texts are the fields of format text of each command of deck a button calls.
+	texts map[string][]string
 	// inCustom is set while the buttons of a custom block resolve: its frame presses them, not the owner.
 	inCustom bool
 	// results are the result schemas of the commands of deck the blocks read, by name.

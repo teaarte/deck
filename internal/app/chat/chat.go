@@ -107,11 +107,6 @@ type chatSendIn struct {
 	Model  string   `opt:"" desc:"The model the replies of the topic go on from now; the master's model when omitted on a new topic"`
 }
 
-// Tell sends text from the owner to the master in a new topic, as deck.chat_send does, its replies on model when given.
-func (s *Service) Tell(ctx context.Context, act registry.Actor, text, model string) (any, error) {
-	return s.chatSend(ctx, act, chatSendIn{Text: text, Model: model})
-}
-
 func (s *Service) chatSend(ctx context.Context, act registry.Actor, in chatSendIn) (any, error) {
 	text := strings.TrimSpace(in.Text)
 	switch {

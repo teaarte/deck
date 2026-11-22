@@ -27,9 +27,7 @@ import (
 )
 
 type Service struct {
-	St *store.Store
-	// Tell sends the owner's words to the master in a new topic of the chat.
-	Tell  func(ctx context.Context, act registry.Actor, text, model string) (any, error)
+	St    *store.Store
 	Home  home.Layout
 	Files Files
 }
@@ -367,7 +365,7 @@ func (s *Service) use(ctx context.Context, act registry.Actor, in themeNameIn) (
 
 // Commands are the commands of themes.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.themeCommands(), s.drawCommands(), s.pictureCommands())
+	return slices.Concat(s.themeCommands(), s.pictureCommands())
 }
 
 func (s *Service) themeCommands() []*registry.Command {

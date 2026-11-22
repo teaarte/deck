@@ -112,10 +112,6 @@
           {"type": "form", "command": "deck.project_create", "values": {"name": "=param.name"}}]},
         {"type": "dialog", "name": "import-project", "title": "Import module", "icon": "file-import", "blocks": [
           {"type": "form", "command": "deck.project_import", "description": "A .zip of a module or a folder of this machine; it comes as a draft, and deck shows what it may do before you enable it."}]},
-        {"type": "dialog", "name": "draw-cover", "title": "Draw covers", "icon": "sparkles", "blocks": [
-          {"type": "form", "command": "deck.cover_draw", "values": {"project": "=param.project"},
-            "description": "Deki draws the cover of the module in the mood of the theme in use, for its schemes; without a module, of every module that has none in this theme.",
-            "choices": {"model": {"source": {"from": "deck.models_list", "rows": "models", "where": "kind == 'image'"}, "value": "name", "label": "name + ' · ' + price"}}}]},
         {"type": "list", "title": "Modules", "icon": "apps", "empty": "No modules yet: tell Deki what to do, or import a module", "cards": true, "source": {"from": "deck.projects_list", "sort": "name"}, "filter": ["status"],
           "head": [{"label": "Arrange the tiles", "icon": "layout-grid", "screen": "apps", "params": {"edit": "1"}}],
           "item": {"title": "title", "icon": "icon != '' ? icon : 'box'", "cover": "cover ?? (builtin ? {'light': '/deki/chill.webp', 'color': '#f4ede4', 'dark_color': '#2a2522'} : nil)", "text": "manifest_error != '' ? 'manifest: ' + manifest_error : ''",
@@ -126,7 +122,7 @@
             {"verb": "review", "primary": true, "screen": "draft", "params": {"project": "=name", "revision": "=revision"}, "when": "manifest_error == '' && status == 'draft'"},
             {"verb": "pause", "command": "deck.project_pause", "params": {"project": "=name", "paused": "true"}, "when": "!paused"},
             {"verb": "resume", "command": "deck.project_pause", "params": {"project": "=name", "paused": "false"}, "when": "paused"},
-            {"label": "Draw a cover", "icon": "sparkles", "screen": "settings", "params": {"tab": "Modules", "dialog": "draw-cover", "project": "=name"}, "when": "!builtin"},
+            {"label": "Draw a cover", "icon": "sparkles", "command": "deck.chat_send", "params": {"text": "Draw the cover of this module for the theme in use.", "screen": "={'project': name}"}, "chat": true, "when": "!builtin"},
             {"label": "Take off the cover", "icon": "photo-off", "confirm": true, "command": "deck.project_cover_set", "params": {"project": "=name", "theme": "=cover.theme", "remove": "true"}, "when": "cover != nil"},
             {"verb": "export", "command": "deck.project_export", "params": {"project": "=name"}, "download": true, "when": "!(builtin ?? false) && manifest_error == ''"},
             {"label": "Export with data", "icon": "database-export", "command": "deck.project_export", "params": {"project": "=name", "data": "true"}, "download": true, "when": "!(builtin ?? false) && manifest_error == ''"},

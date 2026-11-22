@@ -144,21 +144,41 @@ func TestTodayInBriefSaysTheMostPressingFirst(t *testing.T) {
 	}
 }
 
-// TestDekiDrawsAViewForTheSizeOfACard: widget_draw gives the master the task in a new topic of the chat, on the
-// model of the role widget once the owner picked one.
+// TestDekiDrawsAViewForTheSizeOfACard: the button of a roomy card asks the master in a new topic of the chat, the
+// size of the card in the screen of the message, on the model of the role widget once the owner picked one.
 func TestDekiDrawsAViewForTheSizeOfACard(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Ok))
 	e.Project("shelf", harness.WidgetsManifest)
-	var sent struct{ Topic int64 }
-	e.Must("deck.widget_draw", map[string]any{"project": "shelf", "size": "4x2", "wish": "the newest first"}, &sent)
-	msgs := e.ChatMessages(sent.Topic)
-	if len(msgs) == 0 || !strings.Contains(msgs[0].Text, "shelf") || !strings.Contains(msgs[0].Text, "4x2") || !strings.Contains(msgs[0].Text, "the newest first") {
-		t.Fatalf("the master is told the module, the size and the wish: %+v", msgs)
+	draw := func() map[string]any {
+		var m struct {
+			Projects []struct{ Draw map[string]any }
+		}
+		e.Must("deck.menu_get", nil, &m)
+		if len(m.Projects) != 1 || m.Projects[0].Draw["command"] != "deck.chat_send" || m.Projects[0].Draw["chat"] != true {
+			t.Fatalf("the card asks the master in the chat: %+v", m)
+		}
+		return m.Projects[0].Draw
 	}
-	e.Refused("deck.widget_draw", map[string]any{"project": "shelf", "size": "huge"}, 422, "size")
+	press := func(a map[string]any) int64 {
+		params := a["params"].(map[string]any)
+		params["screen"] = map[string]any{"screen": "apps", "project": "shelf", "size": "4x2"}
+		var sent struct{ Topic int64 }
+		e.Must("deck.chat_send", params, &sent)
+		return sent.Topic
+	}
+	a := draw()
+	if _, ok := a["params"].(map[string]any)["model"]; ok {
+		t.Fatalf("without the role widget the master's own model replies: %+v", a)
+	}
+	topic := press(a)
+	msgs := e.ChatMessages(topic)
+	if len(msgs) == 0 || !strings.Contains(msgs[0].Text, "view of the card") || !strings.Contains(string(msgs[0].Screen), `"size":"4x2"`) ||
+		!strings.Contains(string(msgs[0].Screen), `"project":"shelf"`) {
+		t.Fatalf("the master is told the module and the size: %+v", msgs)
+	}
 	e.Must("deck.assignment_set", map[string]any{"role": "widget", "models": []string{"quiet"}}, nil)
-	e.Must("deck.widget_draw", map[string]any{"project": "shelf", "size": "1x1"}, &sent)
+	topic = press(draw())
 	var topics []struct {
 		ID    int64
 		Model string
@@ -168,7 +188,7 @@ func TestDekiDrawsAViewForTheSizeOfACard(t *testing.T) {
 		ID    int64
 		Model string
 	}) bool {
-		return x.ID == sent.Topic
+		return x.ID == topic
 	}); i < 0 || topics[i].Model != "quiet" {
 		t.Fatalf("the view is drawn on the model of the role widget: %+v", topics)
 	}

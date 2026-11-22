@@ -215,7 +215,7 @@ export function Apps() {
     const asks = p.draw;
     const ask = placing && asks && roomy(p.widgets, w, h) && (
       <Button size="compact-xs" variant="default" className={s.draw} leftSection={<IconSparkles size={13} />} data-widget-draw
-        onClick={() => void press(undefined, asks, { size: `${w}x${h}` }).then((r) => { if (r.error) notifyError(r.error, asks.label); })}>
+        onClick={() => void press(undefined, asks, { screen: JSON.stringify({ screen: 'apps', project: id, size: `${w}x${h}` }) }).then((r) => { if (r.error) notifyError(r.error, asks.label); })}>
         {asks.label}
       </Button>
     );

@@ -1,6 +1,6 @@
 ---
 name: widgets
-description: Makes the views of the card of a module on the tiles of deck — what the card shows on each size, from stat, list and chart blocks. Use when the owner asks Deki to prepare a view for a size of a card (deck.widget_draw), or asks what a card of a module should show.
+description: Makes the views of the card of a module on the tiles of deck — what the card shows on each size, from stat, list and chart blocks. Use when the owner asks Deki to prepare a view for a size of a card (the button of a card on the tiles, with the module and the size in the screen of the message), or asks what a card of a module should show.
 ---
 
 # Widgets of a module
@@ -32,6 +32,7 @@ Do not cram: one question per view — what needs me, what is new, how it goes. 
 ## How
 
 1. Read the module: `manifest_get`, its collections and the records the view would show.
-2. Write the view for the size the owner asked (`min` is that size) and keep the views of other sizes.
+2. Write the view for the size the owner asked — the `size` of the screen of the message, columns by rows — (`min` is
+   that size) and keep the views of other sizes.
 3. `manifest_check` it, then `manifest_save` it; a view widens no right, so it saves at once.
 4. Tell the owner in one sentence what the card shows now.

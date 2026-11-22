@@ -66,10 +66,14 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 		failed = cmp.Or(failed, err)
 		return out
 	}
-	// params leave out a value an expression leaves empty, such as the project of a row of the machine.
-	params := func(types map[string]string) map[string]any {
+	// params leave out a value an expression leaves empty, such as the project of a row of the machine; a text given to
+	// a field of format text of a command of deck is said in the owner's language.
+	params := func(types map[string]string, texts []string) map[string]any {
 		out := map[string]any{}
 		for k, v := range a.Params {
+			if !strings.HasPrefix(v, "=") && slices.Contains(texts, k) {
+				v = r.tr(v)
+			}
 			p, err := manifest.Resolve(v, types[k], env)
 			failed = cmp.Or(failed, err)
 			if p != nil {
@@ -81,7 +85,7 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 	// address are the params of a move to a screen, as the text of its address.
 	address := func() map[string]string {
 		ps := map[string]string{}
-		for k, v := range params(nil) {
+		for k, v := range params(nil, nil) {
 			ps[k] = fmt.Sprint(v)
 		}
 		return ps
@@ -166,7 +170,7 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 			name = r.req.Project.Name + "." + a.Command
 		}
 		types := r.inputTypes(name)
-		ps := params(types)
+		ps := params(types, r.inputTexts(name))
 		// A command of deck on a screen of a project acts on that project unless the button names another.
 		if _, ok := types["project"]; ok && registry.IsBuiltin(name) && ps["project"] == nil && !r.deck() {
 			ps["project"] = r.req.Project.Name
@@ -267,6 +271,23 @@ func labeled(act map[string]any, label func(string) string) {
 	if named {
 		act["labels"] = labels
 	}
+}
+
+// inputTexts are the fields of format text of the input of a command of deck a button calls.
+func (r *renderer) inputTexts(name string) []string {
+	if !registry.IsBuiltin(name) {
+		return nil
+	}
+	if t, ok := r.texts[name]; ok {
+		return t
+	}
+	c, _ := r.src.Command(r.ctx, r.scope.Workspace, name)
+	in, _ := json.Marshal(c["input"])
+	if r.texts == nil {
+		r.texts = map[string][]string{}
+	}
+	r.texts[name] = manifest.ObjectOf(in).Format("text")
+	return r.texts[name]
 }
 
 // inputEnum are the values a field of the input of a command takes, when its schema lists them.

@@ -56,17 +56,19 @@ func TestAThemeHasItsPictures(t *testing.T) {
 	}
 }
 
-// The owner asks Deki to draw the pictures of the theme in use; the master is told what and how, in the owner's words.
+// The owner asks Deki to draw the pictures of the theme in use from Look: a message in the owner's words.
 func TestTheMasterIsAskedForThePicturesOfTheTheme(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
+	a := e.Button("", "look", map[string]any{"lang": "ru"}, "deck.chat_send", map[string]any{"text": "Нарисуй фон и сцену «Сегодня» для темы, что сейчас надета."})
+	code, raw := e.Press(a)
 	var out struct{ Topic int64 }
-	e.Must("deck.theme_draw", map[string]any{"wish": "облака потеплее"}, &out)
-	msgs := e.ChatMessages(out.Topic)
-	if len(msgs) == 0 || !strings.Contains(msgs[0].Text, "Нарисуй картинки темы Juce") || !strings.Contains(msgs[0].Text, "deck.theme_image_set") ||
-		!strings.Contains(msgs[0].Text, "облака потеплее") {
-		t.Fatalf("the master is told to draw the pictures and set them: %+v", msgs)
+	if code != 200 || json.Unmarshal(raw, &out) != nil {
+		t.Fatalf("the press sends the message: %d %s", code, raw)
+	}
+	if msgs := e.ChatMessages(out.Topic); len(msgs) == 0 || msgs[0].Text != "Нарисуй фон и сцену «Сегодня» для темы, что сейчас надета." {
+		t.Fatalf("the master is asked to draw the pictures: %+v", msgs)
 	}
 }
 

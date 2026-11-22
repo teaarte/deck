@@ -556,37 +556,31 @@ func TestAPictureWithoutALightCopyGetsOne(t *testing.T) {
 	}
 }
 
-// TestTheMasterDrawsCoversInTheMoodOfTheTheme: deck tells the master what to draw: the module, the theme's mood, the
-// wish and the model, a free one by default; without a module, every module without a cover of the theme in use.
-func TestTheMasterDrawsCoversInTheMoodOfTheTheme(t *testing.T) {
+// TestTheMasterIsAskedForCoversInTheChat: the buttons that draw covers ask the master in the chat in the owner's words,
+// for a module with the module in the screen of the message; how to draw is the master's skill.
+func TestTheMasterIsAskedForCoversInTheChat(t *testing.T) {
 	t.Parallel()
-	e := harness.New(t)
+	e := harness.New(t, harness.WithAgent(harness.Idle))
 	e.Project("notes", harness.PlainManifest)
-	e.Must("deck.connection_set", map[string]any{"name": "media", "api": "openai", "url": "http://127.0.0.1:9/v1", "local": true}, nil)
-	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "http://127.0.0.1:9/api/v1"}, nil)
-	e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": "painter", "kind": "image", "call_usd": 0.04}, nil)
-	e.Must("deck.model_set", map[string]any{"connection": "media", "model": "z-image", "name": "local-image", "kind": "image", "free": true}, nil)
-
-	var out struct{ Topic int64 }
-	e.Must("deck.cover_draw", map[string]any{"project": "notes", "wish": "a fox with a notebook"}, &out)
-	said := e.ChatMessages(out.Topic)
-	var mood themeLook
-	e.Must("deck.theme_get", map[string]any{}, &mood)
-	if len(said) == 0 || !strings.Contains(said[0].Text, "module notes") || !strings.Contains(said[0].Text, mood.Mood) ||
-		!strings.Contains(said[0].Text, "a fox with a notebook") || !strings.Contains(said[0].Text, "kind image on local-image") ||
-		!strings.Contains(said[0].Text, "scheme light or dark") {
-		t.Fatalf("the master is told what to draw: %+v", said)
-	}
-
-	e.Example("pixel")
-	e.Must("deck.theme_use", map[string]any{"name": "pixel"}, nil)
 	e.Must("deck.setting_set", map[string]any{"name": "language", "value": "ru"}, nil)
-	e.Must("deck.cover_draw", map[string]any{"model": "openrouter/painter"}, &out)
-	said = e.ChatMessages(out.Topic)
-	if len(said) == 0 || !strings.Contains(said[0].Text, "Нарисуй обложки модулей notes, у которых их нет в теме deck «Пиксели»") ||
-		!strings.Contains(said[0].Text, "тема pixel") ||
-		!strings.Contains(said[0].Text, "8-bit pixel art") || !strings.Contains(said[0].Text, "вида image на openrouter/painter") {
-		t.Fatalf("every cover again for the new theme, in the owner's language: %+v", said)
+	for _, at := range []struct{ project, screen, label string }{{"", "settings", "Нарисовать обложку"}, {"notes", "settings", "Нарисовать обложку для этой темы"}} {
+		extra := map[string]any{"lang": "ru"}
+		if at.project == "" {
+			extra["params"] = `{"tab": "Modules"}`
+		}
+		a := e.Button(at.project, at.screen, extra, "deck.chat_send", map[string]any{"text": "Нарисуй обложку этого модуля для темы, что сейчас надета."})
+		if a["label"] != at.label || a["chat"] != true {
+			t.Fatalf("the button of %q draws a cover through the chat: %+v", at.project, a)
+		}
+		code, raw := e.Press(a)
+		var sent struct{ Topic int64 }
+		if code != 200 || json.Unmarshal(raw, &sent) != nil {
+			t.Fatalf("the press sends the message: %d %s", code, raw)
+		}
+		said := e.ChatMessages(sent.Topic)
+		if len(said) == 0 || said[0].Text != "Нарисуй обложку этого модуля для темы, что сейчас надета." || !strings.Contains(string(said[0].Screen), `"project":"notes"`) {
+			t.Fatalf("the master is asked for the cover of the module: %+v", said)
+		}
 	}
 }
 

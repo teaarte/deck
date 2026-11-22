@@ -19,7 +19,7 @@ asks, as a theme of its own name.
 2. Write the tokens of both schemes (`tokens` for both, `light`, `dark` over them). Text and dimmed need 4.5:1
    on canvas, body, island and block with every accent: give those tokens as #hex, rgb() or color-mix().
 3. `mood` is the style of pictures in this theme in one or two sentences — the covers of modules are drawn by it,
-   each kept for its theme: `deck.cover_draw` without a module draws those this theme lacks.
+   each kept for its theme (Covers below).
 4. The cards of modules have their own tokens: `cockpit` (the cockpit's card; the accent by default), `tile` (a
    card without a cover), `tile-shade`, `tile-text`, `tile-veil` (under each line of Today over its picture; empty
    for the color opposite to `tile-text`), `widget-card` (a card that shows the view of its module without a cover;
@@ -52,9 +52,22 @@ A theme may have pictures, each for the light and the dark scheme, set apart fro
 `deck.theme_image_set` (theme, slot, scheme, the file as `results/<name>` of an image call): `cockpit`, the scene of the
 card of Today under its words (calm on the left, room for Deki on the right); `backdrop`, one wide picture behind
 the page; or `pattern`, a seamless square tile repeated behind it, `pattern-size` wide. Keep them quiet: they stay
-behind everything. Draw them with `deck.model_call` of kind image in the theme's `mood`; the owner's button
-"Draw the background" in Look asks for them (`deck.theme_draw`). `deck.theme_check` checks the words of
-Today over the cockpit by its main color; look at the tiles with `screen_capture` after.
+behind everything. The owner's button "Draw the background" in Look asks for them in the chat. `deck.theme_get`
+without a name is the theme in use: its title, `mood` and schemes (`dark` only, or both). For each scheme draw the
+cockpit and, as fits the mood, a backdrop or a pattern with `deck.model_call` of kind image — the model the owner
+names, else the models of kind image deck assigns when you name none — then set each with `deck.theme_image_set`
+(theme, slot, scheme, the file as `results/<the name the call gave>`). `deck.theme_check` checks the words of Today
+over the cockpit by its main color; look at the tiles with `screen_capture` after.
+
+## Covers
+
+A cover is the picture of a module's card, one for the light scheme and one for the dark, kept for a theme. The
+owner's buttons ask for them in the chat: "Draw a cover" of a module — the module is the `project` of the screen of
+the message — and "Draw the missing covers" in Look, for every module that has none in the theme in use
+(`deck.projects_list`, then `deck.project_covers_list` of each: a theme and scheme without a cover). Draw each in
+the `mood` of the theme in use (`deck.theme_get`), with what the owner wished, by `deck.model_call` of kind image as
+above, then set it with `deck.project_cover_set` (project, theme, scheme light or dark, the file as
+`results/<the name the call gave>`). A theme of one scheme needs only that one.
 
 ## Deleting
 

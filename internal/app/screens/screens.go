@@ -16,9 +16,8 @@ import (
 type Service struct {
 	St       *store.Store
 	Registry *registry.Registry
-	// Call makes a call through the gateway, as a block reads its source; Tell sends the owner's words to the master.
+	// Call makes a call through the gateway, as a block reads its source.
 	Call func(ctx context.Context, call gateway.Call) (registry.Result, error)
-	Tell func(ctx context.Context, act registry.Actor, text, model string) (any, error)
 	// Waiting, Open and Failing count by project what waits for the owner, runs and fails; Failed and Unread are the
 	// failed runs and the notes not read.
 	Waiting func(ctx context.Context, act registry.Actor) (map[string]int64, error)
@@ -40,5 +39,5 @@ type Service struct {
 
 // Commands are the commands of screens and the menu.
 func (s *Service) Commands() []*registry.Command {
-	return slices.Concat(s.menuCommands(), s.todayCommands(), s.widgetsCommands(), s.layoutCommands(), s.screenCommands(), s.commandsListCommands())
+	return slices.Concat(s.menuCommands(), s.todayCommands(), s.layoutCommands(), s.screenCommands(), s.commandsListCommands())
 }

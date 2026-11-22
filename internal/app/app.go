@@ -165,8 +165,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a.Files = appfiles.Service{St: st, Home: h, Held: a.Records.Held, Go: a.bg.Go, Call: a.Gateway.Call}
 	a.Journal = journal.Service{St: st, Groups: a.Models.Groups, Explain: a.Gateway.Explain}
 	a.Settings = settings.Service{St: st, DefaultTTL: cfg.ConfirmTTL, Wake: a.Runner.Wake, Rezone: a.Scheduler.Rezone}
-	a.Themes = themes.Service{St: st, Home: h, Tell: a.Chats.Tell,
-		Files: &a.Files}
+	a.Themes = themes.Service{St: st, Home: h, Files: &a.Files}
 	a.Triggers = triggers.Service{St: st, Scheduler: a.Scheduler, Gateway: a.Gateway, Works: a.Models.Works, Failures: &a.Processes}
 	a.Documents = documents.Service{St: st, Sandbox: cfg.Sandbox, Missing: a.missingPrograms, Go: a.bg.Go,
 		SaveManifest: a.Projects.Save, Noted: a.Feed.Noted, Home: h, Fits: a.Models.Fits, Runner: a.Runner}
@@ -224,7 +223,7 @@ func New(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Works: a.Models.Works}
 	a.Health = apphealth.Service{St: st, Image: cfg.Image != "", Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Models.Unassigned, NoSearch: a.Models.NoSearch, Missing: a.Models.Missing,
 		Works: a.Models.Works, Places: a.Models.Places, Go: a.bg.Go}
-	a.Screens = screens.Service{St: st, Registry: a.Registry, Call: a.Gateway.Call, Tell: a.Chats.Tell, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
+	a.Screens = screens.Service{St: st, Registry: a.Registry, Call: a.Gateway.Call, Waiting: a.Answers.Waiting, Open: a.Processes.Open,
 		Failing: a.Health.Failing, Failed: a.Processes.Failed, Unread: a.Feed.Unread, Works: a.Models.Works, AgentWorks: a.Models.AgentWorks,
 		ScreenFailed: a.Processes.Screen, ScreenDrawn: a.Processes.ScreenDrawn, File: a.Files.File,
 		Theme: a.Themes.Current}

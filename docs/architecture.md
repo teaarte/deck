@@ -98,8 +98,8 @@ answer.
   through the same path and topics as a screen. The card shows the largest view that fits (a phone has two cells
   across) and refreshes over SSE; the server gives every block of the view, the client lays them in the card's
   height on the device: a chart grows over the room left, a block without room wraps out of sight and the card
-  names it. For a size without a view, `deck.widget_draw` asks Deki to write one into the manifest,
-  on the model of the role `widget`. Today is deck's own widget of the same blocks.
+  names it. For a size without a view, the card's button asks Deki in the chat (`deck.chat_send`, the
+  size in the message's screen) to write one into the manifest, on the model of the role `widget`. Today is deck's own widget of the same blocks.
 - **Models are settings.** Connections (OpenRouter, Google, Anthropic, Groq, any OpenAI-compatible or local
   server), models with kinds and prices, and assignments with fallbacks are declared once in deck. Each command
   of a module, and each role of the master, has its own model. Subscriptions are shown apart from money paid.

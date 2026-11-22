@@ -14,6 +14,8 @@ type screenContext struct {
 	Screen  string `json:"screen,omitempty"`
 	Record  int64  `json:"record,omitempty"`
 	Process int64  `json:"process,omitempty"`
+	// Size is the size of the card of the tiles the owner pressed on, columns by rows of cells.
+	Size string `json:"size,omitempty"`
 	// Files are the stored files the owner attached to the message.
 	Files []int64 `json:"files,omitempty"`
 }
@@ -29,6 +31,9 @@ func screenText(raw string) string {
 	}
 	if s.Screen != "" {
 		parts = append(parts, "screen "+untrusted.Line(s.Screen, 60))
+	}
+	if s.Size != "" {
+		parts = append(parts, "size "+untrusted.Line(s.Size, 12))
 	}
 	for _, f := range []struct {
 		name string

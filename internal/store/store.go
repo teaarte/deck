@@ -40,6 +40,9 @@ type Store struct {
 	changes *changes
 }
 
+// readers is how many connections read beside the writer: the owner's screens, a few at a time, and the loop.
+const readers = 4
+
 // TimeLayout is how deck stores times as text; the text sorts like the times.
 const TimeLayout = "2006-01-02T15:04:05.000Z"
 
@@ -177,11 +180,13 @@ func Open(path string, now func() time.Time, gos []*goose.Migration, before ...B
 	if err := ch.readColumns(conn); err != nil {
 		return nil, err
 	}
-	reads, err := sql.Open("sqlite", uri+"?_pragma=query_only(1)&_pragma=busy_timeout(5000)")
+	// A reader keeps 16 MB of pages and maps up to 256 MB of the base; all four stay open, so their pages do too.
+	reads, err := sql.Open("sqlite", uri+"?_pragma=query_only(1)&_pragma=busy_timeout(5000)&_pragma=cache_size(-16384)&_pragma=mmap_size(268435456)")
 	if err != nil {
 		return nil, err
 	}
-	reads.SetMaxOpenConns(4)
+	reads.SetMaxOpenConns(readers)
+	reads.SetMaxIdleConns(readers)
 	n := &atomic.Int64{}
 	return &Store{DB: conn, Q: db.New(guard{reads, n}), reads: reads, read: n, uri: uri, changes: ch, now: now}, nil
 }

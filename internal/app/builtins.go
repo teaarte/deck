@@ -10,11 +10,11 @@ import (
 	"deck2/internal/registry"
 )
 
-// init declares deck's reads before anything parses a manifest: they are the same commands in every deck.
-func init() { registry.Declare((&App{}).builtins(), events.Topics) }
-
+// addBuiltins builds deck's commands once, declares their reads, which screens check against, and registers them.
 func (a *App) addBuiltins() {
-	for _, c := range a.builtins() {
+	cs := a.builtins()
+	registry.Declare(cs, events.Topics)
+	for _, c := range cs {
 		a.Registry.Add(c)
 	}
 	screens.Load()

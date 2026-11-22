@@ -338,7 +338,14 @@ var reads sync.Map
 
 // Declare makes the reads among deck's commands known before any registry is built; a read that follows a topic deck
 // does not publish panics.
-func Declare(cs []*Command, topics []string) {
+func Declare(given []*Command, topics []string) {
+	// The reads are kept as copies, so the topics they follow join theirs and not those of the commands given.
+	cs := make([]*Command, len(given))
+	for i, c := range given {
+		cp := *c
+		cp.Topics = slices.Clone(c.Topics)
+		cs[i] = &cp
+	}
 	for _, c := range cs {
 		for _, name := range c.follows {
 			i := slices.IndexFunc(cs, func(o *Command) bool { return o.Name == name && o.Readable })

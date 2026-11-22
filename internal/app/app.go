@@ -149,7 +149,6 @@ func wire(cfg Config, builtin ...provider.Provider) (*App, error) {
 	a := &App{}
 	a.Cfg, a.Home, a.Store, a.Bus, a.Scripts = cfg, h, st, events.NewBus(), script.New(cfg.Sandbox, h)
 	a.Scripts.Image, a.Scripts.Now = cfg.Image, st.Now
-	registry.Declare(cfg.Commands, events.Topics)
 	a.ctx, a.cancel = context.WithCancel(context.Background())
 	a.bg.ctx = a.ctx
 	st.Changed = a.Bus.Emit

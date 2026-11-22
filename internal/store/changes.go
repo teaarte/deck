@@ -88,12 +88,14 @@ var tables = map[string]table{
 	"outbox":            {events.Outbox, ofDeck, []string{"tries", "error"}},
 }
 
-func init() {
+// checkTopics fails on a table that publishes a topic events does not know.
+func checkTopics() error {
 	for name, t := range tables {
 		if t.topic != events.Outbox && !slices.Contains(events.Topics, t.topic) {
-			panic(fmt.Sprintf("store: table %s publishes %s, not a topic of events", name, t.topic))
+			return fmt.Errorf("store: table %s publishes %s, not a topic of events", name, t.topic)
 		}
 	}
+	return nil
 }
 
 // silent are the tables no screen shows, so their writes publish nothing; every other table is in tables.

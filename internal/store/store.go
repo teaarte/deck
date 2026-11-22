@@ -149,6 +149,9 @@ func Open(path string, now func() time.Time, gos []*goose.Migration, before ...B
 	if now == nil {
 		now = Wall
 	}
+	if err := checkTopics(); err != nil {
+		return nil, err
+	}
 	uri := "file:" + strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(path)
 	// A write takes the lock at BEGIN: a read before it in the same transaction cannot go stale and fail as busy.
 	base, err := sqlite.NewConnector(uri + "?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_txlock=immediate")

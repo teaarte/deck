@@ -1134,9 +1134,8 @@ func buildSaves(ctx context.Context, c *harness.Call, page string) []string {
 	return out
 }
 
-// TestThePressThatStartsAWorkIsTheYesToTheModuleItBuilds: the owner's press starts a work of a module; once its turn
-// read text from outside, it changes its own module's prompt and script without a request, shown after with undo,
-// while another module and the master's skills still wait for the owner.
+// TestThePressThatStartsAWorkIsTheYesToTheModuleItBuilds: a marked work the owner pressed saves its module's prompt and
+// script unasked, listed with undo; another module, the master's skills and its custom block still ask.
 func TestThePressThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 	t.Parallel()
 	page := injected(t, "https://example.com")

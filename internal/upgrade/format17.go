@@ -575,7 +575,7 @@ func lostNetwork(text string) []string {
 	return m.Domains.Read
 }
 
-// Manifest raises a manifest of format 16 a module brings from outside, an import or a starter, to the current one;
+// Manifest raises a manifest of format 16 an import brings from outside to the current one;
 // any other text as it is. It grants nothing.
 func Manifest(text string) string { return manifest17(text, nil) }
 

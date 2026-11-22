@@ -41,8 +41,10 @@ hold; look inside a package for the rest.
 - `cmd/deck` — entry point and flags.
 - `internal/app` — the wiring only: `New` is `wire` (deck's folder first, the base opened and migrated, every service
   built from the functions of the others — a test checks none is left unset — and deck's commands built once,
-  `builtins.go`), `upgrade` (the steps of the start in one table with their error policy, `upgrade.go`) and `settle`
-  (what deck follows and says of itself); `Start` is the first tick, `Loop` and `Tick` the rest (the harness starts and
+  `builtins.go`), `upgrade` (the steps of the start in one table with their error policy, then the stored manifests, themes and
+  models settled, `upgrade.go`) and `settle`
+  (what deck follows and says of itself); `Start` runs before the loop (the triggers reconciled, `Recover`, what the
+  tick redoes), `Loop` and `Tick` after it (the harness starts and
   ticks deck by the same two); it collects the commands of modules (`modules.go`); background work goes through
   `Go(func(ctx)) bool`.
   Each domain is a package `app/<area>` with a `Service` of narrow dependencies and `Commands()`; no domain imports
@@ -97,7 +99,7 @@ hold; look inside a package for the rest.
   a manifest of format 16 an import brings raised to 17 (`Manifest`).
 - `internal/modelproxy` — deck's proxy of models: what a call asks (`AskOf`), one `Handler(Policy)` for scripts and
   agent turns, `SendHops` the one loop of fallbacks, the usage of an answer; every connection, a local one too, goes
-  through the transport of its `Target` (`work.target`), the place a node's connection takes.
+  through the transport of its `Target` (`app/models` `Service.target`), the place a node's connection takes.
 - `internal/fault` — the one form of a failure: a type of a closed set, whose it is, text and details; a script
   reports its own as `{"error", "type", "details"}` on stdout with a non-zero exit. One Go type of a failure,
   `*fault.F`: a refusal of a call at its entry is one of a kind `fault.Call…` that only the constructors of `registry`
@@ -194,9 +196,10 @@ hold; look inside a package for the rest.
   its line fails `tests/lint`.
 - New behaviour is a registry command (`deck.<name>` builtin or `<project>.<name>` from a manifest), not a
   new HTTP endpoint.
-- An engine lives in `internal/<x>`, the commands deck declares for it (`Commands()`) in the domain `internal/app/<x>`
-  (`theme` and `app/themes`, `settings` and `app/settings`, `ask` and `app/asks`); the loose commands of external
-  tools are built where the tools run (`internal/tools`).
+- An engine lives in `internal/<x>`, the commands deck declares for it (`Commands()`) in its domain in `internal/app/`
+  (`theme` and `app/themes`, `ask` and `app/asks`, `modelproxy` and `app/models`). Beside them: `manifest_format_get`
+  and the probes of `Config.Commands` in `internal/app`, the loose commands of modules (`app/modules.go`) and of
+  external tools, the browser's `deck.*` among them (`internal/tools`).
 - Web client (stage 1+): React + Vite + Mantine v9. Mantine v9 is new — check https://mantine.dev before
   writing components; do not use v7/v8 APIs. Known v8→v9 traps (https://mantine.dev/guides/8x-to-9x/):
   `Text`/`Anchor` take `c=` not `color=`; `TypographyStylesProvider` → `Typography`; `Collapse expanded=`;

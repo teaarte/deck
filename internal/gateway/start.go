@@ -179,14 +179,10 @@ func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command 
 		f.As, f.Need, f.More, f.Offers = AsStart, &n, needs[1:], []string{manifest.Always, manifest.No}
 		if act.ProcessID != 0 {
 			f.Offers = append([]string{Work}, f.Offers...)
-			p, err := q.GetProcess(ctx, act.ProcessID)
-			if err != nil {
-				return db.Ask{}, err
-			}
-			if p.ReadUntrusted != "" {
-				// A run that holds text from outside is let through once.
-				f.Read, f.From, f.Offers = untrusted.Cut(p.ReadUntrusted, 300), fromOf(p.ReadFrom), []string{manifest.No}
-			}
+		}
+		f, err := startMarked(ctx, q, f)
+		if err != nil {
+			return db.Ask{}, err
 		}
 		f.Reason = act.Why
 		var lines []string
@@ -196,6 +192,30 @@ func (g *Gateway) startRequest(ctx context.Context, act registry.Actor, command 
 		return Hold(ctx, q, act, act.ProjectID, act.ProcessID, ask.KindCall, n.Right, strings.Join(lines, "\n"), f, expires, g.st.Now())
 	})
 	return a.ID, err
+}
+
+// startMarked is the request of a run's start as its run holds now: once and a kept no alone, with where the text
+// came from, when the run holds text from outside deck.
+func startMarked(ctx context.Context, q *db.Queries, f Frozen) (Frozen, error) {
+	if f.As != AsStart || f.Who.Process == 0 {
+		return f, nil
+	}
+	p, err := q.GetProcess(ctx, f.Who.Process)
+	if err != nil || p.ReadUntrusted == "" {
+		return f, err
+	}
+	f.Read, f.From = untrusted.Cut(p.ReadUntrusted, 300), fromOf(p.ReadFrom)
+	f.Offers = slices.DeleteFunc(slices.Clone(f.Offers), func(o string) bool { return o == Work || o == manifest.Always })
+	return f, nil
+}
+
+// Fresh is a frozen call as the owner answers it now: the request of a run's start that its run holds text from
+// outside since offers once alone.
+func (g *Gateway) Fresh(ctx context.Context, f Frozen) Frozen {
+	if fresh, err := startMarked(ctx, g.st.Q, f); err == nil {
+		return fresh
+	}
+	return f
 }
 
 func projectOf(ctx context.Context, g *Gateway, act registry.Actor) string {

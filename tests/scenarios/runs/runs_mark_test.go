@@ -1070,13 +1070,49 @@ func TestTheStartRequestOfARunATokenStartedOffersOnlyOnce(t *testing.T) {
 	if r.Always != "" || r.Work != "" || !strings.Contains(r.Read, "automation token board") {
 		t.Fatalf("a run a token from outside started is offered only once and says where its text came from: %+v", r)
 	}
-	if code, out := e.Call("deck.ask_answer", map[string]any{"ask": r.ID, "answer": "allow_always"}); code < 400 {
-		t.Fatalf("always is refused: %d %s", code, out)
+	for _, answer := range []string{"allow_always", "allow_work"} {
+		if code, out := e.Call("deck.ask_answer", map[string]any{"ask": r.ID, "answer": answer}); code < 400 {
+			t.Fatalf("%s is refused: %d %s", answer, code, out)
+		}
 	}
 	e.Answer(r.ID, "allow")
 	var rows []struct{ Right, Subject, Answer string }
 	e.Must("deck.rights_list", map[string]any{"project": "tools"}, &rows)
 	if slices.ContainsFunc(rows, func(g struct{ Right, Subject, Answer string }) bool { return g.Subject == host && g.Answer != "" }) {
 		t.Fatalf("a once keeps no answer for the module: %+v", rows)
+	}
+}
+
+// TestAStartRequestOffersOnlyOnceOnceItsRunIsMarkedWhileItWaits: the run waits on its start request, then holds text
+// from outside; the same request is offered only once from then on and says where the text came from.
+func TestAStartRequestOffersOnlyOnceOnceItsRunIsMarkedWhileItWaits(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	b := harness.Served(t)
+	host := strings.TrimPrefix(b.URL, "http://")
+	e.Project("tools", harness.ScriptManifest("collect", "", ""))
+	e.Must("deck.manifest_save", map[string]any{"project": "tools", "manifest": harness.ScriptManifest("collect", "",
+		fmt.Sprintf(`, "rights": [{"right": "network", "what": [%q], "why": "reads it"}]`, host))}, nil)
+	e.SaveScript("tools", "scripts/main.py", "print('{}')\n")
+	id := e.Start("tools", "collect", map[string]any{})
+	e.WaitState(id, "waiting:right")
+	// What a message from outside leaves on a run that waits.
+	e.SQL(`UPDATE process SET read_untrusted = 'the input of automation token board', read_from = '{"source":{"kind":"token","subject":"board"}}' WHERE id = ?`, id)
+	var rows []struct {
+		ID                 int64
+		Always, Work, Read string
+	}
+	e.Must("deck.asks_list", nil, &rows)
+	if len(rows) != 1 || rows[0].Always != "" || rows[0].Work != "" || !strings.Contains(rows[0].Read, "automation token board") {
+		t.Fatalf("the request of a run marked since offers only once and says where the text came from: %+v", rows)
+	}
+	for _, answer := range []string{"allow_always", "allow_work"} {
+		if code, out := e.Call("deck.ask_answer", map[string]any{"ask": rows[0].ID, "answer": answer}); code < 400 {
+			t.Fatalf("%s is refused: %d %s", answer, code, out)
+		}
+	}
+	e.Answer(rows[0].ID, "allow")
+	if p := e.WaitState(id, "done", "error"); p.State != "done" {
+		t.Fatalf("once lets the run go: %+v", p)
 	}
 }

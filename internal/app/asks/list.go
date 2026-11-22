@@ -281,6 +281,9 @@ func (s *Service) askRow(ctx context.Context, q db.Ask, names map[int64]string, 
 		}
 	case ask.KindCall, ask.KindUnknown:
 		f, _ := ask.Decode[gateway.Frozen](q.Payload)
+		if s.Gateway != nil && q.State == ask.StateOpen {
+			f = s.Gateway.Fresh(ctx, f)
+		}
 		r.Who, r.What, r.Where, r.Command = s.callerWho(ctx, f.Who), f.Call.Command, f.Target, f.Call.Command
 		if f.Who.Process != 0 {
 			r.By = s.processName(ctx, f.Who.Process)

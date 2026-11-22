@@ -260,7 +260,7 @@ func (g *Gateway) Decide(ctx context.Context, owner registry.Actor, a db.Ask, an
 	if err != nil {
 		return registry.Result{}, err
 	}
-	if err := offered(f, answer); err != nil {
+	if err := offered(g.Fresh(ctx, f), answer); err != nil {
 		return registry.Result{}, err
 	}
 	if f.As == AsTurn || f.As == AsStart {

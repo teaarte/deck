@@ -15,6 +15,7 @@ import (
 	deckhome "deck2/internal/home"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/upgrade"
 	"deck2/tests/harness"
 )
 
@@ -239,7 +240,7 @@ func TestTheTimesDeckWritesAreOfItsClock(t *testing.T) {
 func TestTheMarksOfAnOlderDeckBeginWithTheirDomain(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "deck.db")
-	st, err := store.Open(path, time.Now)
+	st, err := store.Open(path, time.Now, upgrade.Migrations)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -260,7 +261,7 @@ func TestTheMarksOfAnOlderDeckBeginWithTheirDomain(t *testing.T) {
 		}
 	}
 	st.Close()
-	if st, err = store.Open(path, time.Now); err != nil {
+	if st, err = store.Open(path, time.Now, upgrade.Migrations); err != nil {
 		t.Fatal(err)
 	}
 	defer st.Close()

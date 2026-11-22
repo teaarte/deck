@@ -23,7 +23,7 @@ var Tabled = map[string][]string{
 	"internal/manifest": {"ToolRight", "Covers", "Keyed"},
 	"internal/registry": {"Permits", "Touched", "reachable"},
 	"internal/sandbox":  {"allowed", "parts", "rootLink"},
-	"internal/store":    {"rights16"},
+	"internal/upgrade":  {"rights16"},
 }
 
 const tableFile = "table_test.go"

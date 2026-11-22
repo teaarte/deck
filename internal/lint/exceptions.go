@@ -54,7 +54,7 @@ var exceptions = map[string][]string{
 		"internal/process/wake.go:202", "internal/process/wake.go:207",
 	},
 	"failure": {
-		"internal/app/owners/devices.go:235", "internal/app/project/import.go:126",
+		"internal/app/owners/devices.go:235", "internal/app/project/import.go:127",
 		"internal/app/modules/module_data.go:288", "internal/app/project/project_delete.go:39",
 		"internal/app/providers/selfcheck.go:379", "internal/app/providers/selfcheck.go:381",
 		"internal/app/providers/sessions.go:51", "internal/app/secrets/move.go:38",

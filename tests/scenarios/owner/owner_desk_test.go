@@ -14,6 +14,7 @@ import (
 	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/internal/store"
+	"deck2/internal/upgrade"
 	"deck2/tests/harness"
 )
 
@@ -198,7 +199,7 @@ func TestDekiDrawsAViewForTheSizeOfACard(t *testing.T) {
 func TestTheOrderOfTheMenuBecomesALayout(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "deck.db")
-	st, err := store.Open(path, time.Now)
+	st, err := store.Open(path, time.Now, upgrade.Migrations)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +219,7 @@ func TestTheOrderOfTheMenuBecomesALayout(t *testing.T) {
 		}
 	}
 	st.Close()
-	if st, err = store.Open(path, time.Now); err != nil {
+	if st, err = store.Open(path, time.Now, upgrade.Migrations); err != nil {
 		t.Fatal(err)
 	}
 	defer st.Close()

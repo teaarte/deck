@@ -1,4 +1,4 @@
-package store
+package upgrade
 
 import (
 	"bytes"
@@ -571,9 +571,9 @@ func lostNetwork(text string) []string {
 	return m.Domains.Read
 }
 
-// UpgradeManifest raises a manifest of an older format a module brings from outside, an import or a starter, to the
+// Manifest raises a manifest of an older format a module brings from outside, an import or a starter, to the
 // current one by the steps the stored ones took; any other text as it is. It grants nothing.
-func UpgradeManifest(text string) string {
+func Manifest(text string) string {
 	text = manifest15(format14(rename(text, true)))
 	return manifest17(manifest16(text, nil), nil)
 }

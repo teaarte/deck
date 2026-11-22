@@ -15,6 +15,7 @@ import (
 	"deck2/internal/registry"
 	"deck2/internal/store"
 	"deck2/internal/store/db"
+	"deck2/internal/upgrade"
 )
 
 // moduleKind is the document kind of a file of a module folder.
@@ -150,7 +151,7 @@ func (s *Service) importFiles(ctx context.Context, act registry.Actor, name, fro
 	if raw == "" {
 		return nil, registry.Invalid("%s has no %s", from, docs.ManifestName)
 	}
-	raw = store.UpgradeManifest(raw)
+	raw = upgrade.Manifest(raw)
 	pm, err := parseManifest([]byte(raw), false)
 	if err != nil {
 		return nil, err

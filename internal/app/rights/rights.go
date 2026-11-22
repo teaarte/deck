@@ -17,6 +17,7 @@ import (
 	"deck2/internal/store"
 	"deck2/internal/store/db"
 	"deck2/internal/tools"
+	"deck2/internal/upgrade"
 	"deck2/internal/words"
 )
 
@@ -225,7 +226,7 @@ func (s *Service) Ungranted(ctx context.Context, p db.Project, m *manifest.Manif
 // TellRights writes once in the feed of the master of a workspace what format 17 did to the rights of its modules and
 // migration 86 to its automation tokens.
 func (s *Service) TellRights(ctx context.Context, workspace int64) {
-	for _, mark := range []string{store.Rights17, store.RightsTokens} {
+	for _, mark := range []string{upgrade.Rights17, upgrade.RightsTokens} {
 		s.tell(ctx, workspace, mark)
 	}
 }

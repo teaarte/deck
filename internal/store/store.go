@@ -143,9 +143,9 @@ func (g guard) QueryRowContext(ctx context.Context, q string, a ...any) *sql.Row
 // the base by backup, which writes it whole to a path.
 type Before func(from, last int64, backup func(to string) error) error
 
-// Open opens the base at path and migrates it, after before when there is something to migrate in a base of an
-// older deck; a base a newer deck migrated it refuses.
-func Open(path string, now func() time.Time, before ...Before) (*Store, error) {
+// Open opens the base at path and migrates it by its SQL migrations and the Go ones given, after before when there is
+// something to migrate in a base of an older deck; a base a newer deck migrated it refuses.
+func Open(path string, now func() time.Time, gos []*goose.Migration, before ...Before) (*Store, error) {
 	if now == nil {
 		now = Wall
 	}
@@ -160,7 +160,7 @@ func Open(path string, now func() time.Time, before ...Before) (*Store, error) {
 	conn.SetMaxOpenConns(1)
 	dir, _ := fs.Sub(migrations, "migrations")
 	up, err := goose.NewProvider(goose.DialectSQLite3, conn, dir, goose.WithDisableGlobalRegistry(true),
-		goose.WithGoMigrations(append(commandsRenamed, format15, format16, masterSleep, format17)...))
+		goose.WithGoMigrations(gos...))
 	if err != nil {
 		return nil, err
 	}

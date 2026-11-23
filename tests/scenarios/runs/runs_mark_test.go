@@ -1126,6 +1126,22 @@ var siteManifest = harness.Manifest(`{"writes": ["prompt.md", "scripts/", "custo
     {"type": "actions", "title": "Build", "actions": [{"label": "Build", "command": "build"}]},
     {"type": "custom", "document": "custom/view.html", "actions": [{"label": "Build", "command": "build"}]}]}]}`)
 
+// siteButtons are the button of the screen of site that starts its work and the one of its custom block.
+func siteButtons(e *harness.Env) struct{ screen, frame map[string]any } {
+	e.T.Helper()
+	var blocks struct {
+		B0 struct{ Value []map[string]any }
+		B1 struct {
+			Value struct{ Actions []map[string]any }
+		}
+	}
+	b, _ := json.Marshal(e.Screen("site", "main", nil))
+	if err := json.Unmarshal(b, &blocks); err != nil || len(blocks.B0.Value) != 1 || len(blocks.B1.Value.Actions) != 1 {
+		e.T.Fatalf("a button of the screen and one of the custom block: %s", b)
+	}
+	return struct{ screen, frame map[string]any }{blocks.B0.Value[0], blocks.B1.Value.Actions[0]}
+}
+
 // buildSaves are what a marked work saves: its own module's prompt and script, another module's prompt, a skill of
 // the master.
 func buildSaves(ctx context.Context, c *harness.Call, page string) []string {
@@ -1167,7 +1183,7 @@ func TestThePressThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 	e.Must("deck.document_save", map[string]any{"project": "site", "name": "prompt.md", "kind": "prompt", "text": "Build it."}, nil)
 	e.SaveScript("site", "scripts/main.py", "print('{\"n\": 0}')\n")
 	e.Must("deck.document_save", map[string]any{"project": "site", "name": "custom/view.html", "kind": "custom", "text": "<p>view</p>"}, nil)
-	code, out := e.Press(e.Button("site", "main", nil, "site.build", nil))
+	code, out := e.Press(siteButtons(e).screen)
 	var run struct{ Process int64 }
 	if err := json.Unmarshal(out, &run); code != 200 || err != nil {
 		t.Fatalf("the owner presses the button: %d %s", code, out)
@@ -1237,22 +1253,12 @@ func TestAWorkTheOwnerDidNotStartAsksForEachChangeOfItsModule(t *testing.T) {
 	e.Project("tyres", harness.Manifest(`{"commands": [`+harness.AgentCommand("search", "")+`]}`))
 	e.Must("deck.document_save", map[string]any{"project": "site", "name": "custom/view.html", "kind": "custom", "text": "<p>view</p>"}, nil)
 	_, tok := e.Token("board", "site.build")
-	var blocks struct {
-		B0 struct{ Value []map[string]any }
-		B1 struct {
-			Value struct{ Actions []map[string]any }
-		}
-	}
-	b, _ := json.Marshal(e.Screen("site", "main", nil))
-	_ = json.Unmarshal(b, &blocks)
-	if len(blocks.B0.Value) != 1 || len(blocks.B1.Value.Actions) != 1 {
-		t.Fatalf("a button of the screen and one of the custom block: %s", b)
-	}
-	_, signed := blocks.B0.Value[0]["params"].(map[string]any)["allows"]
-	frame := blocks.B1.Value.Actions[0]
+	buttons := siteButtons(e)
+	frame := buttons.frame
+	_, signed := buttons.screen["params"].(map[string]any)["allows"]
 	_, unsigned := frame["params"].(map[string]any)["allows"]
 	if !signed || unsigned || frame["stays"] != true {
-		t.Fatalf("the screen's button is signed, the custom block's is not and goes without a dialog: %s", b)
+		t.Fatalf("the screen's button is signed, the custom block's is not and goes without a dialog: %+v", buttons)
 	}
 	for i, start := range []func() (int, []byte){
 		func() (int, []byte) { return e.Press(frame) },

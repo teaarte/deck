@@ -188,8 +188,12 @@ func (r *renderer) action(a manifest.Action, id int64, env map[string]any) (map[
 			b, _ := json.Marshal(key)
 			ps[registry.RetryKey] = "press:" + string(b)
 		}
-		if calls != "" {
+		switch {
+		case calls != "":
 			ps[registry.AllowsKey] = r.src.Sign(name, calls)
+		case !registry.IsBuiltin(name) && !r.inCustom:
+			// The owner's press of a button deck drew starts a work with the yes to its module; a frame's does not.
+			ps[registry.AllowsKey] = r.src.Sign(name, "[]")
 		}
 		act["command"], act["params"] = name, ps
 		fromBlock := slices.DeleteFunc(slices.Clone(a.FromBlock), registry.Reserved)

@@ -1117,6 +1117,15 @@ func TestAStartRequestOffersOnlyOnceOnceItsRunIsMarkedWhileItWaits(t *testing.T)
 	}
 }
 
+// siteManifest is a module whose work builds it: a button of its screen and one of its custom block start it.
+var siteManifest = harness.Manifest(`{"writes": ["prompt.md", "scripts/", "custom/"],
+  "rights": [{"right": "network", "what": ["127.0.0.1"], "why": "reads the pages it builds from"}],
+  "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}],
+  "commands": [` + harness.AgentCommand("build", "") + `],
+  "screens": [{"name": "main", "title": "Site", "blocks": [
+    {"type": "actions", "title": "Build", "actions": [{"label": "Build", "command": "build"}]},
+    {"type": "custom", "document": "custom/view.html", "actions": [{"label": "Build", "command": "build"}]}]}]}`)
+
 // buildSaves are what a marked work saves: its own module's prompt and script, another module's prompt, a skill of
 // the master.
 func buildSaves(ctx context.Context, c *harness.Call, page string) []string {
@@ -1153,15 +1162,17 @@ func TestThePressThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 		}
 		return provider.Result{Text: "ok"}
 	}))
-	e.Project("site", harness.Manifest(`{"writes": ["prompt.md", "scripts/", "custom/"],
-  "rights": [{"right": "network", "what": ["127.0.0.1"], "why": "reads the pages it builds from"}],
-  "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}],
-  "commands": [`+harness.AgentCommand("build", "")+`]}`))
+	e.Project("site", siteManifest)
 	e.Project("tyres", harness.Manifest(`{"commands": [`+harness.AgentCommand("search", "")+`]}`))
 	e.Must("deck.document_save", map[string]any{"project": "site", "name": "prompt.md", "kind": "prompt", "text": "Build it."}, nil)
 	e.SaveScript("site", "scripts/main.py", "print('{\"n\": 0}')\n")
-	id := e.Start("site", "build", nil)
-	e.WaitState(id, "done", "waiting:answer")
+	e.Must("deck.document_save", map[string]any{"project": "site", "name": "custom/view.html", "kind": "custom", "text": "<p>view</p>"}, nil)
+	code, out := e.Press(e.Button("site", "main", nil, "site.build", nil))
+	var run struct{ Process int64 }
+	if err := json.Unmarshal(out, &run); code != 200 || err != nil {
+		t.Fatalf("the owner presses the button: %d %s", code, out)
+	}
+	e.WaitState(run.Process, "done", "waiting:answer")
 	mu.Lock()
 	seen := slices.Clone(got)
 	mu.Unlock()
@@ -1205,42 +1216,72 @@ func TestThePressThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 	}
 }
 
-// TestAWorkTheOwnerDidNotStartAsksForEachChangeOfItsModule: a token from outside starts the same work; its changes of
-// its own module wait for the owner, as a work of a schedule's do.
+// TestAWorkTheOwnerDidNotStartAsksForEachChangeOfItsModule: the frame of a custom block, which presses without the owner,
+// and a token from outside start the same work; its changes of its own module wait for the owner.
 func TestAWorkTheOwnerDidNotStartAsksForEachChangeOfItsModule(t *testing.T) {
 	t.Parallel()
 	page := injected(t, "https://example.com")
 	var mu sync.Mutex
-	var got []string
+	var works [][]string
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if c.Command() == "build" {
 			saves := buildSaves(ctx, c, page.URL+"/a")
 			mu.Lock()
-			got = saves
+			works = append(works, saves)
 			mu.Unlock()
 			return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 		}
 		return provider.Result{Text: "ok"}
 	}))
-	e.Project("site", harness.Manifest(`{"writes": ["prompt.md", "scripts/"],
-  "rights": [{"right": "network", "what": ["127.0.0.1"], "why": "reads the pages it builds from"}],
-  "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}],
-  "commands": [`+harness.AgentCommand("build", "")+`]}`))
+	e.Project("site", siteManifest)
 	e.Project("tyres", harness.Manifest(`{"commands": [`+harness.AgentCommand("search", "")+`]}`))
+	e.Must("deck.document_save", map[string]any{"project": "site", "name": "custom/view.html", "kind": "custom", "text": "<p>view</p>"}, nil)
 	_, tok := e.Token("board", "site.build")
-	if code, out := e.As(tok).Call("site.build", map[string]any{}); code >= 300 {
-		t.Fatalf("the token starts the work: %d %s", code, out)
+	var blocks struct {
+		B0 struct{ Value []map[string]any }
+		B1 struct {
+			Value struct{ Actions []map[string]any }
+		}
 	}
-	e.Until("the work's saves", func() bool {
+	b, _ := json.Marshal(e.Screen("site", "main", nil))
+	_ = json.Unmarshal(b, &blocks)
+	if len(blocks.B0.Value) != 1 || len(blocks.B1.Value.Actions) != 1 {
+		t.Fatalf("a button of the screen and one of the custom block: %s", b)
+	}
+	_, signed := blocks.B0.Value[0]["params"].(map[string]any)["allows"]
+	frame := blocks.B1.Value.Actions[0]
+	_, unsigned := frame["params"].(map[string]any)["allows"]
+	if !signed || unsigned || frame["stays"] != true {
+		t.Fatalf("the screen's button is signed, the custom block's is not and goes without a dialog: %s", b)
+	}
+	for i, start := range []func() (int, []byte){
+		func() (int, []byte) { return e.Press(frame) },
+		func() (int, []byte) { return e.As(tok).Call("site.build", map[string]any{}) },
+	} {
+		if code, out := start(); code >= 300 {
+			t.Fatalf("start %d: %d %s", i, code, out)
+		}
+		e.Until("the work's saves", func() bool {
+			mu.Lock()
+			defer mu.Unlock()
+			return len(works) > i
+		})
 		mu.Lock()
-		defer mu.Unlock()
-		return len(got) == 4
-	})
-	mu.Lock()
-	seen := slices.Clone(got)
-	mu.Unlock()
-	if !strings.Contains(seen[0], `"waiting"`) || !strings.Contains(seen[1], `"waiting"`) {
-		t.Fatalf("a work the owner did not start waits for each change of its module: %q", seen)
+		seen := slices.Clone(works[i])
+		mu.Unlock()
+		if !strings.Contains(seen[0], `"waiting"`) || !strings.Contains(seen[1], `"waiting"`) {
+			t.Fatalf("start %d: a work the owner did not press waits for each change of its module: %q", i, seen)
+		}
+		// The same work going takes a new call as its own, so this one ends first.
+		for _, a := range asksOf(e) {
+			e.Answer(int64(a["id"].(float64)), "deny")
+		}
+		e.Until("the work ends", func() bool {
+			var going int
+			// The work started, whose id the test keeps out of the loop.
+			_ = e.SQLRow(`SELECT count(*) FROM process WHERE command = 'build' AND state NOT IN ('done', 'error')`).Scan(&going)
+			return going == 0
+		})
 	}
 }
 
@@ -1271,10 +1312,7 @@ func TestTheOwnersWordThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 		return provider.Result{Text: "ok"}
 	}))
 	e.Project("pages", pagesManifest)
-	e.Project("site", harness.Manifest(`{"writes": ["prompt.md", "scripts/"],
-  "rights": [{"right": "network", "what": ["127.0.0.1"], "why": "reads the pages it builds from"}],
-  "scripts": [{"name": "main", "file": "scripts/main.py", "runtime": "python"}],
-  "commands": [`+harness.AgentCommand("build", "")+`]}`))
+	e.Project("site", siteManifest)
 	e.Project("tyres", harness.Manifest(`{"commands": [`+harness.AgentCommand("search", "")+`]}`))
 	saves := func(n int) []string {
 		e.Until("the work's saves", func() bool {

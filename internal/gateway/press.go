@@ -38,9 +38,10 @@ func (a Allow) builds(module int64) bool {
 }
 
 // Started is the yes the owner's start of a work of project gives it, to change what that module runs: by the owner's
-// own call or press, or by the master's turn of the owner's word that read nothing from outside; none for the master.
+// press of a button deck drew, or by the master's turn of the owner's word that read nothing from outside; none for
+// the master.
 func (g *Gateway) Started(ctx context.Context, act registry.Actor, project int64) ([]Allow, error) {
-	if act.Trial || act.Kind != registry.Owner && act.Kind != registry.Master {
+	if act.Trial || act.Kind != registry.Owner && act.Kind != registry.Master || act.Kind == registry.Owner && act.Allows == "" {
 		return nil, nil
 	}
 	p, err := g.st.Q.GetProject(ctx, project)

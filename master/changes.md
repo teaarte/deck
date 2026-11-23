@@ -796,11 +796,10 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   (`deck.chat_send`), and how to draw is the master's skills `themes` and `widgets`; the size of a card comes as
   `size` in the screen of the message. A text a button gives to a field of format `text` of a command of deck (such
   as `text` of `deck.chat_send`, `deck.model_call` or `deck.owner_notify`) is said in the owner's language when it is a
-  phrase the words of the screen know: deck's, and on a module's screen the module's own `i18n` too. The wish and the image model the dialogs of a cover asked for the owner now says in the chat; with no
+  phrase deck's words know (deck's own screens only). The wish and the image model the dialogs of a cover asked for the owner now says in the chat; with no
   model named the master takes a free image model, a local one first, before the models assigned to image, as deck did.
-  Modules: take `cover_draw`, `theme_draw` and `widget_draw` of deck out of `calls`; a button of them calls
-  `deck.chat_send` with the request in words (only the owner's press may: it is not a command for agents or scripts);
-  a literal phrase a button gives to a text field of a deck command is now translated by the module's `i18n`.
+  Modules: take `cover_draw`, `theme_draw` and `widget_draw` of deck out of `calls`; nothing else (a button of a
+  module's screen calls only its module's commands).
 - 2026-11-22: deck updates from v0.2.0 and later; a base of v0.1 is refused at start with the advice to update to
   v0.3.2 first. `deck.project_import` raises a manifest of format 16 to 17 and refuses an older one, as it refuses any
   format it does not read.

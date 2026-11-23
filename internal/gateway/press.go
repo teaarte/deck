@@ -37,9 +37,8 @@ func (a Allow) builds(module int64) bool {
 	return a.Right == Instructs && a.Command == "" && a.Subject == strconv.FormatInt(module, 10)
 }
 
-// Started is the yes the owner's start of a work of project gives it, to change what that module runs: by the owner's
-// press of a button deck drew, or by the master's turn of the owner's word that read nothing from outside; none for
-// the master.
+// Started is the yes to change what project runs a start gives its work: by the owner's press of a button deck drew,
+// or by the master's turn of the owner's word that read nothing from outside; none for the master.
 func (g *Gateway) Started(ctx context.Context, act registry.Actor, project int64) ([]Allow, error) {
 	if act.Trial || act.Kind != registry.Owner && act.Kind != registry.Master || act.Kind == registry.Owner && act.Allows == "" {
 		return nil, nil

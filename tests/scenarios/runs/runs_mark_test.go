@@ -1216,8 +1216,8 @@ func TestThePressThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 	}
 }
 
-// TestAWorkTheOwnerDidNotStartAsksForEachChangeOfItsModule: the frame of a custom block, which presses without the owner,
-// and a token from outside start the same work; its changes of its own module wait for the owner.
+// TestAWorkTheOwnerDidNotStartAsksForEachChangeOfItsModule: a custom block's frame, a token from outside and a button
+// whose signature ran out start the same work; its changes of its own module wait for the owner.
 func TestAWorkTheOwnerDidNotStartAsksForEachChangeOfItsModule(t *testing.T) {
 	t.Parallel()
 	page := injected(t, "https://example.com")
@@ -1257,6 +1257,8 @@ func TestAWorkTheOwnerDidNotStartAsksForEachChangeOfItsModule(t *testing.T) {
 	for i, start := range []func() (int, []byte){
 		func() (int, []byte) { return e.Press(frame) },
 		func() (int, []byte) { return e.As(tok).Call("site.build", map[string]any{}) },
+		// A button that named no calls, whose signature ran out or is not deck's, presses without the yes.
+		func() (int, []byte) { return e.Call("site.build", map[string]any{"allows": "00.1.[]"}) },
 	} {
 		if code, out := start(); code >= 300 {
 			t.Fatalf("start %d: %d %s", i, code, out)

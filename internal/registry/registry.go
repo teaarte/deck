@@ -620,6 +620,9 @@ func CommandName(tool string) string {
 	return Deck(tool)
 }
 
+// NoCalls are the calls of a button deck drew that names none.
+const NoCalls = "[]"
+
 // AllowsKey is the field of an input a press of the owner gives the calls its button allows in; the registry takes it
 // out into the actor, so no schema has it.
 const AllowsKey = "allows"
@@ -634,6 +637,10 @@ func (r *Registry) Allows(a Actor, name string, input json.RawMessage) (Actor, j
 		return a, input, Invalid("%s comes only with a press of the owner", AllowsKey)
 	default:
 		calls, ok := r.verified(name, signed)
+		if !ok && strings.HasSuffix(signed, "."+NoCalls) {
+			// A button that named no calls, drawn long ago, still presses: without the yes of a drawn button.
+			return a, input, nil
+		}
 		if !ok {
 			return a, input, Refuse("%s comes only with a button deck drew for %s; press it again", AllowsKey, name)
 		}

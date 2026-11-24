@@ -320,6 +320,9 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 			if err := bindInput(ctx, q, cmd, projectID, old.ID, a.input); err != nil {
 				return err
 			}
+			if err := joinsYes(ctx, q, old, o); err != nil {
+				return err
+			}
 			if err := q.SetAgain(ctx, db.SetAgainParams{Again: string(a.in), ID: old.ID}); err != nil || at.kind != KindAgent {
 				return err
 			}
@@ -331,7 +334,7 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 			if err != nil {
 				return err
 			}
-			return joins(ctx, q, old, o)
+			return inherit(ctx, q, old.ID, o)
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
@@ -366,7 +369,10 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 				if err != nil {
 					return err
 				}
-				return joins(ctx, q, old, o)
+				if err := joinsYes(ctx, q, old, o); err != nil {
+					return err
+				}
+				return inherit(ctx, q, old.ID, o)
 			}
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err
@@ -398,12 +404,14 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 	}
 	allows := cmp.Or(o.Allows, "[]")
 	if o.again || o.closes != nil {
-		// The run again and the hand-on go on with the work of Follows, with what the owner allowed it.
+		// The hand-on, and the run again while no other caller joined, go on with what the owner allowed the work.
 		prev, err := q.GetProcess(ctx, o.Follows)
 		if err != nil {
 			return err
 		}
-		allows = prev.Allows
+		if o.closes != nil || gateway.Owned(prev.Allows) {
+			allows = prev.Allows
+		}
 	}
 	a.p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: store.Bool(trial), ProjectID: projectID, Command: command, Kind: at.kind, State: StateRunning,
 		Provider: at.provider, Input: string(a.in), SessionID: at.session, ParentID: store.ID(o.Parent), Depth: depth,
@@ -439,15 +447,12 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 	return bindInput(ctx, q, cmd, projectID, a.p.ID, a.input)
 }
 
-// joins gives the work old a call joins what the call carries: the mark of its text, and the yes of the work only when
-// the call is the owner's own start.
-func joins(ctx context.Context, q *db.Queries, old db.Process, o Origin) error {
+// joinsYes takes the yes of the work old from a call that joins it and is not the owner's own start.
+func joinsYes(ctx context.Context, q *db.Queries, old db.Process, o Origin) error {
 	if allows := gateway.Joined(old.Allows, o.Own); allows != old.Allows {
-		if err := q.SetProcessAllows(ctx, db.SetProcessAllowsParams{Allows: allows, ID: old.ID}); err != nil {
-			return err
-		}
+		return q.SetProcessAllows(ctx, db.SetProcessAllowsParams{Allows: allows, ID: old.ID})
 	}
-	return inherit(ctx, q, old.ID, o)
+	return nil
 }
 
 // inherit marks a process with the untrusted text what it was given carries: its note and message, the input or work

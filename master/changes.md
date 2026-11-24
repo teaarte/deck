@@ -812,8 +812,9 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
 - 2026-11-24: A call that joins a work going (another call for its record, or a call of its topic) and is not the
   owner's own start (their press of a button deck drew, the master's turn of their word that read nothing from outside)
   takes the work's yes to change its module: from then on each change of its prompts, skills and scripts asks. The
-  work a model hands on to the next model and the run again after calls that came while it ran keep what the owner
-  allowed the work: that yes, the calls their press named and not made yet, and the answers "for this work".
+  work a model hands on to the next model keeps what the owner allowed the work: that yes, the calls their press named
+  and not made yet, and the answers "for this work"; so does the run again after calls that came while it ran, when
+  none came from another caller (otherwise it starts with nothing, as before).
   Modules: nothing to change.
 - 2026-11-24: A button deck drew allows its calls and gives its yes for at most a week: until the start of the UTC day
   six to seven days after it was drawn (it was seven to eight); past that a button that named no calls still presses, without the yes, and a field `allows` deck did not sign is refused,

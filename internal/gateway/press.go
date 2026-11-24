@@ -73,6 +73,13 @@ func (g *Gateway) ownStart(ctx context.Context, act registry.Actor) (bool, error
 	return err == nil && turn.Depth == 0 && turn.ReadUntrusted == "", err
 }
 
+// Owned says allows hold the yes of the owner's start, which no other caller's join took.
+func Owned(allows string) bool {
+	var as []Allow
+	_ = json.Unmarshal([]byte(allows), &as)
+	return slices.ContainsFunc(as, func(a Allow) bool { return a.Right == Instructs })
+}
+
 // Joined are the allows of a work a call joins: a call that is not the owner's own start takes the yes of the start.
 func Joined(allows string, own bool) string {
 	if own {

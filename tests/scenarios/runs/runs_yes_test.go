@@ -228,6 +228,49 @@ func TestTheRunAgainOfAPressedWorkKeepsItsYes(t *testing.T) {
 	if got := e.Assigned("films", "text"); !slices.Equal(got, []string{"openrouter/qwen"}) {
 		t.Fatalf("the run again applies the models: %v", got)
 	}
+	var allows string
+	// The yes a work holds, which deck shows nowhere.
+	_ = e.SQLRow(`SELECT allows FROM process WHERE id = ?`, next).Scan(&allows)
+	if !strings.Contains(allows, "instructs") {
+		t.Fatalf("the run again keeps the yes of the owner's start: %s", allows)
+	}
+}
+
+// TestATokenThatJoinsAPressedScriptLeavesItsRunAgainNothing: a token's call for the record of the script the owner
+// pressed takes its yes, and the run again on the token's input asks for the call the button named.
+func TestATokenThatJoinsAPressedScriptLeavesItsRunAgainNothing(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t)
+	e.Must("deck.connection_set", map[string]any{"name": "openrouter", "api": "openai", "url": "https://openrouter.ai/api/v1"}, nil)
+	for _, m := range []string{"qwen", "gemma"} {
+		e.Must("deck.model_set", map[string]any{"connection": "openrouter", "model": m, "kind": "text", "call_usd": 0.01}, nil)
+	}
+	e.Project("films", harness.PlainManifest)
+	e.Project("picker", applyAgain)
+	e.SaveScript("picker", "scripts/apply.py", applyAgainScript)
+	e.Must("deck.assignment_set", map[string]any{"role": "text", "project": "films", "models": []string{"openrouter/gemma"}}, nil)
+	e.Must("deck.record_upsert", map[string]any{"project": "picker", "collection": "proposals",
+		"records": harness.Jsonl(map[string]any{"name": "a", "project": "films", "models": "openrouter/qwen"})}, nil)
+	_, tok := e.Token("board", "picker.apply")
+	params := e.RowAction("picker", "main", "picker.apply", nil)["params"].(map[string]any)
+	var run struct{ Process int64 }
+	e.Must("picker.apply", map[string]any{"record": params["record"], "allows": params["allows"]}, &run)
+	if code, out := e.As(tok).Call("picker.apply", map[string]any{"record": params["record"], "go": true}); code != 200 || !strings.Contains(string(out), harness.Itoa(run.Process)) {
+		t.Fatalf("the token's call joins the run going: %d %s", code, out)
+	}
+	var allows string
+	// The yes a work holds, which deck shows nowhere.
+	_ = e.SQLRow(`SELECT allows FROM process WHERE id = ?`, run.Process).Scan(&allows)
+	if strings.Contains(allows, "instructs") {
+		t.Fatalf("the token's join takes the yes of the run going: %s", allows)
+	}
+	next := e.Following(run.Process)
+	if p := e.WaitState(next, "done", "error"); !strings.Contains(string(p.Result), "waiting") {
+		t.Fatalf("the run again on the token's input asks for the call the owner's press named: %+v", p)
+	}
+	if got := e.Assigned("films", "text"); !slices.Equal(got, []string{"openrouter/gemma"}) {
+		t.Fatalf("nothing changes without the owner: %v", got)
+	}
 }
 
 // TestTheWorkHandedOnToTheNextModelKeepsItsYes: the owner's work the first model leaves at its limit goes on on the next

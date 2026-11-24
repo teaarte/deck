@@ -181,14 +181,14 @@ func TestAWorkTellsItsTopicItsWholeResult(t *testing.T) {
 	}
 }
 
-// A work from a topic that failed tells what it left and goes on in its session at the owner's press.
+// A work from a topic that failed tells what it left and goes on in its session at the owner's press, told it is theirs.
 func TestAFailedWorkGoesOnFromItsTopic(t *testing.T) {
 	t.Parallel()
 	var from atomic.Int64
 	var works atomic.Int32
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		switch {
-		case strings.Contains(c.Req.Prompt, "go on where you stopped"):
+		case strings.Contains(c.Req.Prompt, "the owner asks you to go on"):
 			return provider.Result{Text: "Finished the rest."}
 		case c.Command() != "work":
 			return harness.HandOver(ctx, c, &from)

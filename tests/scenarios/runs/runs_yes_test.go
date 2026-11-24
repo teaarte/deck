@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"deck2/internal/fault"
 	"deck2/internal/provider"
 	"deck2/tests/harness"
 )
@@ -397,9 +398,9 @@ func TestOnlyTheOwnersReworkByDecksButtonKeepsTheYes(t *testing.T) {
 	}, false)
 }
 
-// TestTheOwnersPressAfterAForeignJoinGivesTheYesBack: a token joins the work the owner pressed and takes its yes; the
-// owner's press for the same record gives it back.
-func TestTheOwnersPressAfterAForeignJoinGivesTheYesBack(t *testing.T) {
+// TestTheOwnersPressAfterAForeignJoinLeavesTheWorkAsking: a token joins the work the owner pressed and takes its yes;
+// the owner's press for the same record does not give it back, as the token's words stay in the work.
+func TestTheOwnersPressAfterAForeignJoinLeavesTheWorkAsking(t *testing.T) {
 	t.Parallel()
 	page := injected(t, "https://example.com")
 	hold := make(chan struct{})
@@ -427,10 +428,51 @@ func TestTheOwnersPressAfterAForeignJoinGivesTheYesBack(t *testing.T) {
 	close(hold)
 	select {
 	case got := <-saved:
-		if strings.Contains(got[0], "waiting") || strings.Contains(got[1], "waiting") {
-			t.Fatalf("the owner's press after the token's join gives the yes back: %q", got)
+		if !strings.Contains(got[0], `"waiting"`) || !strings.Contains(got[1], `"waiting"`) {
+			t.Fatalf("the work the token joined asks for each change after the owner's press too: %q", got)
 		}
 	case <-time.After(harness.Within(time.Minute)):
 		t.Fatal("the work saves")
+	}
+}
+
+// TestATokenThatContinuesAFailedWorkIsNotTheOwner: a token's continue of a work that failed takes its yes and is not
+// told to the agent as the owner's.
+func TestATokenThatContinuesAFailedWorkIsNotTheOwner(t *testing.T) {
+	t.Parallel()
+	said := make(chan string, 1)
+	var runs atomic.Int32
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if strings.Contains(c.Req.Prompt, "to go on") {
+			said <- c.Req.Prompt
+			return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+		}
+		if c.Command() == "build" && runs.Add(1) == 1 {
+			return provider.Fail(fault.TaskFailed, "the site is down")
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}))
+	e.Project("site", recordSite)
+	_, tok := e.Token("board", "deck.process_rework")
+	var run struct{ Process int64 }
+	e.Must("site.build", map[string]any{"record": 1, "allows": signedPress(e)}, &run)
+	e.WaitState(run.Process, "error")
+	if code, out := e.As(tok).Call("deck.process_rework", map[string]any{"process": run.Process}); code != 200 {
+		t.Fatalf("the token continues the work: %d %s", code, out)
+	}
+	select {
+	case p := <-said:
+		if strings.Contains(p, "the owner asks") {
+			t.Fatalf("a token's continue is not the owner's: %s", p)
+		}
+	case <-time.After(harness.Within(time.Minute)):
+		t.Fatal("the work goes on")
+	}
+	e.WaitState(run.Process, "done")
+	var allows string
+	// The yes a work holds, which deck shows nowhere.
+	_ = e.SQLRow(`SELECT allows FROM process WHERE id = ?`, run.Process).Scan(&allows)
+	if strings.Contains(allows, "instructs") {
+		t.Fatalf("a token's continue takes the yes: %s", allows)
 	}
 }

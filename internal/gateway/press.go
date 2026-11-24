@@ -80,21 +80,14 @@ func Owned(allows string) bool {
 	return slices.ContainsFunc(as, func(a Allow) bool { return a.Right == Instructs })
 }
 
-// Joined are the allows of a work a call that brings allows joins: the owner's own start gives its yes, another call
-// takes the yes of the start.
-func Joined(allows string, own bool, brings string) string {
-	var as, bs []Allow
+// Joined are the allows of a work a call joins: a call that is not the owner's own start takes the yes of the start.
+func Joined(allows string, own bool) string {
+	if own {
+		return allows
+	}
+	var as []Allow
 	_ = json.Unmarshal([]byte(allows), &as)
-	if !own {
-		return allowsText(slices.DeleteFunc(as, func(a Allow) bool { return a.Right == Instructs }))
-	}
-	_ = json.Unmarshal([]byte(brings), &bs)
-	for _, b := range bs {
-		if b.Right == Instructs && !slices.ContainsFunc(as, func(a Allow) bool { return a.Right == Instructs && a.Subject == b.Subject }) {
-			as = append(as, b)
-		}
-	}
-	return allowsText(as)
+	return allowsText(slices.DeleteFunc(as, func(a Allow) bool { return a.Right == Instructs }))
 }
 
 func allowsText(as []Allow) string {

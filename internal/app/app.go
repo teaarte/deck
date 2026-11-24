@@ -227,7 +227,7 @@ func wire(cfg Config, builtin ...provider.Provider) (*App, error) {
 		}}
 	a.Signins = signins.Service{St: st, Ctx: a.ctx, Broker: a.Asks, OAuth: oauth, Browser: a.Browser, MCP: a.MCP,
 		Agents: &a.Providers, Emit: a.Bus.Emit, Go: a.bg.Go}
-	a.Chats = chat.Service{St: st, Emit: a.Bus.Emit, Asks: a.Asks, Runner: a.Runner, For: a.Models.For,
+	a.Chats = chat.Service{St: st, Emit: a.Bus.Emit, Asks: a.Asks, Runner: a.Runner, For: a.Models.For, Sign: a.Registry.SignAllows,
 		Named: a.Providers.Named, Fits: a.Models.Fits, Able: a.Models.Able, Facts: a.Models.Facts, Go: a.bg.Go, Lookup: a.Registry.Lookup,
 		Decisions: func(ctx context.Context, act registry.Actor, ps []int64, lang string) (any, error) {
 			return a.Answers.Of(ctx, act, ps, lang)

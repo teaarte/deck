@@ -57,6 +57,8 @@ type Service struct {
 	Go func(func(context.Context)) bool
 	// Lookup is a command by name.
 	Lookup func(ctx context.Context, workspace int64, name string) (*registry.Command, error)
+	// Sign is the field deck signs on a button of command it draws (registry.SignAllows).
+	Sign func(command, calls string) string
 	// Decisions are what processes wait for the owner to decide but their questions, each with its buttons.
 	Decisions func(ctx context.Context, act registry.Actor, processes []int64, lang string) (any, error)
 

@@ -335,3 +335,33 @@ func TestAButtonOfNoCallsPressesPastItsWeekOnlyByDecksSignature(t *testing.T) {
 		t.Fatal("a button drawn now gives the yes")
 	}
 }
+
+// TestATokensReworkOfAPressedWorkTakesItsYes: a token sends the work the owner pressed back with a remark; the turn it
+// resumes asks for each change of its module.
+func TestATokensReworkOfAPressedWorkTakesItsYes(t *testing.T) {
+	t.Parallel()
+	page := injected(t, "https://example.com")
+	saved := make(chan []string, 1)
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if strings.Contains(c.Req.Prompt, "back for rework") {
+			saved <- ownSaves(ctx, c, page.URL+"/a")
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}))
+	e.Project("site", recordSite)
+	_, tok := e.Token("board", "deck.process_rework")
+	var run struct{ Process int64 }
+	e.Must("site.build", map[string]any{"record": 1, "allows": signedPress(e)}, &run)
+	e.WaitState(run.Process, "done")
+	if code, out := e.As(tok).Call("deck.process_rework", map[string]any{"process": run.Process, "remark": "do it as the page says"}); code != 200 {
+		t.Fatalf("the token sends the work back: %d %s", code, out)
+	}
+	select {
+	case got := <-saved:
+		if !strings.Contains(got[0], `"waiting"`) || !strings.Contains(got[1], `"waiting"`) {
+			t.Fatalf("a work another caller sent back asks for each change of its module: %q", got)
+		}
+	case <-time.After(harness.Within(time.Minute)):
+		t.Fatal("the reworked turn saves")
+	}
+}

@@ -108,8 +108,8 @@ func (r *Runner) Follows(ctx context.Context, id, of int64) error {
 }
 
 // Rework sends a finished process back to its session with a remark and a full ceiling, marked by where the remark
-// came from.
-func (r *Runner) Rework(ctx context.Context, processID int64, t Text) error {
+// came from; a rework not by the owner (own) takes the yes of the start.
+func (r *Runner) Rework(ctx context.Context, processID int64, t Text, own bool) error {
 	remark := t.Body
 	r.mu.Lock()
 	lt := r.live[processID]
@@ -165,6 +165,13 @@ func (r *Runner) Rework(ctx context.Context, processID int64, t Text) error {
 		n, err = q.ReopenProcess(ctx, db.ReopenProcessParams{CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), StartNote: note,
 			ReopenedAt: r.stamp(), ID: processID})
 		if err != nil || n == 0 {
+			return err
+		}
+		now, err := q.GetProcess(ctx, processID)
+		if err != nil {
+			return err
+		}
+		if err := joinsYes(ctx, q, now, Origin{Own: own}); err != nil {
 			return err
 		}
 		return carries(ctx, q, processID, t.From...)

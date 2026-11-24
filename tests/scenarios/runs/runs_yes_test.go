@@ -254,3 +254,34 @@ func TestTheWorkHandedOnToTheNextModelKeepsItsYes(t *testing.T) {
 		t.Fatalf("the next model goes on with the yes of the owner's work: %q", got)
 	}
 }
+
+// TestAButtonOfNoCallsPressesPastItsWeekOnlyByDecksSignature: a button of site drawn a week ago presses without the
+// yes; one drawn now gives it; a field of no calls deck did not sign is refused.
+func TestAButtonOfNoCallsPressesPastItsWeekOnlyByDecksSignature(t *testing.T) {
+	t.Parallel()
+	e := harness.New(t, harness.WithClock(), harness.WithAgent(harness.Ok))
+	e.Project("site", recordSite)
+	old := signedPress(e)
+	parts := strings.SplitN(old, ".", 3)
+	for _, forged := range []string{"00.1.[]", "00." + parts[1] + ".[]", "[]", parts[0] + ".9999999999.[]"} {
+		if code, out := e.Call("site.build", map[string]any{"allows": forged}); code < 400 || !strings.Contains(string(out), "only with a button deck drew") {
+			t.Fatalf("allows %q deck did not sign is refused: %d %s", forged, code, out)
+		}
+	}
+	yes := func(signed string) bool {
+		var run struct{ Process int64 }
+		e.Must("site.build", map[string]any{"allows": signed, "retry_key": signed}, &run)
+		e.WaitState(run.Process, "done")
+		var allows string
+		// The yes a work holds, which deck shows nowhere.
+		_ = e.SQLRow(`SELECT allows FROM process WHERE id = ?`, run.Process).Scan(&allows)
+		return strings.Contains(allows, "instructs")
+	}
+	e.Clock.Add(7 * 24 * time.Hour)
+	if yes(old) {
+		t.Fatal("a button drawn a week ago presses without the yes")
+	}
+	if !yes(signedPress(e)) {
+		t.Fatal("a button drawn now gives the yes")
+	}
+}

@@ -643,12 +643,12 @@ func (r *Registry) Allows(a Actor, name string, input json.RawMessage) (Actor, j
 	case a.Kind != Owner:
 		return a, input, Invalid("%s comes only with a press of the owner", AllowsKey)
 	default:
-		calls, ok := r.verified(name, signed)
-		if !ok && strings.HasSuffix(signed, "."+NoCalls) {
-			// A button that named no calls, drawn long ago, still presses: without the yes of a drawn button.
+		calls, ok, live := r.verified(name, signed)
+		if ok && !live && calls == NoCalls {
+			// A button deck drew that named no calls still presses past its end: without the yes of a drawn button.
 			return a, input, nil
 		}
-		if !ok {
+		if !ok || !live {
 			return a, input, Refuse("%s comes only with a button deck drew for %s; press it again", AllowsKey, name)
 		}
 		a.Allows = calls
@@ -689,25 +689,25 @@ func (r *Registry) passkey(ctx context.Context, a Actor, c *Command, input json.
 	return Unkeyed("%s changes what deck trusts for long: confirm it with your passkey, then it goes", c.Name)
 }
 
-// allowsKept is how long a button deck drew allows its calls; its end is a whole day, so a screen redrawn that day
-// gives the same field.
+// allowsKept is how long at most a button deck drew allows its calls; its end is a whole day, so a screen redrawn
+// that day gives the same field.
 const allowsKept = 7 * 24 * time.Hour
 
 // SignAllows is the field of the calls a button of command allows, as deck draws it, <mac>.<end>.<calls>: a client
 // cannot make, move or keep one past its end.
 func (r *Registry) SignAllows(command, calls string) string {
-	end := strconv.FormatInt(r.now().Add(allowsKept+24*time.Hour).Truncate(24*time.Hour).Unix(), 10)
+	end := strconv.FormatInt(r.now().Add(allowsKept).Truncate(24*time.Hour).Unix(), 10)
 	return hex.EncodeToString(r.allowsMAC(command, end, calls)) + "." + end + "." + calls
 }
 
-// verified are the calls of a signed field when deck signed them for command and its end has not come.
-func (r *Registry) verified(command, signed string) (string, bool) {
-	mac, rest, ok := strings.Cut(signed, ".")
+// verified are the calls of a signed field when deck signed them for command (ok), and live while its end has not come.
+func (r *Registry) verified(command, signed string) (calls string, ok, live bool) {
+	mac, rest, ok1 := strings.Cut(signed, ".")
 	end, calls, ok2 := strings.Cut(rest, ".")
 	got, err := hex.DecodeString(mac)
 	until, err2 := strconv.ParseInt(end, 10, 64)
-	return calls, ok && ok2 && err == nil && err2 == nil && hmac.Equal(got, r.allowsMAC(command, end, calls)) &&
-		r.now().Unix() < until
+	ok = ok1 && ok2 && err == nil && err2 == nil && hmac.Equal(got, r.allowsMAC(command, end, calls))
+	return calls, ok, ok && r.now().Unix() < until
 }
 
 func (r *Registry) allowsMAC(command, end, calls string) []byte {

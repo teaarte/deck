@@ -6,13 +6,14 @@ Docker, and deck without Docker.
 
 ## A server with a domain
 
-On a Linux server (amd64 or arm64) with a domain name pointing at it and ports 80, 443 and 8443 open, put two lines in
+On a Linux server (amd64 or arm64) with a domain name whose A/AAAA record points at it and ports 80, 443 and 8443
+open in its firewall, add two lines to
 `.env` beside `compose.yaml` (`~/deck/.env`); Caddy in the same compose then gets the HTTPS certificate and serves deck
 at that name, with no Tailscale:
 
 ```bash
 cd ~/deck
-printf 'DECK_DOMAIN=deck.example.com\nCOMPOSE_PROFILES=domain\n' > .env
+printf 'DECK_DOMAIN=deck.example.com\nCOMPOSE_PROFILES=domain\n' >> .env
 docker compose up -d
 docker compose exec deck deck pair     # the https link first; the deck.localhost one opens only on the server
 ```

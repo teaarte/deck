@@ -140,12 +140,15 @@ What the owner sees of the rules above, on three screens.
   («master → tyres: change prompt.md»), then why the caller asks in its own words, then why it waits: the row of the
   table of decisions it took and, for a marked turn, where the text from outside came from in short (the data of the
   module it last passed through and its first source; the whole chain is under Details). A change of a prompt, skill
-  or script shows its diff, the call's input folded under Details. The buttons are Allow once, For this work, Always
-  allow here (where always may be given), Deny, Deny because… (the reason goes back to the agent), No, and do not ask
-  again, and Rights. The requests of one work are one card with each part's buttons and buttons for all.
+  or script shows its diff, the call's input folded under Details. The buttons are «Allow once: <what>», «Deny» (or
+  «No, and do not ask again», which keeps the no), «For this work» (this run and what it starts), «Always let
+  <module>: …» where always may be given, «Deny because…» (the reason goes back to the agent) and «Rights»; «Later»
+  on Today leaves it waiting and shows the next. The requests of one work are one card with each part's buttons and
+  buttons for all.
 - **Rights** (Settings → Rights) lists every right of every module, by module or by right: what it lets the module
   do, why in the module's words, the answer (always and since when, no, or asks you, and whether always takes the
-  passkey) and when it was last used, with Revoke at one tap, Allow always, Say no and Ask again. The master's rights
+  passkey) and when it was last used. Revoke, at one tap, turns an always back into asks you; Allow always and Say no
+  answer ahead; Ask again clears a no. The master's rights
   are deck's own, without buttons. **Report** of a module (`deck.project_report`, the screen `rights-report`) says
   what it did in a period by the rights: the hosts reached with how many requests, the calls that needed a right,
   made or refused, turns on a login, paid model calls and turns that read text from outside. A draft's page says
@@ -156,8 +159,9 @@ What the owner sees of the rules above, on three screens.
   the data of a module» on Settings → Rights; `deck.project_trust`, with the passkey) takes the mark off:
   later turns that read it are not marked for it; a turn marked already stays marked. What an automation token
   writes is text from outside too; «I checked it: trust» on its row (Settings → Advanced, `deck.token_trust`, with
-  the passkey; «Do not trust» takes it back) makes its words the owner's. Use it for a source you control, such as
-  your own shortcut, not for a module that reads the web: its next run marks its data again.
+  the passkey; «Do not trust» takes it back) makes its words the owner's. Trust a module's data when its outside text
+  came once (an import, a file you gave it) and you read it; for a module that reads the web it lasts only until its
+  next run marks the data again. Trust a token when you control what it writes, such as your own shortcut.
 
 ## A module
 

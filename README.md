@@ -24,17 +24,19 @@ reading sources, watching prices, triaging pull requests, making short videos �
 runs for you, with its own data, screen, scripts and agent commands, on a schedule, its result on a card. You open
 deck in the morning, see what was done, and answer the one or two things that need you.
 
-- **Ask for a module in words.** Deki, deck's built-in assistant that builds and changes modules, interviews you for
+- **Ask for a module in words.** Deki, deck's built-in assistant (the master in some labels), interviews you for
   a minute, builds the module (data, commands, schedule, screens, widgets), tries it as a draft and hands it over.
   Later you just tell it what to change.
 - **Nothing important happens behind your back.** A module names which of deck's seven rights it may use, each with
   why: network, a subscription login, your data, files, money, sending in your name, other modules. Enabling it gives
-  what stays near it — its folders, its own services, the hosts its programs name; a login, money, sending, other
-  modules and the whole web ask you the first time: once, for this work, always (with your passkey) or no. The
-  request says which module changes what, why, and where any text from outside came from; a button you press already
-  is that yes. A turn that read text from outside deck and holds something of value asks again for each way out, even
-  one you allowed always. **Settings → Rights** lists every answer with a one-tap revoke and a report of what each
-  module did. What agents changed on their own is one line per run under **Done without you**, with an undo.
+  what stays near it — its folders, its own services, the hosts its programs name; the rest ([all of it](docs/architecture.md#the-shape))
+  asks you the first time: once, for this work (this run and what it starts), always or no. The request says which
+  module changes what, why, and where any text from outside came from; pressing a button of a module's screen is your
+  yes to the calls it makes. An agent's run that read text from outside deck and holds a login or your data is
+  *marked*: it asks before it sends, pays, calls another module, reaches a host its module does not name or changes
+  what a module runs, even where you said always; a work you started may still edit its own module's prompts and
+  scripts. **Settings → Rights** lists every answer with a one-tap revoke and a report of what each module did. What
+  agents changed on their own is one line per run under **Done without you**, with an undo.
 - **Your models, your bill.** Subscriptions (Claude Code, Codex) or any model on OpenRouter, Google, Anthropic,
   Groq, a local server or Ollama, each command on its own model with fallbacks; a model at its usage limit pauses and
   the work goes to the next. **Spend** shows what every module costs.
@@ -50,10 +52,10 @@ deck in the morning, see what was done, and answer the one or two things that ne
 <td width="50%"><img src="docs/screenshots/chat.png" alt="A module screen with Deki's chat open beside it, a chart under its reply"><br><sub><b>Deki beside a module.</b>
 The chat sees the screen; a reply can carry a block — a chart, a table, a form or options to pick.</sub></td>
 <td width="50%"><img src="docs/screenshots/today.png" alt="Today: a question of a module waiting for an answer, what runs and what was"><br><sub><b>Today.</b>
-What waits for you comes first, one at a time, and is answered right there.</sub></td>
+What waits for you — a question, as here, or a request to allow a call — comes first, one at a time, answered right there.</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/rights.png" alt="Settings, Rights: a module's network given by enabling, with Revoke and Report; sending in your name still asks"><br><sub><b>Rights.</b>
+<td width="50%"><img src="docs/screenshots/rights.png" alt="Settings, Rights: Weekly mailer's network allowed always, with Revoke and Report; sending in your name still asks"><br><sub><b>Rights.</b>
 Each right of a module, what it lets it do and since when, revoked at one tap; what you have not given asks first.</sub></td>
 <td width="50%" align="center"><img src="docs/screenshots/phone.png" alt="The tiles on a phone: Today and a module card, a tab bar for the thumb" width="240"><br><sub><b>On a phone.</b>
 The same tiles and a tab bar for the thumb; added to the home screen, deck gets pushes and shared links.</sub></td>
@@ -115,7 +117,7 @@ curl -fsSL https://raw.githubusercontent.com/teaarte/deck/master/install.sh | sh
 ```
 
 It puts deck in `~/deck` (`DECK_DIR` for another folder), loads the AppArmor profile on Ubuntu and Debian (`sudo` asks
-once, for that alone), starts deck and prints a link that pairs your device (on a server, see "On a server" below first). By hand:
+once, for that alone), starts deck and prints a link that pairs your device (on a fresh server, write `.env` first: "On a server" below). By hand:
 
 ```bash
 mkdir deck && cd deck
@@ -130,12 +132,10 @@ docker compose exec deck deck pair        # a link that pairs a device
 deck restarts with Docker and the machine; its data and the agents' logins stay in the volume `deck`. Its settings
 are the file `.env` beside `compose.yaml` (in `~/deck`); the installer keeps an existing one.
 
-**Memory and processes.** The image takes about 2.3 GB of disk; deck alone holds a few hundred MB of memory, each
-agent at work and the browser more. The container runs at most 4096 processes. Its memory has no ceiling unless you
-give one, as `DECK_MEM_LIMIT=6g` in `.env`: then memory eaten past it kills a process inside deck's container, deck
-itself maybe (Docker starts it again), instead of the host's other services. A deck that stops answering on its port
-shows as `unhealthy` in `docker compose ps`; a monitor outside the machine, such as an uptime check of deck's https
-address, tells you when the machine itself is down.
+**Memory and processes.** The image takes about 2.3 GB of disk; deck holds a few hundred MB of memory, each agent at
+work and the browser more. The container runs at most 4096 processes; its memory has a ceiling only by
+`DECK_MEM_LIMIT=6g` in `.env`, past which a process in deck's container is killed (deck itself maybe, and Docker starts
+it again), not the host's other services. A deck that stops answering shows as `unhealthy` in `docker compose ps`.
 
 **What it holds, what you add.** The image carries deck and the programs its work runs: the CLIs of Claude Code, Codex
 and goose, Python with uv, Node, ffmpeg, git and Chromium. Beside it in `compose.yaml` runs
@@ -157,7 +157,8 @@ Docker, that lends deck its local models and folders.
 **Signing in.** There is no password and no owner token. A device pairs once by a link of `deck pair` (or of Settings →
 Devices on a device already signed in, with a QR code for a phone) and makes a passkey; the link works once, within
 ten minutes. Settings → Devices lists every device and passkey: revoking a device signs out that browser alone,
-revoking a passkey every browser that used it. An answer that trusts for long — always to a serious right, enabling
+revoking a passkey every browser that used it. An answer that trusts for long — always to a right that reaches far
+(a login, money, sending, other modules, the whole web, an agent's shell, others' data), enabling
 a draft, a new token, a link that pairs a device, [«I checked it: trust»](docs/architecture.md#rights-requests-and-trust)
 of a module's data or a token — takes a touch of the passkey within five minutes; once, no and a
 revoke take none. An automation token calls the commands of deck it lists, in the modules its rights name.
@@ -165,22 +166,24 @@ revoke take none. An automation token calls the commands of deck it lists, in th
 **On this machine** deck is <http://deck.localhost:7700>: browsers treat `deck.localhost` as secure, so a passkey works
 there without https (tried in Chromium and Safari). That address opens only on the machine deck runs on.
 
-**On a server**, give deck its https address before you pair: in `~/deck`, put it in `.env`, run
-`docker compose up -d`, then `docker compose exec deck deck pair`, which prints the https link first.
+**On a server**, give deck its https address before you pair: add it to `~/deck/.env`, then run the install line (it
+keeps `.env`) or, if deck runs already, `docker compose up -d` in `~/deck`; `docker compose exec deck deck pair` prints
+the https link first.
 
-- With a domain pointing at the server (ports 80, 443 and 8443 open), Caddy in the same compose gets the certificate:
-  `printf 'DECK_DOMAIN=deck.example.com\nCOMPOSE_PROFILES=domain\n' > .env`. More in
+- With a domain whose A/AAAA record points at the server and ports 80, 443 and 8443 open in its firewall, Caddy in the
+  same compose gets the certificate:
+  `mkdir -p ~/deck && printf 'DECK_DOMAIN=deck.example.com\nCOMPOSE_PROFILES=domain\n' >> ~/deck/.env`. More in
   [docs/install.md](docs/install.md#a-server-with-a-domain).
 - Without a domain, Tailscale gives the address, below.
 
 **From a phone and other devices**, deck needs https: your domain as above, or Tailscale on deck's machine and on the
 device:
 
-1. Install Tailscale on deck's machine and sign it in: on a Mac the Tailscale app with its command line (the app's
+1. Install Tailscale on the phone and on deck's machine and sign both in to one tailnet; on deck's machine: on a Mac the Tailscale app with its command line (the app's
    Settings → Install CLI), on a Linux server
    `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up --operator=$USER`.
-2. On that machine: `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701`; `tailscale serve status`
-   shows the address, `https://<machine>.<tailnet>.ts.net`.
+2. On that machine: `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701` (if it asks, enable HTTPS
+   in the Tailscale admin console); `tailscale serve status` shows the address, `https://<machine>.<tailnet>.ts.net`.
 3. Put `DECK_DOMAIN=<machine>.<tailnet>.ts.net` in `~/deck/.env` (no `COMPOSE_PROFILES=domain`: Tailscale serves
    https, not Caddy) and run `docker compose up -d`. deck counts the sign-in steps of every client of `tailscale serve`
    as one address ([docs/install.md](docs/install.md#behind-the-hosts-tailscale-serve)).
@@ -227,8 +230,8 @@ from `.env`, run `docker compose up -d`, and remove the machine `deck` in the Ta
 
 deck is a personal project in daily use by its author, on a Mac in OrbStack with a node for the Mac's models and
 folders: one owner per deck, the same image on a server and on one computer. It changes fast. The latest release is
-v0.3.2; master holds since a request that heads with the module it changes, search that fails over, a module's start
-as your yes to its own edits, the time zone setting, and updates from v0.2.0 on.
+v0.3.2; master holds since a request that heads with the module it changes, search that fails over, a work you
+start allowed to edit its own module, the time zone setting, and updates from v0.2.0 on.
 
 ## License
 

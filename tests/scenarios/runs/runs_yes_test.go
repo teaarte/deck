@@ -25,10 +25,16 @@ var recordSite = harness.Manifest(`{"writes": ["prompt.md", "scripts/"],
 // signedPress is the field deck signs on the button of site's screen, which the owner's press sends.
 func signedPress(e *harness.Env) string {
 	e.T.Helper()
+	return signedOf(e, "site")
+}
+
+// signedOf is the field deck signs on the button of the screen of project.
+func signedOf(e *harness.Env, project string) string {
+	e.T.Helper()
 	var blocks struct {
 		B0 struct{ Value []map[string]any }
 	}
-	b, _ := json.Marshal(e.Screen("site", "main", nil))
+	b, _ := json.Marshal(e.Screen(project, "main", nil))
 	if err := json.Unmarshal(b, &blocks); err != nil || len(blocks.B0.Value) != 1 {
 		e.T.Fatalf("the button of site's screen: %s", b)
 	}
@@ -256,14 +262,15 @@ func TestTheWorkHandedOnToTheNextModelKeepsItsYes(t *testing.T) {
 }
 
 // TestAButtonOfNoCallsPressesPastItsWeekOnlyByDecksSignature: a button of site drawn a week ago presses without the
-// yes; one drawn now gives it; a field of no calls deck did not sign is refused.
+// yes; one drawn now gives it; a field of no calls deck did not sign for site.build is refused.
 func TestAButtonOfNoCallsPressesPastItsWeekOnlyByDecksSignature(t *testing.T) {
 	t.Parallel()
 	e := harness.New(t, harness.WithClock(), harness.WithAgent(harness.Ok))
 	e.Project("site", recordSite)
+	e.Project("other", recordSite)
 	old := signedPress(e)
 	parts := strings.SplitN(old, ".", 3)
-	for _, forged := range []string{"00.1.[]", "00." + parts[1] + ".[]", "[]", parts[0] + ".9999999999.[]"} {
+	for _, forged := range []string{"00.1.[]", "00." + parts[1] + ".[]", "[]", parts[0] + ".9999999999.[]", signedOf(e, "other")} {
 		if code, out := e.Call("site.build", map[string]any{"allows": forged}); code < 400 || !strings.Contains(string(out), "only with a button deck drew") {
 			t.Fatalf("allows %q deck did not sign is refused: %d %s", forged, code, out)
 		}

@@ -815,7 +815,7 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   work a model hands on to the next model and the run again after calls that came while it ran keep what the owner
   allowed the work: that yes, the calls their press named and not made yet, and the answers "for this work".
   Modules: nothing to change.
-- 2026-11-24: A button deck drew allows its calls and gives its yes for at most a week (it was up to eight days); past
-  that a button that named no calls still presses, without the yes, and a field `allows` deck did not sign is refused,
+- 2026-11-24: A button deck drew allows its calls and gives its yes for at most a week: until the start of the UTC day
+  six to seven days after it was drawn (it was seven to eight); past that a button that named no calls still presses, without the yes, and a field `allows` deck did not sign is refused,
   one of no calls too.
   Modules: nothing to change.

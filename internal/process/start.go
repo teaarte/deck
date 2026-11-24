@@ -15,6 +15,7 @@ import (
 
 	"deck2/internal/docs"
 	"deck2/internal/fault"
+	"deck2/internal/gateway"
 	"deck2/internal/health"
 	"deck2/internal/manifest"
 	"deck2/internal/registry"
@@ -69,6 +70,8 @@ type Origin struct {
 	Same bool
 	// Allows are the calls the owner's press named and the yes the owner's start gave, as gateway.Allows keeps them.
 	Allows string
+	// Own is the owner's own start, which keeps the yes of a work it joins; another call takes it.
+	Own bool
 	// again is the one run after Follows with the last call that came for its record while it ran.
 	again bool
 	// closes is the process Follows the start hands the work on from, closed in the same transaction.
@@ -328,7 +331,7 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 			if err != nil {
 				return err
 			}
-			return inherit(ctx, q, old.ID, o)
+			return joins(ctx, q, old, o)
 		}
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return err
@@ -363,7 +366,7 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 				if err != nil {
 					return err
 				}
-				return inherit(ctx, q, old.ID, o)
+				return joins(ctx, q, old, o)
 			}
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return err
@@ -393,10 +396,19 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 	if errors.Is(err, sql.ErrNoRows) {
 		t = db.Trigger{}
 	}
+	allows := cmp.Or(o.Allows, "[]")
+	if o.again || o.closes != nil {
+		// The run again and the hand-on go on with the work of Follows, with what the owner allowed it.
+		prev, err := q.GetProcess(ctx, o.Follows)
+		if err != nil {
+			return err
+		}
+		allows = prev.Allows
+	}
 	a.p, err = q.CreateProcess(ctx, db.CreateProcessParams{Trial: store.Bool(trial), ProjectID: projectID, Command: command, Kind: at.kind, State: StateRunning,
 		Provider: at.provider, Input: string(a.in), SessionID: at.session, ParentID: store.ID(o.Parent), Depth: depth,
 		TriggerID: store.ID(t.ID), RetryKey: o.Key, CeilingMs: r.ceilingOf(m, cmd).Milliseconds(), ManifestRevision: m.Revision, Folder: at.folder,
-		StartNote: o.Note.Body, Alone: store.Bool(o.Alone && trial), StartedAt: store.Time(r.now()), FollowsID: store.ID(o.Follows), Allows: cmp.Or(o.Allows, "[]")})
+		StartNote: o.Note.Body, Alone: store.Bool(o.Alone && trial), StartedAt: store.Time(r.now()), FollowsID: store.ID(o.Follows), Allows: allows})
 	if err != nil {
 		return err
 	}
@@ -425,6 +437,17 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 		}
 	}
 	return bindInput(ctx, q, cmd, projectID, a.p.ID, a.input)
+}
+
+// joins gives the work old a call joins what the call carries: the mark of its text, and the yes of the work only when
+// the call is the owner's own start.
+func joins(ctx context.Context, q *db.Queries, old db.Process, o Origin) error {
+	if allows := gateway.Joined(old.Allows, o.Own); allows != old.Allows {
+		if err := q.SetProcessAllows(ctx, db.SetProcessAllowsParams{Allows: allows, ID: old.ID}); err != nil {
+			return err
+		}
+	}
+	return inherit(ctx, q, old.ID, o)
 }
 
 // inherit marks a process with the untrusted text what it was given carries: its note and message, the input or work

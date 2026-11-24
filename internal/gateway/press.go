@@ -40,31 +40,47 @@ func (a Allow) builds(module int64) bool {
 }
 
 // Started is the yes to change what project (a work of the master: the module named by its input) runs, given by the
-// owner's press of a button deck drew or the master's clean turn of the owner's word; none for the master itself.
-func (g *Gateway) Started(ctx context.Context, act registry.Actor, project int64, names string) ([]Allow, error) {
-	if act.Trial || act.Kind != registry.Owner && act.Kind != registry.Master || act.Kind == registry.Owner && act.Allows == "" {
-		return nil, nil
+// owner's own start: a press of a button deck drew or the master's clean turn of their word; own says the start is one.
+func (g *Gateway) Started(ctx context.Context, act registry.Actor, project int64, names string) (yes []Allow, own bool, err error) {
+	if own, err = g.ownStart(ctx, act); !own || err != nil {
+		return nil, false, err
 	}
 	p, err := g.st.Q.GetProject(ctx, project)
 	if err == nil && p.Builtin == 1 && names != "" {
 		p, err = g.st.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: p.WorkspaceID, Name: names})
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+			return nil, true, nil
 		}
 	}
 	if err != nil || p.Builtin == 1 {
-		return nil, err
+		return nil, err == nil, err
 	}
-	if act.Kind == registry.Master {
-		if act.ProcessID == 0 {
-			return nil, nil
-		}
-		turn, err := g.st.Q.GetProcess(ctx, act.ProcessID)
-		if err != nil || turn.Depth != 0 || turn.ReadUntrusted != "" {
-			return nil, err
-		}
+	return []Allow{{Right: Instructs, Subject: strconv.FormatInt(p.ID, 10)}}, true, nil
+}
+
+// ownStart says act is the owner's own start: their press of a button deck drew, or the master's turn of their word that
+// read nothing from outside.
+func (g *Gateway) ownStart(ctx context.Context, act registry.Actor) (bool, error) {
+	switch {
+	case act.Trial:
+		return false, nil
+	case act.Kind == registry.Owner:
+		return act.Allows != "", nil
+	case act.Kind != registry.Master || act.ProcessID == 0:
+		return false, nil
 	}
-	return []Allow{{Right: Instructs, Subject: strconv.FormatInt(p.ID, 10)}}, nil
+	turn, err := g.st.Q.GetProcess(ctx, act.ProcessID)
+	return err == nil && turn.Depth == 0 && turn.ReadUntrusted == "", err
+}
+
+// Joined are the allows of a work a call joins: a call that is not the owner's own start takes the yes of the start.
+func Joined(allows string, own bool) string {
+	if own {
+		return allows
+	}
+	var as []Allow
+	_ = json.Unmarshal([]byte(allows), &as)
+	return allowsText(slices.DeleteFunc(as, func(a Allow) bool { return a.Right == Instructs }))
 }
 
 func allowsText(as []Allow) string {

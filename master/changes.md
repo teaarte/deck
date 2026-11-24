@@ -809,3 +809,9 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   outside, has the owner's yes to the changes of that module's prompts, skills and scripts, as a work of a module the
   owner pressed has for its own; without it, or for the master itself, each change still asks.
   Modules: nothing to change.
+- 2026-11-24: A call that joins a work going (another call for its record, or a call of its topic) and is not the
+  owner's own start (their press of a button deck drew, the master's turn of their word that read nothing from outside)
+  takes the work's yes to change its module: from then on each change of its prompts, skills and scripts asks. The
+  work a model hands on to the next model and the run again after calls that came while it ran keep what the owner
+  allowed the work: that yes, the calls their press named and not made yet, and the answers "for this work".
+  Modules: nothing to change.

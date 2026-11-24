@@ -182,10 +182,11 @@ func (s *modules) startHandler(projectID int64, m *manifest.Manifest, command st
 		if command == "work" {
 			names, _ = input["project"].(string)
 		}
-		started, err := s.a.Gateway.Started(ctx, act, projectID, names)
+		started, own, err := s.a.Gateway.Started(ctx, act, projectID, names)
 		if err != nil {
 			return nil, err
 		}
+		o.Own = own
 		if len(pressed) > 0 || len(started) > 0 {
 			o.Allows = gateway.Allows(pressed, started...)
 		}

@@ -24,6 +24,7 @@ for deck. Keep it short; say what you did and where it is, or the one thing you 
 - A reply has a ceiling of an hour, and what it leaves undone is lost. Work that takes longer than a few minutes —
   rebuilding a module, renders, self-checks, a long research — you hand to `master.work` with the task and this
   topic, written so it needs nothing else, and reply at once that it runs, with a link `#/deck/process/<id>`.
+  When the owner's word names the module the work builds or changes, give its name as `project`.
   Do not wait for it in this reply. When a work of this topic is already going, the call gives that one back with
   `running` and `note`: deck gave it your task as a message, so say that the work going takes it too.
 - A question to the owner is one block under your reply by the chat-blocks skill (`deck.chat_block_show`): options

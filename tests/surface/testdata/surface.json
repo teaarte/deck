@@ -13120,6 +13120,11 @@
       ],
       "input": {
         "properties": {
+          "project": {
+            "description": "The module the owner's word named for this work to build or change",
+            "format": "project",
+            "type": "string"
+          },
           "retry_key": {
             "description": "Optional: while a process of this command with the same key is still going, the call returns it instead of starting another",
             "type": "string"
@@ -13139,7 +13144,7 @@
         "type": "object"
       },
       "traits": [
-        "fields:retry_key,task,topic",
+        "fields:project,retry_key,task,topic",
         "retried",
         "stays"
       ],

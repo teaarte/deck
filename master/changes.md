@@ -804,3 +804,8 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   v0.3.2 first. `deck.project_import` raises a manifest of format 16 to 17 and refuses an older one, as it refuses any
   format it does not read.
   Modules: a module exported before v0.2 (format 13–15) — rewrite its manifest to the current format before import.
+- 2026-11-24: `master.work` takes an optional `project` (format `project`): the module the owner's word named for the
+  work to build or change. A work the master's turn of the owner's word started with it, a turn that read nothing from
+  outside, has the owner's yes to the changes of that module's prompts, skills and scripts, as a work of a module the
+  owner pressed has for its own; without it, or for the master itself, each change still asks.
+  Modules: nothing to change.

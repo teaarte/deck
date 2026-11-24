@@ -2,7 +2,9 @@ package gateway
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"slices"
 	"strconv"
 
@@ -37,13 +39,19 @@ func (a Allow) builds(module int64) bool {
 	return a.Right == Instructs && a.Command == "" && a.Subject == strconv.FormatInt(module, 10)
 }
 
-// Started is the yes to change what project runs a start gives its work: by the owner's press of a button deck drew,
-// or by the master's turn of the owner's word that read nothing from outside; none for the master.
-func (g *Gateway) Started(ctx context.Context, act registry.Actor, project int64) ([]Allow, error) {
+// Started is the yes to change what project (a work of the master: the module named by its input) runs, given by the
+// owner's press of a button deck drew or the master's clean turn of the owner's word; none for the master itself.
+func (g *Gateway) Started(ctx context.Context, act registry.Actor, project int64, names string) ([]Allow, error) {
 	if act.Trial || act.Kind != registry.Owner && act.Kind != registry.Master || act.Kind == registry.Owner && act.Allows == "" {
 		return nil, nil
 	}
 	p, err := g.st.Q.GetProject(ctx, project)
+	if err == nil && p.Builtin == 1 && names != "" {
+		p, err = g.st.Q.GetProjectByName(ctx, db.GetProjectByNameParams{WorkspaceID: p.WorkspaceID, Name: names})
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+	}
 	if err != nil || p.Builtin == 1 {
 		return nil, err
 	}
@@ -56,7 +64,7 @@ func (g *Gateway) Started(ctx context.Context, act registry.Actor, project int64
 			return nil, err
 		}
 	}
-	return []Allow{{Right: Instructs, Subject: strconv.FormatInt(project, 10)}}, nil
+	return []Allow{{Right: Instructs, Subject: strconv.FormatInt(p.ID, 10)}}, nil
 }
 
 func allowsText(as []Allow) string {

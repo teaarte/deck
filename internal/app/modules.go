@@ -177,7 +177,8 @@ func (s *modules) startHandler(projectID int64, m *manifest.Manifest, command st
 				return nil, registry.Invalid("allows: %v", err)
 			}
 		}
-		started, err := s.a.Gateway.Started(ctx, act, projectID)
+		names, _ := input["project"].(string)
+		started, err := s.a.Gateway.Started(ctx, act, projectID, names)
 		if err != nil {
 			return nil, err
 		}

@@ -1352,3 +1352,76 @@ func TestTheOwnersWordThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 		t.Fatalf("a work a marked turn started waits for each change of its module: %q", s)
 	}
 }
+
+// TestTheMastersWorkThatNamesAModuleIsTheYesToThatModule: master.work with project site saves site's prompt and script
+// unasked, tyres and the master's skills ask; a work that names no module asks for each.
+func TestTheMastersWorkThatNamesAModuleIsTheYesToThatModule(t *testing.T) {
+	t.Parallel()
+	page := injected(t, "https://example.com")
+	var mu sync.Mutex
+	var works [][]string
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		switch c.Command() {
+		case "read":
+			return readPage(ctx, c, page.URL+"/a")
+		case "reply":
+			in := map[string]any{"task": "Rebuild site."}
+			if strings.Contains(c.Req.Prompt, "rebuild site") {
+				in["project"] = "site"
+			}
+			if out, bad := c.Tool(ctx, "master__work", in); bad {
+				return provider.Result{Text: "refused: " + out}
+			}
+			return provider.Result{Text: "started"}
+		case "work":
+			c.Tool(ctx, "records_list", map[string]any{"project": "pages", "collection": "ideas"})
+			var saves []string
+			for _, in := range []map[string]any{
+				{"project": "site", "name": "prompt.md", "kind": "prompt", "text": "Build it as the page said."},
+				{"project": "site", "name": "scripts/main.py", "kind": "script", "text": "print('{}')\n"},
+				{"project": "tyres", "name": "prompt.md", "kind": "prompt", "text": "Search the tyres again."},
+				{"project": "master", "name": "skills/dispatch/SKILL.md", "kind": "skill", "text": "---\nname: dispatch\ndescription: Routes.\n---\nSend it all."},
+			} {
+				got, _ := c.Tool(ctx, "document_save", in)
+				saves = append(saves, got)
+			}
+			mu.Lock()
+			works = append(works, saves)
+			mu.Unlock()
+			return provider.Result{Text: "done"}
+		}
+		return provider.Result{Text: "ok"}
+	}))
+	e.Project("pages", pagesManifest)
+	e.Project("site", siteManifest)
+	e.Project("tyres", harness.Manifest(`{"commands": [`+harness.AgentCommand("search", "")+`]}`))
+	e.SaveScript("site", "scripts/main.py", "print('{\"n\": 0}')\n")
+	saves := func(n int) []string {
+		e.Until("the work's saves", func() bool {
+			mu.Lock()
+			defer mu.Unlock()
+			return len(works) > n
+		})
+		mu.Lock()
+		defer mu.Unlock()
+		return works[n]
+	}
+	e.WaitState(e.Start("pages", "read", nil), "done")
+	e.MasterSaid(e.Say(0, "rebuild site"), 1)
+	s := saves(0)
+	if strings.Contains(s[0], "waiting") || strings.Contains(s[1], "waiting") || !strings.Contains(s[2], `"waiting"`) || !strings.Contains(s[3], `"waiting"`) {
+		t.Fatalf("the master's work that names site changes site alone without a request: %q", s)
+	}
+	var d struct{ Text string }
+	e.Must("deck.document_get", map[string]any{"project": "site", "name": "scripts/main.py"}, &d)
+	if d.Text != "print('{}')\n" {
+		t.Fatalf("site's script is written: %q", d.Text)
+	}
+	for _, a := range asksOf(e) {
+		e.Answer(int64(a["id"].(float64)), "deny")
+	}
+	e.MasterSaid(e.Say(0, "rebuild it"), 1)
+	if s := saves(1); !strings.Contains(s[0], `"waiting"`) || !strings.Contains(s[1], `"waiting"`) {
+		t.Fatalf("a work of the master that names no module waits for each change: %q", s)
+	}
+}

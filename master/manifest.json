@@ -94,6 +94,11 @@
           "topic": {
             "type": "integer",
             "description": "The chat topic the task came from"
+          },
+          "project": {
+            "type": "string",
+            "format": "project",
+            "description": "The module the owner's word named for this work to build or change"
           }
         },
         "required": [

@@ -1354,7 +1354,7 @@ func TestTheOwnersWordThatStartsAWorkIsTheYesToTheModuleItBuilds(t *testing.T) {
 }
 
 // TestTheMastersWorkThatNamesAModuleIsTheYesToThatModule: master.work with project site saves site's prompt and script
-// unasked, tyres and the master's skills ask; a work that names no module asks for each.
+// unasked, tyres and the master's skills ask; no module, a marked turn, the master or no such module ask for each.
 func TestTheMastersWorkThatNamesAModuleIsTheYesToThatModule(t *testing.T) {
 	t.Parallel()
 	page := injected(t, "https://example.com")
@@ -1366,8 +1366,13 @@ func TestTheMastersWorkThatNamesAModuleIsTheYesToThatModule(t *testing.T) {
 			return readPage(ctx, c, page.URL+"/a")
 		case "reply":
 			in := map[string]any{"task": "Rebuild site."}
-			if strings.Contains(c.Req.Prompt, "rebuild site") {
-				in["project"] = "site"
+			for _, name := range []string{"site", "master", "nowhere"} {
+				if strings.Contains(c.Req.Prompt, "rebuild "+name) {
+					in["project"] = name
+				}
+			}
+			if strings.Contains(c.Req.Prompt, "after the pages") {
+				c.Tool(ctx, "records_list", map[string]any{"project": "pages", "collection": "ideas"})
 			}
 			if out, bad := c.Tool(ctx, "master__work", in); bad {
 				return provider.Result{Text: "refused: " + out}
@@ -1420,8 +1425,13 @@ func TestTheMastersWorkThatNamesAModuleIsTheYesToThatModule(t *testing.T) {
 	for _, a := range asksOf(e) {
 		e.Answer(int64(a["id"].(float64)), "deny")
 	}
-	e.MasterSaid(e.Say(0, "rebuild it"), 1)
-	if s := saves(1); !strings.Contains(s[0], `"waiting"`) || !strings.Contains(s[1], `"waiting"`) {
-		t.Fatalf("a work of the master that names no module waits for each change: %q", s)
+	for i, said := range []string{"rebuild it", "rebuild site after the pages", "rebuild master", "rebuild nowhere"} {
+		e.MasterSaid(e.Say(0, said), 1)
+		if s := saves(i + 1); !strings.Contains(s[0], `"waiting"`) || !strings.Contains(s[1], `"waiting"`) {
+			t.Fatalf("%q: a work of the master without the yes of a clean turn naming a module waits for each change: %q", said, s)
+		}
+		for _, a := range asksOf(e) {
+			e.Answer(int64(a["id"].(float64)), "deny")
+		}
 	}
 }

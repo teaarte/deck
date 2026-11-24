@@ -177,7 +177,11 @@ func (s *modules) startHandler(projectID int64, m *manifest.Manifest, command st
 				return nil, registry.Invalid("allows: %v", err)
 			}
 		}
-		names, _ := input["project"].(string)
+		// master.work names the module it builds by project; no other command's input does.
+		names := ""
+		if command == "work" {
+			names, _ = input["project"].(string)
+		}
 		started, err := s.a.Gateway.Started(ctx, act, projectID, names)
 		if err != nil {
 			return nil, err

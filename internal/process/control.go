@@ -108,7 +108,7 @@ func (r *Runner) Follows(ctx context.Context, id, of int64) error {
 }
 
 // Rework sends a finished process back to its session with a remark and a full ceiling, marked by where the remark
-// came from; a rework not by the owner (own) takes the yes of the start.
+// came from; a rework not by the owner's press of deck's button (own) takes the yes of the start.
 func (r *Runner) Rework(ctx context.Context, processID int64, t Text, own bool) error {
 	remark := t.Body
 	r.mu.Lock()
@@ -141,7 +141,11 @@ func (r *Runner) Rework(ctx context.Context, processID int64, t Text, own bool) 
 	if fs, err := r.st.Q.ListFollowers(ctx, store.ID(p.ID)); err == nil && len(fs) > 0 && strings.TrimSpace(remark) == "" {
 		return registry.Invalid("process %d took over the work of process %d", fs[len(fs)-1].ID, p.ID)
 	}
-	msg := "deck: the owner sent this task back for rework.\n" + untrusted.Value("Remark", strings.TrimSpace(remark), 500) +
+	sent := "deck: this task was sent back for rework.\n"
+	if own {
+		sent = "deck: the owner sent this task back for rework.\n"
+	}
+	msg := sent + untrusted.Value("Remark", strings.TrimSpace(remark), 500) +
 		"\nKeep what is right and change what the remark asks for. Save changed documents again under the same" +
 		" names, so each change is a new revision, then give the final result again."
 	if strings.TrimSpace(remark) == "" {

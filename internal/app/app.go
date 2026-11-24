@@ -236,7 +236,7 @@ func wire(cfg Config, builtin ...provider.Provider) (*App, error) {
 		Home: h, Call: a.Gateway.Call, Waiting: a.Answers.Waiting, Langs: &a.Chats,
 		FailedRuns: a.Processes.FailedRuns, FailingChecks: a.Health.FailingChecks}
 	a.Processes = processes.Service{St: st, Home: h, Runner: a.Runner, Named: a.Providers.Named, Gateway: a.Gateway, Lookup: a.Registry.Lookup, Await: a.Bus.Await,
-		Works: a.Models.Works}
+		Works: a.Models.Works, Sign: a.Registry.SignAllows}
 	a.Health = apphealth.Service{St: st, Image: cfg.Image != "", Providers: a.Providers.All, Secret: a.Secrets.Has, Unassigned: a.Models.Unassigned, NoSearch: a.Models.NoSearch, Missing: a.Models.Missing,
 		Works: a.Models.Works, Places: a.Models.Places, Go: a.bg.Go}
 	a.Screens = screens.Service{St: st, Registry: a.Registry, Call: a.Gateway.Call, Waiting: a.Answers.Waiting, Open: a.Processes.Open,

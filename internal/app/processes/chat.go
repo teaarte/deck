@@ -87,7 +87,8 @@ func (s *Service) processChat(ctx context.Context, act registry.Actor, in proces
 		}
 	// A finished agent with its session takes a message as a rework of it.
 	case p.Kind == process.KindAgent && p.SessionID != "":
-		v.Say = map[string]any{"verb": "rework", "command": registry.Deck("process_rework"), "params": map[string]any{"process": p.ID}, "input": "remark"}
+		v.Say = map[string]any{"verb": "rework", "command": registry.Deck("process_rework"), "input": "remark",
+			"params": map[string]any{"process": p.ID, registry.AllowsKey: s.Sign(registry.Deck("process_rework"), registry.NoCalls)}}
 	}
 	return v, nil
 }

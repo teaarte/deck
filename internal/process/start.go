@@ -447,9 +447,9 @@ func (r *Runner) admitIn(ctx context.Context, q *db.Queries, proj db.Project, m 
 	return bindInput(ctx, q, cmd, projectID, a.p.ID, a.input)
 }
 
-// joinsYes takes the yes of the work old from a call that joins it and is not the owner's own start.
+// joinsYes takes the yes of the work old from a call that joins it and is not the owner's own start, which gives its own.
 func joinsYes(ctx context.Context, q *db.Queries, old db.Process, o Origin) error {
-	if allows := gateway.Joined(old.Allows, o.Own); allows != old.Allows {
+	if allows := gateway.Joined(old.Allows, o.Own, o.Allows); allows != old.Allows {
 		return q.SetProcessAllows(ctx, db.SetProcessAllowsParams{Allows: allows, ID: old.ID})
 	}
 	return nil

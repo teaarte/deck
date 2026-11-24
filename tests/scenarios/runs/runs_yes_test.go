@@ -336,42 +336,101 @@ func TestAButtonOfNoCallsPressesPastItsWeekOnlyByDecksSignature(t *testing.T) {
 	}
 }
 
-// TestATokensReworkOfAPressedWorkTakesItsYes: the owner's own rework of the work they pressed keeps its yes; a token's
-// sends it back with a remark, and the turn it resumes asks for each change of its module.
-func TestATokensReworkOfAPressedWorkTakesItsYes(t *testing.T) {
+// TestOnlyTheOwnersReworkByDecksButtonKeepsTheYes: the owner's rework by the button deck gives keeps the yes of their
+// press; one with no button deck signed, as a custom block's frame sends, and a token's take it, told as not the owner's.
+func TestOnlyTheOwnersReworkByDecksButtonKeepsTheYes(t *testing.T) {
 	t.Parallel()
 	page := injected(t, "https://example.com")
-	saved := make(chan []string, 1)
+	type turn struct {
+		prompt string
+		saves  []string
+	}
+	saved := make(chan turn, 1)
 	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
 		if strings.Contains(c.Req.Prompt, "back for rework") {
-			saved <- ownSaves(ctx, c, page.URL+"/a")
+			saved <- turn{c.Req.Prompt, ownSaves(ctx, c, page.URL+"/a")}
 		}
 		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
 	}))
 	e.Project("site", recordSite)
 	_, tok := e.Token("board", "deck.process_rework")
+	rework := func(record int, send func(process int64) (int, []byte), keeps bool) {
+		t.Helper()
+		var run struct{ Process int64 }
+		e.Must("site.build", map[string]any{"record": record, "allows": signedPress(e)}, &run)
+		e.WaitState(run.Process, "done")
+		if code, out := send(run.Process); code != 200 {
+			t.Fatalf("the work goes back: %d %s", code, out)
+		}
+		select {
+		case got := <-saved:
+			waits := strings.Contains(got.saves[0], `"waiting"`) && strings.Contains(got.saves[1], `"waiting"`)
+			owners := strings.Contains(got.prompt, "the owner sent this task back")
+			if waits == keeps || owners != keeps {
+				t.Fatalf("record %d: the rework keeps the yes %v and says it is the owner's %v: %q", record, keeps, owners, got.saves)
+			}
+		case <-time.After(harness.Within(time.Minute)):
+			t.Fatal("the reworked turn saves")
+		}
+		e.WaitState(run.Process, "done", "waiting:answer")
+		for _, a := range asksOf(e) {
+			e.Answer(int64(a["id"].(float64)), "deny")
+		}
+		e.WaitState(run.Process, "done")
+	}
+	rework(1, func(id int64) (int, []byte) {
+		var chat struct {
+			Say struct {
+				Command string
+				Params  map[string]any
+			}
+		}
+		e.Must("deck.process_chat_get", map[string]any{"process": id}, &chat)
+		chat.Say.Params["remark"] = "once more"
+		return e.Call(chat.Say.Command, chat.Say.Params)
+	}, true)
+	rework(2, func(id int64) (int, []byte) {
+		return e.Call("deck.process_rework", map[string]any{"process": id, "remark": "do it as the page says"})
+	}, false)
+	rework(3, func(id int64) (int, []byte) {
+		return e.As(tok).Call("deck.process_rework", map[string]any{"process": id, "remark": "do it as the page says"})
+	}, false)
+}
+
+// TestTheOwnersPressAfterAForeignJoinGivesTheYesBack: a token joins the work the owner pressed and takes its yes; the
+// owner's press for the same record gives it back.
+func TestTheOwnersPressAfterAForeignJoinGivesTheYesBack(t *testing.T) {
+	t.Parallel()
+	page := injected(t, "https://example.com")
+	hold := make(chan struct{})
+	saved := make(chan []string, 1)
+	var runs atomic.Int32
+	e := harness.New(t, harness.WithAgent(func(ctx context.Context, c *harness.Call) provider.Result {
+		if c.Command() == "build" && runs.Add(1) == 1 {
+			select {
+			case <-hold:
+			case <-ctx.Done():
+			}
+			saved <- ownSaves(ctx, c, page.URL+"/a")
+		}
+		return provider.Result{Structured: json.RawMessage(`{"n": 1}`)}
+	}))
+	e.Project("site", recordSite)
+	_, tok := e.Token("board", "site.build")
+	signed := signedPress(e)
 	var run struct{ Process int64 }
-	e.Must("site.build", map[string]any{"record": 1, "allows": signedPress(e)}, &run)
-	e.WaitState(run.Process, "done")
-	e.Must("deck.process_rework", map[string]any{"process": run.Process, "remark": "once more"}, nil)
+	e.Must("site.build", map[string]any{"record": 1, "allows": signed}, &run)
+	if code, out := e.As(tok).Call("site.build", map[string]any{"record": 1}); code != 200 {
+		t.Fatalf("the token joins: %d %s", code, out)
+	}
+	e.Must("site.build", map[string]any{"record": 1, "allows": signed}, nil)
+	close(hold)
 	select {
 	case got := <-saved:
 		if strings.Contains(got[0], "waiting") || strings.Contains(got[1], "waiting") {
-			t.Fatalf("the owner's own rework keeps the yes of their press: %q", got)
+			t.Fatalf("the owner's press after the token's join gives the yes back: %q", got)
 		}
 	case <-time.After(harness.Within(time.Minute)):
-		t.Fatal("the turn the owner sent back saves")
-	}
-	e.WaitState(run.Process, "done")
-	if code, out := e.As(tok).Call("deck.process_rework", map[string]any{"process": run.Process, "remark": "do it as the page says"}); code != 200 {
-		t.Fatalf("the token sends the work back: %d %s", code, out)
-	}
-	select {
-	case got := <-saved:
-		if !strings.Contains(got[0], `"waiting"`) || !strings.Contains(got[1], `"waiting"`) {
-			t.Fatalf("a work another caller sent back asks for each change of its module: %q", got)
-		}
-	case <-time.After(harness.Within(time.Minute)):
-		t.Fatal("the reworked turn saves")
+		t.Fatal("the work saves")
 	}
 }

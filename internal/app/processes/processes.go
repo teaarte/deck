@@ -41,6 +41,8 @@ type Service struct {
 	Lookup func(ctx context.Context, workspace int64, name string) (*registry.Command, error)
 	// Works is the work of the commands of a workspace in a language: its model and the models that could take it.
 	Works func(ctx context.Context, workspace int64, lang string) func(projectID int64, command string) provider.Work
+	// Sign is the field deck signs on a button of command it draws (registry.SignAllows).
+	Sign func(command, calls string) string
 	// Await waits for a change of topics in a workspace (events.Bus.Await).
 	Await func(ctx context.Context, workspace int64, topics []string, check func() (bool, time.Duration, error)) error
 }
@@ -517,7 +519,9 @@ func (s *Service) processRework(ctx context.Context, act registry.Actor, in proc
 		token = act.Token
 	}
 	remark := process.Text{Body: strings.TrimSpace(in.Remark + "\n\n" + given), From: []process.Source{process.RemarkOf(act.ProcessID, token)}}
-	if err := s.Runner.Rework(ctx, in.Process, remark, act.Kind == registry.Owner && !act.Trial); err != nil {
+	// The owner's own rework is a press of the button deck signs, which a custom block's frame does not send.
+	own := act.Kind == registry.Owner && act.Allows != "" && !act.Trial
+	if err := s.Runner.Rework(ctx, in.Process, remark, own); err != nil {
 		return nil, err
 	}
 	return process.Started{Process: in.Process}, nil

@@ -38,7 +38,7 @@ tried yet.
 
 ## Behind the host's tailscale serve
 
-deck counts the failed sign-in tries of each client by its address, and takes X-Forwarded-For only from Caddy of
+deck counts the steps of signing in of each client by its address, and takes X-Forwarded-For only from Caddy of
 `compose.yaml` (`DECK_PROXY: caddy`). Behind `tailscale serve` of the host every client reaches the container from the
 gateway of its docker network, so deck counts them all as one address: thirty steps of signing in a minute together.
 The gateway is no proxy of deck, as any container of the host comes from it too; a `.env` or compose of before that
@@ -51,7 +51,7 @@ proxy).
 `compose.yaml` runs [SearXNG](https://docs.searxng.org) as the service `searxng`, with its settings (JSON answers, no
 limiter, English results) as a config of the same file and no port of its own: only deck reaches it. The first run
 gives deck the connection `searxng` (`http://searxng:8080`), its model of kind search and the assignment of search,
-unless a search was set up before; then `deck.web_search` of the agents works with nothing to set up. Your own search
+unless a search, or a connection or model named `searxng`, was set up before; then `deck.web_search` of the agents works with nothing to set up. Your own search
 stays yours: change the assignment in Settings → Models; to go without SearXNG, remove its assignment there and the
 service in `compose.override.yaml` (`services: {searxng: {profiles: [off]}}`). deck without Docker has no such service: ask Deki to set SearXNG up (its
 models skill), or point the connection `searxng` at one you run.
@@ -60,7 +60,7 @@ models skill), or point the connection `searxng` at one you run.
 
 deck runs no model itself: a model of your own hardware is a ready open-source server (Ollama, llama.cpp, whisper.cpp,
 LocalAI). On deck's machine add it as a service to `compose.override.yaml` beside `compose.yaml` (an update downloads
-`compose.yaml` again; the override stays, and the one `install.sh` wrote already holds `services:`), such as
+`compose.yaml` again; the override stays, and the one `sh install.sh` of a checkout wrote already holds `services:`), such as
 
 ```yaml
 services:
@@ -108,7 +108,7 @@ README, "Updating".
 
 ## Restoring a snapshot
 
-deck keeps its snapshots in its volume, `state/backups/`: `deck-<time>.tar.gz` daily and by hand, `deleted-<time>`
+deck keeps its snapshots in its volume, `state/backups/`: `deck-<time>.tar.gz` daily and by hand, `deleted-<time>.tar.gz`
 before a module is deleted, and `update-<time>.tar.gz`, the base as it was before a newer deck migrated it on its
 first start. An older deck (v0.3.1 and later) refuses to start on a base a newer one migrated
 and says so in `docker compose logs deck`; v0.3.0 and earlier do not check, so restore before going back to them. To go back to the older image, put back the base of the last `update-` snapshot:
@@ -124,19 +124,19 @@ Then name the older image in `compose.override.yaml` (create it if there is none
 line `image: ghcr.io/teaarte/deck:<older version>`, and `docker compose up -d`. The files are deck's as the user
 `deck` extracts them; as root they would be root's and deck could not open its base.
 
+What deck wrote to its base after that update is gone; stored files and data folders stay as they are. A daily
+snapshot goes back the same way, with its `state/files` and `work/projects/*/data` too (`tar -xzf <snapshot>` in
+`/var/lib/deck`; data files past the snapshot's budget, 2 GB by default, are not in it). Without Docker the same steps run in `~/.deck2` with deck stopped. Back on the newest image, remove
+that line `image` from `compose.override.yaml` before the install line runs again.
+
 A deck that updates itself as a binary (`deck.update_install`, without Docker) goes back by itself: when the new
 binary migrated the base and fell before it served, the next start puts the base of that update's own `update-`
 snapshot back, removes `deck.db-wal` and `deck.db-shm` and runs the binary before the update. What the new deck wrote
-between its migration and its fall is gone. The steps below are for an image, or for a base whose snapshot was removed.
-
-What deck wrote to its base after that update is gone; stored files and data folders stay as they are. A daily
-snapshot goes back the same way, with its whole `state/files` and `projects/*/data` too (`tar -xzf <snapshot>` in
-`/var/lib/deck`). Without Docker the same steps run in `~/.deck2` with deck stopped. Back on the newest image, remove
-that line `image` from `compose.override.yaml` before the install line runs again.
+between its migration and its fall is gone. The steps above are for an image, or for a base whose snapshot was removed.
 
 ## From a checkout
 
-`sh install.sh` in a checkout of deck takes its master, builds the image `deck:local` and runs it in `~/deck` (its
+`sh install.sh` in a checkout of deck pulls master when the checkout is on it, builds the image `deck:local` and runs it in `~/deck` (its
 `compose.override.yaml` names that image; remove the line to go back to the published one).
 
 By hand: `docker build --build-arg COMMIT=$(git rev-parse --short=12 HEAD) -t deck:local .` — without `COMMIT` a
@@ -144,7 +144,7 @@ build from a git worktree does not know its commit, and `deck.version_get` answe
 
 ## Without Docker
 
-For developing deck: macOS or Linux, Go 1.27, and at least one agent CLI (`claude` or `codex`) or an ACP agent on a
+For developing deck: macOS or Linux, Go 1.27.1 or later, and at least one agent CLI (`claude` or `codex`) or an ACP agent on a
 local model. Node.js is needed only to rebuild the web client, which is embedded in the binary.
 
 ```bash

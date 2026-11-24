@@ -42,15 +42,18 @@ answer.
   models of the modules it names, and the hosts its programs' network right names, which they reach and send to
   without asking. The subscription login, money, sending in the owner's name, other modules, other data of modules, a
   body posted to a tool that reads, the network of agents' shells and every host (`*`) wait for the owner's first
-  answer; always to one of them takes a passkey. A turn is **marked** when it read text from outside deck (a page, an
+  answer: once, for this work (the process and what it starts), always, or no, which is kept; always to one of them
+  takes a passkey. A turn is **marked** when it read text from outside deck (a page, an
   outside tool's answer, data that holds such text, or the network of its box) and holds something of value (a
   subscription login, or the data of its module in a box without network). A marked turn's ways out — sending, money,
   another module, a host its module holds but does not name, a body posted to a tool — and its changes of what an
-  enabled module runs go only with the owner's yes to that very call, whatever was allowed always; the hosts its
-  module names stay open, and so does the web for the master when the owner lets it read the web marked (a setting). A
+  enabled module runs go only with the owner's yes to that very call, whatever was allowed always. One exception: the
+  owner's start of a work (a press of a button deck drew on the module's screen, or the master's turn of the owner's
+  own word that read nothing from outside) is the yes to that work's changes of its own module's prompts, skills and
+  scripts, which go to "done without you" with an undo. The hosts its module names stay open, and so does the web for the master when the owner lets it read the web marked (a setting). A
   turn whose box has network and no login is never marked: it may already send its data to those hosts. The own web
-  search of Claude Code and Codex runs outside deck and does not mark a turn; it is off in deck's image (Linux) and on
-  for a deck without Docker on macOS.
+  search of Claude Code and Codex runs outside deck and does not mark a turn; it is off on Linux (deck's image) and on
+  on macOS (a deck without Docker or a Mac node).
 - **Store and events.** One writer transaction at a time, with readers apart. Every committed write publishes the
   topic of its table on the bus. A screen read declares its topics, so the client refreshes over SSE only when
   that data changes, without polling.
@@ -65,16 +68,18 @@ answer.
 - **Gateway.** Each process gets deck's MCP server. It exposes the module's commands as tools, questions and
   confirmations to the owner, and the deck commands the module may call. Scripts reach deck over an HTTP entry with
   a per-run token. The model proxy holds the keys, so a module never sees one. `Egress` is the only way out to the
-  web: a name resolves once, and only public addresses are dialed.
+  web: a name resolves once, and only public addresses, or those the module's hosts name, are dialed.
 - **Tools and secrets.** A module reaches a service through HTTP tools of its manifest (method, URL template, headers,
   body, input and result schemas) and MCP servers deck starts for it. A secret goes into a header as
   `$secret.<name>`, or is the whole URL of a private link (`"url": "$secret.<name>"`) limited to exact `hosts` and
   https. deck cuts every secret, in any echoed form, out of answers, errors, health and the journal.
 - **Files.** What a run leaves in its results folder becomes stored files of its process or record. A process may
-  delete only the files its own run made; that is a line of "done without you" with an undo.
+  delete the files its own run made and those of its module's records and data folder; each is a line of "done
+  without you" with an undo.
 - **Sandbox.** Every foreign program — a script, an MCP server, Claude Code, Codex, an ACP agent — runs through
-  one function, `sandbox.Run(Box)`: bubblewrap on Linux and in deck's image, `sandbox-exec` on a Mac node (and a
-  deck without Docker on a Mac). The only network path is the `Door` to deck's proxy. A process sees its own folder,
+  one function, `sandbox.Run(Box)`: bubblewrap on Linux and in deck's image; on a Mac (a node, or a deck without
+  Docker) scripts, MCP servers and ACP agents run under `sandbox-exec`, while Claude Code, Codex and deck's browser
+  run outside it, as the owner's. A box's only network path is the `Door` to deck's proxy. A process sees its own folder,
   the folders the owner granted and the environment deck gives it; bubblewrap mounts each folder by the file deck
   opened, through links of the system only, so a folder turned into a link after deck checked it leads nowhere. In
   the image deck runs as `deck` without capabilities, and `compose.yaml` gives the container `seccomp.json`,
@@ -90,8 +95,8 @@ answer.
   from a block catalog (`schemas/catalog.json`): tables, lists and boards, cards, forms, stats, charts, media, a
   file manager, tabs, columns and dialogs. A screen can also have a side panel. The client only draws them, and a
   button sends an A2UI action back. Anything the catalog lacks, a model writes as an MCP App: a `custom` block in a
-  sandboxed frame on a second origin. deck's own screens (Today, Schedule, Spend, Files, Look, Settings) are data
-  as well, in `internal/app/screens/shipped/`; what deck says to people is one dictionary, `internal/words/ru.json`.
+  sandboxed frame on a second origin. deck's own screens (Today, Schedule, Spend, Files, Look, Settings, the chat, a
+  process, a draft, a module's settings, the report of rights, …) are data as well, in `internal/app/screens/shipped/`; what deck says to people is one dictionary, `internal/words/ru.json`.
 - **Tiles and widgets.** The home grid stores one layout per device and number of columns: free sizes in cells,
   written by the grid and by Settings → Modules alike. A widget is a small screen, not a new kind of data: up to
   eight views in a manifest, each with a least size (`2x1`) and up to four `stat`, `list` and `chart` blocks, read
@@ -102,13 +107,18 @@ answer.
   size in the message's screen) to write one into the manifest, on the model of the role `widget`. Today is deck's own widget of the same blocks.
 - **Models are settings.** Connections (OpenRouter, Google, Anthropic, Groq, any OpenAI-compatible or local
   server), models with kinds and prices, and assignments with fallbacks are declared once in deck. Each command
-  of a module, and each role of the master, has its own model. Subscriptions are shown apart from money paid.
+  of a module, and each role of the master, has its own model. Subscriptions are shown apart from money paid. A usage
+  limit pauses what its answer speaks of (a model, every free model of an OpenRouter connection, or a subscription's
+  login, whose 5-hour and weekly windows Health shows; new turns go to the next model at 98 %), and a call skips a
+  paused model. Search is a model of kind search too: SearXNG beside deck, and a search whose engines do not answer
+  fails and hands the query to the next search of the role.
 - **The master.** Deki is a built-in project (`master/`): its prompts, skills and commands such as reply, long
   work, daily review and memory upkeep. It works through the same registry with its own rights. It builds and
   changes modules with the skills in `skills/`: `module-builder` (what a manifest can do), `module-conventions` (the
   layout, script contract, checks and review of a module's code), `code-project` and `memory`. What deck ships (the master and the skills) one
-  function lays out on start, `docs.Ship`: an edit of the master or the owner merges into deck's new text, a
-  conflict is a note to the master, and a file deck ships no more goes.
+  function lays out on start, `docs.Ship`: another's edit merges into deck's new text; in a conflict deck's text wins
+  over an agent's and the owner's over deck's, with a note to the master; a file deck ships no more goes if deck wrote
+  its last revision.
 - **Memory.** Memory is documents: the facts of the owner in `memory/` of the project `master`, each project's own in
   its `memory/`, with an index (`MEMORY.md`) that reaches the prompts as data. A fact of `type: lesson` is what an
   agent learned; the lessons of a command reach its next runs. `deck.memory_search` finds words in memory, and the
@@ -120,6 +130,34 @@ answer.
   back to the topic as the owner's next message.
 - **Failures** have one form (`internal/fault`): a type from a closed set, whose failure it is, a text and
   details. A script reports its own failure as `{"error", "type", "details"}`.
+
+## Rights, requests and trust
+
+What the owner sees of the rules above, on three screens.
+
+- **The request card.** What waits for the owner is a card on Today and in the chat topic that made it, one at a
+  time. It heads with the module that asks and the module the call changes and what changes, in deck's words
+  («master → tyres: change prompt.md»), then why the caller asks in its own words, then why it waits: the row of the
+  table of decisions it took and, for a marked turn, where the text from outside came from in short (the data of the
+  module it last passed through and its first source; the whole chain is under Details). A change of a prompt, skill
+  or script shows its diff, the call's input folded under Details. The buttons are Allow once, For this work, Always
+  allow here (where always may be given), Deny, Deny because… (the reason goes back to the agent), No, and do not ask
+  again, and Rights. The requests of one work are one card with each part's buttons and buttons for all.
+- **Rights** (Settings → Rights) lists every right of every module, by module or by right: what it lets the module
+  do, why in the module's words, the answer (always and since when, no, or asks you, and whether always takes the
+  passkey) and when it was last used, with Revoke at one tap, Allow always, Say no and Ask again. The master's rights
+  are deck's own, without buttons. **Report** of a module (`deck.project_report`, the screen `rights-report`) says
+  what it did in a period by the rights: the hosts reached with how many requests, the calls that needed a right,
+  made or refused, turns on a login, paid model calls and turns that read text from outside. A draft's page says
+  how many rights enabling gives and how many ask first, with a button to Rights.
+- **«I checked it: trust».** A module whose data holds text from outside deck says so, and where it came from, on
+  the tab Module of its settings, and every turn that reads that data is marked by it. Once the owner has read the
+  data and found nothing in it that instructs an agent, the button «I checked it: trust» there (or the dialog «Trust
+  the data of a module» on Settings → Rights; `deck.project_trust`, with the passkey) takes the mark off:
+  later turns that read it are not marked for it; a turn marked already stays marked. What an automation token
+  writes is text from outside too; «I checked it: trust» on its row (Settings → Advanced, `deck.token_trust`, with
+  the passkey; «Do not trust» takes it back) makes its words the owner's. Use it for a source you control, such as
+  your own shortcut, not for a module that reads the web: its next run marks its data again.
 
 ## A module
 
@@ -140,13 +178,15 @@ A module is a manifest, documents (prompts, skills), scripts and screens. It con
   }],
   "triggers": [{"command": "collect", "cron": "0 8 * * *", "skip_missed": true}],
   "screens": [{"name": "board", "title": "Reading list", "blocks": [
-    {"type": "list", "title": "Articles", "board": "status", "source": {"collection": "items"}, "item": {"title": "title"}}]}],
+    {"type": "list", "title": "Articles", "source": {"collection": "items"}, "item": {"title": "title"}}]}],
   "widgets": [{"min": "1x1", "blocks": [{"type": "stat", "title": "To read", "source": {"collection": "items", "where": "status == 'inbox'"}}]}],
   "menu": ["board"]
 }
 ```
 
 The schema is `schemas/manifest.json`. A command can run an agent, a script, an HTTP or MCP tool, or a model call. A
+script is Python, run by `uv run --script` on deck's one Python (3.11 in the image), which installs the packages of
+its PEP 723 block through deck's proxy. A
 trigger runs a command on a cron schedule or after another command. `rights` lists what the module may ask the owner
 for, each with why; a declaration grants nothing, enabling a module grants what "What goes out with and without the
 owner's yes" above says, the rest asks the first time. A new restriction warns when a manifest is read and fails only
@@ -181,14 +221,17 @@ the health row `update`. Its `deck.update_install` puts the binary of its build 
 `syscall.Exec` after a full stop. It takes a snapshot first and keeps the old binary until the new deck serves
 (`state/update.json`). A start that finds that update already tried goes back to the old binary.
 
-**Server image.** After the release the same workflow builds `Dockerfile` on native amd64 and arm64 runners and
+A tag runs only on a commit of master that CI made green.
+
+**Server image.** Before the release the same workflow builds `Dockerfile` on native amd64 and arm64 runners and
 pushes `ghcr.io/teaarte/deck:<version>` and `:latest`. `compose.yaml` runs it on 127.0.0.1:7700 and 7701, where a browser of
 the machine opens deck at deck.localhost; with a domain (`DECK_DOMAIN` and the profile `domain`) Caddy is in front,
 HTTPS on 443 and the second origin on 8443, deck takes `-public` and X-Forwarded-For only from Caddy (`-proxy caddy`); a request from any other address,
 loopback and the gateway of its docker network too, counts by the address it came from;
 optionally on the tailnet (`DECK_TAILSCALE`, going away: the README says how to move off it). A deck in an image (`DECK_IMAGE`) does not replace itself: a newer one is a newer image.
 Claude Code and Codex are signed in from Settings → Models (`deck.agent_login`); their logins live in the volume
-`deck`, one for all projects (`agents/<cli>/login`). `move-to-docker.sh` brings the folder of a deck that ran
+`deck`, one for all projects (`agents/<cli>/login`); a second subscription of a CLI is a connection of its own
+(`deck.connection_set` with `api: cli`, such as `claude-code-2`) with its own sign-in. `move-to-docker.sh` brings the folder of a deck that ran
 without Docker into that volume.
 
 ## Tests

@@ -33,7 +33,7 @@ such as `http://192.168.1.20:11434/v1`, and the network and the open port are yo
 The node keeps the list of what it allows itself, in `~/.deck2-node/state/node/allowed` (an edit there holds at once);
 deck never widens it, and a call to anything not on it is refused, with a row in Settings → Health of what to add. The
 key is in `~/.deck2-node/state/node/joined.json` (readable by you alone), the log in
-`~/.deck2-node/state/node/node.log`. `--install` installs a service that starts the node when you sign in and keeps it
+`~/.deck2-node/state/node/node.log` on macOS and in `journalctl --user -u deck-node` on Linux. `--install` installs a service that starts the node when you sign in and keeps it
 connected: a LaunchAgent `deck-node` on macOS, a systemd unit of your user on Linux
 (`~/.config/systemd/user/deck-node.service`; on a server without a session of yours, `loginctl enable-linger`).
 Without `--install` the node runs in the terminal until Ctrl-C. `deck -join --uninstall` removes the service; revoking

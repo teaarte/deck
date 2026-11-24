@@ -76,6 +76,8 @@ What the trust model added that has no item of its own in the spec; not one of t
 |---|---|---|
 | An automation token reaches only the modules its rights name: data reads one, modules changes one or calls one command; a token of old commands keeps what it named. | T7 | TestATokenWithARightOnOneModuleDoesNotReadAnother, TestATokenOfCommandsReachesTheModulesItNamedAfterTheMigration |
 | An answer that trusts for long takes the owner's passkey touched within five minutes; once, no and a revoke take none. | T7 | TestADecisionThatTrustsForLongTakesAPasskeyTouchedWithinFiveMinutes, TestRealBrowserTouchesThePasskeyForWhatTrustsForLong |
+| A request heads with the module that asks and the module the call changes and what changes, then why, where text from outside came from in short and the diff; the whole chain is under its details. | 36510 | TestRealBrowserARequestOfAMarkedTurnHeadsWithTheModuleItChanges, TestRealBrowserTheRequestsOfOneWorkAreOneCard |
+| What a token writes is text from outside until the owner trusts it; trusting a module's data or a token takes the passkey. | T4 | TestWhatATokenWritesIsFromOutsideUntilTheOwnerTrustsIt, TestADecisionThatTrustsForLongTakesAPasskeyTouchedWithinFiveMinutes |
 
 ## Goals of screens
 
@@ -93,3 +95,4 @@ line of a screen says only what is not seen below. A new screen of deck adds a r
 | Spending | How much was paid in money and how much the subscription covered. | D6 |
 | Files | Find a file of a module in two taps. | D6 |
 | Chat | It is seen what Deki does now, and it can be stopped or answered. | no more than one fill (TestRealBrowserOneAccent); D5 |
+| Rights | Every right of every module, by module or by right, its answer and when it was used, revoked at one tap. | TestRealBrowserRightsByModuleAndByRightRevokeAtOneTap |

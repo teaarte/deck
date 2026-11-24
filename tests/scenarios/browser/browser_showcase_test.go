@@ -94,7 +94,7 @@ func showcaseAgent(ctx context.Context, c *harness.Call) provider.Result {
 }
 
 // TestRealBrowserShowcase: deck on demo modules as the README shows it: the tiles with live widgets, Today with one
-// decision, the tiles on a phone, Deki answering with a chart beside a module screen, and a draft before enabling.
+// decision, the tiles on a phone, Deki with a chart beside a module screen, and the rights of a draft once enabled.
 func TestRealBrowserShowcase(t *testing.T) {
 	harness.Needs(t, "DECK_REAL_BROWSER")
 	t.Parallel()
@@ -171,5 +171,13 @@ func TestRealBrowserShowcase(t *testing.T) {
 	b.until("the draft in the modules", itemOf("Weekly mailer", "draft"))
 	b.eval(pressIn(itemOf("Weekly mailer", "draft"), "review"))
 	b.until("the page of what the draft may do", `location.hash.startsWith('#/deck/draft') && document.querySelector('[data-verb="enable"]') && document.body.innerText.includes('What it may do once enabled')`)
-	b.shot("readme-draft")
+	b.call("browser_resize", map[string]any{"width": 1440, "height": 580})
+	b.eval(`([...document.querySelectorAll('button')].find((x) => x.innerText.trim() === 'Rights').click(), '')`)
+	b.until("the rights of the draft", `location.hash.includes('tab=Rights') && document.querySelector('[data-group="Weekly mailer"] [data-item]')`)
+	e.Must("deck.project_enable", map[string]any{"project": "mailer", "revision": e.ProjectRow("mailer").Revision}, nil)
+	row := func(title, has string) string {
+		return `[...document.querySelectorAll('[data-group="Weekly mailer"] [data-item]')].some((r) => r.innerText.includes('` + title + `') && r.innerText.includes('` + has + `'))`
+	}
+	b.until("enabling gave the network it names, sending asks", row("news.ycombinator.com", "Revoke")+` && `+row("Sending in your name", "asks you"))
+	b.shot("readme-rights")
 }

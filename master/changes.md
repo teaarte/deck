@@ -815,7 +815,7 @@ scripts and prompts and what to put instead — or `Modules: nothing.`
   work a model hands on to the next model keeps what the owner allowed the work: that yes, the calls their press named
   and not made yet, and the answers "for this work"; so does the run again after calls that came while it ran, while
   the work still holds that yes (otherwise it starts with nothing, as before). A rework (`deck.process_rework`) not by
-  the owner takes the yes as a join does.
+  the owner themselves (the master's too) takes the yes as a join does.
   Modules: nothing to change.
 - 2026-11-24: A button deck drew allows its calls and gives its yes for at most a week: until the start of the UTC day
   six to seven days after it was drawn (it was seven to eight); past that a button that named no calls still presses, without the yes, and a field `allows` deck did not sign is refused,

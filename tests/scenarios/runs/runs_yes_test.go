@@ -336,8 +336,8 @@ func TestAButtonOfNoCallsPressesPastItsWeekOnlyByDecksSignature(t *testing.T) {
 	}
 }
 
-// TestATokensReworkOfAPressedWorkTakesItsYes: a token sends the work the owner pressed back with a remark; the turn it
-// resumes asks for each change of its module.
+// TestATokensReworkOfAPressedWorkTakesItsYes: the owner's own rework of the work they pressed keeps its yes; a token's
+// sends it back with a remark, and the turn it resumes asks for each change of its module.
 func TestATokensReworkOfAPressedWorkTakesItsYes(t *testing.T) {
 	t.Parallel()
 	page := injected(t, "https://example.com")
@@ -352,6 +352,16 @@ func TestATokensReworkOfAPressedWorkTakesItsYes(t *testing.T) {
 	_, tok := e.Token("board", "deck.process_rework")
 	var run struct{ Process int64 }
 	e.Must("site.build", map[string]any{"record": 1, "allows": signedPress(e)}, &run)
+	e.WaitState(run.Process, "done")
+	e.Must("deck.process_rework", map[string]any{"process": run.Process, "remark": "once more"}, nil)
+	select {
+	case got := <-saved:
+		if strings.Contains(got[0], "waiting") || strings.Contains(got[1], "waiting") {
+			t.Fatalf("the owner's own rework keeps the yes of their press: %q", got)
+		}
+	case <-time.After(harness.Within(time.Minute)):
+		t.Fatal("the turn the owner sent back saves")
+	}
 	e.WaitState(run.Process, "done")
 	if code, out := e.As(tok).Call("deck.process_rework", map[string]any{"process": run.Process, "remark": "do it as the page says"}); code != 200 {
 		t.Fatalf("the token sends the work back: %d %s", code, out)

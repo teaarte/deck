@@ -1,8 +1,101 @@
 # Installing deck: the details
 
-The short way is in the [README](../README.md#install). This page has the rest: a server with a domain, what the
-container needs, behind the host's tailscale serve, the search beside deck, a model server beside deck, Windows, moving a deck that ran without
-Docker, and deck without Docker.
+The short way is in the [README](../README.md#get-started). This page has the rest: what you need first, install by
+hand, first steps, signing in, the phone and other devices, a server with a domain, what the container needs, behind
+the host's tailscale serve, the search beside deck, a model server beside deck, Windows, updating, moving a deck that
+ran without Docker, moving off the built-in Tailscale, and deck without Docker.
+
+## What you need first
+
+One way for every machine: Docker with compose and deck's image, with Claude Code, Codex, uv and a browser inside.
+
+- **Linux:** [Docker Engine](https://docs.docker.com/engine/install/) with the compose plugin, your user in the group
+  `docker` ([how](https://docs.docker.com/engine/install/linux-postinstall/)).
+- **Mac:** [OrbStack](https://orbstack.dev) or Docker Desktop.
+- **Windows:** Docker Desktop with WSL 2 (not tried yet, see [Windows](#windows)).
+
+Run the install line as your user and not with `sudo` (under `sudo` it would put deck in root's home, `/root/deck`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/teaarte/deck/master/install.sh | sh
+```
+
+It puts deck in `~/deck` (`DECK_DIR` for another folder), loads the AppArmor profile on Ubuntu and Debian (`sudo` asks
+once, for that alone), starts deck and prints a link that pairs your device (on a fresh server, write `.env` first:
+[on a server](#on-a-server)). deck restarts with Docker and the machine; its data and the agents' logins stay in the
+volume `deck`. Its settings are the file `.env` beside `compose.yaml` (in `~/deck`); the installer keeps an existing one.
+
+**Memory and processes.** The image takes about 2.3 GB of disk; deck holds a few hundred MB of memory, each agent at
+work and the browser more. The container runs at most 4096 processes; its memory has a ceiling only by
+`DECK_MEM_LIMIT=6g` in `.env`, past which a process in deck's container is killed (deck itself maybe, and Docker starts
+it again), not the host's other services. A deck that stops answering shows as `unhealthy` in `docker compose ps`.
+
+**What it holds, what you add.** The image carries deck and the programs its work runs: the CLIs of Claude Code, Codex
+and goose, Python with uv, Node, ffmpeg, git and Chromium. Beside it in `compose.yaml` runs
+[SearXNG](https://docs.searxng.org), the web search of the agents ([below](#the-search-beside-deck)). Models are not in
+it and never live in deck: you add one way to reach them in Settings → Models — sign in to a Claude or ChatGPT
+subscription, or give an OpenRouter key, or a free key of Groq or NVIDIA — and Deki proposes which model takes each
+kind of work. A model of your own hardware is a ready open-source server ([below](#a-model-server-beside-deck)); a
+server on your Mac comes through a [node](node.md).
+
+## Install by hand
+
+```bash
+mkdir deck && cd deck
+v=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/teaarte/deck/releases/latest); v=${v##*/}   # the latest release
+for f in compose.yaml seccomp.json deck-box.apparmor move-to-docker.sh; do curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/$v/$f; done
+# Ubuntu and Debian, once: the AppArmor profile the container runs under
+sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
+docker compose up -d
+docker compose exec deck deck pair        # a link that pairs a device
+```
+
+## First steps
+
+Open the link, then sign in to the agents in Settings → Models → **Sign in** (Codex shows a link and a code, Claude
+Code a link whose page gives the code), and set your time zone in Settings → Advanced → Limits: schedules and the day
+of Today follow it. An empty deck says "Tell Deki what to do": describe a routine in the chat and Deki builds the
+module, or add the starter module it offers as a draft. The models, agents and folders of your own computer reach deck
+in the container through a [node](node.md): the deck binary on your Mac, outside Docker, that lends deck its local
+models and folders.
+
+## Signing in
+
+There is no password and no owner token. A device pairs once by a link of `deck pair` (or of Settings → Devices on a
+device already signed in, with a QR code for a phone) and makes a passkey; the link works once, within ten minutes.
+Settings → Devices lists every device and passkey: revoking a device signs out that browser alone, revoking a passkey
+every browser that used it. An answer that trusts for long — always to a right that reaches far (a login, money,
+sending, other modules, the whole web, an agent's shell, others' data), enabling a draft, a new token, a link that
+pairs a device, [«I checked it: trust»](architecture.md#rights-requests-and-trust) of a module's data or a token —
+takes a touch of the passkey within five minutes; once, no and a revoke take none. An automation token calls the
+commands of deck it lists, in the modules its rights name.
+
+## The phone and other devices
+
+**On this machine** deck is <http://deck.localhost:7700>: browsers treat `deck.localhost` as secure, so a passkey works
+there without https (tried in Chromium and Safari). That address opens only on the machine deck runs on.
+
+### On a server
+
+Give deck its https address before you pair: add it to `~/deck/.env`, then run the install line (it keeps `.env`) or,
+if deck runs already, `docker compose up -d` in `~/deck`; `docker compose exec deck deck pair` prints the https link
+first. With a domain, see [a server with a domain](#a-server-with-a-domain); without one, Tailscale gives the address,
+below.
+
+### From a phone, through Tailscale
+
+From a phone and other devices deck needs https: your domain, or Tailscale on deck's machine and on the device.
+
+1. Install Tailscale on the phone and on deck's machine and sign both in to one tailnet; on deck's machine: on a Mac
+   the Tailscale app with its command line (the app's Settings → Install CLI), on a Linux server
+   `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up --operator=$USER`.
+2. On that machine: `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701` (if it asks, enable HTTPS
+   in the Tailscale admin console); `tailscale serve status` shows the address, `https://<machine>.<tailnet>.ts.net`.
+3. Put `DECK_DOMAIN=<machine>.<tailnet>.ts.net` in `~/deck/.env` (no `COMPOSE_PROFILES=domain`: Tailscale serves
+   https, not Caddy) and run `docker compose up -d`. deck counts the sign-in steps of every client of `tailscale serve`
+   as one address ([below](#behind-the-hosts-tailscale-serve)).
+4. `docker compose exec deck deck pair` and open the https link on the phone; it makes a passkey there. Add deck to the
+   phone's home screen: pushes and sharing a link or a file into a module work as in a native app.
 
 ## A server with a domain
 
@@ -50,7 +143,8 @@ proxy).
 ## The search beside deck
 
 `compose.yaml` runs [SearXNG](https://docs.searxng.org) as the service `searxng`, with its settings (JSON answers, no
-limiter, English results) as a config of the same file and no port of its own: only deck reaches it. The first run
+limiter, English results) as a config of the same file and no port of its own: only deck reaches it. It takes about
+270 MB of disk; when its engines do not answer, a search goes to the next one you assign. The first run
 gives deck the connection `searxng` (`http://searxng:8080`), its model of kind search and the assignment of search,
 unless a search, or a connection or model named `searxng`, was set up before; then `deck.web_search` of the agents works with nothing to set up. Your own search
 stays yours: change the assignment in Settings → Models; to go without SearXNG, remove its assignment there and the
@@ -79,7 +173,7 @@ server on another machine comes through a [node](node.md) or by its address on t
 ## Windows
 
 Not tried yet: GitHub's Windows runners do not run Linux containers, so no test covers it. Install Docker Desktop
-with the WSL 2 backend, download the files of the README's install by hand into a folder (`curl.exe` in PowerShell, or
+with the WSL 2 backend, download the files of [install by hand](#install-by-hand) into a folder (`curl.exe` in PowerShell, or
 in WSL) and run `docker compose up -d` there, skipping the AppArmor step. deck works when Settings → Health shows the
 box `ok`, a script of a starter module runs, and the link of `docker compose exec deck deck pair` pairs at
 http://deck.localhost:7700 in Edge or Chrome.
@@ -100,12 +194,35 @@ homes of the CLIs, and its tailnet's state.
 
 To go back, `docker compose down` and start the old binary on `~/.deck2`, which the move leaves as it was.
 
-## Updating from an older release
+## Updating
 
-deck updates from v0.2.0 and later. A database of v0.1 is refused at start, before anything touches it, with the
-advice in the log: update to v0.3.2 first, start it once, then update on. A binary of v0.1 updates to v0.3.2 by hand
-first. The floor rises only by a decision of its own, not with every minor release. How each kind of install updates:
-README, "Updating".
+Run the install line again: it pulls the image, downloads `compose.yaml`, `seccomp.json`, `deck-box.apparmor` and
+`move-to-docker.sh` of the release that image is and restarts deck (it asks before replacing a running deck; without a
+terminal, `DECK_YES=1`). `docker compose pull && docker compose up -d` in `~/deck` updates only the image. When a release
+is out, Settings → Advanced and the feed say so. On start, deck migrates its database and the stored manifests, keeping
+the base before in `state/backups/update-<time>.tar.gz`; an older image refuses to start on the migrated base until that
+snapshot is back ([restoring a snapshot](#restoring-a-snapshot)).
+
+### Updating from an older release
+
+Every release from v0.2.0 on updates to the current one with its data: modules and their records, secrets, documents,
+the logins of the CLIs and paired devices (a test updates each released image from v0.2.0 and the v0.3.2 binary).
+Before updating, keep a copy of the volume or a snapshot (Settings → Advanced): an older deck is not tested on a
+database a newer one migrated. The floor rises only by a decision of its own, not with every minor release.
+
+- **From v0.1.** A database of v0.1 is refused at start, before anything touches it, with the advice in the log.
+  Update to v0.3.2 first, as the README of v0.3.2 says (its image copies the logins of v0.1's volume `agents` into
+  deck's), start it once, then update on. A binary of v0.1 updates to v0.3.2 by hand first.
+- **The image, from v0.2.** Update with the install line, which downloads the new `compose.yaml`: after v0.3.1 it runs
+  SearXNG beside deck, the search the update assigns. `docker compose pull` alone leaves it out, and the health of
+  `model:searxng` says so at the first search.
+- **The image `deck:local`, built from a checkout.** `sh install.sh` in the checkout: it pulls master, builds
+  `deck:local` and restarts deck with it (Settings → Health, the row `update`, says the same).
+- **A released binary.** Settings → Advanced → **Update**: deck checks the signed `release.json`, takes the same build
+  (`-tailnet` stays `-tailnet`) and restarts ([without Docker](#without-docker)).
+- **The former deck.app or the installer without Docker.** By hand: stop it, keep a copy of `~/.deck2`, install as
+  above and move its folder into the volume with `sh move-to-docker.sh ~/.deck2`
+  ([moving from deck without Docker](#moving-from-deck-without-docker)).
 
 ## Restoring a snapshot
 
@@ -134,6 +251,15 @@ A deck that updates itself as a binary (`deck.update_install`, without Docker) g
 binary migrated the base and fell before it served, the next start puts the base of that update's own `update-`
 snapshot back, removes `deck.db-wal` and `deck.db-shm` and runs the binary before the update. What the new deck wrote
 between its migration and its fall is gone. The steps above are for an image, or for a base whose snapshot was removed.
+
+## Moving off the built-in Tailscale
+
+`DECK_TAILSCALE=deck` (deck joins your tailnet itself) goes away in a coming release; deck warns in its log and in
+Settings → Health. Its machine `deck` on the tailnet keeps serving until the last step, so the phone works meanwhile. A
+server that already has its domain with Caddy needs only the last step. On a Mac with OrbStack or a Linux server
+without a domain, first do steps 1–4 of [from a phone, through Tailscale](#from-a-phone-through-tailscale). Then remove
+`DECK_TAILSCALE` from `.env`, run `docker compose up -d`, and remove the machine `deck` in the Tailscale admin console
+(Machines).
 
 ## From a checkout
 

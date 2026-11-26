@@ -1,237 +1,136 @@
 <div align="center">
 
-# deck
+<img src="docs/art/hero.svg" alt="deck: your AI agents do the routine, you only say yes. A Today card asks once, always or no; Deki, deck's assistant, waves" width="900">
 
-### Your AI agents do the routine. You only say yes.
+**[Get started](#get-started)** · **[How it works](#how-it-works)** · **[You stay in charge](#you-stay-in-charge)** · **[Under the hood](docs/architecture.md)**
 
-A personal control panel that runs Claude Code, Codex and local models on your recurring work —<br>
-on your own machine, in a sandbox, where what goes beyond the rights you gave waits for your one tap.
-
-![Go](https://img.shields.io/badge/Go-one_binary-00ADD8?logo=go&logoColor=white)
-![SQLite](https://img.shields.io/badge/SQLite-one_file-003B57?logo=sqlite&logoColor=white)
-![MCP](https://img.shields.io/badge/MCP-native-black)
-![A2UI](https://img.shields.io/badge/screens-A2UI-4285F4)
-![PWA](https://img.shields.io/badge/phone-PWA-5A0FC8)
+<br>
 
 <img src="docs/screenshots/tiles.png" alt="The tiles of deck: Today with one decision waiting, module cards with live widgets" width="900">
 
 </div>
 
-## Why deck
+## What deck does for you
 
-Coding agents are good enough to do real work. Sitting in a chat to start each run is not. deck turns a routine —
-reading sources, watching prices, triaging pull requests, making short videos — into a **module**: a routine deck
-runs for you, with its own data, screen, scripts and agent commands, on a schedule, its result on a card. You open
-deck in the morning, see what was done, and answer the one or two things that need you.
+AI agents can already do real work. Sitting in a chat to start each run is the part nobody wants. deck takes a
+routine off your hands — reading sources, watching prices, triaging pull requests, making short videos — and runs it
+for you on a schedule. In the morning you open deck, see what was done, and answer the one or two things that need you.
 
-- **Ask for a module in words.** Deki, deck's built-in assistant (the master in some labels), interviews you for
-  a minute, builds the module (data, commands, schedule, screens, widgets), tries it as a draft and hands it over.
-  Later you just tell it what to change.
-- **Nothing important happens behind your back.** A module names which of deck's seven rights it may use, each with
-  why: network, a subscription login, your data, files, money, sending in your name, other modules. Enabling it gives
-  what stays near it — its folders, its own services, the hosts its programs name; the rest ([all of it](docs/architecture.md#the-shape))
-  asks you the first time: once, for this work (this run and what it starts), always or no. The request says which
-  module changes what, why, and where any text from outside came from; pressing a button of a module's screen is your
-  yes to the calls it makes. An agent's run that read text from outside deck and holds a login or your data is
-  *marked*: it asks before it sends, pays, calls another module, reaches a host its module does not name or changes
-  what a module runs, even where you said always; a work you started may still edit its own module's prompts and
-  scripts. **Settings → Rights** lists every answer with a one-tap revoke and a report of what each module did. What
-  agents changed on their own is one line per run under **Done without you**, with an undo.
-- **Your models, your bill.** Subscriptions (Claude Code, Codex) or any model on OpenRouter, Google, Anthropic,
-  Groq, a local server or Ollama, each command on its own model with fallbacks; a model at its usage limit pauses and
-  the work goes to the next. **Spend** shows what every module costs.
-- **Yours.** One program, one folder, no account, no cloud. Keys stay in deck: each module reads only its own secrets,
-  and no module reads the API keys of model connections. A subscription login (Claude Code, Codex) is a right of its
-  own a module declares and you grant; an agent that runs on that CLI can still read and rewrite its login file, so
-  grant it only to modules you trust.
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 💬 Ask in plain words
+Tell Deki, deck's built-in assistant, what you need. It asks a few questions, builds a **module** — the data, the
+schedule, the screen and a widget — tries it as a draft and hands it over. Later you just tell it what to change.
+
+</td>
+<td width="50%" valign="top">
+
+### 🗂️ Everything on one screen
+Your home is a grid of cards you arrange like a phone's. Each card is live: lists, numbers and charts update the
+moment the data does. **Today** shows what waits for you, what runs, what was done and what the day cost.
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### 🛡️ Nothing important behind your back
+Sending in your name, paying, a new website, another module's data — deck asks first, with one tap: once, always or
+no. What agents changed on their own is listed, with an undo.
+
+</td>
+<td width="50%" valign="top">
+
+### 🔑 Your models, your bill, your machine
+Use your Claude or ChatGPT subscription, an API key, or a free local model. One program, one folder, no account, no
+cloud of ours. **Spend** shows what each module costs.
+
+</td>
+</tr>
+</table>
+
+## How it works
+
+<img src="docs/art/how.svg" alt="Three steps: tell Deki what you need; Deki builds a module and tries it as a draft; it runs, and what goes beyond its rights asks you first" width="900">
+
+Deki remembers what you told it and learns from what went wrong; **Settings → Memory** shows what it keeps, and you
+can edit or delete any of it. A module is plain data — settings, prompts and small Python scripts — so you can export
+it as a `.zip` (without your data or secrets) and share it.
+
+## You stay in charge
+
+- **Each module says what it may do, and why.** Before you turn one on, you see the rights it asks for: the network,
+  a subscription login, your data, files, money, sending in your name, other modules.
+- **New things ask first.** Turning a module on gives it what stays near it: its folders, its own services, the sites
+  its programs name. The rest asks you the first time: once, for this work, always, or no. The question says which
+  module wants what, and why. Pressing a button on a module's screen is your yes to what that button does.
+- **Outside text gets a second look.** An agent that has read text from outside deck (the web, an import, a file) and
+  holds a login or your data asks before it sends, pays, calls another module or reaches a new site — even where you
+  said "always".
+- **Take it back in one tap.** **Settings → Rights** lists every answer you gave, with a revoke and a report of what
+  each module did. **Done without you** shows each run's changes, with an undo.
+- **Every program runs in a box.** Scripts and agents see only their own folders and reach only the sites their
+  rights name — and a site a module may read is a site it may send to. Clicking and submitting in the browser waits
+  for your consent. Your API keys stay inside deck; a module reads only its own secrets.
+
+> [!NOTE]
+> A module you give a subscription login (Claude Code, Codex) runs an agent that can read that login. Give it only to
+> modules you trust.
+
+More in [Rights, requests and trust](docs/architecture.md#rights-requests-and-trust).
 
 ## A look inside
 
 <table>
 <tr>
 <td width="50%"><img src="docs/screenshots/chat.png" alt="A module screen with Deki's chat open beside it, a chart under its reply"><br><sub><b>Deki beside a module.</b>
-The chat sees the screen; a reply can carry a block — a chart, a table, a form or options to pick.</sub></td>
+The chat sees the screen; a reply can carry a chart, a table, a form or options to pick.</sub></td>
 <td width="50%"><img src="docs/screenshots/today.png" alt="Today: a question of a module waiting for an answer, what runs and what was"><br><sub><b>Today.</b>
-What waits for you — a question, as here, or a request to allow a call — comes first, one at a time, answered right there.</sub></td>
+What waits for you comes first, one at a time, answered right there.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/screenshots/rights.png" alt="Settings, Rights: Weekly mailer's network allowed always, with Revoke and Report; sending in your name still asks"><br><sub><b>Rights.</b>
-Each right of a module, what it lets it do and since when, revoked at one tap; what you have not given asks first.</sub></td>
-<td width="50%" align="center"><img src="docs/screenshots/phone.png" alt="The tiles on a phone: Today and a module card, a tab bar for the thumb" width="240"><br><sub><b>On a phone.</b>
-The same tiles and a tab bar for the thumb; added to the home screen, deck gets pushes and shared links.</sub></td>
+What each module may do and since when, revoked in one tap.</sub></td>
+<td width="50%" align="center"><img src="docs/screenshots/phone.png" alt="The tiles on a phone: Today and a module card, a tab bar for the thumb" width="240"><br><sub><b>On your phone.</b>
+Add deck to the home screen: pushes, and share a link or a file into a module.</sub></td>
 </tr>
 </table>
 
-## What you get
+## Get started
 
-- **Tiles and live widgets.** The home is a grid of cards you arrange like a phone's, per device. A module's card is
-  a small screen of its own data (stats, lists, charts) that updates the moment the data changes; for a size the
-  module has no view for, **Deki prepares a view for this size** asks Deki to design one. **Today** is deck's own
-  card: what waits, failed, runs and was done, and what the day cost.
-- **Deki.** A side chat next to any screen that sees what you look at. One line shows what it is
-  doing now, with a timer, the model and Stop; questions come as cards; long work goes to a process of its own. A
-  reply can show a block of the catalog under its text, and your press is the answer.
-- **Memory.** Deki keeps the facts you told it and lessons from what went wrong, finds them by search, and goes over
-  the day each night (sleep): it confirms or retires lessons and proposes fixes. Settings → Memory shows what it keeps
-  and lets you edit or delete it.
-- **Modules are data.** A manifest, prompts, skills and small Python scripts (run by uv with their PEP 723
-  packages) — no code in deck. Export to a `.zip` without your data or secrets; import as a draft that shows what it
-  needs and what it may do before you enable it.
-
-## Under the hood
-
-- **One binary, one door.** About 85k lines of Go with SQLite and the React client embedded. Buttons, the API,
-  schedules, scripts, agents and deck's own screens all call the same commands through one entry, with the same
-  stages for every caller, the owner too: whether a call goes, waits for you or is refused is one table, decided by
-  the facts of the call.
-- **MCP-native.** Every agent process gets its own deck MCP server: the commands it may call as tools, questions and
-  confirmations to the owner, nothing else. Scripts get an HTTP entry with a per-run token.
-- **Sandboxed, with one way out.** Every program of a module — a script, an MCP server, Claude Code, Codex, an ACP
-  agent — runs in a box of its own (bubblewrap) that sees only its folders and reaches only the hosts its rights name,
-  through deck's proxy, which holds the model keys. A host a module may read is a host it may send to; clicking and
-  submitting in the browser waits for your consent.
-- **Screens are data.** JSON resolved on the server into [A2UI](https://github.com/google/A2UI) messages from a catalog
-  of blocks; a committed write publishes its topic and the client refreshes over SSE only what changed. Anything the
-  catalog lacks is an [MCP App](https://github.com/modelcontextprotocol/ext-apps) on a second origin.
-- **Any agent behind one interface.** The Claude Code CLI, the Codex app-server and any ACP agent such as Goose on a
-  local model. A refused or silent turn goes to the next model of the assignment.
-- **Tested end to end.** About 1,400 scenario tests through the real registry on a real SQLite with a fake provider;
-  behind flags, the same against the real Claude Code, Codex, a local model and a real browser.
-
-The full picture is in [docs/architecture.md](docs/architecture.md).
-
-## Install
-
-One way for every machine: Docker with compose and deck's image, with Claude Code, Codex, uv and a browser inside.
-You need first:
-
-- **Linux:** [Docker Engine](https://docs.docker.com/engine/install/) with the compose plugin, your user in the group
-  `docker` ([how](https://docs.docker.com/engine/install/linux-postinstall/)).
-- **Mac:** [OrbStack](https://orbstack.dev) or Docker Desktop.
-- **Windows:** Docker Desktop with WSL 2 (not tried yet, see [docs/install.md](docs/install.md#windows)).
-
-Then, as your user and not with `sudo` (under `sudo` it would put deck in root's home, `/root/deck`):
+You need [Docker](https://docs.docker.com/engine/install/): on a Mac, [OrbStack](https://orbstack.dev) or Docker
+Desktop; on Linux, Docker Engine with compose and your user in the group `docker`
+([how](https://docs.docker.com/engine/install/linux-postinstall/)); Windows with WSL 2 is not tried yet. Then, as your
+user (not with `sudo`):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/teaarte/deck/master/install.sh | sh
 ```
 
-It puts deck in `~/deck` (`DECK_DIR` for another folder), loads the AppArmor profile on Ubuntu and Debian (`sudo` asks
-once, for that alone), starts deck and prints a link that pairs your device (on a fresh server, write `.env` first: "On a server" below). By hand:
+1. **Open the link it prints.** Your browser makes a passkey — no password, no account. Open deck at
+   <http://deck.localhost:7700> on the same machine.
+2. **Connect a model.** Settings → Models: sign in to Claude or ChatGPT, or add an API key (OpenRouter, Groq, NVIDIA…).
+3. **Tell Deki what to do.** Describe a routine in the chat, or take the starter module it offers.
 
-```bash
-mkdir deck && cd deck
-v=$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/teaarte/deck/releases/latest); v=${v##*/}   # the latest release
-for f in compose.yaml seccomp.json deck-box.apparmor move-to-docker.sh; do curl -fsSLO https://raw.githubusercontent.com/teaarte/deck/$v/$f; done
-# Ubuntu and Debian, once: the AppArmor profile the container runs under
-sudo install -m644 deck-box.apparmor /etc/apparmor.d/deck-box && sudo apparmor_parser -r /etc/apparmor.d/deck-box
-docker compose up -d
-docker compose exec deck deck pair        # a link that pairs a device
-```
+**On a server or from your phone** deck needs https — your domain or Tailscale. On a server, set that up
+[before you pair](docs/install.md#on-a-server): the `deck.localhost` link opens only on the machine deck runs on.
+Everything else — time zone, updates, Windows: [docs/install.md](docs/install.md). To update, run the same line again.
 
-deck restarts with Docker and the machine; its data and the agents' logins stay in the volume `deck`. Its settings
-are the file `.env` beside `compose.yaml` (in `~/deck`); the installer keeps an existing one.
+## For engineers
 
-**Memory and processes.** The image takes about 2.3 GB of disk; deck holds a few hundred MB of memory, each agent at
-work and the browser more. The container runs at most 4096 processes; its memory has a ceiling only by
-`DECK_MEM_LIMIT=6g` in `.env`, past which a process in deck's container is killed (deck itself maybe, and Docker starts
-it again), not the host's other services. A deck that stops answering shows as `unhealthy` in `docker compose ps`.
-
-**What it holds, what you add.** The image carries deck and the programs its work runs: the CLIs of Claude Code, Codex
-and goose, Python with uv, Node, ffmpeg, git and Chromium. Beside it in `compose.yaml` runs
-[SearXNG](https://docs.searxng.org), the web search of the agents, set up on the first run (about 270 MB of disk; only
-deck reaches it; when its engines do not answer, a search goes to the next one you assign). Models are not in it and
-never live in deck: you add one way to reach them in Settings → Models — sign in to a Claude or ChatGPT
-subscription, or give an OpenRouter key, or a free key of Groq or NVIDIA — and Deki proposes which model takes each kind of work. A model of your own hardware is a
-ready open-source server (Ollama, llama.cpp, whisper.cpp, LocalAI): a service beside deck in `compose.override.yaml`
-is a connection by its service name (`http://ollama:11434/v1`, [details](docs/install.md#a-model-server-beside-deck)),
-a server on your Mac comes through a node.
-
-**First steps.** Open the link, then sign in to the agents in Settings → Models → **Sign in** (Codex shows a link and a
-code, Claude Code a link whose page gives the code), and set your time zone in Settings → Advanced → Limits: schedules
-and the day of Today follow it. An empty deck says "Tell Deki what to do": describe a routine in the chat and Deki
-builds the module, or add the starter module it offers as a draft. The models, agents and folders of
-your own computer reach deck in the container through a [node](docs/node.md): the deck binary on your Mac, outside
-Docker, that lends deck its local models and folders.
-
-**Signing in.** There is no password and no owner token. A device pairs once by a link of `deck pair` (or of Settings →
-Devices on a device already signed in, with a QR code for a phone) and makes a passkey; the link works once, within
-ten minutes. Settings → Devices lists every device and passkey: revoking a device signs out that browser alone,
-revoking a passkey every browser that used it. An answer that trusts for long — always to a right that reaches far
-(a login, money, sending, other modules, the whole web, an agent's shell, others' data), enabling
-a draft, a new token, a link that pairs a device, [«I checked it: trust»](docs/architecture.md#rights-requests-and-trust)
-of a module's data or a token — takes a touch of the passkey within five minutes; once, no and a
-revoke take none. An automation token calls the commands of deck it lists, in the modules its rights name.
-
-**On this machine** deck is <http://deck.localhost:7700>: browsers treat `deck.localhost` as secure, so a passkey works
-there without https (tried in Chromium and Safari). That address opens only on the machine deck runs on.
-
-**On a server**, give deck its https address before you pair: add it to `~/deck/.env`, then run the install line (it
-keeps `.env`) or, if deck runs already, `docker compose up -d` in `~/deck`; `docker compose exec deck deck pair` prints
-the https link first.
-
-- With a domain whose A/AAAA record points at the server and ports 80, 443 and 8443 open in its firewall, Caddy in the
-  same compose gets the certificate:
-  `mkdir -p ~/deck && printf 'DECK_DOMAIN=deck.example.com\nCOMPOSE_PROFILES=domain\n' >> ~/deck/.env`. More in
-  [docs/install.md](docs/install.md#a-server-with-a-domain).
-- Without a domain, Tailscale gives the address, below.
-
-**From a phone and other devices**, deck needs https: your domain as above, or Tailscale on deck's machine and on the
-device:
-
-1. Install Tailscale on the phone and on deck's machine and sign both in to one tailnet; on deck's machine: on a Mac the Tailscale app with its command line (the app's
-   Settings → Install CLI), on a Linux server
-   `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up --operator=$USER`.
-2. On that machine: `tailscale serve --bg 7700` and `tailscale serve --bg --https=8443 7701` (if it asks, enable HTTPS
-   in the Tailscale admin console); `tailscale serve status` shows the address, `https://<machine>.<tailnet>.ts.net`.
-3. Put `DECK_DOMAIN=<machine>.<tailnet>.ts.net` in `~/deck/.env` (no `COMPOSE_PROFILES=domain`: Tailscale serves
-   https, not Caddy) and run `docker compose up -d`. deck counts the sign-in steps of every client of `tailscale serve`
-   as one address ([docs/install.md](docs/install.md#behind-the-hosts-tailscale-serve)).
-4. `docker compose exec deck deck pair` and open the https link on the phone; it makes a passkey there. Add deck to the
-   phone's home screen: pushes and sharing a link or a file into a module work as in a native app.
-
-## Updating
-
-Run the install line again: it pulls the image, downloads `compose.yaml`, `seccomp.json`, `deck-box.apparmor` and
-`move-to-docker.sh` of the release that image is and restarts deck (it asks before replacing a running deck; without a terminal, `DECK_YES=1`).
-`docker compose pull && docker compose up -d` in `~/deck` updates only the image. When a release is out, Settings →
-Advanced and the feed say so. On start, deck migrates its database and the stored manifests, keeping the base before
-in `state/backups/update-<time>.tar.gz`; an older image refuses to start on the migrated base until that snapshot is
-back ([docs/install.md](docs/install.md#restoring-a-snapshot)).
-
-### Updating from v0.2 and v0.3
-
-Every release from v0.2.0 on updates to this one with its data: modules and their records, secrets, documents, the
-logins of the CLIs and paired devices (a test updates each released image from v0.2.0 and the v0.3.2 binary). Before
-updating, keep a copy of the volume or a snapshot (Settings → Advanced): an older deck is not tested on a database a
-newer one migrated.
-
-- **From v0.1.** This release refuses a database of v0.1 at start and says so in its log. Update to v0.3.2 first, as
-  the README of v0.3.2 says (its image copies the logins of v0.1's volume `agents` into deck's), start it once, then
-  update to this release.
-- **The image, from v0.2.** Update with the install line, which downloads the new `compose.yaml`: after v0.3.1 it runs
-  SearXNG beside deck, the search the update assigns. `docker compose pull` alone leaves it out, and the health of
-  `model:searxng` says so at the first search.
-- **The image `deck:local`, built from a checkout.** `sh install.sh` in the checkout: it pulls master, builds
-  `deck:local` and restarts deck with it (Settings → Health, the row `update`, says the same).
-- **A released binary.** Settings → Advanced → **Update**: deck checks the signed `release.json`, takes the same build
-  (`-tailnet` stays `-tailnet`) and restarts ([docs/install.md](docs/install.md#without-docker)).
-- **The former deck.app or the installer without Docker.** By hand: stop it, keep a copy of `~/.deck2`, install as
-  above and move its folder into the volume with `sh move-to-docker.sh ~/.deck2`
-  ([docs/install.md](docs/install.md#moving-from-deck-without-docker)).
-
-**Moving off the built-in Tailscale.** `DECK_TAILSCALE=deck` (deck joins your tailnet itself) goes away in a coming
-release; deck warns in its log and in Settings → Health. Its machine `deck` on the tailnet keeps serving until the
-last step, so the phone works meanwhile. A server that already has its domain with Caddy needs only the last step. On a Mac with
-OrbStack or a Linux server without a domain, first do steps 1–4 of "From a phone" above. Then remove `DECK_TAILSCALE`
-from `.env`, run `docker compose up -d`, and remove the machine `deck` in the Tailscale admin console (Machines).
+One Go binary with SQLite and the React client inside; every button, schedule, script and agent calls the same
+commands through one entry. Each agent gets its own MCP server of deck; Claude Code, Codex and any ACP agent (such as
+Goose on a local model) sit behind one interface, and a refused or silent turn goes to the next model. Programs run in
+bubblewrap with one way out through deck's proxy. Screens are JSON rendered as [A2UI](https://github.com/google/A2UI).
+About 1,400 scenario tests on a real SQLite, and the same against real CLIs, a local model and a browser behind flags.
+The full picture: [docs/architecture.md](docs/architecture.md).
 
 ## Status
 
-deck is a personal project in daily use by its author, on a Mac in OrbStack with a node for the Mac's models and
-folders: one owner per deck, the same image on a server and on one computer. It changes fast. The latest release is
-v0.3.2; master holds since a request that heads with the module it changes, search that fails over, a work you
-start allowed to edit its own module, the time zone setting, and updates from v0.2.0 on.
+A personal project in daily use by its author, on a home server: one owner per deck. It changes fast. The latest
+release is [v0.3.2](https://github.com/teaarte/deck/releases/latest).
 
 ## License
 

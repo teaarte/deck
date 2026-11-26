@@ -232,7 +232,7 @@ pushes `ghcr.io/teaarte/deck:<version>` and `:latest`. `compose.yaml` runs it on
 the machine opens deck at deck.localhost; with a domain (`DECK_DOMAIN` and the profile `domain`) Caddy is in front,
 HTTPS on 443 and the second origin on 8443, deck takes `-public` and X-Forwarded-For only from Caddy (`-proxy caddy`); a request from any other address,
 loopback and the gateway of its docker network too, counts by the address it came from;
-optionally on the tailnet (`DECK_TAILSCALE`, going away: the README says how to move off it). A deck in an image (`DECK_IMAGE`) does not replace itself: a newer one is a newer image.
+optionally on the tailnet (`DECK_TAILSCALE`, going away: [install.md](install.md#moving-off-the-built-in-tailscale) says how to move off it). A deck in an image (`DECK_IMAGE`) does not replace itself: a newer one is a newer image.
 Claude Code and Codex are signed in from Settings → Models (`deck.agent_login`); their logins live in the volume
 `deck`, one for all projects (`agents/<cli>/login`); a second subscription of a CLI is a connection of its own
 (`deck.connection_set` with `api: cli`, such as `claude-code-2`) with its own sign-in. `move-to-docker.sh` brings the folder of a deck that ran

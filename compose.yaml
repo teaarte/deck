@@ -1,7 +1,7 @@
 # deck: docker compose up -d, then docker compose exec deck deck pair prints a link that pairs a device; on this
 # machine deck is http://deck.localhost:7700. On a server with a domain put DECK_DOMAIN (its name) and
 # COMPOSE_PROFILES=domain in .env, and Caddy serves deck over https there. SearXNG beside deck is the search of its
-# agents. seccomp.json and deck-box.apparmor lie beside it; README, "Install", says the rest.
+# agents. seccomp.json and deck-box.apparmor lie beside it; docs/install.md says the rest.
 name: deck
 services:
   deck:
@@ -9,7 +9,7 @@ services:
     init: true
     restart: unless-stopped
     shm_size: 512m
-    # A fork bomb of a program in a box stops here; memory has a ceiling only by DECK_MEM_LIMIT in .env (README).
+    # A fork bomb of a program in a box stops here; memory has a ceiling only by DECK_MEM_LIMIT in .env (docs/install.md).
     pids_limit: 4096
     mem_limit: ${DECK_MEM_LIMIT:-0}
     # bubblewrap builds the box of every foreign program: namespaces, its own /proc, mount; nothing else is loosened.

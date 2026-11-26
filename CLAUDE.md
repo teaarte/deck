@@ -10,7 +10,7 @@ Protocol facts: Claude Code — `docs/spikes/claude-code.md`, Codex app-server �
 - Run: `DECK_HOME=/tmp/deckhome ./deck` (prints http://deck.localhost:7700 and, until a device pairs, the link that
   pairs one; `./deck pair` makes the next; the next port is the second origin of `custom` blocks); on the owner's
   tailnet: `./deck -tailscale deck` (sign-in link in the log and in health); as the owner and everyone else installs
-  it: Docker + `compose.yaml` (README, "Install")
+  it: Docker + `compose.yaml` (README, "Get started"; docs/install.md)
 - Tests: `go test -race -timeout 30m ./...` (one wait, `Until`, two minutes, ×4 under race or `DECK_TEST_SLOW`); the tailnet scenario only with the tag:
   `go test -tags tailnet ./tests/scenarios/server -run TestPhoneReachesDeckOverTheTailnet`
 - Real Claude Code end-to-end test: `DECK_REAL_CLI=1 go test ./tests/scenarios/real -run TestRealClaudeCode -v`
@@ -135,7 +135,7 @@ hold; look inside a package for the rest.
   serves deck's calls to its loopback, agents and folders by its own list (`allow.go`).
 - `internal/script`, `internal/trigger`, `internal/tools` (+ `internal/mcphost`), `internal/release`,
   `internal/nonce` (random hex and tokens, used from L2 to the domains) — what their names say.
-- `internal/tsnet` — deck on the owner's tailnet, only in a build with the tag `tailnet` (going away: README, "Moving off
+- `internal/tsnet` — deck on the owner's tailnet, only in a build with the tag `tailnet` (going away: docs/install.md, "Moving off
   the built-in Tailscale").
 - `internal/lint` — code rules checked by `tests/lint`; `layers.go` is the table of layers L0–L9 (an import goes only
   down, a domain only `internal/app` imports, a package in no layer is an error); the rules of Go (`rules.go`: os/exec
